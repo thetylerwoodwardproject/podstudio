@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#000;color:#EDEDEA;font-family:'Geist',system-ui,sans-serif;-webkit-font-smoothing:antialiased}a{color:#EDEDEA;text-decoration:none}a:hover{color:#fff}::selection{background:#FF453A;color:#fff}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}</style></helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center">
+
+<header style="width:100%;max-width:1200px;box-sizing:border-box;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px">
+<a href="#" style="display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.01em"><span style="width:10px;height:10px;border-radius:50%;background:#FF453A"></span>Podstudio</a>
+<nav style="display:flex;align-items:center;gap:28px;font-size:14px;color:#8A8C91;flex-wrap:wrap">
+<a href="#features" style="color:#8A8C91">Features</a><a href="#guests" style="color:#8A8C91">Guests</a><a href="#how" style="color:#8A8C91">How it works</a><a href="#install" style="color:#8A8C91">Install</a><a href="#faq" style="color:#8A8C91">FAQ</a><a href="#" style="color:#8A8C91">Docs</a>
+<a href="#" style="height:34px;padding:0 14px;border-radius:8px;border:1px solid #2A2B2F;display:flex;align-items:center;gap:8px;color:#EDEDEA">GitHub</a>
+</nav>
+</header>
+
+<section style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(56px,10vw,120px) 28px 72px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:56px;align-items:center">
+<div style="display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;gap:8px;flex-wrap:wrap;font:500 11px 'Geist Mono',monospace;letter-spacing:.06em;color:#8A8C91"><span style="padding:5px 9px;border-radius:5px;background:#16171A">FREE</span><span style="padding:5px 9px;border-radius:5px;background:#16171A">OPEN SOURCE</span><span style="padding:5px 9px;border-radius:5px;background:#16171A">SELF-HOSTED</span></div>
+<h1 style="margin:0;font-weight:400;font-size:clamp(44px,6.4vw,80px);line-height:1;letter-spacing:-.045em;text-wrap:balance">The teleprompter that listens.</h1>
+<p style="margin:0;font-size:clamp(17px,1.6vw,19px);line-height:1.6;color:#A5A7AC;max-width:520px;text-wrap:pretty">Podstudio is a podcast studio that runs in your browser. The script scrolls as you speak, on every screen you own. It records lossless WAV and turns the episode into a transcript, chapters, soundbites and social posts.</p>
+<div style="display:flex;gap:12px;flex-wrap:wrap">
+<a href="#install" style="height:48px;padding:0 22px;border-radius:10px;background:#EDEDEA;color:#0B0B0C;display:flex;align-items:center;font-weight:500;font-size:15px">Install Podstudio</a>
+<a href="#" style="height:48px;padding:0 22px;border-radius:10px;border:1px solid #2A2B2F;display:flex;align-items:center;font-size:15px">View on GitHub</a>
+</div>
+<div style="font:400 12px 'Geist Mono',monospace;color:#5A5C61">Audio only · Works in Chrome, Edge, Brave and Arc</div>
+</div>
+
+<div style="position:relative;border-radius:16px;background:#0B0B0C;border:1px solid #1F2023;overflow:hidden;aspect-ratio:4/3.3;display:flex;flex-direction:column;min-width:0">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;font:400 12px 'Geist Mono',monospace;color:#6A6C71;border-bottom:1px solid #151517">
+<span style="display:flex;align-items:center;gap:8px;color:#EDEDEA"><span style="width:7px;height:7px;border-radius:50%;background:#FF453A;animation:pulse 1.4s infinite"></span>REC {{ timecode }}</span>
+<span>24-bit · 48 kHz</span>
+</div>
+<div style="flex:1;position:relative;overflow:hidden;padding:0 clamp(20px,3vw,32px)">
+<div style="position:absolute;left:0;right:0;top:38%;height:1px;background:linear-gradient(90deg,#FF453A 0 16px,rgba(255,255,255,.07) 16px)"></div>
+<div style="position:absolute;left:0;right:0;top:0;height:60px;background:linear-gradient(#0B0B0C,transparent);z-index:1"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:80px;background:linear-gradient(transparent,#0B0B0C);z-index:1"></div>
+<div ref="{{ heroRef }}" style="transform:translateY({{ heroY }}px);transition:transform .5s ease;display:flex;flex-direction:column;gap:22px">
+<sc-for list="{{ heroLines }}" as="l" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:{{ l.c }}">{{ l.who }}</div>
+<div style="display:flex;flex-wrap:wrap;column-gap:.28em;font-size:clamp(22px,2.6vw,30px);line-height:1.38;letter-spacing:-.015em"><sc-for list="{{ l.words }}" as="w" hint-placeholder-count="10"><span data-cur="{{ w.cur }}" style="color:{{ w.color }};box-shadow:{{ w.line }};transition:color .2s">{{ w.t }}</span></sc-for></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-top:1px solid #151517;font-size:12px;color:#8A8C91">
+<span style="display:flex;align-items:center;gap:8px"><span style="width:6px;height:6px;border-radius:50%;background:#30D158"></span>Following voice</span>
+<span style="font-family:'Geist Mono',monospace;color:#5A5C61">3 screens synced</span>
+</div>
+</div>
+</section>
+
+<section style="width:100%;max-width:1200px;box-sizing:border-box;padding:0 28px">
+<div style="position:relative;border-radius:16px;border:1px solid #1F2023;background:#0B0B0C;aspect-ratio:16/9;overflow:hidden;display:flex;align-items:center;justify-content:center">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,#0B0B0C 0 14px,#0E0E10 14px 28px)"></div>
+<div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+<div style="width:72px;height:72px;border-radius:50%;background:#EDEDEA;display:flex;align-items:center;justify-content:center"><div style="width:0;height:0;border-left:20px solid #0B0B0C;border-top:12px solid transparent;border-bottom:12px solid transparent;margin-left:5px"></div></div>
+<div style="font-size:17px">Watch voice follow keep up</div>
+<div style="font:400 12px 'Geist Mono',monospace;color:#5A5C61">SCREEN RECORDING · 0:45 · placeholder</div>
+</div>
+</div>
+</section>
+
+<section style="width:100%;margin-top:72px;border-top:1px solid #151517;border-bottom:1px solid #151517">
+<div style="max-width:1200px;margin:0 auto;box-sizing:border-box;padding:22px 28px;display:flex;flex-wrap:wrap;gap:14px 40px;justify-content:space-between;font:400 13px 'Geist Mono',monospace;color:#8A8C91">
+<span>16 / 24-bit WAV</span><span>44.1 / 48 kHz</span><span>Crash-safe takes</span><span>Whisper transcripts</span><span>2FA built in</span>
+</div>
+</section>
+
+<section id="features" style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px 0;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:14px;max-width:640px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">FEATURES</div>
+<h2 style="margin:0;font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.035em;text-wrap:balance">From the first read to the finished episode.</h2>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:1px;background:#1F2023;border:1px solid #1F2023;border-radius:14px;overflow:hidden">
+<sc-for list="{{ features }}" as="f" hint-placeholder-count="9">
+<div style="background:#000;padding:28px;display:flex;flex-direction:column;gap:12px;min-height:180px">
+<div style="font:500 12px 'Geist Mono',monospace;color:#5A5C61">{{ f.n }}</div>
+<div style="font-size:19px;font-weight:500;letter-spacing:-.015em">{{ f.title }}</div>
+<div style="font-size:15px;line-height:1.6;color:#8A8C91;text-wrap:pretty">{{ f.body }}</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:48px;align-items:center">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">AFTER THE RECORDING</div>
+<h2 style="margin:0;font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.035em;text-wrap:balance">The show notes are done before you are.</h2>
+<p style="margin:0;font-size:17px;line-height:1.6;color:#A5A7AC;max-width:480px;text-wrap:pretty">Add your OpenAI key once. When an episode wraps, Whisper transcribes it with speaker labels. Podstudio then drafts titles, a description, three social posts, chapters and soundbites, with real timestamps you can edit.</p>
+</div>
+<div style="border-radius:14px;border:1px solid #1F2023;background:#0B0B0C;overflow:hidden;min-width:0">
+<div style="display:flex;gap:22px;padding:0 22px;border-bottom:1px solid #1F2023;font-size:13px;overflow:hidden"><span style="padding:14px 0;color:#6A6C71">Titles</span><span style="padding:14px 0;color:#6A6C71">Social</span><span style="padding:14px 0;box-shadow:inset 0 -2px 0 #EDEDEA">Chapters</span><span style="padding:14px 0;color:#6A6C71">Soundbites</span></div>
+<div style="padding:8px 22px 14px">
+<sc-for list="{{ chapters }}" as="c" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:78px minmax(0,1fr) 40px;gap:14px;padding:12px 0;border-bottom:1px solid #151517;align-items:center"><span style="font:400 12px 'Geist Mono',monospace;color:#8A8C91">{{ c.s }}</span><span style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.t }}</span><span style="font:400 11px 'Geist Mono',monospace;color:#5A5C61;text-align:right">{{ c.len }}/45</span></div></sc-for>
+</div>
+</div>
+</section>
+
+<section id="guests" style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px 0;display:flex;flex-direction:column;gap:48px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:48px;align-items:center">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">REMOTE GUESTS</div>
+<h2 style="margin:0;font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.035em;text-wrap:balance">Every voice gets its own clean track.</h2>
+<p style="margin:0;font-size:17px;line-height:1.6;color:#A5A7AC;max-width:480px;text-wrap:pretty">In the same room, record everyone on one mic, or on a multichannel interface with one track per input. From anywhere else, each guest records on their own device and Podstudio lines everything up.</p>
+<div style="display:flex;gap:14px;padding:16px 18px;border-radius:12px;border:1px solid #2A2B2F;max-width:480px"><span style="font:500 11px 'Geist Mono',monospace;letter-spacing:.06em;color:#FF9F0A;flex:none;padding-top:2px">NOTE</span><span style="font-size:14px;line-height:1.55;color:#C9CBCF;text-wrap:pretty">Podstudio records. It doesn’t connect calls. For remote hosts and guests, you still need a way to talk, such as Zoom, Slack, Teams or Discord.</span></div>
+</div>
+<div style="border-radius:14px;border:1px solid #1F2023;background:#0B0B0C;padding:8px 22px 14px;min-width:0">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1F2023;font:400 12px 'Geist Mono',monospace;color:#6A6C71"><span style="display:flex;align-items:center;gap:8px;color:#EDEDEA"><span style="width:7px;height:7px;border-radius:50%;background:#FF453A;animation:pulse 1.4s infinite"></span>REC 24:10</span><span>3 tracks · 24-bit · 48 kHz</span></div>
+<div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid #151517"><div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(83.77% 0.148 81.72)"></span>Tyler</div><div style="font:400 10px 'Geist Mono',monospace;color:#6A6C71">MacBook Pro · in studio</div></div><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><div style="display:flex;align-items:center;gap:2px;height:30px;flex:none;width:100%;min-width:0"><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:23%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:41%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:47%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:31%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:34%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:74%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:96%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:87%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:48%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:31%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:70%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:82%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:65%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:35%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:17%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:23%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:90%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:67%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:20%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:58%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:88%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:86%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:58%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:22%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:30%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:34%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:20%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:22%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:20%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:28%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:59%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:80%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:75%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:24%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:46%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:44%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:28%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:15%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:15%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:35%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:60%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:71%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:55%"></div><div style="flex:1;border-radius:1px;background:oklch(83.77% 0.148 81.72);opacity:0.85;height:15%"></div></div><div style="display:flex;align-items:center;gap:6px;font:400 10px 'Geist Mono',monospace;color:#6A6C71"><span style="width:5px;height:5px;border-radius:50%;background:#30D158"></span>Local</div></div></div><div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid #151517"><div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(90.16% 0.173 188.71)"></span>Sam</div><div style="font:400 10px 'Geist Mono',monospace;color:#6A6C71">Phone · remote</div></div><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><div style="display:flex;align-items:center;gap:2px;height:30px;flex:none;width:100%;min-width:0"><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:90%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:53%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:19%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:51%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:57%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:43%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:23%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:14%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:24%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:99%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:75%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:30%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:44%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:69%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:66%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:44%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:21%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:16%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:21%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:39%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:48%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:34%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:29%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:70%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:95%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:89%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:15%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:24%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:14%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:30%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:34%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:16%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:46%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:79%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:91%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:71%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:26%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:53%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:86%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:88%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:62%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:26%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.85;height:29%"></div><div style="flex:1;border-radius:1px;background:oklch(90.16% 0.173 188.71);opacity:0.25;height:8%"></div></div><div style="display:flex;align-items:center;gap:6px;font:400 10px 'Geist Mono',monospace;color:#6A6C71"><span style="width:5px;height:5px;border-radius:50%;background:#30D158"></span>Uploaded 100%</div></div></div><div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid #151517"><div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(72% 0.1 291.04)"></span>Dana</div><div style="font:400 10px 'Geist Mono',monospace;color:#6A6C71">Laptop · remote</div></div><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><div style="display:flex;align-items:center;gap:2px;height:30px;flex:none;width:100%;min-width:0"><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:19%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:35%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:95%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:74%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:35%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:29%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:45%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:38%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:21%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:17%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:19%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:42%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:66%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:72%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:50%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:22%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:70%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:97%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:92%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:14%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:22%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:43%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:59%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:56%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:26%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:47%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:86%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:100%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:79%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:35%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:39%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:68%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:68%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:47%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:23%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:16%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.25;height:8%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:93%"></div><div style="flex:1;border-radius:1px;background:oklch(72% 0.1 291.04);opacity:0.85;height:91%"></div></div><div style="display:flex;align-items:center;gap:6px;font:400 10px 'Geist Mono',monospace;color:#6A6C71"><span style="width:5px;height:5px;border-radius:50%;background:#FF9F0A"></span>Uploading · 2 chunks behind</div></div></div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:28px">
+<div style="display:flex;flex-direction:column;gap:10px;padding-top:18px;border-top:1px solid #2A2B2F"><div style="font-size:17px;font-weight:500;letter-spacing:-.01em">Recorded on each device</div><div style="font-size:15px;line-height:1.6;color:#8A8C91;text-wrap:pretty">Every speaker’s browser records their own mic at full quality and uploads it to your server in 5-second chunks. A dropped connection pauses the upload, not the recording.</div></div><div style="display:flex;flex-direction:column;gap:10px;padding-top:18px;border-top:1px solid #2A2B2F"><div style="font-size:17px;font-weight:500;letter-spacing:-.01em">Lined up, one file each</div><div style="font-size:15px;line-height:1.6;color:#8A8C91;text-wrap:pretty">Tracks share one session clock and are corrected for drift between devices. You get a WAV per speaker, all starting together and the same length.</div></div><div style="display:flex;flex-direction:column;gap:10px;padding-top:18px;border-top:1px solid #2A2B2F"><div style="font-size:17px;font-weight:500;letter-spacing:-.01em">Bring your own call</div><div style="font-size:15px;line-height:1.6;color:#8A8C91;text-wrap:pretty">Talk over Zoom, Slack, Teams or Discord while Podstudio records. Remote speakers need headphones so the call doesn’t leak into their mic.</div></div>
+</div>
+</section>
+
+<section id="how" style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px 0;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">HOW IT WORKS</div>
+<h2 style="margin:0;font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.035em">Four steps. No config files.</h2>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:28px">
+<sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:12px;padding-top:18px;border-top:1px solid #2A2B2F">
+<div style="font:500 12px 'Geist Mono',monospace;color:#FF453A">{{ s.n }}</div>
+<div style="font-size:18px;font-weight:500;letter-spacing:-.01em">{{ s.title }}</div>
+<div style="font-size:15px;line-height:1.6;color:#8A8C91;text-wrap:pretty">{{ s.body }}</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+
+
+<section id="license" style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:48px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">FREE FOREVER · MIT LICENSED</div>
+<h2 style="margin:0;font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.035em;text-wrap:balance"><span style="color:#5A5C61">A teleprompter scrolls text.</span> It shouldn’t come with a subscription.</h2>
+<p style="margin:0;font-size:17px;line-height:1.6;color:#A5A7AC;max-width:480px;text-wrap:pretty">No paid tier, no “Pro” upgrade, no watermark, no usage limits. Podstudio itself costs $0. You provide a VPS or a spare machine, the power and internet to run it, and OpenAI usage if you want transcripts. The code is on GitHub under the MIT license.</p>
+<p style="margin:0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:480px;text-wrap:pretty">Full disclosure: Podstudio was built with a lot of help from AI tools, for design, code and docs. A person reviews and tests every change, and the code is public so you can check it yourself.</p>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+<a href="#" style="height:44px;padding:0 18px;border-radius:10px;border:1px solid #2A2B2F;display:flex;align-items:center;font-size:14px">Read the license</a>
+<a href="#" style="height:44px;padding:0 18px;border-radius:10px;border:1px solid #2A2B2F;display:flex;align-items:center;font-size:14px">Contribute on GitHub</a>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#1F2023;border:1px solid #1F2023;border-radius:14px;overflow:hidden">
+<div style="background:#000;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.06em;color:#30D158">YOU CAN</div><div style="font-size:15px;line-height:1.6;color:#C9CBCF">Use it for any show, including commercial ones</div></div>
+<div style="background:#000;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.06em;color:#30D158">YOU CAN</div><div style="font-size:15px;line-height:1.6;color:#C9CBCF">Change the code and ship your own version</div></div>
+<div style="background:#000;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.06em;color:#30D158">YOU CAN</div><div style="font-size:15px;line-height:1.6;color:#C9CBCF">Host it for your network or your clients</div></div>
+<div style="background:#000;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.06em;color:#8A8C91">JUST KEEP</div><div style="font-size:15px;line-height:1.6;color:#C9CBCF">The copyright and license notice in copies</div></div>
+</div>
+</section>
+
+<section id="faq" style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:48px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">FAQ</div>
+<h2 style="margin:0;font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.035em">Questions, answered.</h2>
+<a href="#" style="font-size:15px;color:#8A8C91">Read the docs →</a>
+</div>
+<div style="display:flex;flex-direction:column;border-top:1px solid #1F2023">
+<details style="border-bottom:1px solid #1F2023;padding:20px 0"><summary style="font-size:17px;letter-spacing:-.01em;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px">Why Chrome only?<span style="color:#5A5C61;font-family:'Geist Mono',monospace">+</span></summary><p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:620px;text-wrap:pretty">Voice follow uses Chrome’s speech recognition, and WAV recording relies on audio features Firefox and Safari don’t fully support. Chrome, Edge, Brave and Arc all work.</p></details>
+<details style="border-bottom:1px solid #1F2023;padding:20px 0"><summary style="font-size:17px;letter-spacing:-.01em;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px">Does voice follow work offline?<span style="color:#5A5C61;font-family:'Geist Mono',monospace">+</span></summary><p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:620px;text-wrap:pretty">Chrome’s speech recognition sends audio to Google to turn it into text, so the device doing voice follow needs internet. Recording and manual scrolling work offline.</p></details>
+<details style="border-bottom:1px solid #1F2023;padding:20px 0"><summary style="font-size:17px;letter-spacing:-.01em;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px">What does OpenAI cost per episode?<span style="color:#5A5C61;font-family:'Geist Mono',monospace">+</span></summary><p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:620px;text-wrap:pretty">Whisper charges by the minute of audio. A 30-minute episode is usually well under a dollar, including titles, posts and chapters. Check OpenAI’s current pricing for exact rates.</p></details>
+<details style="border-bottom:1px solid #1F2023;padding:20px 0"><summary style="font-size:17px;letter-spacing:-.01em;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px">How do retakes show up in the download?<span style="color:#5A5C61;font-family:'Geist Mono',monospace">+</span></summary><p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:620px;text-wrap:pretty">Your choice. Each take and punch-in can be its own WAV, named after the line it starts on. Or you get one combined WAV with a marker at every take, plus a .csv take list. You can add a short tone between takes to make the joins easy to spot.</p></details>
+<details style="border-bottom:1px solid #1F2023;padding:20px 0"><summary style="font-size:17px;letter-spacing:-.01em;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px">Is Podstudio a call app like Zoom?<span style="color:#5A5C61;font-family:'Geist Mono',monospace">+</span></summary><p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:620px;text-wrap:pretty">No. Podstudio doesn’t carry audio or video between people. When you record remotely, use Zoom, Slack, Teams, Discord or a phone call to talk. Podstudio records each person’s mic on their own device, separate from the call.</p></details>
+<details style="border-bottom:1px solid #1F2023;padding:20px 0"><summary style="font-size:17px;letter-spacing:-.01em;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px">What does a remote guest need?<span style="color:#5A5C61;font-family:'Geist Mono',monospace">+</span></summary><p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#8A8C91;max-width:620px;text-wrap:pretty">A Chrome-based browser, a mic, headphones, your invite link, and a separate call app (Zoom, Slack, Teams, Discord…) so you can hear each other. They run a quick mic check and join. Their audio records on their device and uploads to your server as you go. Keep the tab open until the upload finishes; Podstudio shows when it’s done.</p></details>
+</div>
+</section>
+
+<section id="install" style="width:100%;max-width:1200px;box-sizing:border-box;padding:clamp(72px,10vw,120px) 28px">
+<div style="border-radius:18px;border:1px solid #1F2023;background:#0B0B0C;padding:clamp(28px,5vw,56px);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:40px;align-items:center">
+<div style="display:flex;flex-direction:column;gap:16px">
+<h2 style="margin:0;font-weight:400;font-size:clamp(30px,3.6vw,44px);line-height:1.08;letter-spacing:-.035em;text-wrap:balance">Run it on your own server.</h2>
+<p style="margin:0;font-size:16px;line-height:1.6;color:#8A8C91;max-width:440px;text-wrap:pretty">A home server, a VPS or a spare laptop all work. Start it, open the address in Chrome, and the setup wizard walks you through the rest.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+<div style="display:flex;gap:4px;background:#16171A;border-radius:8px;padding:3px;align-self:flex-start"><sc-for list="{{ installTabs }}" as="o" hint-placeholder-count="2"><div onClick="{{ o.pick }}" style="height:30px;padding:0 12px;border-radius:6px;display:flex;align-items:center;font-size:13px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }}">{{ o.label }}</div></sc-for></div>
+<div onClick="{{ copyInstall }}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-radius:10px;background:#000;border:1px solid #2A2B2F;font:400 14px 'Geist Mono',monospace;cursor:pointer;overflow:hidden"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:#5A5C61">$ </span>{{ installCmd }}</span><span style="font-family:'Geist',sans-serif;font-size:12px;color:#8A8C91;flex:none">{{ copyInstallLabel }}</span></div>
+<div style="font-size:13px;line-height:1.55;color:#6A6C71;text-wrap:pretty">{{ installNote }}</div>
+</div>
+</div>
+<div style="margin-top:20px;border-radius:18px;border:1px solid #1F2023;padding:clamp(28px,5vw,56px);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:40px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#5A5C61">GOING PUBLIC</div>
+<h3 style="margin:0;font-weight:400;font-size:clamp(26px,3vw,36px);line-height:1.1;letter-spacing:-.03em;text-wrap:balance">Put a reverse proxy in front of it.</h3>
+<p style="margin:0;font-size:16px;line-height:1.6;color:#8A8C91;max-width:440px;text-wrap:pretty">To reach Podstudio from outside your network, run it behind Caddy or Nginx on your own domain. Chrome only allows microphone access over HTTPS, so any phone or laptop that records needs a secure address.</p>
+<a href="#" style="font-size:14px;color:#8A8C91">Full reverse proxy guide in the docs →</a>
+<p style="margin:0;font-size:14px;line-height:1.6;color:#C9CBCF;max-width:440px;text-wrap:pretty">Point a domain at your server, open ports 80 and 443, keep 4321 closed, and leave 2FA on.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+<div style="display:flex;gap:4px;background:#16171A;border-radius:8px;padding:3px"><sc-for list="{{ proxyTabs }}" as="o" hint-placeholder-count="2"><div onClick="{{ o.pick }}" style="height:30px;padding:0 12px;border-radius:6px;display:flex;align-items:center;font-size:13px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }}">{{ o.label }}</div></sc-for></div>
+<div style="font:400 12px 'Geist Mono',monospace;color:#5A5C61">{{ proxyFile }}</div>
+</div>
+<div style="position:relative;border-radius:10px;background:#0B0B0C;border:1px solid #2A2B2F;overflow:hidden">
+<pre style="margin:0;padding:18px 20px;font:400 13px/1.7 'Geist Mono',monospace;color:#C9CBCF;overflow-x:auto;white-space:pre">{{ proxyConf }}</pre>
+<div onClick="{{ copyProxy }}" style="position:absolute;top:10px;right:10px;height:28px;padding:0 10px;border-radius:6px;background:#16171A;display:flex;align-items:center;font-size:12px;color:#8A8C91;cursor:pointer">{{ copyProxyLabel }}</div>
+</div>
+<div style="font-size:13px;line-height:1.55;color:#6A6C71;text-wrap:pretty">{{ proxyNote }}</div>
+</div>
+</div>
+</section>
+
+<footer style="width:100%;border-top:1px solid #151517">
+<div style="max-width:1200px;margin:0 auto;box-sizing:border-box;padding:28px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;font-size:13px;color:#6A6C71">
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><span style="display:flex;align-items:center;gap:8px;color:#EDEDEA;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:#FF453A"></span>Podstudio</span><span>A project by <a href="https://tylerwoodward.me" target="_blank" rel="noopener" style="color:#EDEDEA;box-shadow:inset 0 -1px 0 #3A3B3F">Tyler Woodward</a>, built with help from AI</span></div>
+<div style="display:flex;gap:24px;flex-wrap:wrap"><a href="#" style="color:#8A8C91">GitHub</a><a href="#" style="color:#8A8C91">Docs</a><a href="#" style="color:#8A8C91">Changelog</a><a href="#" style="color:#8A8C91">MIT License</a><span>podstudio.dev</span></div>
+</div>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;animateHero&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;showNumbers&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Features&quot;}}">
+class Component extends DCLogic {
+  state = { wi: 0, t: 1248, copied: false, y: 20 };
+  heroRef = React.createRef();
+  lines = [['TYLER', 'oklch(83.77% 0.148 81.72)', 'It was a quiet week in the studio, until the new transmitter arrived.'], ['SAM', 'oklch(90.16% 0.173 188.71)', 'Four pallets? I heard it was five, and one of them was just foam.'], ['TYLER', 'oklch(83.77% 0.148 81.72)', 'Four. I counted. So this episode is about what happens after the crate is open.'], ['DANA', 'oklch(72% 0.1 291.04)', 'And whether the floor could hold it, which nobody checked until I asked.']];
+  total = this.lines.reduce((n, l) => n + l[2].split(' ').length, 0);
+  componentDidMount() { this.iv = setInterval(() => { if (this.props.animateHero === false) return; this.setState(s => ({ wi: (s.wi + 1) % (this.total + 5), t: s.t + (s.wi % 3 === 0 ? 1 : 0) })); }, 320); }
+  componentWillUnmount() { clearInterval(this.iv); }
+  componentDidUpdate() {
+    const el = this.heroRef.current; if (!el) return;
+    const w = el.querySelector('[data-cur="1"]'); if (!w) return;
+    const box = el.parentElement, top = w.getBoundingClientRect().top - el.getBoundingClientRect().top;
+    const y = Math.round(box.clientHeight * 0.38 - top - w.offsetHeight * 0.78);
+    if (Math.abs(y - this.state.y) > 1) this.setState({ y });
+  }
+  cp(text, key) { navigator.clipboard?.writeText(text); this.setState({ copied: key }); setTimeout(() => this.setState({ copied: false }), 1500); }
+  seg(list, cur, key) { return list.map(([v, label]) => ({ label, pick: () => this.setState({ [key]: v }), bg: v === cur ? '#EDEDEA' : 'transparent', color: v === cur ? '#0B0B0C' : '#8A8C91' })); }
+  install() {
+    const s = this.state, it = s.it || 'script', pt = s.pt || 'caddy';
+    const cmds = { script: 'curl -fsSL https://podstudio.dev/install.sh | bash', docker: 'docker run -d -p 4321:4321 -v podstudio:/data podstudio/podstudio' };
+    const notes = { script: 'Works on Linux and macOS. It installs Podstudio as a background service and prints the setup address when it finishes. Read the script first if you like; it\u2019s short.', docker: 'For machines that already run Docker. Your audio and settings are kept in the podstudio volume.' };
+    const conf = {
+      caddy: 'podstudio.example.com {\n    reverse_proxy localhost:4321\n}',
+      nginx: '# Get a certificate first:\n# sudo certbot --nginx -d podstudio.example.com\n\nserver {\n    listen 443 ssl http2;\n    server_name podstudio.example.com;\n\n    ssl_certificate     /etc/letsencrypt/live/podstudio.example.com/fullchain.pem;\n    ssl_certificate_key /etc/letsencrypt/live/podstudio.example.com/privkey.pem;\n\n    client_max_body_size 2g;\n\n    location / {\n        proxy_pass http://127.0.0.1:4321;\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection "upgrade";\n        proxy_set_header Host $host;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_read_timeout 1h;\n    }\n}',
+    };
+    return {
+      installTabs: this.seg([['script', 'One-line installer'], ['docker', 'Docker']], it, 'it'),
+      installCmd: cmds[it], installNote: notes[it],
+      copyInstallLabel: s.copied === 'i' ? 'Copied' : 'Copy', copyInstall: () => this.cp(cmds[it], 'i'),
+      proxyTabs: this.seg([['caddy', 'Caddy · HTTPS built in'], ['nginx', 'Nginx · needs Certbot']], pt, 'pt'),
+      proxyFile: pt === 'caddy' ? '/etc/caddy/Caddyfile' : '/etc/nginx/sites-available/podstudio',
+      proxyConf: conf[pt], copyProxyLabel: s.copied === 'p' ? 'Copied' : 'Copy', copyProxy: () => this.cp(conf[pt], 'p'),
+      proxyNote: pt === 'caddy' ? 'Recommended. No Certbot needed: Caddy gets and renews Let\u2019s Encrypt certificates on its own. WebSockets work with no extra settings.' : 'Nginx needs Certbot (or another ACME client) to get and renew certificates. Run the command at the top once; Certbot sets up renewal automatically. The Upgrade headers keep every screen in sync.',
+    };
+  }
+  renderVals() {
+    const s = this.state; let k = 0;
+    const heroLines = this.lines.map(([who, c, text]) => ({ who, c, words: text.split(' ').map(t => { const i = k++; return { t, cur: i === s.wi ? '1' : '0', color: i < s.wi ? '#46484D' : i === s.wi ? '#fff' : '#C9CBCF', line: i === s.wi ? 'inset 0 -3px 0 #FF453A' : 'none' }; }) }));
+    const F = [
+      ['Voice-follow scrolling', 'Podstudio listens as you read and scrolls word by word. It waits while you ad-lib, and if it loses you, it suggests the likely next lines so one tap gets you back.'],
+      ['Every screen at once', 'Phone, laptop and any number of monitors stay on the same line. Control it with shortcuts, a Bluetooth page turner, a foot pedal or a producer’s phone.'],
+      ['Scripts with speakers', 'Import .txt, .md, .docx or a Google Docs link. NAME: lines become speakers with their own colors, and a “you’re next” cue shows up before their turn.'],
+      ['Lossless WAV recording', '16 or 24-bit, 44.1 or 48 kHz, one track per speaker. A quick mic check tests your level, clipping and room noise before each take.'],
+      ['Takes you can trust', 'Audio is saved every 5 seconds, so a crash costs you seconds, not the take. Retake from any line, then download separate files or one WAV with markers.'],
+      ['Whisper transcripts', 'Timestamps and speaker labels, fixable in a tap. Download captions as .srt or .vtt, or plain .txt or .docx.'],
+      ['Episode package', 'Titles, a description, social posts, chapters and soundbites, written in your show’s voice.'],
+      ['Easy to read', 'Atkinson Hyperlegible and OpenDyslexic fonts, adjustable spacing, high-contrast themes, and speaker colors checked for color blindness.'],
+      ['Easy to run yourself', 'A browser wizard handles setup, 2FA, domain and HTTPS. Nightly backups and one-line updates are built in, and everything stays on your server.'],
+    ];
+    const n = this.props.showNumbers ?? true;
+    return {
+      heroLines, heroRef: this.heroRef, heroY: s.y,
+      timecode: `${String(Math.floor(s.t / 60)).padStart(2, '0')}:${String(s.t % 60).padStart(2, '0')}`,
+      features: F.map(([title, body], i) => ({ title, body, n: n ? String(i + 1).padStart(2, '0') : '' })),
+      chapters: [['00:00:00', 'Cold open: the transmitter arrives'], ['00:01:42', 'Measuring the floor load twice'], ['00:09:15', 'Power and cooling before the first bolt'], ['00:14:50', 'Keying up and watching reflected power'], ['00:27:05', 'What we\u2019d do differently next time']].map(([a, t]) => ({ s: a, t, len: t.length })),
+      steps: [['01', 'Install', 'Paste one command on any machine you control. Docker also works.'], ['02', 'Set up', 'Open the server in Chrome. The wizard creates your account, 2FA and OpenAI key.'], ['03', 'Record', 'Join from every screen, pick the recording device, run a quick mic check, and read. Retake from any line.'], ['04', 'Publish', 'Download your WAVs (separate or combined with markers), captions and the episode package.']].map(([n, title, body]) => ({ n, title, body })),
+      ...this.install(),
+    };
+  }
+}
+</script>
+</body>
+</html>
