@@ -1,0 +1,87 @@
+---
+// 5i · Producer remote: a second phone that pauses, changes lines, jumps sections
+import Phone from '@/layouts/Phone.astro';
+import Dot from '@/components/ui/Dot.astro';
+import { episode, episodePaths, scriptLines, sections, speakerByKey, spk } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const start = 3;
+const lines = scriptLines.map((l) => ({ who: l.who, name: speakerByKey(l.who).name, text: l.text, color: spk(l.who) }));
+---
+
+<Phone title="Producer remote" black>
+  <div class="flex flex-1 flex-col" data-remote data-lines={JSON.stringify(lines)} data-start={start}>
+    <div class="flex items-center justify-between px-5.5 pt-2">
+      <div>
+        <div class="text-[12px] text-subtle">Remote for</div>
+        <div class="text-[16px]">{episode.fullTitle}</div>
+      </div>
+      <div class="flex items-center gap-2 font-mono text-[13px] font-medium">
+        <Dot color="var(--color-rec)" size={8} data-rec-dot />
+        <span data-clock>12:48</span>
+      </div>
+    </div>
+
+    <div class="mx-4 mt-4.5 flex flex-col gap-1.5 rounded-2xl bg-surface p-4" aria-live="polite">
+      <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: lines[start].color }} data-line-who>
+        ON THE LINE · {lines[start].who}
+      </div>
+      <div class="text-[18px] leading-[1.45]" data-line-text>{lines[start].text}</div>
+    </div>
+
+    <div class="flex flex-col gap-2 px-4 pt-4.5" role="radiogroup" aria-label="Jump to section">
+      <div class="eyebrow">Jump to section</div>
+      {
+        sections.map((s, i) => (
+          <label class="flex h-12 items-center justify-between rounded-xl bg-raised px-3.5 text-[15px] text-fg has-checked:bg-fg has-checked:text-ink">
+            <input type="radio" name="section" class="sr-only" checked={i === 1} />
+            <span>{s.title}</span>
+            <span class="font-mono text-[12px] opacity-60">{s.at}</span>
+          </label>
+        ))
+      }
+    </div>
+
+    <div class="mt-auto grid grid-cols-[1fr_1.4fr_1fr] gap-2.5 px-4 pt-6 pb-[max(34px,env(safe-area-inset-bottom))]">
+      <button type="button" data-prev aria-label="Previous line" class="flex h-16 items-center justify-center rounded-2xl bg-raised text-[22px] active:bg-line">←</button>
+      <button type="button" data-toggle aria-label="Pause" aria-pressed="false" class="group flex h-16 items-center justify-center gap-[5px] rounded-2xl bg-fg text-ink">
+        <span class="h-5 w-[5px] rounded-[1px] bg-ink group-aria-pressed:hidden"></span>
+        <span class="h-5 w-[5px] rounded-[1px] bg-ink group-aria-pressed:hidden"></span>
+        <span class="hidden size-0 border-y-[11px] border-l-[18px] border-y-transparent border-l-ink group-aria-pressed:block"></span>
+      </button>
+      <button type="button" data-next aria-label="Next line" class="flex h-16 items-center justify-center rounded-2xl bg-raised text-[22px] active:bg-line">→</button>
+    </div>
+  </div>
+</Phone>
+
+<script>
+  import { startClock } from '@/lib/prompter';
+
+  const root = document.querySelector<HTMLElement>('[data-remote]')!;
+  const lines = JSON.parse(root.dataset.lines!) as { who: string; text: string; color: string }[];
+  let i = Number(root.dataset.start);
+  let paused = false;
+
+  const who = root.querySelector<HTMLElement>('[data-line-who]')!;
+  const text = root.querySelector<HTMLElement>('[data-line-text]')!;
+  const show = () => {
+    who.textContent = `ON THE LINE · ${lines[i].who}`;
+    who.style.color = lines[i].color;
+    text.textContent = lines[i].text;
+  };
+
+  root.querySelector('[data-prev]')!.addEventListener('click', () => ((i = Math.max(0, i - 1)), show()));
+  root.querySelector('[data-next]')!.addEventListener('click', () => ((i = Math.min(lines.length - 1, i + 1)), show()));
+
+  const toggle = root.querySelector<HTMLButtonElement>('[data-toggle]')!;
+  const dot = root.querySelector<HTMLElement>('[data-rec-dot]')!;
+  toggle.addEventListener('click', () => {
+    paused = !paused;
+    toggle.setAttribute('aria-pressed', String(paused));
+    toggle.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
+    dot.style.opacity = paused ? '0.35' : '1';
+  });
+
+  startClock([root.querySelector<HTMLElement>('[data-clock]')!], 768, () => paused);
+</script>

@@ -1,0 +1,21 @@
+---
+/* Bar waveform. Negative heights are quiet stretches and render dimmed. */
+interface Props {
+  bars: number[];
+  color: string;
+  height?: number;
+  class?: string;
+}
+const { bars, color, height = 40, class: cls } = Astro.props;
+---
+
+<div class:list={['flex w-full items-center gap-0.5', cls]} style={{ height: `${height}px` }} aria-hidden="true">
+  {
+    bars.map((h) => (
+      <span
+        class="flex-1 rounded-[1px]"
+        style={{ background: color, opacity: h < 0 ? 0.25 : 0.85, height: `${Math.abs(h)}%` }}
+      />
+    ))
+  }
+</div>

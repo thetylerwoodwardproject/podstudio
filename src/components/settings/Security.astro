@@ -1,0 +1,50 @@
+---
+import Section from './Section.astro';
+import Button from '@/components/ui/Button.astro';
+import { trustedDevices } from '@/data/mock';
+---
+
+<Section title="Security" description="Two-factor authentication is required for every account on this server." />
+<div class="flex items-center justify-between rounded-[10px] border border-line p-4">
+  <div>
+    <div class="flex items-center gap-2 text-[14px]">
+      Authenticator app
+      <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
+    </div>
+    <div class="mt-[3px] text-[12px] text-subtle">Added Sep 24, 2026</div>
+  </div>
+  <a href="/setup/two-factor" class="text-[13px] text-muted hover:text-fg">Reset</a>
+</div>
+<div class="flex items-center justify-between rounded-[10px] border border-line p-4">
+  <div>
+    <div class="text-[14px]">Recovery codes</div>
+    <div class="mt-[3px] text-[12px] text-subtle">8 of 10 unused</div>
+  </div>
+  <div class="text-[13px] text-muted">
+    <button type="button" class="hover:text-fg">View</button> · <button type="button" class="hover:text-fg">Regenerate</button>
+  </div>
+</div>
+<div class="flex flex-col gap-2">
+  <div class="text-[12px] text-muted">Trusted devices</div>
+  {
+    trustedDevices.map((d) => (
+      <div class="flex items-center justify-between border-b border-line py-3 text-[14px]" data-device>
+        <div>
+          {d.name}
+          <div class="mt-[3px] font-mono text-[11px] text-subtle">{d.meta}</div>
+        </div>
+        <button type="button" class="text-[13px] text-muted hover:text-fg" data-revoke>Revoke</button>
+      </div>
+    ))
+  }
+</div>
+<div class="flex items-center justify-between">
+  <div class="text-[14px]">Change password</div>
+  <Button class="h-9 px-3.5 text-[13px]">Update</Button>
+</div>
+
+<script>
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-revoke]')) {
+    btn.addEventListener('click', () => btn.closest<HTMLElement>('[data-device]')!.remove());
+  }
+</script>

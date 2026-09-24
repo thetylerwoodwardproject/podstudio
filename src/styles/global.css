@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+
+/*
+ * Podstudio design tokens, taken from the Claude Design handoff
+ * (project/Teleprompter.dc.html). Everything is dark: one red accent for
+ * recording, green for healthy, amber for attention.
+ */
+@theme {
+  --font-sans: 'Geist Variable', 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, monospace;
+  --font-readable: 'Atkinson Hyperlegible', 'Geist Variable', sans-serif;
+  --font-dyslexic: 'OpenDyslexic', 'Atkinson Hyperlegible', sans-serif;
+
+  /* Surfaces, darkest to lightest */
+  --color-void: #000000;
+  --color-ink: #0b0b0c;
+  --color-panel: #0f0f11;
+  --color-surface: #121214;
+  --color-raised: #16171a;
+
+  /* Lines */
+  --color-line-soft: #151517;
+  --color-line: #1f2023;
+  --color-edge: #2a2b2f;
+  --color-edge-strong: #3a3b3f;
+
+  /* Text, brightest to dimmest */
+  --color-fg: #ededea;
+  --color-fg-dim: #b9bbc0;
+  --color-fg-soft: #c9cbcf;
+  --color-muted: #8a8c91;
+  --color-subtle: #6a6c71;
+  --color-faint: #5a5c61;
+  --color-ghost: #4a4c51;
+
+  /* Status */
+  --color-rec: #ff453a;
+  --color-ok: #30d158;
+  --color-warn: #ff9f0a;
+
+  /* Speaker presets (Syntax color scales, brightened for dark screens) */
+  --color-spk-yellow: oklch(83.77% 0.148 81.72);
+  --color-spk-teal: oklch(90.16% 0.173 188.71);
+  --color-spk-green: oklch(92.06% 0.269 124.67);
+  --color-spk-red: oklch(72% 0.221 23.68);
+  --color-spk-purple: oklch(72% 0.1 291.04);
+  --color-spk-black: oklch(83% 0 0);
+
+  --animate-pulse-rec: pulse-rec 1.4s infinite;
+
+  @keyframes pulse-rec {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+/*
+ * Per-speaker colors. Defaults match the design; the cast panel in the
+ * script editor overrides them (see src/lib/speakers.ts).
+ */
+:root {
+  --spk-tyler: var(--color-spk-yellow);
+  --spk-sam: var(--color-spk-teal);
+  --spk-dana: var(--color-spk-purple);
+  --spk-unknown: var(--color-muted);
+  color-scheme: dark;
+}
+
+@layer base {
+  /* The design was drawn with the browser default line height, not Tailwind's 1.5. */
+  html {
+    line-height: normal;
+  }
+
+  html,
+  body {
+    background: var(--color-ink);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  [role='button'],
+  label:has(> input[type='radio']),
+  label:has(> input[type='checkbox']) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-fg);
+    outline-offset: 2px;
+  }
+}
+
+/* Mono uppercase section label: "LIVE NOW", "CHECKS", "STEP 3 OF 5" */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+/* Small mono metadata: sizes, timestamps, device details */
+@utility meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+}

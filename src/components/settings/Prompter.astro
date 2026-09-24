@@ -1,0 +1,133 @@
+---
+import Section from './Section.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import Callout from '@/components/ui/Callout.astro';
+import Button from '@/components/ui/Button.astro';
+import { spk } from '@/data/mock';
+
+const sliders = [
+  { name: 'size', label: 'Text size', min: 16, max: 50, step: 1, value: 34, unit: ' pt' },
+  { name: 'spacing', label: 'Line spacing', min: 1, max: 2.1, step: 0.1, value: 1.5, unit: '×' },
+  { name: 'line', label: 'Reading line position', min: 0, max: 100, step: 1, value: 34, unit: '% from top' },
+];
+const themes = [
+  { value: 'dark', label: 'Dark', bg: '#000', fg: '#EDEDEA', dim: '#5A5C61' },
+  { value: 'contrast', label: 'High contrast', bg: '#000', fg: '#FFFF00', dim: '#6E6E00' },
+  { value: 'light', label: 'Light', bg: '#F4F3EF', fg: '#111111', dim: '#9A9890' },
+  { value: 'amber', label: 'Amber', bg: '#000', fg: '#FFB000', dim: '#6E4C00' },
+];
+const fonts = [
+  { value: 'var(--font-sans)', label: 'Geist' },
+  { value: 'var(--font-readable)', label: 'Atkinson Hyperlegible' },
+  { value: 'var(--font-dyslexic)', label: 'OpenDyslexic' },
+];
+const slider =
+  'h-1 w-full cursor-pointer appearance-none rounded-sm bg-[linear-gradient(to_right,var(--color-fg)_var(--pct),var(--color-edge)_var(--pct))] [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-fg';
+const pct = (s: (typeof sliders)[number]) => `${(((s.value - s.min) / (s.max - s.min)) * 100).toFixed(1)}%`;
+---
+
+<div class="grid gap-9 min-[1100px]:grid-cols-[1fr_340px]" data-prompter-settings data-themes={JSON.stringify(themes)}>
+  <div class="flex flex-col gap-5.5">
+    <Section title="Prompter" description="Each screen can override these from its own menu." />
+    <div class="flex flex-col gap-2">
+      <div class="text-[12px] text-muted">Font</div>
+      <Segmented name="font" label="Font" value="var(--font-readable)" options={fonts} />
+    </div>
+    {
+      sliders.map((s) => (
+        <div class="flex flex-col gap-2.5">
+          <div class="flex justify-between text-[13px]">
+            <label for={`slider-${s.name}`}>{s.label}</label>
+            <span class="font-mono text-muted">
+              <output for={`slider-${s.name}`} data-out={s.name}>{s.value}</output>{s.unit}
+            </span>
+          </div>
+          <input
+            id={`slider-${s.name}`}
+            type="range"
+            name={s.name}
+            min={s.min}
+            max={s.max}
+            step={s.step}
+            value={s.value}
+            class={slider}
+            style={{ '--pct': pct(s) }}
+          />
+        </div>
+      ))
+    }
+    <div class="flex flex-col gap-2.5">
+      <div class="text-[12px] text-muted">Theme</div>
+      <div class="flex flex-wrap gap-3.5" role="radiogroup" aria-label="Theme">
+        {
+          themes.map((t) => (
+            <label class="group flex flex-col items-center gap-1.5">
+              <input type="radio" name="theme" value={t.value} checked={t.value === 'contrast'} class="sr-only" />
+              <span
+                class="flex h-11 w-16 items-center justify-center rounded-lg text-[15px] shadow-[inset_0_0_0_1px_var(--color-edge)] group-has-checked:shadow-[0_0_0_2px_var(--color-ink),0_0_0_4px_var(--color-fg)] group-has-focus-visible:outline-2 group-has-focus-visible:outline-offset-4 group-has-focus-visible:outline-fg"
+                style={{ background: t.bg, color: t.fg }}
+              >
+                Aa
+              </span>
+              <span class="text-[11px] text-muted">{t.label}</span>
+            </label>
+          ))
+        }
+      </div>
+    </div>
+    <Callout title="Two speaker colors may look alike" color="var(--color-warn)">
+      Red and purple can be hard to tell apart with red-green color blindness. Names always show above each line, so
+      nobody relies on color alone.
+      <Button slot="action">Suggest a safe set</Button>
+    </Callout>
+  </div>
+
+  <div
+    class="flex flex-col gap-4.5 self-start rounded-[14px] border border-line px-5.5 py-6.5 transition-colors"
+    style="background:#000;font-family:var(--font-readable)"
+    data-preview
+  >
+    <div class="eyebrow">Preview</div>
+    <div class="flex flex-col gap-1.5">
+      <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('TYLER') }}>TYLER</div>
+      <div class="text-[24px] leading-normal" style="color:#6E6E00" data-dim>It was a quiet week in the studio,</div>
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }}>SAM · NOW</div>
+      <div class="text-[24px] leading-normal" style="color:#FFFF00" data-now>
+        <span class="shadow-[inset_0_-3px_0_var(--color-rec)]">Four</span> pallets? I heard it was five.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-prompter-settings]');
+  if (root) {
+    const themes = JSON.parse(root.dataset.themes!) as { value: string; bg: string; fg: string; dim: string }[];
+    const preview = root.querySelector<HTMLElement>('[data-preview]')!;
+    const text = [...preview.querySelectorAll<HTMLElement>('[data-dim], [data-now]')];
+
+    const update = () => {
+      const get = (n: string) => root.querySelector<HTMLInputElement>(`[name="${n}"]:checked, input[type=range][name="${n}"]`)!;
+      for (const r of root.querySelectorAll<HTMLInputElement>('input[type=range]')) {
+        const p = ((Number(r.value) - Number(r.min)) / (Number(r.max) - Number(r.min))) * 100;
+        r.style.setProperty('--pct', `${p}%`);
+        root.querySelector(`[data-out="${r.name}"]`)!.textContent = r.name === 'spacing' ? Number(r.value).toFixed(1) : r.value;
+      }
+      const theme = themes.find((t) => t.value === get('theme').value)!;
+      preview.style.background = theme.bg;
+      preview.style.fontFamily = get('font').value;
+      preview.querySelector<HTMLElement>('[data-dim]')!.style.color = theme.dim;
+      preview.querySelector<HTMLElement>('[data-now]')!.style.color = theme.fg;
+      // Preview is scaled down: 34 pt on a prompter shows as 24 px here.
+      const size = (Number(get('size').value) * 24) / 34;
+      text.forEach((t) => {
+        t.style.fontSize = `${size}px`;
+        t.style.lineHeight = get('spacing').value;
+      });
+    };
+    root.addEventListener('input', update);
+    root.addEventListener('change', update);
+  }
+</script>

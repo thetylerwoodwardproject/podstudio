@@ -1,0 +1,19 @@
+---
+import Section from './Section.astro';
+import Field from '@/components/ui/Field.astro';
+import Select from '@/components/ui/Select.astro';
+import { inputClass } from '@/lib/ui';
+
+const zones = ['America/Chicago', 'America/New_York', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'UTC'];
+---
+
+<Section title="General" />
+<Field label="Show name" for="show-name">
+  <input id="show-name" name="show" class={inputClass} value="The Tyler Woodward Project" />
+</Field>
+<Field label="Server name" for="server-name">
+  <input id="server-name" name="server" class={inputClass} value="Podstudio · Studio A" />
+</Field>
+<Field label="Time zone" for="tz">
+  <Select id="tz" name="tz" options={zones} />
+</Field>

@@ -1,0 +1,75 @@
+---
+// 5d · Retake from any line (punch-in)
+import AppShell from '@/layouts/AppShell.astro';
+import SpeakerLabel from '@/components/ui/SpeakerLabel.astro';
+import { episode, episodePaths, scriptLines, spk, takes } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const lines = [...scriptLines.slice(0, 4), { who: 'DANA' as const, text: 'And whether the floor could hold it, which nobody checked until I asked.' }];
+const current = 2;
+---
+
+<AppShell title="Takes" crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Script' }]}>
+  <div class="grid lg:h-full lg:grid-cols-[1fr_380px]">
+    <section class="flex flex-col gap-3.5 border-line px-6 py-8 lg:border-r lg:px-12" data-lines>
+      {
+        lines.map((l, i) => (
+          <div
+            data-line={i}
+            data-current={i === current ? '' : undefined}
+            class="group grid grid-cols-[90px_1fr] items-center gap-4.5 rounded-[10px] px-3.5 py-3 hover:bg-surface data-[current]:bg-surface sm:grid-cols-[90px_1fr_170px]"
+          >
+            <SpeakerLabel name={l.who} color={spk(l.who)} />
+            <span class="text-[18px] leading-[1.6] text-fg-soft">{l.text}</span>
+            <a
+              href={`/episodes/${episode.id}/mic-check`}
+              class="invisible col-start-2 flex h-8.5 items-center gap-2 justify-self-start rounded-lg bg-rec px-3 text-[13px] font-medium text-white group-hover:visible group-data-[current]:visible hover:text-white focus:visible sm:col-start-3 sm:justify-self-end"
+            >
+              <span class="size-[7px] rounded-full bg-white"></span>
+              Record from here
+            </a>
+          </div>
+        ))
+      }
+      <p class="mt-2 text-[12px] text-subtle">
+        Hover any line, or press <kbd class="font-mono text-fg-soft">R</kbd> on the current line. The prompter rolls back two
+        lines to give you a run-up.
+      </p>
+    </section>
+
+    <aside class="flex flex-col gap-3.5 p-6">
+      <h2 class="text-[13px] font-medium">Takes</h2>
+      {
+        takes.map((t, i) => (
+          <div class:list={['flex flex-col gap-2 rounded-[10px] border p-3.5', i === takes.length - 1 ? 'border-fg' : 'border-line']}>
+            <div class="flex justify-between text-[14px]">
+              {t.name}
+              <span
+                class:list={[
+                  'rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em]',
+                  t.kind === 'PUNCH-IN' ? 'text-warn' : 'text-muted',
+                ]}
+              >
+                {t.kind}
+              </span>
+            </div>
+            <div class="meta text-muted">{t.range}</div>
+            <div class="text-[12px] text-subtle">{t.start}</div>
+          </div>
+        ))
+      }
+      <p class="mt-auto text-[12px] leading-normal text-subtle">
+        Each punch-in is saved as its own WAV, named after the line it starts on, so you can drop it into your editor.
+      </p>
+    </aside>
+  </div>
+</AppShell>
+
+<script>
+  // R starts a punch-in on the current line.
+  addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || (e.target as HTMLElement).matches('input, textarea, [contenteditable]')) return;
+    document.querySelector<HTMLAnchorElement>('[data-current] a')?.click();
+  });
+</script>

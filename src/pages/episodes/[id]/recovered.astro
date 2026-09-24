@@ -1,0 +1,52 @@
+---
+// 5f · Recovered take after a crash
+import Base from '@/layouts/Base.astro';
+import Dot from '@/components/ui/Dot.astro';
+import Button from '@/components/ui/Button.astro';
+import { episode, episodePaths } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const base = `/episodes/${episode.id}`;
+const rows = [
+  { k: 'Episode', v: episode.fullTitle },
+  { k: 'Take 3', v: '12:48 recovered', ok: true },
+  { k: 'Stopped at', v: '9:04 PM · line 18' },
+  { k: 'Format', v: '24-bit · 48 kHz · 110.6 MB' },
+];
+---
+
+<Base title="We saved your take">
+  <dialog
+    open
+    aria-labelledby="recovered-title"
+    class="fixed inset-0 z-10 m-auto flex w-[min(540px,calc(100vw-32px))] flex-col gap-5 rounded-2xl border border-edge bg-panel p-7 text-fg"
+  >
+    <h1 id="recovered-title" class="flex items-center gap-2.5 text-[20px] tracking-[-0.02em]">
+      <Dot color="var(--color-ok)" size={9} />
+      We saved your take
+    </h1>
+    <p class="text-[14px] leading-[1.6] text-muted">
+      The tab closed while Take 3 was recording. Audio is saved every 5 seconds, so you lost less than 5 seconds.
+    </p>
+    <dl class="flex flex-col">
+      {
+        rows.map((r) => (
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 text-[13px]">
+            <dt class="text-muted">{r.k}</dt>
+            <dd class="meta flex items-center gap-2">
+              {r.ok && <Dot color="var(--color-ok)" />}
+              {r.v}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+    <div class="flex flex-wrap justify-end gap-2.5">
+      <Button href={`${base}/studio`}>Discard</Button>
+      <Button>Download WAV</Button>
+      <Button href={`${base}/prompter`} variant="primary">Keep and continue from line 18</Button>
+    </div>
+  </dialog>
+  <div class="fixed inset-0 bg-black/55" aria-hidden="true"></div>
+</Base>

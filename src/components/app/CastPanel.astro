@@ -1,0 +1,140 @@
+---
+/*
+ * Cast list with per-speaker colors: six presets or any custom color.
+ * Choices persist (src/lib/speakers.ts) and recolor every screen.
+ */
+import { castMeta, speakers, spk } from '@/data/mock';
+import { presets } from '@/lib/speakers';
+
+interface Props {
+  /** Speaker whose picker starts open */
+  open?: string;
+}
+const { open = 'SAM' } = Astro.props;
+const ring = 'data-[selected]:shadow-[0_0_0_2px_var(--color-surface),0_0_0_4px_var(--color-fg)]';
+---
+
+<div class="flex flex-col gap-3" data-cast>
+  <div class="flex items-baseline justify-between">
+    <h2 class="text-[13px] font-medium">Cast</h2>
+    <button type="button" class="text-[12px] text-muted hover:text-fg">+ Add</button>
+  </div>
+  {
+    speakers.map((s) => (
+      <div
+        class="flex flex-col gap-3.5 rounded-[10px] border border-transparent bg-surface px-3 py-2.5 data-[open]:border-edge"
+        data-speaker={s.key}
+        data-open={s.key === open ? '' : undefined}
+      >
+        <button
+          type="button"
+          class="flex items-center gap-3 text-left"
+          aria-expanded={s.key === open ? 'true' : 'false'}
+          aria-controls={`picker-${s.key}`}
+          data-toggle
+        >
+          <span
+            class="flex size-7 flex-none items-center justify-center rounded-full text-[12px] font-semibold text-ink"
+            style={{ background: spk(s.key) }}
+            data-avatar
+          >
+            {s.initial}
+          </span>
+          <span class="flex-1">
+            <span class="block text-[14px]">{s.name}</span>
+            <span class="mt-0.5 block font-mono text-[11px] text-subtle">{castMeta[s.key]}</span>
+          </span>
+          <span class="text-[12px] text-muted" data-action>
+            {s.key === open ? 'Done' : 'Color'}
+          </span>
+        </button>
+        <div id={`picker-${s.key}`} class="flex flex-col gap-2.5" hidden={s.key !== open} data-picker>
+          <div class="flex flex-wrap gap-2 p-0.5" role="radiogroup" aria-label={`${s.name}’s color`}>
+            {presets.map((p) => (
+              <button
+                type="button"
+                role="radio"
+                title={p.name}
+                aria-label={p.name}
+                class:list={['size-7 rounded-full', ring]}
+                style={{ background: p.value }}
+                data-swatch={p.value}
+              />
+            ))}
+            <label
+              title="Custom color"
+              class:list={[
+                'relative flex size-7 items-center justify-center overflow-hidden rounded-full border border-dashed border-faint text-[15px] text-muted',
+                ring,
+              ]}
+              data-custom
+            >
+              +
+              <input type="color" aria-label="Custom color" class="absolute inset-0 size-full cursor-pointer opacity-0" />
+            </label>
+          </div>
+          <div class="flex justify-between gap-2 font-mono text-[11px] text-subtle">
+            <span data-swatch-name />
+            <span class="text-warn" data-warn />
+          </div>
+        </div>
+      </div>
+    ))
+  }
+</div>
+
+<script>
+  import { LOW_CONTRAST, loadColors, luminance, presetFor, saveColor } from '@/lib/speakers';
+
+  const root = document.querySelector<HTMLElement>('[data-cast]')!;
+  const cards = [...root.querySelectorAll<HTMLElement>('[data-speaker]')];
+  const colors = loadColors();
+
+  function render(card: HTMLElement) {
+    const key = card.dataset.speaker!;
+    const c = colors[key];
+    const pre = presetFor(c);
+    const hex = c.startsWith('#') ? c : '#888888';
+    const dark = !pre && luminance(hex) < LOW_CONTRAST;
+
+    card.querySelector<HTMLElement>('[data-avatar]')!.style.color = dark ? 'var(--color-fg)' : 'var(--color-ink)';
+    for (const sw of card.querySelectorAll<HTMLElement>('[data-swatch]')) {
+      const on = sw.dataset.swatch === c;
+      sw.toggleAttribute('data-selected', on);
+      sw.setAttribute('aria-checked', String(on));
+    }
+    const custom = card.querySelector<HTMLElement>('[data-custom]')!;
+    custom.toggleAttribute('data-selected', !pre);
+    custom.style.background = pre ? 'transparent' : c;
+    custom.querySelector('input')!.value = hex;
+    card.querySelector('[data-swatch-name]')!.textContent = pre ? pre.name : `Custom ${c.toUpperCase()}`;
+    card.querySelector('[data-warn]')!.textContent = dark ? 'Hard to read on dark screens' : '';
+  }
+
+  function set(card: HTMLElement, value: string) {
+    colors[card.dataset.speaker!] = value;
+    saveColor(card.dataset.speaker!, value);
+    render(card);
+  }
+
+  function setOpen(card: HTMLElement | null) {
+    for (const c of cards) {
+      const on = c === card;
+      c.toggleAttribute('data-open', on);
+      c.querySelector<HTMLElement>('[data-picker]')!.hidden = !on;
+      c.querySelector('[data-toggle]')!.setAttribute('aria-expanded', String(on));
+      c.querySelector('[data-action]')!.textContent = on ? 'Done' : 'Color';
+    }
+  }
+
+  for (const card of cards) {
+    render(card);
+    card.querySelector('[data-toggle]')!.addEventListener('click', () => setOpen(card.hasAttribute('data-open') ? null : card));
+    for (const sw of card.querySelectorAll<HTMLElement>('[data-swatch]')) {
+      sw.addEventListener('click', () => set(card, sw.dataset.swatch!));
+    }
+    card.querySelector<HTMLInputElement>('[data-custom] input')!.addEventListener('input', (e) => {
+      set(card, (e.target as HTMLInputElement).value);
+    });
+  }
+</script>

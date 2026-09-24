@@ -1,0 +1,17 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = {
+  color: string;
+  size?: number;
+  pulse?: boolean;
+  class?: string;
+} & Omit<HTMLAttributes<'span'>, 'class' | 'style'>;
+
+const { color, size = 6, pulse = false, class: cls, ...rest } = Astro.props;
+---
+
+<span
+  class:list={['inline-block flex-none rounded-full', pulse && 'animate-pulse-rec', cls]}
+  style={{ width: `${size}px`, height: `${size}px`, background: color }}
+  {...rest}></span>

@@ -1,0 +1,27 @@
+---
+import Switch from '@/components/ui/Switch.astro';
+interface Props {
+  title: string;
+  hint: string;
+  name: string;
+  checked?: boolean;
+  /** Show a fixed label instead of a switch */
+  locked?: string;
+  monoHint?: boolean;
+}
+const { title, hint, name, checked = false, locked, monoHint = false } = Astro.props;
+---
+
+<div class="flex items-center justify-between gap-4 rounded-[10px] bg-surface px-4 py-3.5">
+  <div>
+    <div class="text-[14px]" id={`${name}-label`}>{title}</div>
+    <div class:list={["text-subtle", monoHint ? "mt-1 font-mono text-[11px]" : "mt-[3px] text-[12px]"]}>{hint}</div>
+  </div>
+  {
+    locked ? (
+      <span class="font-mono text-[10px] font-medium tracking-[0.06em] text-subtle">{locked}</span>
+    ) : (
+      <Switch name={name} checked={checked} label={title} />
+    )
+  }
+</div>

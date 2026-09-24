@@ -1,0 +1,19 @@
+---
+interface Props {
+  /** "lg" is the sign-in page variant: bigger dot and type. */
+  size?: 'md' | 'lg';
+  href?: string;
+}
+const { size = 'md', href = '/' } = Astro.props;
+---
+
+<a
+  href={href}
+  class:list={[
+    'flex items-center font-semibold text-fg hover:text-fg',
+    size === 'lg' ? 'gap-2.5 text-[15px] tracking-[-0.01em]' : 'gap-2',
+  ]}
+>
+  <span class:list={['inline-block flex-none rounded-full bg-rec', size === 'lg' ? 'size-2.5' : 'size-[9px]']}></span>
+  Podstudio
+</a>

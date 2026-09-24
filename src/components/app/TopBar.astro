@@ -1,0 +1,51 @@
+---
+import Logo from '@/components/ui/Logo.astro';
+import Avatar from '@/components/ui/Avatar.astro';
+import { user } from '@/data/mock';
+
+export interface Crumb {
+  label: string;
+  href?: string;
+}
+interface Props {
+  crumbs: Crumb[];
+  /** Hide the account avatar when the slot supplies its own right side */
+  avatar?: boolean;
+}
+const { crumbs, avatar = true } = Astro.props;
+---
+
+<header class="flex h-14 flex-none items-center justify-between gap-4 border-b border-line px-5">
+  <div class="flex min-w-0 items-center gap-5.5">
+    <Logo />
+    <nav aria-label="Breadcrumb" class="min-w-0 truncate text-[14px] whitespace-nowrap text-muted">
+      {
+        crumbs.map((c, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <>
+              {i > 0 && <span class="mx-1.5 text-edge-strong max-sm:hidden">/</span>}
+              {last ? (
+                <span class="text-fg" aria-current="page">{c.label}</span>
+              ) : c.href ? (
+                <a href={c.href} class="text-muted hover:text-fg max-sm:hidden">{c.label}</a>
+              ) : (
+                <span class="max-sm:hidden">{c.label}</span>
+              )}
+            </>
+          );
+        })
+      }
+    </nav>
+  </div>
+  <div class="flex flex-none items-center gap-3.5">
+    <slot />
+    {
+      avatar && (
+        <a href="/settings/general" aria-label="Account settings">
+          <Avatar initial={user.initial} />
+        </a>
+      )
+    }
+  </div>
+</header>

@@ -1,0 +1,41 @@
+---
+/*
+ * Dev-only switcher for mock states, styled like the design canvas's
+ * light pill. In production the state comes from the server.
+ */
+interface Props {
+  target: string;
+  states: { value: string; label: string }[];
+  class?: string;
+}
+const { target, states, class: cls } = Astro.props;
+const show = import.meta.env.DEV;
+---
+
+{
+  show && (
+    <div
+      class:list={[
+        'fixed right-4 bottom-20 z-50 flex max-w-[calc(100vw-32px)] flex-wrap gap-[3px] rounded-lg border border-black/10 bg-white p-[3px] font-sans shadow-lg',
+        cls,
+      ]}
+      aria-label="Preview state (development only)"
+    >
+      {states.map((s) => (
+        <button
+          type="button"
+          data-set-state={s.value}
+          data-target={target}
+          class="flex h-7 items-center rounded-md px-2.5 text-[12px] text-black/60 aria-pressed:bg-[#1a1a1a] aria-pressed:text-white"
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+<script>
+  import { initStates } from '@/lib/states';
+  initStates();
+</script>

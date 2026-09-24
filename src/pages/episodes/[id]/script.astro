@@ -1,0 +1,97 @@
+---
+// 3a · Script editor with speakers
+import AppShell from '@/layouts/AppShell.astro';
+import JoinCode from '@/components/app/JoinCode.astro';
+import CastPanel from '@/components/app/CastPanel.astro';
+import SpeakerLabel from '@/components/ui/SpeakerLabel.astro';
+import Button from '@/components/ui/Button.astro';
+import Dot from '@/components/ui/Dot.astro';
+import { episode, episodePaths, screenAssignments, scriptLines, speakers, spk } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
+---
+
+<AppShell
+  title="Script"
+  avatar={false}
+  crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}
+>
+  <Fragment slot="topbar">
+    <JoinCode />
+    <Button href={`/episodes/${episode.id}/studio`} size="sm">Studio →</Button>
+  </Fragment>
+
+  <div class="grid lg:h-full lg:grid-cols-[1fr_360px]">
+    <section class="flex min-h-0 flex-col border-line lg:border-r">
+      <div class="flex items-center justify-between border-b border-line px-7 py-3.5 text-[13px] text-muted">
+        <div class="flex gap-4.5">
+          <span class="text-fg">Script</span>
+          <span>Notes</span>
+        </div>
+        <div class="meta max-sm:hidden">Type NAME: to switch speaker</div>
+      </div>
+      <div class="flex max-w-[880px] flex-col gap-5.5 overflow-auto px-6 py-8 sm:px-14">
+        {
+          scriptLines.map((l) => (
+            <div class="grid grid-cols-[96px_1fr] items-baseline gap-5">
+              <SpeakerLabel name={l.who} color={spk(l.who)} />
+              <div
+                contenteditable="plaintext-only"
+                spellcheck="true"
+                class="rounded text-[19px] leading-[1.65] text-pretty text-fg-soft focus:text-fg focus:outline-none"
+              >{l.text}</div>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <aside class="flex flex-col">
+      <div class="border-b border-line p-5">
+        <CastPanel />
+      </div>
+      <div class="flex flex-col gap-3 p-5">
+        <h2 class="text-[13px] font-medium">Screens</h2>
+        {
+          screenAssignments.map((a) => (
+            <div class="flex items-center justify-between border-b border-line py-2.5">
+              <div>
+                <div class="text-[14px]">{a.name}</div>
+                <div class="mt-0.5 font-mono text-[11px] text-subtle">{a.role}</div>
+              </div>
+              <label class="relative flex h-8 items-center gap-2 rounded-lg border border-edge pr-2.5 pl-2.5 text-[13px] focus-within:border-fg">
+                <Dot color={who(a.who)} data-assign-dot />
+                <select
+                  aria-label={`Who reads on ${a.name}`}
+                  class="appearance-none bg-transparent pr-4 focus:outline-none"
+                  data-assign
+                >
+                  {speakers.map((s) => (
+                    <option value={s.key} selected={s.key === a.who} class="bg-surface">
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value="ALL" selected={a.who === 'ALL'} class="bg-surface">
+                    Everyone
+                  </option>
+                </select>
+                <span class="pointer-events-none absolute right-2.5 text-faint">▾</span>
+              </label>
+            </div>
+          ))
+        }
+      </div>
+    </aside>
+  </div>
+</AppShell>
+
+<script>
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-assign]')) {
+    const dot = select.parentElement!.querySelector<HTMLElement>('[data-assign-dot]')!;
+    select.addEventListener('change', () => {
+      dot.style.background = select.value === 'ALL' ? 'var(--color-fg)' : `var(--spk-${select.value.toLowerCase()})`;
+    });
+  }
+</script>

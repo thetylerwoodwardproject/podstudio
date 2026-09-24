@@ -1,0 +1,197 @@
+---
+// 5b · Script import: paste, upload, or Google Docs link
+import Button from '@/components/ui/Button.astro';
+import Dot from '@/components/ui/Dot.astro';
+import { importPreview, spk, speakerByKey } from '@/data/mock';
+import { inputClass } from '@/lib/ui';
+---
+
+<dialog
+  id="import-dialog"
+  aria-labelledby="import-title"
+  class="m-auto w-[min(900px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-edge bg-panel p-0 text-fg backdrop:bg-black/60 md:h-[600px]"
+>
+  <div class="grid h-full md:grid-cols-2">
+    <div class="flex flex-col gap-4.5 border-line p-7 max-md:border-b md:border-r">
+      <h2 id="import-title" class="text-[20px] tracking-[-0.02em]">Import a script</h2>
+      <div
+        data-drop
+        tabindex="0"
+        class="flex min-h-40 flex-1 flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-edge-strong p-5 text-center transition-colors data-[over]:border-fg data-[over]:bg-surface"
+      >
+        <div class="text-[15px]">Drop a file or paste text</div>
+        <div class="meta text-subtle">.txt · .md · .docx · .fdx</div>
+        <label class="inline-flex h-10 items-center rounded-lg border border-edge px-4 text-[14px] hover:bg-raised">
+          Choose file
+          <input type="file" accept=".txt,.md,.docx,.fdx,text/plain,text/markdown" class="sr-only" data-file />
+        </label>
+      </div>
+      <div class="flex flex-col gap-2">
+        <label for="gdocs" class="text-[12px] text-muted">Or paste a Google Docs link</label>
+        <input
+          id="gdocs"
+          type="url"
+          class:list={[inputClass, 'font-mono text-[12px]']}
+          placeholder="https://docs.google.com/document/d/…"
+        />
+      </div>
+      <p class="text-[12px] leading-[1.55] text-subtle">
+        Lines that start with <span class="font-mono text-fg-soft">NAME:</span> become speakers.
+        <span class="font-mono text-fg-soft">## Heading</span> lines become sections.
+      </p>
+    </div>
+
+    <div class="flex min-w-0 flex-col gap-4.5 p-7">
+      <div class="flex items-baseline justify-between gap-3">
+        <div class="truncate text-[14px]" data-file-name>{importPreview.file}</div>
+        <div class="meta flex-none text-muted" data-file-meta>{importPreview.meta}</div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="eyebrow">Speakers found</div>
+        <div class="flex flex-wrap gap-2" data-speakers>
+          {
+            importPreview.speakers.map((s) => (
+              <span class="flex h-8 items-center gap-2 rounded-2xl bg-raised px-3 text-[13px]">
+                <Dot color={spk(s.who)} size={8} />
+                {speakerByKey(s.who).name}
+                <span class="font-mono text-[11px] text-subtle">{s.lines} lines</span>
+              </span>
+            ))
+          }
+        </div>
+      </div>
+      <div class="flex min-h-40 flex-1 flex-col gap-3 overflow-hidden rounded-[10px] border border-line bg-void p-4" data-preview>
+        <div class="eyebrow">{importPreview.section}</div>
+        {
+          importPreview.lines.map((l) => (
+            <div class="grid grid-cols-[62px_1fr] gap-3 text-[13px] leading-normal">
+              <span class="pt-[3px] font-mono text-[10px] font-medium tracking-[0.06em]" style={{ color: spk(l.who) }}>
+                {l.who}
+              </span>
+              <span class="text-fg-soft">{l.text}</span>
+            </div>
+          ))
+        }
+      </div>
+      <form method="dialog" class="flex justify-end gap-2.5">
+        <Button type="submit" value="cancel">Cancel</Button>
+        <Button type="submit" value="import" variant="primary">Import to {importPreview.target}</Button>
+      </form>
+    </div>
+  </div>
+</dialog>
+
+<template id="import-chip">
+  <span class="flex h-8 items-center gap-2 rounded-2xl bg-raised px-3 text-[13px]">
+    <span class="inline-block size-2 flex-none rounded-full" data-dot></span>
+    <span data-name></span>
+    <span class="font-mono text-[11px] text-subtle" data-count></span>
+  </span>
+</template>
+<template id="import-line">
+  <div class="grid grid-cols-[62px_1fr] gap-3 text-[13px] leading-normal">
+    <span class="truncate pt-[3px] font-mono text-[10px] font-medium tracking-[0.06em]" data-who></span>
+    <span class="text-fg-soft" data-text></span>
+  </div>
+</template>
+<template id="import-section">
+  <div class="eyebrow"></div>
+</template>
+
+<script>
+  import { parseScript } from '@/lib/script-parser';
+  import { presets } from '@/lib/speakers';
+
+  const dialog = document.getElementById('import-dialog') as HTMLDialogElement;
+  const drop = dialog.querySelector<HTMLElement>('[data-drop]')!;
+  const fileInput = dialog.querySelector<HTMLInputElement>('[data-file]')!;
+  const tpl = (id: string) => (document.getElementById(id) as HTMLTemplateElement).content.firstElementChild!;
+
+  for (const opener of document.querySelectorAll('[data-open-import]')) {
+    opener.addEventListener('click', () => dialog.showModal());
+  }
+  // Click on the backdrop closes the dialog.
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+
+  const known = new Set(['TYLER', 'SAM', 'DANA']);
+  const colorFor = (() => {
+    const spare = presets.filter((_, i) => ![0, 1, 4].includes(i)).map((p) => p.value);
+    const assigned = new Map<string, string>();
+    return (who: string) => {
+      if (!who) return 'var(--spk-unknown)';
+      if (known.has(who)) return `var(--spk-${who.toLowerCase()})`;
+      if (!assigned.has(who)) assigned.set(who, spare[assigned.size % spare.length]);
+      return assigned.get(who)!;
+    };
+  })();
+  const title = (who: string) => who.charAt(0) + who.slice(1).toLowerCase();
+
+  function show(name: string, text: string) {
+    const parsed = parseScript(text);
+    dialog.querySelector('[data-file-name]')!.textContent = name;
+    dialog.querySelector('[data-file-meta]')!.textContent =
+      `${parsed.words.toLocaleString()} words · ${parsed.lines.length} lines · ${parsed.sections.length} sections`;
+
+    const chips = dialog.querySelector('[data-speakers]')!;
+    chips.replaceChildren(
+      ...[...parsed.speakers].map(([who, count]) => {
+        const chip = tpl('import-chip').cloneNode(true) as HTMLElement;
+        chip.querySelector<HTMLElement>('[data-dot]')!.style.background = colorFor(who);
+        chip.querySelector('[data-name]')!.textContent = title(who);
+        chip.querySelector('[data-count]')!.textContent = `${count} ${count === 1 ? 'line' : 'lines'}`;
+        return chip;
+      }),
+    );
+
+    const preview = dialog.querySelector('[data-preview]')!;
+    const nodes: Node[] = [];
+    let section: string | null | undefined;
+    for (const line of parsed.lines.slice(0, 40)) {
+      if (line.section !== section) {
+        section = line.section;
+        if (section) {
+          const h = tpl('import-section').cloneNode(true) as HTMLElement;
+          h.textContent = section;
+          nodes.push(h);
+        }
+      }
+      const row = tpl('import-line').cloneNode(true) as HTMLElement;
+      const whoEl = row.querySelector<HTMLElement>('[data-who]')!;
+      whoEl.textContent = line.who || '—';
+      whoEl.style.color = colorFor(line.who);
+      row.querySelector('[data-text]')!.textContent = line.text;
+      nodes.push(row);
+    }
+    preview.replaceChildren(...nodes);
+  }
+
+  async function readFile(file: File) {
+    if (/\.(txt|md)$/i.test(file.name) || file.type.startsWith('text/')) {
+      show(file.name, await file.text());
+    } else {
+      // .docx and .fdx are converted on the server once the backend exists.
+      dialog.querySelector('[data-file-name]')!.textContent = file.name;
+      dialog.querySelector('[data-file-meta]')!.textContent = 'Parsed when imported';
+    }
+  }
+
+  fileInput.addEventListener('change', () => fileInput.files?.[0] && readFile(fileInput.files[0]));
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    drop.dataset.over = '';
+  });
+  drop.addEventListener('dragleave', () => delete drop.dataset.over);
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    delete drop.dataset.over;
+    const file = e.dataTransfer?.files[0];
+    if (file) readFile(file);
+  });
+  dialog.addEventListener('paste', (e) => {
+    if ((e.target as HTMLElement).matches('input')) return;
+    const text = e.clipboardData?.getData('text');
+    if (text) show('Pasted text', text);
+  });
+</script>

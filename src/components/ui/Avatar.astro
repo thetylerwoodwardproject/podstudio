@@ -1,0 +1,21 @@
+---
+interface Props {
+  initial: string;
+  /** Background color; defaults to the neutral chip. Colored avatars get dark ink. */
+  color?: string;
+  size?: number;
+  class?: string;
+}
+const { initial, color, size = 30, class: cls } = Astro.props;
+---
+
+<span
+  class:list={[
+    'inline-flex flex-none items-center justify-center rounded-full',
+    color ? 'font-semibold text-ink' : 'bg-line text-fg',
+    cls,
+  ]}
+  style={{ width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * 0.4)}px`, background: color }}
+>
+  {initial}
+</span>

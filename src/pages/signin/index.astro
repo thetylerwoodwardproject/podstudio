@@ -1,0 +1,53 @@
+---
+// 1a · Sign in (desktop)
+import Base from '@/layouts/Base.astro';
+import Logo from '@/components/ui/Logo.astro';
+import Field from '@/components/ui/Field.astro';
+import Button from '@/components/ui/Button.astro';
+import Checkbox from '@/components/ui/Checkbox.astro';
+import { inputClass } from '@/lib/ui';
+---
+
+<Base title="Sign in">
+  <div class="grid min-h-dvh lg:grid-cols-2">
+    <aside class="hidden flex-col justify-between border-r border-line p-11 lg:flex">
+      <Logo size="lg" />
+      <p class="max-w-[420px] text-[40px] leading-[1.1] font-normal tracking-[-0.03em] text-balance">
+        <span class="text-faint">It was a quiet week in the studio,</span>{' '}
+        <span class="border-b-2 border-rec text-white">until</span>{' '}
+        <span class="text-fg-dim">the new transmitter arrived.</span>
+      </p>
+      <div class="meta text-faint">Free · Chrome, Edge, Brave, Arc</div>
+    </aside>
+
+    <div class="flex items-center justify-center px-6 py-12">
+      <form class="flex w-full max-w-[340px] flex-col gap-4.5" data-next="/signin/verify">
+        <div class="lg:hidden"><Logo size="lg" /></div>
+        <h1 class="text-[22px] font-medium tracking-[-0.02em]">Sign in</h1>
+        <Field label="Username" for="username">
+          <input id="username" name="username" class={inputClass} value="tyler" autocomplete="username" required />
+        </Field>
+        <div class="flex flex-col gap-2">
+          <div class="flex justify-between text-[12px] text-muted">
+            <label for="password">Password</label>
+            <a href="#" class="text-faint hover:text-fg">Forgot?</a>
+          </div>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            class:list={[inputClass, 'tracking-[3px]']}
+            value="transmitter"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <Checkbox name="remember" checked size={14} class="text-[12px] text-muted" label="Keep this device signed in" />
+        <Button type="submit" variant="primary" size="lg" class="w-full">Sign in</Button>
+        <p class="text-center text-[12px] text-faint">
+          No account? <a href="#" class="text-fg">Create one</a>
+        </p>
+      </form>
+    </div>
+  </div>
+</Base>

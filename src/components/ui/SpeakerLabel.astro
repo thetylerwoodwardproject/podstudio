@@ -1,0 +1,29 @@
+---
+/* Mono speaker name in the speaker's color, with an optional dot. */
+import type { HTMLAttributes } from 'astro/types';
+import Dot from './Dot.astro';
+
+type Props = {
+  name: string;
+  color: string;
+  dot?: boolean;
+  size?: 10 | 11;
+  tracking?: 'normal' | 'wide';
+  class?: string;
+} & Omit<HTMLAttributes<'span'>, 'class' | 'style'>;
+
+const { name, color, dot = true, size = 11, tracking = 'normal', class: cls, ...rest } = Astro.props;
+---
+
+<span
+  class:list={[
+    'flex items-center gap-[7px] font-mono font-medium uppercase',
+    size === 10 ? 'text-[10px]' : 'text-[11px]',
+    tracking === 'wide' ? 'tracking-[0.08em]' : 'tracking-[0.06em]',
+    cls,
+  ]}
+  style={{ color }}
+  {...rest}
+>
+  {dot && <Dot color={color} />}{name}</span
+>

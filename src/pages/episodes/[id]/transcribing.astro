@@ -1,0 +1,83 @@
+---
+// 2d · Episode wrapped → transcribing with Whisper
+import Base from '@/layouts/Base.astro';
+import { episode, episodePaths, transcribeSteps } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+---
+
+<Base title="Transcribing">
+  <div class="flex min-h-dvh items-center justify-center p-4">
+    <div
+      class="flex w-full max-w-[720px] flex-col gap-7 rounded-[10px] bg-ink p-8 sm:min-h-[520px] sm:p-11"
+      data-transcribe
+      data-done={`/episodes/${episode.id}/package`}
+    >
+      <div>
+        <div class="eyebrow">{episode.label} · {episode.length} · {episode.takeCount} takes</div>
+        <h1 class="mt-2 text-[26px] tracking-[-0.02em]">Transcribing with Whisper</h1>
+        <p class="mt-1.5 text-[13px] text-muted">You can close this tab. It keeps running on the server.</p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <div
+          class="h-1 rounded-sm bg-line"
+          role="progressbar"
+          aria-label="Transcription progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="20"
+        >
+          <div class="h-1 w-[20%] rounded-sm bg-fg transition-[width] duration-300" data-bar></div>
+        </div>
+        <div class="meta flex justify-between text-muted">
+          <span><span data-pct>20</span>%</span>
+          <span data-eta>~1 min left</span>
+        </div>
+      </div>
+      <ol class="flex flex-col">
+        {
+          transcribeSteps.map((s) => (
+            <li class="flex items-center gap-3.5 border-b border-line py-3 text-[14px] text-faint" data-step={s.at}>
+              <span class="w-4.5 font-mono text-[12px] font-medium" data-mark>○</span>
+              <span class="flex-1">{s.label}</span>
+              <span class="meta text-subtle">{s.meta}</span>
+            </li>
+          ))
+        }
+      </ol>
+      <p class="mt-auto text-[12px] text-faint">Estimated OpenAI cost: about $0.19. Your WAV master stays on your server.</p>
+    </div>
+  </div>
+</Base>
+
+<script>
+  // Simulated progress until the server streams real job status.
+  const root = document.querySelector<HTMLElement>('[data-transcribe]')!;
+  const steps = [...root.querySelectorAll<HTMLElement>('[data-step]')];
+  const bar = root.querySelector<HTMLElement>('[data-bar]')!;
+  let pct = 20;
+
+  const render = () => {
+    bar.style.width = `${pct}%`;
+    bar.parentElement!.setAttribute('aria-valuenow', String(pct));
+    root.querySelector('[data-pct]')!.textContent = String(pct);
+    root.querySelector('[data-eta]')!.textContent = pct >= 100 ? 'Done' : '~1 min left';
+    steps.forEach((s, i) => {
+      const at = Number(s.dataset.step);
+      const next = steps[i + 1] ? Number(steps[i + 1].dataset.step) : 101;
+      const done = pct >= next;
+      const on = pct >= at && !done;
+      s.querySelector('[data-mark]')!.textContent = done ? '✓' : on ? '●' : '○';
+      s.style.color = done ? 'var(--color-muted)' : on ? 'var(--color-fg)' : 'var(--color-faint)';
+    });
+  };
+  render();
+  const timer = setInterval(() => {
+    pct = Math.min(100, pct + 2);
+    render();
+    if (pct >= 100) {
+      clearInterval(timer);
+      setTimeout(() => (location.href = root.dataset.done!), 1200);
+    }
+  }, 660);
+</script>

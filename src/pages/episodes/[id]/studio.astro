@@ -1,0 +1,176 @@
+---
+// 1c · Studio: desktop control (pick recorder, format, follow mode)
+import AppShell from '@/layouts/AppShell.astro';
+import JoinCode from '@/components/app/JoinCode.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import Switch from '@/components/ui/Switch.astro';
+import Button from '@/components/ui/Button.astro';
+import { devices, episode, episodePaths, studioScript } from '@/data/mock';
+import { mbPerMinute } from '@/lib/audio';
+
+export const getStaticPaths = episodePaths;
+
+const base = `/episodes/${episode.id}`;
+const recorder = devices[0];
+const modeHelp = {
+  voice: 'Scrolls as the host speaks. Pauses on ad-libs, re-syncs when a scripted phrase is heard.',
+  manual: 'Fixed scroll at 150 wpm. Space to pause, ↑ ↓ to nudge speed.',
+};
+const menu = [
+  { label: 'Edit script', href: `${base}/script` },
+  { label: 'Retake from a line', href: `${base}/takes` },
+  { label: 'Open monitor view', href: `${base}/monitor` },
+  { label: 'Producer remote', href: `${base}/remote` },
+  { label: 'Export', href: `${base}/export` },
+];
+---
+
+<AppShell title="Studio" crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}>
+  <JoinCode slot="topbar" />
+
+  <form class="grid lg:h-full lg:grid-cols-[1fr_380px]" data-studio data-next={`${base}/mic-check`} data-mode-help={JSON.stringify(modeHelp)}>
+    <section class="flex min-h-0 flex-col border-line lg:border-r">
+      <div class="flex items-center justify-between border-b border-line px-7 py-3.5 text-[13px] text-muted">
+        <div class="flex gap-4.5">
+          <a href={`${base}/script`} class="text-fg">Script</a>
+          <span>Notes</span>
+        </div>
+        <div class="meta">{episode.words} words · ~2:45 at 150 wpm</div>
+      </div>
+      <div class="flex max-w-[820px] flex-1 flex-col gap-5.5 overflow-auto px-6 py-9 text-[19px] leading-[1.7] text-fg-soft sm:px-18">
+        {
+          studioScript.map((b) =>
+            b.kind === 'section' ? (
+              <div class="eyebrow">{b.text}</div>
+            ) : (
+              <p class:list={[b.kind === 'cue' && 'text-faint']}>
+                {b.text}
+                {b.kind === 'p' && b.caret && (
+                  <span class="ml-px inline-block h-5.5 w-0.5 bg-fg align-[-4px]" aria-hidden="true" />
+                )}
+              </p>
+            ),
+          )
+        }
+      </div>
+    </section>
+
+    <aside class="flex flex-col lg:overflow-auto">
+      <div role="radiogroup" aria-labelledby="instances-title" class="flex flex-col gap-3 border-b border-line p-5">
+        <div class="flex items-baseline justify-between">
+          <h2 id="instances-title" class="text-[13px] font-medium">Instances</h2>
+          <span class="font-mono text-[11px] text-faint">tap to set recorder</span>
+        </div>
+        {
+          devices.map((d) => (
+            <label
+              class:list={[
+                'group flex items-center gap-3 rounded-[10px] border border-line p-3 has-checked:border-fg has-checked:bg-surface',
+                d.mic ? 'hover:border-edge' : 'cursor-default!',
+              ]}
+            >
+              <input
+                type="radio"
+                name="recorder"
+                value={d.id}
+                checked={d.id === recorder.id}
+                disabled={!d.mic}
+                data-name={d.name}
+                data-mic={d.mic}
+                class="sr-only"
+              />
+              <span class="flex size-8.5 flex-none items-center justify-center rounded-lg bg-line font-mono text-[11px] font-medium text-muted">
+                {d.glyph}
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-[14px]">{d.name}</span>
+                <span class="mt-0.5 block font-mono text-[11px] text-subtle">{d.meta}</span>
+              </span>
+              <span class="rounded-[5px] bg-raised px-[7px] py-1 font-mono text-[10px] font-medium tracking-[0.06em] text-subtle group-has-checked:hidden">
+                {d.mic ? 'PROMPTER' : 'DISPLAY'}
+              </span>
+              <span class="hidden rounded-[5px] bg-rec px-[7px] py-1 font-mono text-[10px] font-medium tracking-[0.06em] text-white group-has-checked:inline">
+                RECORDER
+              </span>
+            </label>
+          ))
+        }
+      </div>
+
+      <div class="flex flex-col gap-4 border-b border-line p-5">
+        <h2 class="text-[13px] font-medium">Recording · <span data-recorder-name>{recorder.name}</span></h2>
+        <div class="flex flex-col gap-[7px]">
+          <div class="text-[12px] text-muted">Bit depth</div>
+          <Segmented name="depth" label="Bit depth" mono value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
+        </div>
+        <div class="flex flex-col gap-[7px]">
+          <div class="text-[12px] text-muted">Sample rate</div>
+          <Segmented name="rate" label="Sample rate" mono value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-[13px]">Tone between takes</div>
+            <div class="mt-0.5 text-[11px] text-subtle">1 kHz · −20 dBFS · 0.5 s</div>
+          </div>
+          <Switch name="tone" size="sm" label="Tone between takes" />
+        </div>
+        <div class="meta flex justify-between text-subtle">
+          <span>Input: <span data-recorder-mic>{recorder.mic}</span></span>
+          <span><span data-size>{mbPerMinute(24, 48)}</span> MB/min</span>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-3.5 border-b border-line p-5">
+        <h2 class="text-[13px] font-medium">Scrolling</h2>
+        <Segmented name="mode" label="Scrolling" value="voice" options={[{ value: 'voice', label: 'Voice follow' }, { value: 'manual', label: 'Manual speed' }]} />
+        <p class="text-[12px] leading-normal text-muted" data-mode-text>{modeHelp.voice}</p>
+      </div>
+
+      <div class="mt-auto flex gap-2.5 p-5">
+        <Button type="submit" variant="record" size="xl" class="flex-1 gap-2.5">
+          <span class="size-2.5 rounded-full bg-white"></span>
+          Start take {episode.takeCount}
+        </Button>
+        <button
+          type="button"
+          popovertarget="studio-menu"
+          aria-label="More"
+          class="flex size-12 flex-none items-center justify-center rounded-[10px] border border-edge text-[18px] text-muted [anchor-name:--studio-more] hover:bg-raised hover:text-fg"
+        >
+          ⋯
+        </button>
+        <div
+          id="studio-menu"
+          popover
+          class="m-0 min-w-52 rounded-[10px] border border-edge bg-panel p-1 text-fg shadow-2xl [position-anchor:--studio-more] [position-area:top_span-left] mb-2"
+        >
+          {
+            menu.map((m) => (
+              <a href={m.href} class="block rounded-md px-3 py-2 text-[13px] text-fg hover:bg-raised hover:text-fg">
+                {m.label}
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </aside>
+  </form>
+</AppShell>
+
+<script>
+  import { mbPerMinute } from '@/lib/audio';
+
+  const form = document.querySelector<HTMLFormElement>('[data-studio]')!;
+  const help = JSON.parse(form.dataset.modeHelp!) as Record<string, string>;
+  const q = <T extends Element = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+
+  const update = () => {
+    const data = new FormData(form);
+    const rec = q<HTMLInputElement>('input[name=recorder]:checked');
+    q('[data-recorder-name]').textContent = rec.dataset.name!;
+    q('[data-recorder-mic]').textContent = rec.dataset.mic!;
+    q('[data-size]').textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
+    q('[data-mode-text]').textContent = help[String(data.get('mode'))];
+  };
+  form.addEventListener('change', update);
+</script>

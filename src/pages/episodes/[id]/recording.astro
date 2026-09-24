@@ -1,0 +1,85 @@
+---
+// 6b · Host view during a recording: one track per speaker
+import AppShell from '@/layouts/AppShell.astro';
+import Callout from '@/components/ui/Callout.astro';
+import Dot from '@/components/ui/Dot.astro';
+import StatusRow from '@/components/ui/StatusRow.astro';
+import Waveform from '@/components/ui/Waveform.astro';
+import Button from '@/components/ui/Button.astro';
+import { episode, episodePaths, speakerByKey, spk, storage, tracks } from '@/data/mock';
+import { waveforms } from '@/data/waveforms';
+
+export const getStaticPaths = episodePaths;
+---
+
+<AppShell title="Recording" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Recording' }]}>
+  <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium">
+    <Dot color="var(--color-rec)" size={8} pulse />
+    REC <span data-clock>24:10</span>
+  </div>
+
+  <div class="grid lg:h-full lg:grid-cols-[1fr_360px]">
+    <section class="flex min-w-0 flex-col gap-4.5 border-line px-6 py-7 lg:border-r lg:px-9">
+      <Callout title="Podstudio records. It doesn’t connect calls." color="var(--color-muted)">
+        Talk to remote guests over Zoom, Slack, Teams, Discord or any call app. Podstudio records each person’s own mic
+        on their own device, never the call audio.
+      </Callout>
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-[14px] font-medium">Tracks</h2>
+        <div class="meta text-subtle">24-bit · 48 kHz · mono · shared session clock</div>
+      </div>
+      <div class="flex flex-col border-t border-line">
+        {
+          tracks.map((t) => (
+            <div class="grid grid-cols-[170px_minmax(0,1fr)_190px] items-center gap-5 border-b border-line py-4.5 max-md:grid-cols-[1fr_1fr]">
+              <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2 text-[15px]">
+                  <Dot color={spk(t.who)} size={8} />
+                  {speakerByKey(t.who).name}
+                </div>
+                <div class="font-mono text-[11px] text-subtle">{t.device}</div>
+              </div>
+              <Waveform bars={waveforms[t.who]} color={spk(t.who)} class="max-md:order-last max-md:col-span-2" />
+              <div class="flex flex-col gap-1 font-mono text-[11px] text-muted">
+                <span class="flex items-center gap-1.5">
+                  <Dot color={t.statusColor} />
+                  {t.status}
+                </span>
+                <span class="text-faint">{t.offset}</span>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+      <p class="text-[12px] leading-normal text-subtle">
+        Each track records on the speaker’s own device. If someone’s connection drops, their device keeps recording and
+        uploads the rest when it reconnects.
+      </p>
+    </section>
+
+    <aside class="flex flex-col gap-3.5 p-6">
+      <h2 class="text-[14px] font-medium">Now reading</h2>
+      <div class="flex flex-col gap-1.5 rounded-[10px] bg-surface p-3.5">
+        <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('DANA') }}>DANA</div>
+        <div class="text-[15px] leading-normal">And whether the floor could hold it, which nobody checked until I asked.</div>
+      </div>
+      <div class="mt-1.5 flex flex-col">
+        <StatusRow label="Remote guests" value="2 connected" color="var(--color-ok)" dense />
+        <StatusRow label="Upload queue" value="2 chunks · 10 s" color="var(--color-warn)" dense />
+        <StatusRow label="Server space" value={`${storage.free} free`} dense />
+      </div>
+      <div class="mt-auto flex flex-col gap-2.5 pt-6">
+        <Button href={`/episodes/${episode.id}/transcribing`} variant="record" size="xl" class="gap-2.5">
+          <span class="size-3 rounded-[2px] bg-white"></span>
+          Stop take
+        </Button>
+        <p class="text-center text-[12px] text-subtle">Stopping waits for every guest’s upload to finish</p>
+      </div>
+    </aside>
+  </div>
+</AppShell>
+
+<script>
+  import { startClock } from '@/lib/prompter';
+  startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 24 * 60 + 10);
+</script>

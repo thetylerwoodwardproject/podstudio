@@ -1,0 +1,8 @@
+---
+import MicCheck from '@/components/app/MicCheck.astro';
+import { episodePaths } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+---
+
+<MicCheck mode="host" />

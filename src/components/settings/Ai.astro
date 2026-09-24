@@ -1,0 +1,127 @@
+---
+import Section from './Section.astro';
+import Field from '@/components/ui/Field.astro';
+import Button from '@/components/ui/Button.astro';
+import Dot from '@/components/ui/Dot.astro';
+import Select from '@/components/ui/Select.astro';
+import { inputClass } from '@/lib/ui';
+
+// Placeholder model names: OpenAI's list changes, the server will fetch it.
+const transcriptionModels = ['whisper-1'];
+const writingModels = ['gpt-4o-mini'];
+const banned = ['game-changer', 'unleash', 'dive in', '🚀'];
+const chip = 'flex h-6.5 items-center gap-1 rounded-[13px] bg-line px-2.5 text-[12px]';
+---
+
+<Section
+  title="Transcription & AI"
+  description="Uses your own OpenAI key. You pay OpenAI directly, and the key is stored encrypted on your server."
+/>
+<Field label="OpenAI API key" for="openai-key">
+  <div class="relative">
+    <input
+      id="openai-key"
+      name="openai-key"
+      type="password"
+      autocomplete="off"
+      class:list={[inputClass, 'pr-28 font-mono text-[13px]']}
+      value="sk-proj-000000000000000000004f2a"
+    />
+    <span class="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1.5 text-[12px] text-ok">
+      <Dot color="var(--color-ok)" />Connected
+    </span>
+  </div>
+</Field>
+<div class="grid gap-4 sm:grid-cols-2">
+  <Field label="Transcription model" for="tx-model">
+    <Select id="tx-model" name="tx-model" options={transcriptionModels} />
+  </Field>
+  <Field label="Writing model" for="gen-model">
+    <Select id="gen-model" name="gen-model" options={writingModels} />
+  </Field>
+</div>
+
+<div class="h-px bg-line"></div>
+<div>
+  <h2 class="text-[16px] tracking-[-0.01em]">Show voice</h2>
+  <p class="mt-1.5 max-w-[560px] text-[13px] leading-[1.55] text-muted">
+    This guides every title, description and social post Podstudio writes, so the drafts sound like your show.
+  </p>
+</div>
+<Field label="Describe your show’s tone" for="tone">
+  <textarea
+    id="tone"
+    name="tone"
+    rows="3"
+    class="min-h-24 w-full resize-y rounded-lg border border-edge bg-surface p-3 text-[14px] leading-[1.6] focus:border-fg focus:outline-none"
+  >Casual and technical. Broadcast engineering for people who actually do the work. Dry humor, no hype. Short sentences.</textarea>
+</Field>
+<div class="grid gap-4 sm:grid-cols-2">
+  <div class="flex flex-col gap-2">
+    <label for="banned-input" class="text-[12px] text-muted">Never use these words</label>
+    <div class="flex min-h-[42px] flex-wrap gap-1.5 rounded-lg border border-edge bg-surface p-2 focus-within:border-fg" data-chips>
+      {
+        banned.map((w) => (
+          <span class={chip}>
+            {w}
+            <button type="button" aria-label={`Remove ${w}`} class="text-muted hover:text-fg" data-remove>×</button>
+          </span>
+        ))
+      }
+      <input id="banned-input" class="min-w-20 flex-1 bg-transparent px-1 text-[12px] focus:outline-none" placeholder="Add…" data-chip-input />
+    </div>
+  </div>
+  <Field label="Hashtags to include" for="hashtags">
+    <input id="hashtags" name="hashtags" class={inputClass} value="#broadcast #radioengineering" />
+  </Field>
+</div>
+<div class="flex flex-col gap-2" data-examples>
+  <div class="text-[12px] text-muted">Example posts (paste 2–3 you liked)</div>
+  <textarea
+    rows="2"
+    aria-label="Example post 1"
+    class="w-full resize-y rounded-lg border border-edge bg-surface p-3 text-[13px] leading-[1.6] text-fg-soft focus:border-fg focus:outline-none"
+  >New episode: we rebuilt Studio B in a weekend and only broke one thing. Mostly.</textarea>
+  <button type="button" class="self-start text-[13px] text-muted hover:text-fg" data-add-example>+ Add another</button>
+</div>
+<div class="mt-auto flex justify-end gap-2.5">
+  <Button href="/episodes/142/package">Test on Ep. 142</Button>
+  <Button type="submit" variant="primary">Save</Button>
+</div>
+
+<template id="chip-tpl">
+  <span class={chip}><span data-text></span><button type="button" class="text-muted hover:text-fg" data-remove>×</button></span>
+</template>
+
+<script>
+  const chips = document.querySelector<HTMLElement>('[data-chips]');
+  if (chips) {
+    const input = chips.querySelector<HTMLInputElement>('[data-chip-input]')!;
+    chips.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-remove]');
+      if (btn) btn.parentElement!.remove();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value) input.previousElementSibling?.remove();
+      if (e.key !== 'Enter' && e.key !== ',') return;
+      e.preventDefault();
+      const word = input.value.trim();
+      if (!word) return;
+      const tpl = (document.getElementById('chip-tpl') as HTMLTemplateElement).content.firstElementChild!.cloneNode(true) as HTMLElement;
+      tpl.querySelector('[data-text]')!.textContent = word;
+      tpl.querySelector('[data-remove]')!.setAttribute('aria-label', `Remove ${word}`);
+      input.before(tpl);
+      input.value = '';
+    });
+
+    const examples = document.querySelector<HTMLElement>('[data-examples]')!;
+    examples.querySelector('[data-add-example]')!.addEventListener('click', (e) => {
+      const areas = examples.querySelectorAll('textarea');
+      const next = areas[0].cloneNode() as HTMLTextAreaElement;
+      next.value = '';
+      next.setAttribute('aria-label', `Example post ${areas.length + 1}`);
+      (e.currentTarget as HTMLElement).before(next);
+      next.focus();
+    });
+  }
+</script>

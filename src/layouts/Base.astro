@@ -1,0 +1,51 @@
+---
+import '@/styles/global.css';
+import { STORAGE_KEY } from '@/lib/speakers';
+
+interface Props {
+  title: string;
+  /** Skip the Chrome-only redirect (used by the unsupported-browser page). */
+  anyBrowser?: boolean;
+  bodyClass?: string;
+}
+
+const { title, anyBrowser = false, bodyClass = '' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b0c" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{title === 'Podstudio' ? title : `${title} · Podstudio`}</title>
+    <script is:inline define:vars={{ STORAGE_KEY }}>
+      // Apply saved speaker colors before first paint.
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        for (const [k, v] of Object.entries(saved)) {
+          document.documentElement.style.setProperty('--spk-' + k.toLowerCase(), v);
+        }
+      } catch {}
+    </script>
+    {
+      !anyBrowser && (
+        <script is:inline>
+          // Podstudio needs Chromium: Web Speech voice follow and AudioWorklet WAV capture.
+          (function () {
+            const brands = navigator.userAgentData && navigator.userAgentData.brands;
+            const chromium = brands ? brands.some((b) => b.brand === 'Chromium') : 'chrome' in window;
+            if (!chromium) location.replace('/unsupported?from=' + encodeURIComponent(location.href));
+          })();
+        </script>
+      )
+    }
+  </head>
+  <body class:list={['min-h-dvh', bodyClass]}>
+    <slot />
+    <script>
+      import '@/lib/mock-forms';
+    </script>
+  </body>
+</html>

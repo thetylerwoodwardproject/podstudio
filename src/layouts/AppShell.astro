@@ -1,0 +1,23 @@
+---
+/* Desktop app frame: top bar with breadcrumbs, then a full-height work area. */
+import Base from './Base.astro';
+import TopBar, { type Crumb } from '@/components/app/TopBar.astro';
+
+interface Props {
+  title: string;
+  crumbs: Crumb[];
+  avatar?: boolean;
+}
+const { title, crumbs, avatar } = Astro.props;
+---
+
+<Base title={title}>
+  <div class="flex h-dvh flex-col">
+    <TopBar crumbs={crumbs} avatar={avatar}>
+      <slot name="topbar" />
+    </TopBar>
+    <main class="min-h-0 flex-1 overflow-auto lg:overflow-hidden">
+      <slot />
+    </main>
+  </div>
+</Base>

@@ -1,0 +1,55 @@
+---
+import Button from '@/components/ui/Button.astro';
+import Avatar from '@/components/ui/Avatar.astro';
+import { server, spk, users } from '@/data/mock';
+---
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-[22px] tracking-[-0.02em]">Users</h1>
+    <p class="mt-1.5 max-w-[560px] text-[13px] leading-[1.55] text-muted">
+      Everyone gets their own sign-in and must set up 2FA the first time they sign in.
+    </p>
+  </div>
+  <Button variant="primary">+ Invite</Button>
+</div>
+<div class="overflow-x-auto">
+  <div class="flex min-w-[560px] flex-col border-t border-line">
+    {
+      users.map((u) => (
+        <div class="grid grid-cols-[1fr_160px_180px_90px] items-center gap-4 border-b border-line py-4 text-[14px]">
+          <span class="flex items-center gap-3">
+            <Avatar initial={u.name[0]} color={spk(u.who)} />
+            {u.name}
+          </span>
+          <span class="meta text-muted">{u.username}</span>
+          <span class="text-[13px] text-fg-soft">{u.role}</span>
+          <span class:list={['font-mono text-[10px] font-medium tracking-[0.06em]', u.state === 'INVITED' ? 'text-warn' : 'text-ok']}>{u.state}</span>
+        </div>
+      ))
+    }
+  </div>
+</div>
+<div class="flex flex-col gap-3 rounded-xl bg-surface px-4.5 py-4">
+  <div class="text-[14px]">Invite link for Dana</div>
+  <div class="flex gap-2.5">
+    <input
+      readonly
+      value={server.inviteLink}
+      aria-label="Invite link"
+      class="h-10 min-w-0 flex-1 rounded-lg border border-line bg-void px-3 font-mono text-[12px] text-fg-soft focus:outline-none"
+      data-invite
+    />
+    <Button data-copy-invite>Copy</Button>
+  </div>
+  <div class="text-[12px] text-subtle">Expires in 48 hours · Guests can only see the episodes you share with them</div>
+</div>
+
+<script>
+  const btn = document.querySelector<HTMLButtonElement>('[data-copy-invite]');
+  btn?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(document.querySelector<HTMLInputElement>('[data-invite]')!.value);
+    btn.textContent = 'Copied';
+    setTimeout(() => (btn.textContent = 'Copy'), 1500);
+  });
+</script>

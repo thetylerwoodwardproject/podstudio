@@ -1,0 +1,68 @@
+---
+// 7a · Settings: one shell, every section
+import AppShell from '@/layouts/AppShell.astro';
+import General from '@/components/settings/General.astro';
+import Recording from '@/components/settings/Recording.astro';
+import Prompter from '@/components/settings/Prompter.astro';
+import Controls from '@/components/settings/Controls.astro';
+import Ai from '@/components/settings/Ai.astro';
+import Security from '@/components/settings/Security.astro';
+import Domain from '@/components/settings/Domain.astro';
+import Users from '@/components/settings/Users.astro';
+import Server from '@/components/settings/Server.astro';
+
+const sections = [
+  { key: 'general', label: 'General', view: General },
+  { key: 'recording', label: 'Recording', view: Recording },
+  { key: 'prompter', label: 'Prompter', view: Prompter },
+  { key: 'controls', label: 'Controls', view: Controls },
+  { key: 'ai', label: 'Transcription & AI', view: Ai },
+  { key: 'security', label: 'Security', view: Security },
+  { key: 'domain', label: 'Domain & HTTPS', view: Domain },
+  { key: 'users', label: 'Users', view: Users },
+  { key: 'server', label: 'Server', view: Server },
+];
+
+export const getStaticPaths = () =>
+  ['general', 'recording', 'prompter', 'controls', 'ai', 'security', 'domain', 'users', 'server'].map((section) => ({
+    params: { section },
+  }));
+
+const { section } = Astro.params;
+const current = sections.find((s) => s.key === section)!;
+const View = current.view;
+---
+
+<AppShell title={current.label} crumbs={[{ label: 'Settings' }]}>
+  <div class="grid lg:h-full lg:grid-cols-[220px_1fr]">
+    <nav aria-label="Settings" class="flex gap-0.5 overflow-x-auto border-line px-3 py-5 max-lg:border-b lg:flex-col lg:border-r">
+      {
+        sections.map((s) => (
+          <a
+            href={`/settings/${s.key}`}
+            aria-current={s.key === section ? 'page' : undefined}
+            class="rounded-lg px-3 py-[9px] text-[14px] whitespace-nowrap text-muted hover:text-fg aria-[current]:bg-raised aria-[current]:text-fg"
+          >
+            {s.label}
+          </a>
+        ))
+      }
+    </nav>
+    <form class="flex min-w-0 flex-col gap-5.5 overflow-auto px-6 py-8 lg:px-11" data-settings>
+      <View />
+    </form>
+  </div>
+</AppShell>
+
+<script>
+  // No server yet: saving just confirms on the button.
+  const form = document.querySelector<HTMLFormElement>('[data-settings]')!;
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const btn = e.submitter;
+    if (!btn || btn.textContent === 'Saved') return;
+    const was = btn.textContent;
+    btn.textContent = 'Saved';
+    setTimeout(() => (btn.textContent = was), 1500);
+  });
+</script>

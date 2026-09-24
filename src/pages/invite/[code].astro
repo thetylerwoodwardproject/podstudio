@@ -1,0 +1,8 @@
+---
+// Remote guest landing from an invite link: the guest variant of the mic check.
+import MicCheck from '@/components/app/MicCheck.astro';
+
+export const getStaticPaths = () => [{ params: { code: '8f2k-q7mz' } }];
+---
+
+<MicCheck mode="guest" />

@@ -1,0 +1,97 @@
+---
+// 3c · Transcript with speakers + fix-ups
+import AppShell from '@/layouts/AppShell.astro';
+import SpeakerLabel from '@/components/ui/SpeakerLabel.astro';
+import Avatar from '@/components/ui/Avatar.astro';
+import Dot from '@/components/ui/Dot.astro';
+import { episode, episodePaths, speakerTalkTime, speakerTranscript, speakers, spk } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const unknown = speakerTranscript.find((g) => g.who === '?')!;
+const base = `/episodes/${episode.id}`;
+---
+
+<AppShell
+  title="Transcript"
+  crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle, href: `${base}/package` }, { label: 'Speakers' }]}
+>
+  <div class="grid lg:h-full lg:grid-cols-[1fr_320px]" data-review>
+    <section class="flex min-h-0 flex-col border-line lg:border-r">
+      <div class="flex justify-between border-b border-line px-7 py-3.5 text-[13px]">
+        <div class="flex gap-4.5">
+          <a href={`${base}/package`} class="text-muted hover:text-fg">Transcript</a>
+          <span>Speakers</span>
+        </div>
+        <span class="meta text-subtle">3 speakers · <span data-to-review>1</span> to review</span>
+      </div>
+      <div class="flex flex-col overflow-auto px-7 py-2">
+        {
+          speakerTranscript.map((g) => (
+            <div
+              class="grid grid-cols-[56px_110px_1fr] items-baseline gap-3.5 border-b border-line-soft py-3.5"
+              data-seg={g.who === '?' ? 'unknown' : undefined}
+            >
+              <div class="meta text-subtle">{g.t}</div>
+              <SpeakerLabel name={g.who} color={spk(g.who)} data-seg-label />
+              <div class="text-[14px] leading-[1.6] text-pretty text-fg-soft">{g.text}</div>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <aside class="flex flex-col gap-5 p-5">
+      <div class="flex flex-col gap-2.5">
+        <h2 class="text-[13px] font-medium">Speakers</h2>
+        {
+          speakers.map((s) => (
+            <div class="flex items-center gap-2.5 rounded-[10px] bg-surface px-3 py-2.5">
+              <Avatar initial={s.initial} color={spk(s.key)} size={24} />
+              <div class="flex-1 text-[14px]">{s.name}</div>
+              <div class="font-mono text-[11px] text-subtle">{speakerTalkTime[s.key]}</div>
+            </div>
+          ))
+        }
+      </div>
+      <div class="flex flex-col gap-3 rounded-[10px] border border-edge p-4" data-fixup>
+        <div class="text-[13px]">Who said this at {unknown.t}?</div>
+        <div class="text-[13px] leading-normal text-muted">“{unknown.text}” (ad-lib, not in script)</div>
+        <div class="flex gap-2">
+          {
+            speakers.map((s) => (
+              <button
+                type="button"
+                data-assign={s.key}
+                class="flex h-8.5 flex-1 items-center justify-center gap-1.5 rounded-lg bg-raised text-[13px] hover:bg-line"
+              >
+                <Dot color={spk(s.key)} />
+                {s.name}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+      <p class="mt-auto text-[12px] leading-normal text-faint">
+        Speaker names are carried into the .srt/.vtt exports and into soundbite titles.
+      </p>
+    </aside>
+  </div>
+</AppShell>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-review]')!;
+  const fixup = root.querySelector<HTMLElement>('[data-fixup]')!;
+  for (const btn of fixup.querySelectorAll<HTMLButtonElement>('[data-assign]')) {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.assign!;
+      const label = root.querySelector<HTMLElement>('[data-seg=unknown] [data-seg-label]')!;
+      const color = `var(--spk-${key.toLowerCase()})`;
+      label.style.color = color;
+      label.lastChild!.textContent = key;
+      label.querySelector<HTMLElement>('span')!.style.background = color;
+      root.querySelector('[data-to-review]')!.textContent = '0';
+      fixup.hidden = true;
+    });
+  }
+</script>

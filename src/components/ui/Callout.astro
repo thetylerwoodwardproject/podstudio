@@ -1,0 +1,29 @@
+---
+/* Inline notice with a colored bar on the left: storage warnings, HTTPS state, updates. */
+import type { HTMLAttributes } from 'astro/types';
+import Dot from './Dot.astro';
+
+type Props = {
+  title: string;
+  color: string;
+  size?: 'md' | 'lg';
+  class?: string;
+} & Omit<HTMLAttributes<'div'>, 'class' | 'style' | 'title'>;
+
+const { title, color, size = 'md', class: cls, ...rest } = Astro.props;
+---
+
+<div
+  class:list={['flex items-center gap-4 rounded-xl bg-surface px-4.5 max-sm:flex-col max-sm:items-start', size === 'lg' ? 'py-4' : 'py-3.5', cls]}
+  style={{ boxShadow: `inset 2px 0 0 ${color}` }}
+  {...rest}
+>
+  <div class="min-w-0 flex-1">
+    <div class:list={['flex items-center gap-2', size === 'lg' ? 'text-[15px]' : 'text-[14px]']}>
+      <Dot color={color} size={8} />
+      {title}
+    </div>
+    <div class="mt-1 text-[13px] leading-normal text-muted"><slot /></div>
+  </div>
+  <slot name="action" />
+</div>

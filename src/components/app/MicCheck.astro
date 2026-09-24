@@ -1,0 +1,117 @@
+---
+// 7c · Mic check: one screen for hosts and remote guests
+import AppShell from '@/layouts/AppShell.astro';
+import StatusRow from '@/components/ui/StatusRow.astro';
+import Button from '@/components/ui/Button.astro';
+import { episode } from '@/data/mock';
+import Select from '@/components/ui/Select.astro';
+
+interface Props {
+  mode: 'host' | 'guest';
+}
+const { mode } = Astro.props;
+const guest = mode === 'guest';
+const ok = 'var(--color-ok)';
+const base = `/episodes/${episode.id}`;
+
+const c = guest
+  ? {
+      who: 'Guest · Dana · invited by Tyler',
+      title: 'Before you join',
+      sub: 'Your mic is recorded on this computer at full quality and sent to Tyler’s server as you talk.',
+      inputs: ['Rode NT-USB', 'MacBook Pro Microphone'],
+      heard: '“And whether the floor could hold it, which nobody checked until I asked.”',
+      checks: [
+        ['Level', 'Good', ok],
+        ['Clipping', 'None', ok],
+        ['Headphones', 'Confirmed', ok],
+        ['Call audio in mic', 'Not detected', ok],
+        ['Connection to server', 'Good · 38 ms', ok],
+      ],
+      next: `${base}/prompter`,
+    }
+  : {
+      who: 'Host · Tyler',
+      title: 'Check your mic',
+      sub: 'Read a line at your normal volume. Podstudio checks your level and room noise, and makes sure voice follow can hear you.',
+      inputs: ['Shure MV7 (USB)', 'MacBook Pro Microphone'],
+      heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
+      checks: [
+        ['Level', 'Good · peaks around -8', ok],
+        ['Clipping', 'None in the last 30 s', ok],
+        ['Noise floor', '-61 dBFS', ok],
+        ['Voice follow', 'Matched line 1', ok],
+        ['Free space', '5.1 GB · about 9 h', 'var(--color-warn)'],
+      ],
+      next: `${base}/recording`,
+    };
+
+const SEGMENTS = 40;
+const LIT = 30;
+---
+
+<AppShell title={c.title} avatar={false} crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Mic check' }]}>
+  <span slot="topbar" class="truncate text-[13px] text-muted max-sm:hidden">{c.who}</span>
+
+  <form class="grid gap-11 px-6 py-9 lg:h-full lg:grid-cols-[1fr_340px] lg:px-13" data-next={c.next}>
+    <div class="flex flex-col gap-5.5">
+      <div>
+        <h1 class="text-[24px] tracking-[-0.02em]">{c.title}</h1>
+        <p class="mt-1.5 max-w-[520px] text-[13px] leading-[1.55] text-muted">{c.sub}</p>
+      </div>
+
+      {
+        guest && (
+          <div class="flex gap-3.5 rounded-xl bg-surface px-4 py-3.5 shadow-[inset_2px_0_0_var(--color-muted)]">
+            <span class="eyebrow flex-none pt-0.5 text-muted!">First</span>
+            <span class="text-[13px] leading-[1.55] text-fg-soft">
+              Join the call in Zoom, Slack, Teams, Discord or whatever the host sent, and put on headphones. Podstudio
+              records your mic only, never the call.
+            </span>
+          </div>
+        )
+      }
+
+      <div class="flex flex-col gap-2">
+        <label for="mic" class="text-[12px] text-muted">Microphone</label>
+        <Select id="mic" name="mic" options={c.inputs} />
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <div
+          class="flex gap-[3px]"
+          role="meter"
+          aria-label="Input level"
+          aria-valuemin="-60"
+          aria-valuemax="0"
+          aria-valuenow="-8"
+        >
+          {Array.from({ length: SEGMENTS }, (_, i) => <span class:list={['h-6.5 flex-1 rounded-[2px]', i < LIT ? 'bg-fg' : 'bg-line']} />)}
+        </div>
+        <div class="flex justify-between font-mono text-[11px] text-faint">
+          <span>-60</span><span>-24</span><span>-12</span><span>-6</span><span class="text-rec">0 dBFS</span>
+        </div>
+      </div>
+
+      <div class="rounded-xl bg-surface px-4 py-3.5 text-[17px] leading-normal">
+        <span class="text-faint">Heard:</span>
+        {c.heard}
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <h2 class="eyebrow">Checks</h2>
+      {c.checks.map(([k, v, color]) => <StatusRow label={k} value={v} color={color} dense />)}
+      <p class="mt-2.5 text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
+      <div class="mt-auto pt-6">
+        {
+          guest ? (
+            <Button type="submit" variant="primary" size="lg" class="w-full">Join as Dana</Button>
+          ) : (
+            <Button type="submit" variant="record" size="lg" class="w-full">●&nbsp; Start take {episode.takeCount}</Button>
+          )
+        }
+      </div>
+    </div>
+  </form>
+</AppShell>

@@ -1,0 +1,42 @@
+---
+/*
+ * Segmented control built from native radios, so it works without script
+ * and with the keyboard. Selected styling comes from :has(:checked).
+ */
+interface Option {
+  value: string;
+  label: string;
+}
+interface Props {
+  name: string;
+  options: Option[];
+  value: string;
+  mono?: boolean;
+  /** Accessible label for the group */
+  label?: string;
+  class?: string;
+}
+const { name, options, value, mono = false, label, class: cls } = Astro.props;
+---
+
+<div
+  role="radiogroup"
+  aria-label={label}
+  class:list={['grid gap-[3px] rounded-lg bg-raised p-[3px]', cls]}
+  style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+>
+  {
+    options.map((o) => (
+      <label
+        class:list={[
+          'flex h-8 items-center justify-center rounded-md px-2 text-center text-muted transition-colors hover:text-fg',
+          'has-checked:bg-fg has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-fg',
+          mono ? 'font-mono text-[12px] font-medium' : 'text-[13px]',
+        ]}
+      >
+        <input type="radio" class="sr-only" name={name} value={o.value} checked={o.value === value} />
+        {o.label}
+      </label>
+    ))
+  }
+</div>

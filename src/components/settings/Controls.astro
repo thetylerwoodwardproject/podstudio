@@ -1,0 +1,59 @@
+---
+import Section from './Section.astro';
+import Kbd from '@/components/ui/Kbd.astro';
+import Dot from '@/components/ui/Dot.astro';
+import { shortcuts } from '@/data/mock';
+---
+
+<Section
+  title="Controls"
+  description="Shortcuts work on every screen. Bluetooth page turners and foot pedals show up as keyboards, so any key they send can be mapped."
+/>
+<dl class="grid gap-x-8 md:grid-cols-2">
+  {
+    shortcuts.map((s) => (
+      <div class="flex items-center justify-between border-b border-line py-2.5 text-[13px]">
+        <dt class="text-fg-soft">{s.action}</dt>
+        <dd><Kbd>{s.keys}</Kbd></dd>
+      </div>
+    ))
+  }
+</dl>
+<div class="flex flex-col gap-2.5">
+  <h2 class="eyebrow">Remotes</h2>
+  <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
+    <div class="flex-1">
+      <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-ok)" />Page turner · Satechi R1</div>
+      <div class="mt-1 font-mono text-[11px] text-subtle">PageDown → next line · PageUp → previous line</div>
+    </div>
+    <button type="button" class="text-[13px] text-muted hover:text-fg">Edit</button>
+  </div>
+  <div class="flex items-center gap-3.5 rounded-[10px] border border-dashed border-edge-strong px-4 py-3.5" data-pedal>
+    <div class="flex-1">
+      <div class="text-[14px]">Foot pedal</div>
+      <div class="mt-1 text-[12px] text-subtle" data-pedal-hint>Press the pedal now to map it to Pause / resume</div>
+    </div>
+    <div class="meta flex items-center gap-2 text-warn" data-pedal-status>
+      <Dot color="currentColor" />
+      <span>Listening</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // While "Listening", the next key the pedal sends becomes Pause / resume.
+  const pedal = document.querySelector<HTMLElement>('[data-pedal]');
+  if (pedal) {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).matches('input, textarea, select, [contenteditable]')) return;
+      e.preventDefault();
+      pedal.querySelector('[data-pedal-hint]')!.textContent = `${e.code} → Pause / resume`;
+      const status = pedal.querySelector<HTMLElement>('[data-pedal-status]')!;
+      status.classList.replace('text-warn', 'text-ok');
+      status.querySelector('span:last-child')!.textContent = 'Mapped';
+      pedal.classList.replace('border-dashed', 'border-solid');
+      removeEventListener('keydown', onKey);
+    };
+    addEventListener('keydown', onKey);
+  }
+</script>

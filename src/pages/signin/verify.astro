@@ -1,0 +1,27 @@
+---
+// 2b · 2FA at sign-in (phone)
+import Phone from '@/layouts/Phone.astro';
+import Logo from '@/components/ui/Logo.astro';
+import OtpInput from '@/components/ui/OtpInput.astro';
+import Checkbox from '@/components/ui/Checkbox.astro';
+import Button from '@/components/ui/Button.astro';
+import { user } from '@/data/mock';
+---
+
+<Phone title="Enter your code">
+  <form class="flex flex-1 flex-col gap-7 p-6" data-next="/join">
+    <Logo />
+    <div>
+      <h1 class="text-[26px] font-medium tracking-[-0.02em]">Enter your code</h1>
+      <p class="mt-1.5 text-[13px] leading-normal text-muted">
+        Open your authenticator app to get the code for {user.username}@podstudio.
+      </p>
+    </div>
+    <OtpInput name="code" value="2903" size="lg" label="Authentication code" />
+    <Checkbox name="trust" checked size={18} class="items-center gap-2.5 text-[13px] text-fg-soft" label="Trust this device for 30 days" />
+    <Button type="submit" variant="primary" class="h-[50px] w-full rounded-xl text-[15px]">Verify</Button>
+    <p class="mt-auto pb-7 text-center text-[13px] text-muted">
+      Lost your phone? <a href="#" class="text-fg">Use a recovery code</a>
+    </p>
+  </form>
+</Phone>

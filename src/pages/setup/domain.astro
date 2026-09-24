@@ -1,0 +1,55 @@
+---
+// 5j · Setup wizard, optional Domain & HTTPS step
+import Setup from '@/layouts/Setup.astro';
+import Button from '@/components/ui/Button.astro';
+import Field from '@/components/ui/Field.astro';
+import { inputClass } from '@/lib/ui';
+import { server, setupSteps } from '@/data/mock';
+
+const current = 4;
+const choices = [
+  { value: 'domain', title: 'Set up a domain', body: 'Caddy (HTTPS built in) or Nginx with Certbot. We’ll give you the exact config.' },
+  { value: 'local', title: 'Local only for now', body: 'Only this computer records. Other devices can still show the script.' },
+];
+---
+
+<Setup title="Record from anywhere?" current={current}>
+  <form class="group flex flex-1 flex-col gap-6" data-next="/">
+    <div>
+      <div class="eyebrow">Step {current + 1} of {setupSteps.length} · Optional</div>
+      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Record from anywhere?</h1>
+      <p class="mt-2 max-w-[500px] text-[14px] leading-[1.55] text-muted">
+        Phones and other computers can only record over HTTPS. If you want that, put Podstudio behind a reverse proxy
+        on your domain. You can also do this later in Settings.
+      </p>
+    </div>
+
+    <fieldset class="grid gap-3.5 sm:grid-cols-2">
+      <legend class="sr-only">How other devices reach Podstudio</legend>
+      {
+        choices.map((c, i) => (
+          <label class="flex flex-col gap-2 rounded-xl border border-line p-4.5 hover:border-edge has-checked:border-fg">
+            <input type="radio" name="mode" value={c.value} checked={i === 0} class="sr-only" />
+            <span class="text-[15px]">{c.title}</span>
+            <span class="text-[13px] leading-normal text-muted">{c.body}</span>
+          </label>
+        ))
+      }
+    </fieldset>
+
+    <Field label="Your domain" for="domain" class="group-has-[[value=local]:checked]:hidden">
+      <div class="relative">
+        <input id="domain" name="domain" class:list={[inputClass, 'pr-44']} value={server.address} />
+        <span class="meta pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ok">points to this server ✓</span>
+      </div>
+    </Field>
+
+    <div class="mt-auto flex items-center justify-between">
+      <a href="/setup/two-factor" class="text-[13px] text-muted hover:text-fg">← Back</a>
+      <div class="flex gap-2.5">
+        <Button href="/">Skip</Button>
+        <Button type="submit" variant="primary">Continue</Button>
+      </div>
+    </div>
+  </form>
+</Setup>

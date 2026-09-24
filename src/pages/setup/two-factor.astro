@@ -1,0 +1,48 @@
+---
+// 2a · First-run setup, turn on 2FA
+import Setup from '@/layouts/Setup.astro';
+import { setupSteps } from '@/data/mock';
+import OtpInput from '@/components/ui/OtpInput.astro';
+import Button from '@/components/ui/Button.astro';
+
+const current = 2;
+---
+
+<Setup title="Protect your account" current={current}>
+  <form class="flex flex-1 flex-col gap-7" data-next="/setup/domain">
+    <div>
+      <div class="eyebrow">Step {current + 1} of {setupSteps.length}</div>
+      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Protect your account</h1>
+      <p class="mt-2 max-w-[460px] text-[14px] leading-[1.55] text-muted">
+        Scan this QR code with an authenticator app, such as 1Password, Authy or Google Authenticator, then enter the
+        6-digit code it shows.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-start gap-10">
+      <!-- Placeholder until the server issues a real TOTP secret -->
+      <div
+        class="flex size-42 flex-none items-center justify-center rounded-xl bg-fg font-mono text-[11px] font-medium text-subtle"
+        role="img"
+        aria-label="QR code for your authenticator app"
+      >
+        QR CODE
+      </div>
+      <div class="flex flex-col gap-4.5">
+        <div class="flex flex-col gap-1.5">
+          <div class="text-[12px] text-muted">Can't scan? Enter this key</div>
+          <code class="rounded-lg bg-raised px-3 py-2.5 font-mono text-[14px] font-medium tracking-[0.08em] select-all">JBSW Y3DP EHPK 3PXP</code>
+        </div>
+        <div class="flex flex-col gap-2">
+          <div class="text-[12px] text-muted">6-digit code</div>
+          <OtpInput name="totp" value="481" split label="6-digit code" />
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-auto flex items-center justify-between">
+      <a href="#" class="text-[13px] text-muted hover:text-fg">← Back</a>
+      <Button type="submit" variant="primary" size="lg">Verify and continue</Button>
+    </div>
+  </form>
+</Setup>

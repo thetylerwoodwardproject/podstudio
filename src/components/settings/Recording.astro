@@ -1,0 +1,36 @@
+---
+import Section from './Section.astro';
+import ToggleRow from './ToggleRow.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import { mbPerMinute } from '@/lib/audio';
+---
+
+<Section title="Recording" description="Defaults for new sessions. The host can change them per session from the studio screen." />
+<div class="grid gap-4 sm:grid-cols-2" data-format>
+  <div class="flex flex-col gap-2">
+    <div class="text-[12px] text-muted">Bit depth</div>
+    <Segmented name="depth" label="Bit depth" value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
+  </div>
+  <div class="flex flex-col gap-2">
+    <div class="text-[12px] text-muted">Sample rate</div>
+    <Segmented name="rate" label="Sample rate" value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
+  </div>
+</div>
+<div class="meta -mt-2 text-subtle">Mono WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
+<ToggleRow name="mic-check" checked title="Mic check before every take" hint="Level, clipping, room noise and voice follow" />
+<ToggleRow name="tone" title="Tone between takes" hint="1 kHz · −20 dBFS · 0.5 s, only in combined downloads" />
+<ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />
+<div class="flex flex-col gap-2">
+  <div class="text-[12px] text-muted">Default download</div>
+  <Segmented name="download" label="Default download" value="separate" options={[{ value: 'separate', label: 'Separate files' }, { value: 'combined', label: 'One combined file' }]} />
+</div>
+
+<script>
+  import { mbPerMinute } from '@/lib/audio';
+  const form = document.querySelector<HTMLFormElement>('[data-settings]')!;
+  form.addEventListener('change', () => {
+    const data = new FormData(form);
+    const size = form.querySelector('[data-size]');
+    if (size) size.textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
+  });
+</script>

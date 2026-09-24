@@ -1,0 +1,15 @@
+---
+/* Native select styled like the design's fields, with the ▾ marker. */
+import type { HTMLAttributes } from 'astro/types';
+import { inputClass } from '@/lib/ui';
+
+type Props = { options: string[]; class?: string } & Omit<HTMLAttributes<'select'>, 'class'>;
+const { options, class: cls, ...rest } = Astro.props;
+---
+
+<div class:list={['relative', cls]}>
+  <select class:list={[inputClass, 'appearance-none pr-8']} {...rest}>
+    {options.map((o) => <option class="bg-surface">{o}</option>)}
+  </select>
+  <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-faint" aria-hidden="true">▾</span>
+</div>

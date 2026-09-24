@@ -1,0 +1,129 @@
+---
+// 7b · Export: one screen for solo, same-room and remote episodes
+import AppShell from '@/layouts/AppShell.astro';
+import Checkbox from '@/components/ui/Checkbox.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import Waveform from '@/components/ui/Waveform.astro';
+import Dot from '@/components/ui/Dot.astro';
+import Button from '@/components/ui/Button.astro';
+import CodeBlock from '@/components/ui/CodeBlock.astro';
+import { episode, episodePaths, speakerByKey, spk, tracks } from '@/data/mock';
+import { waveforms } from '@/data/waveforms';
+
+export const getStaticPaths = episodePaths;
+
+const formats = [
+  { ext: '.srt', on: true },
+  { ext: '.vtt', on: true },
+  { ext: '.txt', on: false },
+  { ext: '.docx', on: false },
+];
+
+const srt = `1
+00:00:00,000 --> 00:00:04,800
+TYLER: It was a quiet week in the studio,
+until the new transmitter arrived.
+
+2
+00:00:05,120 --> 00:00:09,600
+SAM: Four pallets? I heard it was five,
+and one of them was just foam.`;
+
+const vtt = `WEBVTT
+
+00:00:00.000 --> 00:00:04.800
+<v Tyler>It was a quiet week in the studio,
+until the new transmitter arrived.`;
+---
+
+<AppShell title="Export" crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/package` }, { label: 'Export' }]}>
+  <form class="grid lg:h-full lg:grid-cols-[1fr_440px]">
+    <div class="flex min-w-0 flex-col gap-5 border-line px-6 py-7 lg:overflow-auto lg:border-r lg:px-10">
+      <div class="flex flex-col gap-1">
+        <h2 class="eyebrow">Audio · one track per speaker</h2>
+        <div class="mt-2 flex flex-col border-t border-line">
+          {
+            tracks.map((t) => (
+              <div class="grid grid-cols-[20px_150px_minmax(0,1fr)_70px] items-center gap-4 border-b border-line py-3">
+                <Checkbox name={`track-${t.who}`} checked class="items-center">
+                  <span class="sr-only">{speakerByKey(t.who).name}</span>
+                </Checkbox>
+                <div class="flex flex-col gap-[3px]">
+                  <div class="flex items-center gap-2 text-[14px]">
+                    <Dot color={spk(t.who)} size={8} />
+                    {speakerByKey(t.who).name}
+                  </div>
+                  <div class="font-mono text-[10px] text-subtle">{t.exportDevice}</div>
+                </div>
+                <Waveform bars={waveforms[t.who].slice(0, 70)} color={spk(t.who)} height={36} />
+                <div class="text-right font-mono text-[11px] text-subtle">268 MB</div>
+              </div>
+            ))
+          }
+        </div>
+        <p class="mt-1.5 text-[12px] text-subtle">Solo episodes show one track. Every track starts at 00:00:00 and has the same length.</p>
+      </div>
+
+      <div class="grid gap-5 md:grid-cols-2">
+        <div class="flex flex-col gap-2">
+          <div class="text-[12px] text-muted">Takes</div>
+          <Segmented name="takes" label="Takes" value="combined" options={[{ value: 'separate', label: 'Separate files' }, { value: 'combined', label: 'One combined file' }]} />
+        </div>
+        <div class="flex flex-col gap-2">
+          <div class="text-[12px] text-muted">Also include</div>
+          <div class="flex flex-wrap gap-3.5 text-[13px]">
+            <Checkbox name="mix" label="Rough mix" class="items-center" />
+            <Checkbox name="markers" checked label="Markers" class="items-center" />
+            <Checkbox name="takelist" checked label="Take list .csv" class="items-center" />
+            <Checkbox name="tone" label="Tone" class="items-center" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <h2 class="eyebrow">Transcript</h2>
+        <div class="flex flex-wrap gap-2">
+          {
+            formats.map((f) => (
+              <label class="group flex h-[34px] items-center rounded-lg bg-raised px-3.5 font-mono text-[13px] font-medium text-muted has-checked:bg-fg has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-fg">
+                <input type="checkbox" name={`fmt${f.ext}`} checked={f.on} class="sr-only" />
+                <span class="hidden group-has-checked:inline">✓&nbsp;</span>
+                {f.ext}
+              </label>
+            ))
+          }
+        </div>
+        <Checkbox name="speaker-names" checked class="gap-3 py-2">
+          <span>
+            <span class="block text-[14px]">Speaker names in captions</span>
+            <span class="mt-0.5 block text-[12px] text-subtle">42 characters per line · up to 6 seconds per caption</span>
+          </span>
+        </Checkbox>
+      </div>
+
+      <div class="grid gap-5 md:grid-cols-2">
+        <div>
+          <h2 class="eyebrow">Chapters</h2>
+          <Checkbox name="ch-json" checked label="Podcasting 2.0 (.json)" class="gap-3 py-2 text-[14px]" />
+          <Checkbox name="ch-youtube" checked label="YouTube timestamps (.txt)" class="gap-3 py-2 text-[14px]" />
+        </div>
+        <div>
+          <h2 class="eyebrow">Soundbites</h2>
+          <Checkbox name="sb-clips" checked label="Audio clips (.wav)" class="gap-3 py-2 text-[14px]" />
+          <Checkbox name="sb-tags" label="Podcasting 2.0 tags" class="gap-3 py-2 text-[14px]" />
+        </div>
+      </div>
+
+      <div class="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2">
+        <div class="meta text-muted">11 files · 838 MB</div>
+        <Button variant="primary">↓ Download selected (.zip)</Button>
+      </div>
+    </div>
+
+    <aside class="flex min-w-0 flex-col gap-3.5 px-8 py-7">
+      <h2 class="text-[14px]">Caption preview</h2>
+      <CodeBlock code={srt} />
+      <CodeBlock code={vtt} />
+    </aside>
+  </form>
+</AppShell>

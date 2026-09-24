@@ -1,0 +1,73 @@
+---
+// 1e · External monitor: a follower instance, optionally mirrored for beam-splitter glass
+import Base from '@/layouts/Base.astro';
+import Dot from '@/components/ui/Dot.astro';
+import { episodePaths, monitorScript } from '@/data/mock';
+import { splitWords } from '@/lib/prompter';
+
+export const getStaticPaths = episodePaths;
+
+const words = splitWords(monitorScript);
+---
+
+<Base title="Monitor" bodyClass="bg-void! overflow-hidden">
+  <div class="relative flex h-dvh flex-col bg-void text-fg">
+    <header class="z-[2] flex items-center justify-between px-7 py-4 font-mono text-[12px] text-ghost">
+      <span>MONITOR 2 · FOLLOWING MACBOOK <span data-mirror-label class="ml-2"></span></span>
+      <span class="flex items-center gap-2 text-muted">
+        <Dot color="var(--color-rec)" size={7} pulse />
+        REC <span data-clock>12:48</span>
+      </span>
+    </header>
+    <div class="relative flex-1 overflow-hidden" data-prompter-viewport>
+      <div class="absolute inset-x-0 top-[34%] h-px bg-white/8" aria-hidden="true"></div>
+      <div class="absolute inset-x-0 top-0 z-[1] h-20 bg-linear-to-b from-void to-transparent" aria-hidden="true"></div>
+      <div
+        data-prompter-track
+        class="flex flex-wrap gap-x-[0.28em] px-[clamp(24px,8vw,90px)] text-[clamp(34px,5.3vw,58px)] leading-[1.36] tracking-[-0.02em] transition-transform duration-500 ease-in-out"
+      >
+        {
+          words.map((w) => (
+            <span
+              data-word
+              class="text-fg-soft transition-colors duration-200 data-[w=now]:text-white data-[w=now]:shadow-[inset_0_-3px_0_var(--color-rec)] data-[w=past]:text-ghost"
+            >
+              {w}
+            </span>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { Prompter, startClock, startDemo } from '@/lib/prompter';
+
+  const KEY = 'podstudio:monitor-mirror';
+  const viewport = document.querySelector<HTMLElement>('[data-prompter-viewport]')!;
+  const track = document.querySelector<HTMLElement>('[data-prompter-track]')!;
+  const label = document.querySelector<HTMLElement>('[data-mirror-label]')!;
+
+  let mirror = true;
+  try {
+    mirror = localStorage.getItem(KEY) !== 'off';
+  } catch {}
+
+  const p = new Prompter(viewport, track, { line: 0.34, mirror });
+  const showLabel = () => (label.textContent = p.mirror ? '· MIRRORED' : '');
+  showLabel();
+
+  // M toggles mirroring (see Settings → Controls).
+  addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'm' || e.metaKey || e.ctrlKey) return;
+    p.setMirror(!p.mirror);
+    showLabel();
+    try {
+      localStorage.setItem(KEY, p.mirror ? 'on' : 'off');
+    } catch {}
+  });
+
+  startDemo(p);
+  startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 768);
+</script>

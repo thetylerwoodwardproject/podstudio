@@ -1,0 +1,178 @@
+---
+// 7d · Phone prompter: reading, lost place, reconnecting, guest upload
+import Phone from '@/layouts/Phone.astro';
+import Dot from '@/components/ui/Dot.astro';
+import PreviewStates from '@/components/app/PreviewStates.astro';
+import { episodePaths, scriptLines, speakerByKey, spk } from '@/data/mock';
+import { splitWords } from '@/lib/prompter';
+
+export const getStaticPaths = episodePaths;
+
+/** The speaker this screen is assigned to (set in the script editor's Screens list). */
+const me = 'SAM';
+const states = [
+  { value: 'read', label: 'Reading' },
+  { value: 'lost', label: 'Lost place' },
+  { value: 'off', label: 'Reconnecting' },
+  { value: 'up', label: 'Guest upload' },
+];
+const foot = {
+  read: ['Following voice', 'var(--color-ok)'],
+  lost: ['Ad-lib for 0:14', 'var(--color-warn)'],
+  off: ['Offline · recording locally', 'var(--color-warn)'],
+  up: ['Take ended', 'var(--color-muted)'],
+};
+// Start partway into Sam's first line, like the design.
+const startWord = splitWords(scriptLines[0].text).length + 3;
+---
+
+<Phone title="Prompter" black>
+  <div
+    id="prompter"
+    class="group/p flex min-h-0 flex-1 flex-col"
+    data-states={states.map((s) => s.value).join(',')}
+    data-state="read"
+    data-start={startWord}
+    data-foot={JSON.stringify(foot)}
+    data-me={me}
+  >
+    <div class="flex items-center justify-between px-5 pt-1.5 pb-3">
+      <div class="flex items-center gap-2 font-mono text-[13px] font-medium">
+        <Dot color="var(--color-rec)" size={8} pulse />
+        <span data-clock>12:48</span>
+      </div>
+      <div class="flex h-6.5 items-center gap-[7px] rounded-[13px] bg-raised px-2.5 text-[12px]">
+        <Dot color={spk(me)} />
+        You’re {speakerByKey(me).name}
+      </div>
+    </div>
+
+    <div data-when="lost" hidden class="mx-3.5 flex flex-col gap-2.5 rounded-2xl bg-raised px-4 py-3.5">
+      <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-warn)" size={8} />Lost your place, listening…</div>
+      <div class="text-[12px] leading-normal text-muted">Keep talking, or tap where you are:</div>
+      <button type="button" data-suggest class="rounded-[10px] bg-void px-3 py-[11px] text-left text-[14px]"></button>
+      <button type="button" data-suggest class="rounded-[10px] bg-void px-3 py-[11px] text-left text-[14px]"></button>
+    </div>
+    <div data-when="off" hidden class="mx-3.5 flex flex-col gap-1.5 rounded-2xl bg-raised px-4 py-3.5">
+      <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-warn)" size={8} />Reconnecting…</div>
+      <div class="text-[12px] leading-normal text-muted">
+        Your mic is still recording on this phone. Scrolling follows your voice until the connection comes back.
+      </div>
+    </div>
+    <div data-when="up" hidden class="mx-3.5 flex flex-col gap-2.5 rounded-2xl bg-raised px-4 py-3.5">
+      <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-warn)" size={8} />Sending your audio to Tyler</div>
+      <div class="h-1 rounded-sm bg-edge"><div class="h-1 w-[78%] rounded-sm bg-fg"></div></div>
+      <div class="meta flex justify-between text-muted"><span>78% · 22 of 28 MB</span><span>~20 s</span></div>
+      <div class="text-[12px] text-fg-soft">Keep this tab open. You can leave the call now.</div>
+    </div>
+
+    <div
+      data-prompter-viewport
+      class="relative flex-1 overflow-hidden px-6.5 transition-opacity group-data-[state=lost]/p:opacity-50 group-data-[state=off]/p:opacity-50 group-data-[state=up]/p:opacity-25"
+    >
+      <div
+        class="absolute inset-x-0 top-[30%] h-px bg-[linear-gradient(90deg,var(--color-rec)_0_14px,rgb(255_255_255/0.07)_14px)]"
+        aria-hidden="true"
+      >
+      </div>
+      <div data-prompter-track class="flex flex-col gap-6 pt-6 transition-transform duration-500 ease-in-out">
+        {
+          scriptLines.map((l) => (
+            <div
+              data-line
+              data-who={speakerByKey(l.who).name}
+              data-mine={l.who === me ? '' : undefined}
+              class="group flex flex-col gap-1.5 transition-[padding] data-[l=now]:pl-3.5 data-[l=now]:shadow-[inset_2px_0_0_var(--c)]"
+              style={{ '--c': spk(l.who) }}
+            >
+              <div class="font-mono text-[11px] font-medium tracking-[0.08em] text-(--c)">
+                {l.who}
+                <span class="hidden group-data-[l=now]:inline"> · NOW</span>
+              </div>
+              <div
+                class:list={[
+                  'flex flex-wrap gap-x-[0.25em] text-[26px] leading-[1.4] transition-[font-size,color]',
+                  'group-data-[l=now]:text-[30px] group-data-[l=past]:text-edge-strong group-data-[l=next]:text-subtle',
+                  'group-data-[mine]:group-data-[l=next]:text-fg-soft',
+                ]}
+              >
+                {splitWords(l.text).map((w) => (
+                  <span
+                    data-word
+                    class="group-data-[l=now]:data-[w=next]:text-fg group-data-[l=now]:data-[w=now]:shadow-[inset_0_-3px_0_var(--color-rec)] group-data-[l=now]:data-[w=past]:text-faint"
+                  >
+                    {w}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <footer class="flex items-center justify-between border-t border-line-soft px-5 pt-3.5 pb-[max(34px,env(safe-area-inset-bottom))] text-[12px] text-muted">
+      <span class="flex items-center gap-2"><span class="inline-block size-1.5 rounded-full" data-foot-dot></span><span data-foot-text></span></span>
+      <span class="text-subtle">Next: <span data-next-who></span></span>
+    </footer>
+  </div>
+  <PreviewStates target="prompter" states={states} />
+</Phone>
+
+<script>
+  import { Prompter, startClock, startDemo } from '@/lib/prompter';
+  import { applyState } from '@/lib/states';
+
+  const root = document.getElementById('prompter')!;
+  const viewport = root.querySelector<HTMLElement>('[data-prompter-viewport]')!;
+  const p = new Prompter(viewport, root.querySelector<HTMLElement>('[data-prompter-track]')!, { line: 0.3 });
+  const foot = JSON.parse(root.dataset.foot!) as Record<string, [string, string]>;
+  const state = () => root.dataset.state!;
+
+  const currentLine = () => p.lines.findIndex((l) => l.dataset.l === 'now');
+
+  viewport.addEventListener('word', () => {
+    const i = currentLine();
+    const next = p.lines.slice(i + 1).find((l) => l.dataset.who !== p.lines[i]?.dataset.who);
+    root.querySelector('[data-next-who]')!.textContent = next?.dataset.who ?? '—';
+  });
+
+  const renderFoot = () => {
+    const [text, color] = foot[state()];
+    root.querySelector('[data-foot-text]')!.textContent = text;
+    root.querySelector<HTMLElement>('[data-foot-dot]')!.style.background = color;
+  };
+
+  // "Lost your place": offer the next two lines as tap targets.
+  const suggest = [...root.querySelectorAll<HTMLButtonElement>('[data-suggest]')];
+  const fillSuggestions = () => {
+    const from = Math.max(currentLine(), 0) + 1;
+    suggest.forEach((btn, k) => {
+      const line = p.lines[from + k];
+      btn.hidden = !line;
+      if (!line) return;
+      const words = [...line.querySelectorAll('[data-word]')].map((w) => w.textContent!.trim());
+      btn.textContent = `“${words.slice(0, 6).join(' ')}…”`;
+      btn.onclick = () => {
+        p.setWord(p.lineStart(line));
+        applyState(root, 'read');
+      };
+    });
+  };
+
+  root.addEventListener('statechange', () => {
+    renderFoot();
+    if (state() === 'lost') fillSuggestions();
+  });
+  renderFoot();
+
+  p.setWord(Number(root.dataset.start));
+  if (state() === 'lost') fillSuggestions();
+  startDemo(p, { paused: () => state() === 'lost' || state() === 'up' });
+  startClock([...root.querySelectorAll<HTMLElement>('[data-clock]')], 768, () => state() === 'up');
+
+  // Keep the phone awake while it's a prompter (released automatically when hidden).
+  const keepAwake = () => navigator.wakeLock?.request('screen').catch(() => {});
+  keepAwake();
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && keepAwake());
+</script>

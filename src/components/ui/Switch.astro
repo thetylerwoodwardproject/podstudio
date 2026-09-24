@@ -1,0 +1,27 @@
+---
+interface Props {
+  name: string;
+  checked?: boolean;
+  /** "sm" is the compact studio-panel switch */
+  size?: 'sm' | 'md';
+  label: string;
+  disabled?: boolean;
+}
+const { name, checked = false, size = 'md', label, disabled = false } = Astro.props;
+const sm = size === 'sm';
+---
+
+<label
+  class:list={[
+    'group relative inline-flex flex-none items-center rounded-full bg-edge transition-colors has-checked:bg-fg',
+    'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg',
+    sm ? 'h-5 w-[34px]' : 'h-[22px] w-[38px]',
+  ]}
+>
+  <input type="checkbox" role="switch" class="peer sr-only" name={name} checked={checked} disabled={disabled} aria-label={label} />
+  <span
+    class:list={[
+      'absolute top-[3px] left-[3px] rounded-full bg-subtle transition-all peer-checked:bg-ink',
+      sm ? 'size-3.5 peer-checked:left-[17px]' : 'size-4 peer-checked:left-[19px]',
+    ]}></span>
+</label>
