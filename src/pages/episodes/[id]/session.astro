@@ -1,0 +1,257 @@
+---
+// 8b · After a continuous session: export options
+import AppShell from '@/layouts/AppShell.astro';
+import Button from '@/components/ui/Button.astro';
+import { episode, episodePaths, scriptLines } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const pauseModes = [
+  { value: 'cut', title: 'Cut', body: 'Remove the paused stretch.' },
+  { value: 'keep', title: 'Keep', body: 'Leave it in, marked.' },
+  { value: 'split', title: 'Split', body: 'One file per segment between pauses.' },
+];
+const greenSwitch =
+  'relative inline-flex h-5 w-[34px] flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg';
+---
+
+<AppShell title="Session export" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Export' }]}>
+  <form
+    class="group/s flex min-h-full flex-col gap-6 px-6 py-8 lg:px-11"
+    id="session"
+    data-episode={episode.id}
+    data-label={`Ep${episode.number}`}
+    data-lines={JSON.stringify(scriptLines.map((l) => l.text))}
+  >
+    <div>
+      <h1 class="text-[22px] tracking-[-0.02em]">Session · <span data-length>41:07</span></h1>
+      <p class="mt-1.5 text-[13px] text-muted" data-counts>2 tracks · 14 retakes · 3 pauses</p>
+    </div>
+
+    <p class="text-[13px] text-subtle" data-empty hidden>
+      No continuous session recorded yet. Switch the recording screen to <span class="text-fg">Continuous</span> to record
+      one.
+    </p>
+
+    <section class="flex flex-col gap-2.5">
+      <h2 class="eyebrow text-muted!">Always included</h2>
+      <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
+        <div class="flex-1">
+          <div class="text-[14px]">Raw tracks with markers</div>
+          <div class="mt-1 text-[12px] text-muted">
+            One WAV per speaker, untouched. Markers are embedded in each file and also saved as Audacity labels and a CSV.
+          </div>
+        </div>
+        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-2.5">
+      <h2 class="eyebrow text-muted!">Optional</h2>
+      <label class="flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg">
+        <div class="flex-1">
+          <div class="text-[14px]">Assembled edit</div>
+          <div class="mt-1 text-[12px] text-muted">
+            Keeps the last attempt of each line and cuts the rest. Saved as a separate file, so the raw tracks stay as they
+            are. <span data-removes>Removes 6:52.</span>
+          </div>
+        </div>
+        <span class={greenSwitch}>
+          <input type="checkbox" role="switch" name="assembled" checked class="peer sr-only" aria-label="Assembled edit" />
+          <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+        </span>
+      </label>
+    </section>
+
+    <section class="flex flex-col gap-2.5 transition-opacity group-has-[[name=assembled]:not(:checked)]/s:pointer-events-none group-has-[[name=assembled]:not(:checked)]/s:opacity-40">
+      <h2 class="eyebrow text-muted!">Pauses in the assembled edit</h2>
+      <div class="grid gap-2.5 sm:grid-cols-3" role="radiogroup" aria-label="Pauses in the assembled edit">
+        {
+          pauseModes.map((m, i) => (
+            <label class="flex flex-col gap-1.5 rounded-[10px] border border-line p-3.5 hover:border-edge has-checked:border-fg has-focus-visible:outline-2 has-focus-visible:outline-fg">
+              <input type="radio" name="pauses" value={m.value} checked={i === 0} class="sr-only" />
+              <span class="text-[14px]">{m.title}</span>
+              <span class="text-[12px] leading-[1.45] text-muted">{m.body}</span>
+            </label>
+          ))
+        }
+      </div>
+      <p class="text-[12px] text-subtle">While paused, recording keeps running, so remote guest tracks stay in sync.</p>
+    </section>
+
+    <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
+      <span class="meta mr-auto text-muted" data-summary></span>
+      <Button data-open-markers>Open markers</Button>
+      <Button variant="primary" data-export><span data-export-label>Export</span></Button>
+    </div>
+  </form>
+
+  <dialog
+    id="markers-dialog"
+    aria-labelledby="markers-title"
+    class="m-auto w-[min(560px,calc(100vw-32px))] rounded-2xl border border-edge bg-panel p-0 text-fg backdrop:bg-black/60"
+  >
+    <div class="flex max-h-[80vh] flex-col gap-4 p-7">
+      <div class="flex items-baseline justify-between">
+        <h2 id="markers-title" class="text-[20px] tracking-[-0.02em]">Markers</h2>
+        <form method="dialog"><button class="text-[13px] text-muted hover:text-fg">Close</button></form>
+      </div>
+      <div class="flex min-h-0 flex-col overflow-auto" data-marker-rows>
+        <div class="grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]"><span class="font-mono text-muted">24:02</span><span><span class="text-warn">Retake</span> · Line 3 · “Four. I counted.”</span></div>
+        <div class="grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]"><span class="font-mono text-muted">15:21</span><span><span class="text-warn">Retake</span> · Line 41 · attempt 3</span></div>
+        <div class="grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]"><span class="font-mono text-muted">09:14</span><span><span class="text-fg-soft">Pause</span> · 1:26 · before Line 28</span></div>
+      </div>
+    </div>
+  </dialog>
+</AppShell>
+
+<script>
+  import { assemble, audacityLabels, mapTime, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
+  import { formatBytes, getTake, listTakes, rangesWav, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { download, zip, type ZipEntry } from '@/lib/zip';
+
+  const form = document.getElementById('session') as HTMLFormElement;
+  const dialog = document.getElementById('markers-dialog') as HTMLDialogElement;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+  const demo = new URL(location.href).searchParams.has('demo');
+
+  $('[data-open-markers]').addEventListener('click', () => dialog.showModal());
+  dialog.addEventListener('click', (e) => e.target === dialog && dialog.close());
+
+  const clock = (sec: number) => {
+    const s = Math.round(sec);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(s % 60).padStart(2, '0')}`;
+  };
+  const mmss = (sec: number) => {
+    const s = Math.floor(sec);
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  };
+
+  if (!demo) live();
+
+  async function live() {
+    const episodeId = form.dataset.episode!;
+    const label = form.dataset.label!;
+    const lines = JSON.parse(form.dataset.lines!) as string[];
+    const id = new URL(location.href).searchParams.get('take');
+    const take: TakeMeta | null =
+      (id ? await getTake(id) : null) ??
+      (await listTakes(episodeId)).filter((t) => t.kind === 'session' && t.status === 'done').at(-1) ??
+      null;
+
+    const exportBtn = $<HTMLButtonElement>('[data-export]');
+    if (!take) {
+      $('[data-empty]').hidden = false;
+      $('[data-length]').textContent = '0:00';
+      $('[data-counts]').textContent = 'Nothing recorded yet';
+      exportBtn.disabled = true;
+      $<HTMLButtonElement>('[data-open-markers]').disabled = true;
+      return;
+    }
+
+    const duration = take.samples / take.sampleRate;
+    const markers = take.markers ?? [];
+    const lineLog = take.lineLog ?? [];
+    const retakes = markers.filter((m) => m.kind === 'retake');
+    const pauses = markers.filter((m) => m.kind === 'pause');
+    const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const speaker = take.speaker.charAt(0) + take.speaker.slice(1).toLowerCase();
+    $('[data-length]').textContent = clock(duration);
+    $('[data-counts]').textContent = `1 track · ${plural(retakes.length, 'retake')} · ${plural(pauses.length, 'pause')}`;
+
+    const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
+    const describe = (m: SessionMarker) =>
+      m.kind === 'retake'
+        ? `Retake · Line ${m.line + 1} · attempt ${m.attempt ?? 2}`
+        : `Pause · Line ${m.line + 1}${m.end != null ? ` · ${clock(m.end - m.t)}` : ''}`;
+
+    // Markers dialog, newest first.
+    const dialogRows = dialog.querySelector<HTMLElement>('[data-marker-rows]')!;
+    dialogRows.replaceChildren(
+      ...(markers.length
+        ? [...markers].reverse().map((m) => {
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
+            const time = Object.assign(document.createElement('span'), { className: 'font-mono text-muted', textContent: mmss(m.t) });
+            const kind = Object.assign(document.createElement('span'), {
+              className: m.kind === 'retake' ? 'text-warn' : 'text-fg-soft',
+              textContent: m.kind === 'retake' ? 'Retake' : 'Pause',
+            });
+            const text = document.createElement('span');
+            const detail =
+              m.kind === 'retake'
+                ? m.attempt === 2 ? `Line ${m.line + 1} · “${words(m.line)}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
+                : `${m.end != null ? clock(m.end - m.t) : 'to the end'} · Line ${m.line + 1}`;
+            text.append(kind, ` · ${detail}`);
+            row.append(time, text);
+            return row;
+          })
+        : [Object.assign(document.createElement('p'), { className: 'py-2.5 text-[13px] text-subtle', textContent: 'No markers in this session.' })]),
+    );
+
+    const options = () => {
+      const data = new FormData(form);
+      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode };
+    };
+    const refresh = () => {
+      const o = options();
+      const a = assemble(duration, markers, lineLog, o.pauses);
+      $('[data-removes]').textContent = a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
+      const raw = take.samples * (take.bitDepth / 8);
+      const editBytes = (duration - a.removed) * take.sampleRate * (take.bitDepth / 8);
+      const files = 3 + (o.assembled ? a.files.length : 0);
+      $('[data-summary]').textContent = `${files} files · ${formatBytes(raw + (o.assembled ? editBytes : 0))}`;
+    };
+    form.addEventListener('change', refresh);
+    refresh();
+
+    exportBtn.addEventListener('click', async () => {
+      const o = options();
+      exportBtn.disabled = true;
+      $('[data-export-label]').textContent = 'Preparing…';
+      try {
+        const base = `${label}_Session_${speaker}`;
+        const cue = (m: SessionMarker, at = m.t) => ({ at: Math.round(at * take.sampleRate), label: describe(m) });
+        // Raw: untouched audio, with a cue at every retake and at both ends of each pause.
+        const rawCues = markers.flatMap((m) =>
+          m.kind === 'pause' && m.end != null ? [cue(m), { at: Math.round(m.end * take.sampleRate), label: 'Resume' }] : [cue(m)],
+        );
+        const raw = rawCues.length ? await rangesWav(take, [[0, duration]], rawCues) : await takeWav(take);
+        const entries: ZipEntry[] = [{ name: `${base}.wav`, data: raw }];
+        entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
+        const csv = [
+          'time,end,kind,line,attempt,first words',
+          ...markers.map((m) =>
+            [m.t.toFixed(3), m.end?.toFixed(3) ?? '', m.kind, m.line + 1, m.attempt ?? '', `"${words(m.line).replace(/"/g, '""')}"`].join(','),
+          ),
+        ].join('\n');
+        entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
+
+        if (o.assembled) {
+          const a = assemble(duration, markers, lineLog, o.pauses);
+          for (const [i, ranges] of a.files.entries()) {
+            // Pauses left in the edit stay marked.
+            const kept =
+              o.pauses === 'keep'
+                ? markers
+                    .filter((m) => m.kind === 'pause')
+                    .map((m) => ({ m, at: mapTime(m.t, ranges) }))
+                    .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
+                    .map((x) => cue(x.m, x.at))
+                : [];
+            const name = a.files.length > 1 ? `${base}_edit_part${i + 1}.wav` : `${base}_edit.wav`;
+            entries.push({ name, data: await rangesWav(take, ranges, kept) });
+          }
+        }
+        download(await zip(entries), `${label}_Session.zip`);
+      } catch (err) {
+        alert((err as Error).message);
+      } finally {
+        exportBtn.disabled = false;
+        $('[data-export-label]').textContent = 'Export';
+      }
+    });
+  }
+</script>

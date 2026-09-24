@@ -14,6 +14,10 @@ export interface RecordingSettings {
   download: 'separate' | 'combined';
   deviceId: string;
   recorder: string;
+  /** Separate takes, or one continuous file with retake and pause markers (8a) */
+  mode: 'takes' | 'continuous';
+  /** Beep when a retake is marked in continuous mode */
+  retakeTone: boolean;
 }
 
 export interface PrompterSettings {
@@ -36,7 +40,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac' },
+  recording: { depth: 24, rate: 48, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac', mode: 'takes', retakeTone: true },
   prompter: {
     mode: 'voice',
     wpm: 150,

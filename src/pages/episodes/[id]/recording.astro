@@ -1,5 +1,5 @@
 ---
-// 6b · Host view during a recording: one track per speaker
+// 6b · Host view during a recording (Takes mode), and 8a · Continuous mode
 import AppShell from '@/layouts/AppShell.astro';
 import Callout from '@/components/ui/Callout.astro';
 import Dot from '@/components/ui/Dot.astro';
@@ -15,17 +15,39 @@ export const getStaticPaths = episodePaths;
 const local = 'TYLER';
 const BARS = 90;
 const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
+
+// 8a example content (shown with ?demo&mode=continuous).
+const demoMarkers = [
+  { t: '24:02', kind: 'Retake', text: 'Line 3 · “Four. I counted.”' },
+  { t: '15:21', kind: 'Retake', text: 'Line 41 · attempt 3' },
+  { t: '14:48', kind: 'Retake', text: 'Line 41 · attempt 2' },
+  { t: '09:14', kind: 'Pause', text: '1:26 · before Line 28' },
+  { t: '03:10', kind: 'Retake', text: 'Line 9' },
+];
+const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
+const modeOption =
+  'flex h-7 items-center rounded-md px-3.5 text-[13px] text-muted hover:text-fg has-checked:bg-fg has-checked:font-medium has-checked:text-ink has-disabled:cursor-default has-disabled:opacity-60 has-focus-visible:outline-2 has-focus-visible:outline-fg';
 ---
 
 <AppShell title="Recording" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Recording' }]}>
+  <div
+    slot="topbar-center"
+    role="radiogroup"
+    aria-label="Recording mode"
+    class="flex gap-[3px] rounded-lg border border-line bg-surface p-[3px] max-sm:hidden"
+  >
+    <label class={modeOption}><input type="radio" name="rec-mode" value="takes" checked class="sr-only" data-mode-radio />Takes</label>
+    <label class={modeOption}><input type="radio" name="rec-mode" value="continuous" class="sr-only" data-mode-radio />Continuous</label>
+  </div>
   <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium" data-rec>
     <Dot color="var(--color-rec)" size={8} pulse data-rec-dot />
     <span data-rec-label>REC <span data-clock>24:10</span></span>
   </div>
 
   <div
-    class="grid lg:h-full lg:grid-cols-[1fr_360px]"
+    class="group/rec lg:h-full"
     id="recording"
+    data-mode="takes"
     data-episode={episode.id}
     data-local={local}
     data-words={JSON.stringify(scriptWords)}
@@ -33,6 +55,7 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
     data-line-starts={JSON.stringify(lineStarts)}
     data-devices={JSON.stringify(Object.fromEntries(devices.map((d) => [d.id, d.name])))}
   >
+  <div class="grid lg:h-full lg:grid-cols-[1fr_360px] group-data-[mode=continuous]/rec:hidden">
     <section class="flex min-w-0 flex-col gap-4.5 border-line px-6 py-7 lg:border-r lg:px-9">
       <Callout title="Podstudio records. It doesn’t connect calls." color="var(--color-muted)">
         Talk to remote guests over Zoom, Slack, Teams, Discord or any call app. Podstudio records each person’s own mic
@@ -137,6 +160,111 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
       </div>
     </aside>
   </div>
+
+  <!-- 8a · Continuous mode: one file per track, retakes and pauses as markers -->
+  <div class="hidden lg:h-full lg:grid-cols-[1fr_360px] group-data-[mode=continuous]/rec:grid">
+    <section class="flex min-w-0 flex-col gap-3 border-line px-6 py-8 lg:border-r lg:px-12">
+      <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3 opacity-45" data-c-line="prev">
+        <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
+        <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Four pallets? I heard it was five, and one of them was just foam.</span>
+      </div>
+      <div class="grid grid-cols-[90px_1fr] gap-4.5 rounded-[10px] bg-surface px-3.5 py-3 shadow-[inset_0_0_0_1px_var(--color-edge)]" data-c-line="cur">
+        <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('TYLER') }} data-who>TYLER</span>
+        <div class="flex flex-col gap-2.5">
+          <span class="text-[22px] leading-[1.55]" data-text>Four. I counted. So this episode is about what happens after the crate is open.</span>
+          <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-warn" data-attempt>ATTEMPT 2 · RETAKE MARKED AT 24:02</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3" data-c-line="next">
+        <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
+        <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Which is when the real trouble starts.</span>
+      </div>
+
+      <div class="mt-auto flex flex-col gap-2.5 pt-6">
+        <div class="flex justify-between font-mono text-[11px] text-subtle">
+          <span>00:00</span><span data-c-files>One file · Tyler, Sam</span><span data-c-length>24:18</span>
+        </div>
+        <div class="relative h-11 overflow-hidden rounded-lg bg-surface" data-timeline aria-hidden="true">
+          <div class="absolute inset-0 bg-[repeating-linear-gradient(90deg,var(--color-edge)_0_2px,transparent_2px_5px)] opacity-70"></div>
+          <div data-demo-only>
+            {demoTimeline.pauses.map(([left, width]) => (
+              <div class="absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink" style={{ left: `${left}%`, width: `${width}%` }} />
+            ))}
+            {demoTimeline.retakes.map((left) => <div class="absolute inset-y-0 w-0.5 bg-warn" style={{ left: `${left}%` }} />)}
+          </div>
+          <div data-live-only data-timeline-live></div>
+          <div class="absolute inset-y-0 right-0 w-0.5 bg-rec"></div>
+        </div>
+        <div class="flex gap-4.5 text-[12px] text-muted">
+          <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] bg-warn"></span>Retake</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] border border-dashed border-subtle"></span>Pause</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="flex min-h-0 flex-col gap-3.5 p-6">
+      <div class="grid grid-cols-2 gap-2.5">
+        <button
+          type="button"
+          class="flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl bg-warn text-ink disabled:opacity-40"
+          data-retake
+        >
+          <span class="text-[15px] font-semibold">Retake line</span>
+          <span class="font-mono text-[11px] font-medium">R</span>
+        </button>
+        <button
+          type="button"
+          class="flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl bg-raised aria-pressed:bg-fg aria-pressed:text-ink disabled:opacity-40"
+          aria-pressed="false"
+          data-pause
+        >
+          <span class="text-[15px] font-medium" data-pause-label>Pause</span>
+          <span class="font-mono text-[11px] font-medium text-muted" data-pause-key>P</span>
+        </button>
+      </div>
+      <p class="text-[12px] leading-normal text-subtle">
+        Retake keeps recording, plays a short tone, drops a marker and rolls the prompter back to the start of the line.
+      </p>
+      <h2 class="mt-1.5 text-[13px] font-medium">Markers</h2>
+      <div class="flex min-h-0 flex-col overflow-auto" data-demo-only>
+        {demoMarkers.map((m) => (
+          <div class="grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]">
+            <span class="font-mono text-muted">{m.t}</span>
+            <span><span class={m.kind === 'Retake' ? 'text-warn' : 'text-fg-soft'}>{m.kind}</span> · {m.text}</span>
+          </div>
+        ))}
+      </div>
+      <div class="flex min-h-0 flex-col overflow-auto" data-live-only data-marker-list>
+        <p class="py-2.5 text-[13px] text-subtle" data-marker-empty>No markers yet. Press R to retake a line, P to pause.</p>
+      </div>
+      <div class="mt-auto flex flex-col gap-2.5 pt-4">
+        <div class="flex items-center justify-between text-[13px]">
+          <span class="text-muted" id="retake-tone-label">Retake tone</span>
+          <label class="relative inline-flex h-5 w-[34px] flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
+            <input type="checkbox" role="switch" checked class="peer sr-only" aria-labelledby="retake-tone-label" data-retake-tone />
+            <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+          </label>
+        </div>
+        <button type="button" class="flex h-11 items-center justify-center rounded-[10px] border border-edge text-[14px] hover:bg-raised" data-demo-only>
+          Stop session
+        </button>
+        <button
+          type="button"
+          class="flex h-11 items-center justify-center gap-2 rounded-[10px] bg-rec text-[14px] font-medium text-white disabled:opacity-50 data-[running]:border data-[running]:border-edge data-[running]:bg-transparent data-[running]:font-normal data-[running]:text-fg"
+          data-live-only
+          data-session-toggle
+          disabled
+        >
+          <span class="size-2 rounded-full bg-white" data-session-icon></span>
+          <span data-session-label>Start session</span>
+        </button>
+        <p class="text-center text-[12px] text-subtle" data-live-only data-session-hint>
+          One file for the whole session, saved to this browser every 5 seconds.
+        </p>
+      </div>
+    </aside>
+  </div>
+  </div>
 </AppShell>
 
 <script>
@@ -145,15 +273,31 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
   import { startClock } from '@/lib/prompter';
   import { offerRecovery } from '@/lib/recovery';
   import { Session } from '@/lib/session';
-  import { hz, loadSettings } from '@/lib/settings';
+  import { hz, loadSettings, saveSettings } from '@/lib/settings';
+  import type { SessionMarker } from '@/lib/audio/assemble';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
   const root = document.getElementById('recording')!;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   const demo = new URL(location.href).searchParams.has('demo');
 
+  // Takes or Continuous (8a). A punch-in link always records a take.
+  const params0 = new URL(location.href).searchParams;
+  const radios = [...document.querySelectorAll<HTMLInputElement>('[data-mode-radio]')];
+  const setMode = (m: string) => {
+    root.dataset.mode = m === 'continuous' ? 'continuous' : 'takes';
+    radios.forEach((r) => (r.checked = r.value === root.dataset.mode));
+  };
+  setMode(params0.get('mode') ?? (demo || params0.has('from') ? 'takes' : loadSettings().recording.mode));
+  radios.forEach((r) =>
+    r.addEventListener('change', () => {
+      setMode(r.value);
+      if (!demo) saveSettings('recording', { mode: r.value as 'takes' | 'continuous' });
+    }),
+  );
+
   if (demo) {
-    startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 24 * 60 + 10);
+    startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], root.dataset.mode === 'continuous' ? 24 * 60 + 18 : 24 * 60 + 10);
   } else {
     live();
   }
@@ -171,6 +315,8 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
     await offerRecovery(episodeId);
 
     const toggle = $<HTMLButtonElement>('[data-toggle]');
+    const sessionToggle = $<HTMLButtonElement>('[data-session-toggle]');
+    const continuous = () => root.dataset.mode === 'continuous';
     const recLabel = $('[data-rec-label]');
     const recDot = $('[data-rec-dot]');
     const setRecIndicator = (on: boolean, text: string) => {
@@ -186,6 +332,7 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
     $('[data-format]').textContent =
       `${settings.depth}-bit · ${settings.rate} kHz · mono${punchIn ? ` · punch-in from line ${fromLine + 1}` : ''}`;
     toggle.disabled = false;
+    sessionToggle.disabled = false;
 
     const free = async () => {
       const { free, hours } = await storageLeft(hz(settings.rate), settings.depth);
@@ -195,11 +342,33 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
 
     // Now reading: the line voice follow says is being read.
     const lineOf = (i: number) => starts.reduce((line, s, n) => (i >= s ? n : line), 0);
+    const fmt = (sec: number) => {
+      const t = Math.floor(sec);
+      return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    };
+    // Continuous mode: retake attempts per line, and when the last retake was marked.
+    const attempts = new Map<number, { n: number; at: number }>();
+    const fillLine = (slot: string, n: number) => {
+      const el = root.querySelector<HTMLElement>(`[data-c-line="${slot}"]`)!;
+      el.style.visibility = lines[n] ? '' : 'hidden';
+      if (!lines[n]) return;
+      const who = el.querySelector<HTMLElement>('[data-who]')!;
+      who.textContent = lines[n].who;
+      who.style.color = `var(--spk-${lines[n].who.toLowerCase()})`;
+      el.querySelector('[data-text]')!.textContent = lines[n].text;
+    };
     const showLine = (n: number) => {
       const who = $('[data-now-who]');
       who.textContent = lines[n].who;
       who.style.color = `var(--spk-${lines[n].who.toLowerCase()})`;
       $('[data-now-text]').textContent = lines[n].text;
+      fillLine('prev', n - 1);
+      fillLine('cur', n);
+      fillLine('next', n + 1);
+      const a = attempts.get(n);
+      const label = $('[data-attempt]');
+      label.hidden = !a;
+      if (a) label.textContent = `ATTEMPT ${a.n} · RETAKE MARKED AT ${fmt(a.at)}`;
     };
 
     const session = new Session(episodeId);
@@ -209,7 +378,25 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
     let startedAt = 0;
     // Punch-ins roll the prompter back two lines for a run-up.
     let word = starts[Math.max(0, fromLine - (punchIn ? 2 : 0))];
-    showLine(lineOf(word));
+    let currentLine = lineOf(word);
+    showLine(currentLine);
+    $('[data-c-length]').textContent = '00:00';
+    const localName = root.dataset.local!.charAt(0) + root.dataset.local!.slice(1).toLowerCase();
+    $('[data-c-files]').textContent = `One file · ${localName}`;
+    let paused: SessionMarker | null = null;
+
+    /** Move to a script word; in a continuous session, log when a new line starts. */
+    const setWord = (i: number, broadcast = true) => {
+      word = i;
+      const line = lineOf(i);
+      if (line !== currentLine && writer && continuous()) writer.meta.lineLog?.push({ t: writer.seconds, line });
+      currentLine = line;
+      showLine(line);
+      voice?.setWord(i);
+      // Saved with the next segment, so a recovered take knows where it stopped.
+      if (writer) writer.meta.lastLine = line;
+      if (broadcast) session.send({ type: 'word', index: i, device: device() });
+    };
     let clock: number | undefined;
     // Other screens show "Following <this computer>"; the mic's own name goes on the track.
     const computer = (JSON.parse(root.dataset.devices!) as Record<string, string>)[settings.recorder] ?? 'This computer';
@@ -218,11 +405,11 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
 
     session.on('hello', () => writer && session.send(recMsg()));
     session.on('control', (m) => {
-      if (m.action === 'goto' && m.word != null) word = m.word;
-      if (m.action === 'next') word = starts[Math.min(lineOf(word) + 1, starts.length - 1)];
-      if (m.action === 'prev') word = starts[Math.max(lineOf(word) - 1, 0)];
-      voice?.setWord(word);
-      showLine(lineOf(word));
+      if (m.action === 'goto' && m.word != null) setWord(m.word, false);
+      if (m.action === 'next') setWord(starts[Math.min(currentLine + 1, starts.length - 1)], false);
+      if (m.action === 'prev') setWord(starts[Math.max(currentLine - 1, 0)], false);
+      // The producer's pause becomes a pause marker in a continuous session.
+      if (continuous() && writer && ((m.action === 'pause' && !paused) || (m.action === 'resume' && paused))) togglePause(false);
     });
 
     // Live waveform: one bar per quarter second, newest on the right.
@@ -267,11 +454,8 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
       voice = new VoiceFollow(words);
       voice.setWord(word);
       voice.addEventListener('word', (e) => {
-        word = (e as CustomEvent<number>).detail;
-        showLine(lineOf(word));
-        // Saved with the next segment, so a recovered take knows where it stopped.
-        if (writer) writer.meta.lastLine = lineOf(word);
-        session.send({ type: 'word', index: word, device: device() });
+        // Talk during a pause isn't part of the script.
+        if (!paused) setWord((e as CustomEvent<number>).detail);
       });
       voice.addEventListener('lost', () => session.send({ type: 'follow', state: 'lost' }));
       voice.addEventListener('found', () => session.send({ type: 'follow', state: 'read' }));
@@ -301,9 +485,11 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
         return;
       }
       $('[data-device]').textContent = `${capture.label || computer} · studio`;
+      const isSession = continuous();
       writer = await TakeWriter.start({
         episodeId,
-        kind: punchIn ? 'punch-in' : 'full',
+        kind: isSession ? 'session' : punchIn ? 'punch-in' : 'full',
+        ...(isSession ? { markers: [], lineLog: [{ t: 0, line: currentLine }] } : {}),
         startLine: fromLine,
         startText: lines[fromLine].text,
         speaker: root.dataset.local!,
@@ -329,12 +515,135 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
       $('[data-toggle-icon]').classList.replace('rounded-full', 'rounded-[2px]');
       $('[data-hint]').textContent = 'Audio is saved to this browser every 5 seconds as you record.';
       toggle.disabled = false;
+      sessionToggle.dataset.running = '';
+      $('[data-session-icon]').hidden = true;
+      $('[data-session-label]').textContent = 'Stop session';
+      sessionToggle.disabled = false;
+      radios.forEach((r) => (r.disabled = true));
+      retakeBtn.disabled = pauseBtn.disabled = !isSession;
     }
+
+    // Continuous mode controls (8a).
+    const retakeBtn = $<HTMLButtonElement>('[data-retake]');
+    const pauseBtn = $<HTMLButtonElement>('[data-pause]');
+    retakeBtn.disabled = pauseBtn.disabled = true;
+    const toneSwitch = $<HTMLInputElement>('[data-retake-tone]');
+    toneSwitch.checked = settings.retakeTone;
+    toneSwitch.addEventListener('change', () => saveSettings('recording', { retakeTone: toneSwitch.checked }));
+
+    // A short beep for the reader; it is not written into the recording.
+    const beep = () => {
+      const ctx = capture.ctx;
+      if (!toneSwitch.checked || !ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 1000;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.22);
+    };
+
+    function retake() {
+      if (!writer || !continuous()) return;
+      const t = writer.seconds;
+      const n = (attempts.get(currentLine)?.n ?? 1) + 1;
+      attempts.set(currentLine, { n, at: t });
+      writer.meta.markers!.push({ t, kind: 'retake', line: currentLine, attempt: n });
+      writer.meta.lineLog!.push({ t, line: currentLine });
+      beep();
+      setWord(starts[currentLine]);
+      renderSession();
+    }
+
+    function togglePause(broadcast = true) {
+      if (!writer || !continuous()) return;
+      const t = writer.seconds;
+      if (paused) {
+        paused.end = t;
+        paused = null;
+        if (broadcast) session.send({ type: 'control', action: 'resume' });
+      } else {
+        paused = { t, kind: 'pause', line: currentLine };
+        writer.meta.markers!.push(paused);
+        if (broadcast) session.send({ type: 'control', action: 'pause' });
+      }
+      pauseBtn.setAttribute('aria-pressed', String(!!paused));
+      $('[data-pause-label]').textContent = paused ? 'Resume' : 'Pause';
+      renderSession();
+    }
+
+    retakeBtn.addEventListener('click', retake);
+    pauseBtn.addEventListener('click', () => togglePause());
+
+    // Timeline and marker list, newest marker first.
+    const markerTpl = document.createElement('div');
+    markerTpl.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
+    function renderSession() {
+      if (!writer?.meta.markers) return;
+      const now = writer.seconds;
+      const markers = writer.meta.markers;
+      $('[data-c-length]').textContent = fmt(now);
+      const timeline = $('[data-timeline-live]');
+      timeline.replaceChildren(
+        ...markers.map((m) => {
+          const el = document.createElement('div');
+          const left = (m.t / Math.max(now, 1)) * 100;
+          if (m.kind === 'pause') {
+            const width = (((m.end ?? now) - m.t) / Math.max(now, 1)) * 100;
+            el.className = 'absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink';
+            el.style.cssText = `left:${left}%;width:${Math.max(width, 0.4)}%`;
+          } else {
+            el.className = 'absolute inset-y-0 w-0.5 bg-warn';
+            el.style.left = `${Math.min(left, 99.6)}%`;
+          }
+          return el;
+        }),
+      );
+      const list = $('[data-marker-list]');
+      $('[data-marker-empty]').hidden = markers.length > 0;
+      list.querySelectorAll('[data-marker]').forEach((el) => el.remove());
+      for (const m of [...markers].reverse()) {
+        const row = markerTpl.cloneNode() as HTMLElement;
+        row.dataset.marker = '';
+        const time = document.createElement('span');
+        time.className = 'font-mono text-muted';
+        time.textContent = fmt(m.t);
+        const text = document.createElement('span');
+        const kind = document.createElement('span');
+        kind.className = m.kind === 'retake' ? 'text-warn' : 'text-fg-soft';
+        kind.textContent = m.kind === 'retake' ? 'Retake' : 'Pause';
+        const words = lines[m.line].text.split(/\s+/).slice(0, 3).join(' ');
+        const detail =
+          m.kind === 'retake'
+            ? m.attempt === 2 ? `Line ${m.line + 1} · “${words}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
+            : m.end == null
+              ? `running · Line ${m.line + 1}`
+              : `${fmt(m.end - m.t).replace(/^0/, '')} · before Line ${(writer.meta.lineLog?.find((l) => l.t >= m.end!)?.line ?? currentLine) + 1}`;
+        text.append(kind, ` · ${detail}`);
+        row.append(time, text);
+        list.append(row);
+      }
+    }
+    setInterval(() => writer && continuous() && renderSession(), 1000);
+
+    addEventListener('keydown', (e) => {
+      if (!writer || e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement).matches('input, textarea, select, [contenteditable]')) return;
+      const key = e.key.toLowerCase();
+      if (key === 'r' && continuous()) retake();
+      else if (key === 'p' && continuous()) togglePause();
+      else if (e.key === 'ArrowRight') setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
+      else if (e.key === 'ArrowLeft') setWord(starts[Math.max(currentLine - 1, 0)]);
+    });
 
     async function stop() {
       if (!writer) return;
-      toggle.disabled = true;
+      toggle.disabled = sessionToggle.disabled = true;
       $('[data-toggle-label]').textContent = 'Saving…';
+      $('[data-session-label]').textContent = 'Saving…';
+      if (paused) paused.end = writer.seconds;
       clearInterval(clock);
       voice?.stop();
       await capture.stop();
@@ -342,10 +651,14 @@ const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
       writer = null;
       await capture.close();
       session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
-      location.href = `/episodes/${episodeId}/takes?take=${encodeURIComponent(meta.id)}`;
+      location.href =
+        meta.kind === 'session'
+          ? `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`
+          : `/episodes/${episodeId}/takes?take=${encodeURIComponent(meta.id)}`;
     }
 
     toggle.addEventListener('click', () => (writer ? stop() : start()));
+    sessionToggle.addEventListener('click', () => (writer ? stop() : start()));
     addEventListener('beforeunload', (e) => {
       if (writer) e.preventDefault();
     });

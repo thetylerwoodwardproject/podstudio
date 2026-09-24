@@ -14,13 +14,15 @@
  */
 
 import { markerChunks, pcmBytes, tone, wavHeader, type BitDepth, type Marker } from './wav';
+import type { LineStart, Range, SessionMarker } from './assemble';
 
 export interface TakeMeta {
   id: string;
   episodeId: string;
   number: number;
   name: string;
-  kind: 'full' | 'punch-in';
+  /** 'session' is a continuous recording with retakes and pauses as markers */
+  kind: 'full' | 'punch-in' | 'session';
   /** Zero-based script line the take starts on */
   startLine: number;
   startText: string;
@@ -35,6 +37,10 @@ export interface TakeMeta {
   status: 'recording' | 'done';
   /** Zero-based script line voice follow last placed the reader on */
   lastLine?: number;
+  /** Continuous sessions: retake and pause markers */
+  markers?: SessionMarker[];
+  /** Continuous sessions: when each script line was reached */
+  lineLog?: LineStart[];
   /** Peak level per half second, 0..1, for waveforms */
   peaks: number[];
 }
@@ -106,6 +112,40 @@ async function pcmParts(meta: TakeMeta): Promise<File[]> {
     }
   }
   return files;
+}
+
+/**
+ * WAV made of the given time ranges (seconds) of a take, joined in order.
+ * Slices the disk-backed segment files, so nothing large is copied.
+ */
+export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = []): Promise<Blob> {
+  const bytesPer = meta.bitDepth / 8;
+  const files = await pcmParts(meta);
+  const offsets: number[] = [];
+  let total = 0;
+  for (const f of files) {
+    offsets.push(total);
+    total += f.size;
+  }
+  const parts: BlobPart[] = [];
+  let bytes = 0;
+  for (const [a, b] of ranges) {
+    const from = Math.min(total, Math.round(a * meta.sampleRate) * bytesPer);
+    const to = Math.min(total, Math.round(b * meta.sampleRate) * bytesPer);
+    files.forEach((f, i) => {
+      const start = Math.max(from, offsets[i]);
+      const end = Math.min(to, offsets[i] + f.size);
+      if (end > start) {
+        parts.push(f.slice(start - offsets[i], end - offsets[i]));
+        bytes += end - start;
+      }
+    });
+  }
+  const tail = markerChunks(markers);
+  const header = wavHeader(bytes / bytesPer, { sampleRate: meta.sampleRate, bitDepth: meta.bitDepth }, tail.length);
+  return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], {
+    type: 'audio/wav',
+  });
 }
 
 export async function takeWav(meta: TakeMeta): Promise<Blob> {

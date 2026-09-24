@@ -13,7 +13,7 @@ npm install
 npm run dev        # http://localhost:4321
 npm run build      # type-check, then build the static site into dist/
 npm run preview
-npm test           # unit tests: WAV encoder, voice-follow matcher, zip writer
+npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, zip writer
 ```
 
 Open `/screens` to see every screen, listed by its id from the design file. Links there with `?demo` show the design's example content; the "Try it live" list uses real recording.
@@ -23,6 +23,8 @@ Open `/screens` to see every screen, listed by its id from the design file. Link
 - **Recording** (`/episodes/142/recording`): mono WAV at 16 or 24-bit and 44.1 or 48 kHz from an AudioWorklet, with browser echo cancellation, noise suppression and auto gain turned off. Audio is saved to the browser's private file system every 5 seconds.
 - **Crash recovery**: if the tab closes mid-take, the next visit to the studio, library or takes page opens the recovered-take screen. At most the last 5 seconds are lost.
 - **Mic check**: real input list, level meter, clipping, noise floor, free space, and what voice follow heard.
+- **Continuous sessions** (8a): switch the recording screen to **Continuous** for one file per track. **R** marks a retake, beeps (the tone isn't recorded), and rolls every screen back to the start of the line; **P** marks a pause while recording keeps running. The screen shows a timeline and the marker list.
+- **Session export** (8b): the raw WAV with its markers embedded, plus Audacity labels and a CSV. An optional assembled edit keeps the last attempt of each line, with pauses cut, kept (and marked), or split into separate files.
 - **Takes and punch-ins**: play, download or delete takes. **Record from here** (or **R**) starts a punch-in, and the prompter rolls back two lines.
 - **Export**: separate WAVs, or one combined WAV per speaker with cue markers, the optional 1 kHz / −20 dBFS / 0.5 s tone, and a take list CSV. Several files download as one zip.
 - **Voice follow**: Chrome speech recognition, matched word by word against the script. It ignores ad-libs, shows "Lost your place" with tap-to-jump lines, and has **J** to jump to the last match. Manual mode scrolls at a set speed, with Space to pause and ↑ ↓ to change it.
@@ -45,6 +47,7 @@ src/
   lib/
     audio/capture.ts    mic capture (AudioWorklet in public/worklets/recorder.js), levels
     audio/wav.ts        16/24-bit WAV encoding, cue markers, tone
+    audio/assemble.ts   continuous sessions: assembled edit, pause handling, Audacity labels
     audio/takes.ts      take storage in OPFS (5 s segments, Web Lock crash detection), WAV assembly
     voice/match.ts      fuzzy alignment of heard words against the script
     voice/follow.ts     Chrome speech recognition wrapper: word, lost and found events
@@ -85,6 +88,8 @@ chats/                  the design conversation
 | 5i | `/episodes/142/remote` | Producer remote |
 | 5d | `/episodes/142/takes` | Punch-in; press **R** |
 | 5f | `/episodes/142/recovered` | |
+| 8a | `/episodes/142/recording?mode=continuous` | Continuous mode; the Takes / Continuous switch is in the top bar |
+| 8b | `/episodes/142/session` | Export after a continuous session |
 | 2d | `/episodes/142/transcribing` | Simulated progress, then opens the package |
 | 2e | `/episodes/142/package` | Tabs, editable chapter/soundbite titles with live 45/128 counters |
 | 3c | `/episodes/142/transcript` | Speaker review with "Who said this?" |

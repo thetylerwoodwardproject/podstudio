@@ -38,6 +38,7 @@ const { crumbs, avatar = true } = Astro.props;
       }
     </nav>
   </div>
+  <slot name="center" />
   <div class="flex flex-none items-center gap-3.5">
     <slot />
     {

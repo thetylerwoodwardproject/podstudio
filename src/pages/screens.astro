@@ -13,6 +13,8 @@ const live: [string, string][] = [
   ['Record a take (saved to this browser every 5 s)', `${e}/recording`],
   ['Takes: play, download, delete, punch in from a line', `${e}/takes`],
   ['Export: separate WAVs or one combined WAV with markers, tone and take list', `${e}/export`],
+  ['Continuous session: one file, R to retake a line, P to pause', `${e}/recording?mode=continuous`],
+  ['Session export: raw WAV with markers, Audacity labels, assembled edit', `${e}/session`],
   ['Phone prompter with voice follow (open while recording to follow along)', `${e}/prompter`],
   ['Monitor window for a second screen', `${e}/monitor`],
   ['Producer remote for the same browser', `${e}/remote`],
@@ -53,6 +55,7 @@ const groups: { title: string; items: [string, string, string][] }[] = [
       ['5i', 'Producer remote (phone)', `${e}/remote?demo`],
       ['5d', 'Retake from a line', `${e}/takes?demo`],
       ['5f', 'Recovered take', `${e}/recovered?demo`],
+      ['8a', 'Recording in Continuous mode · retake without stopping', `${e}/recording?demo&mode=continuous`],
     ],
   },
   {
@@ -62,6 +65,7 @@ const groups: { title: string; items: [string, string, string][] }[] = [
       ['2e', 'Transcript + episode package', `${e}/package`],
       ['3c', 'Transcript speakers', `${e}/transcript`],
       ['7b', 'Export', `${e}/export?demo`],
+      ['8b', 'After a continuous session · export options', `${e}/session?demo`],
     ],
   },
   {

@@ -170,7 +170,7 @@ until the new transmitter arrived.`;
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
     const episodeId = form.dataset.episode!;
     const label = form.dataset.label!;
-    const takes = (await listTakes(episodeId)).filter((t) => t.status === 'done' && t.samples > 0);
+    const takes = (await listTakes(episodeId)).filter((t) => t.status === 'done' && t.samples > 0 && t.kind !== 'session');
     const btn = $<HTMLButtonElement>('[data-download]');
 
     // Default "Takes" choice from Recording settings.
