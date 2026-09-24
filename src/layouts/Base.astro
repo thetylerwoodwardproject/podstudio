@@ -36,11 +36,13 @@ const { title, anyBrowser = false, bodyClass = '' } = Astro.props;
     {
       !anyBrowser && (
         <script is:inline>
-          // Podstudio needs Chromium: Web Speech voice follow and AudioWorklet WAV capture.
+          // Podstudio needs Chromium on computers (voice follow and WAV capture). On iPhone
+          // and iPad every browser, Chrome included, runs Apple's WebKit, which has both.
           (function () {
             const brands = navigator.userAgentData && navigator.userAgentData.brands;
             const chromium = brands ? brands.some((b) => b.brand === 'Chromium') : 'chrome' in window;
-            if (!chromium) location.replace('/unsupported?from=' + encodeURIComponent(location.href));
+            const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (!chromium && !ios) location.replace('/unsupported?from=' + encodeURIComponent(location.href));
           })();
         </script>
       )

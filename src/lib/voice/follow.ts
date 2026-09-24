@@ -79,6 +79,8 @@ export async function installLocalSpeech(lang = navigator.language || 'en-US'): 
 export function browserName(): string {
   const nav = navigator as Navigator & { brave?: unknown; userAgentData?: { brands: { brand: string }[] } };
   if (nav.brave) return 'Brave';
+  if (/CriOS/.test(navigator.userAgent)) return 'Chrome on iOS';
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return 'iOS browser';
   const brands = nav.userAgentData?.brands.map((b) => b.brand) ?? [];
   const named = brands.find((b) => !/Chromium|Not.?A.?Brand/i.test(b));
   if (named) return named;

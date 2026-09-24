@@ -40,7 +40,7 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
       <p class="border-b border-line px-7 py-2.5 text-[12px] text-subtle" data-live-only data-script-note>
         This is the example episode. Import or paste your own script to rehearse with it; every screen uses it.
       </p>
-      <div class="flex max-w-[880px] flex-col gap-5.5 overflow-auto px-6 py-8 sm:px-14" data-script-lines data-episode={episode.id}>
+      <div class="flex min-h-0 w-full flex-1 flex-col gap-5.5 overflow-auto px-6 py-8 sm:px-14" data-script-lines data-episode={episode.id}>
         {
           scriptLines.map((l) => (
             <div class="grid grid-cols-[96px_1fr] items-baseline gap-5">
