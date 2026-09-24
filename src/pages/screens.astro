@@ -8,12 +8,13 @@ import Logo from '@/components/ui/Logo.astro';
 
 const e = '/episodes/142';
 const live: [string, string][] = [
-  ['Studio: pick format and scrolling, then Start take', `${e}/studio`],
+  ['Script: import or paste your own script (every screen uses it)', `${e}/script`],
+  ['Studio: pick mode, format and scrolling, then Start session', `${e}/studio`],
   ['Mic check: real level meter, clipping, noise floor, voice follow', `${e}/mic-check`],
-  ['Record a take (saved to this browser every 5 s)', `${e}/recording`],
+  ['Takes mode: record separate takes', `${e}/recording?mode=takes`],
   ['Takes: play, download, delete, punch in from a line', `${e}/takes`],
   ['Export: separate WAVs or one combined WAV with markers, tone and take list', `${e}/export`],
-  ['Continuous session: one file, R to retake a line, P to pause', `${e}/recording?mode=continuous`],
+  ['Continuous session (default): script scrolls with you, a track per speaker, R retake, P pause', `${e}/recording`],
   ['Session export: raw WAV with markers, Audacity labels, assembled edit', `${e}/session`],
   ['Phone prompter with voice follow (open while recording to follow along)', `${e}/prompter`],
   ['Monitor window for a second screen', `${e}/monitor`],

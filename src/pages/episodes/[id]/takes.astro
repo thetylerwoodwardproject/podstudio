@@ -105,10 +105,32 @@ const base = `/episodes/${episode.id}`;
   import { takeUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { download } from '@/lib/zip';
+  import { loadScript, speakerColor } from '@/lib/script-store';
 
   const root = document.getElementById('takes')!;
   const episodeId = root.dataset.episode!;
   const demo = new URL(location.href).searchParams.has('demo');
+
+  // Live: list this episode's script (the user's own, or the example).
+  if (!demo) {
+    const script = loadScript(episodeId);
+    const model = root.querySelector<HTMLElement>('[data-line]')!;
+    const rowsNew = script.lines.map((l, i) => {
+      const row = model.cloneNode(true) as HTMLElement;
+      row.dataset.line = String(i);
+      row.toggleAttribute('data-current', i === 0);
+      const label = row.firstElementChild as HTMLElement;
+      label.style.color = speakerColor(l.who);
+      label.querySelector('span')!.style.background = speakerColor(l.who);
+      label.lastChild!.textContent = l.who || '—';
+      label.style.visibility = script.speakers.length <= 1 ? 'hidden' : '';
+      (label.nextElementSibling as HTMLElement).textContent = l.text;
+      row.querySelector<HTMLAnchorElement>('[data-punch]')!.dataset.punch = String(i);
+      return row;
+    });
+    root.querySelectorAll('[data-line]').forEach((r, i) => i && r.remove());
+    model.replaceWith(...rowsNew);
+  }
 
   // Record from here: respect the "mic check before every take" setting.
   const punches = [...root.querySelectorAll<HTMLAnchorElement>('[data-punch]')];
@@ -138,7 +160,11 @@ const base = `/episodes/${episode.id}`;
     const list = root.querySelector<HTMLElement>('[data-take-list]')!;
     const tpl = (document.getElementById('take-card') as HTMLTemplateElement).content.firstElementChild!;
     const selected = new URL(location.href).searchParams.get('take');
-    const takes = (await listTakes(episodeId)).filter((t) => t.status === 'done');
+    const all = (await listTakes(episodeId)).filter((t) => t.status === 'done');
+    // A continuous session shows once, however many speaker tracks it has.
+    const seen = new Set<string>();
+    const takes = all.filter((t) => !t.group || (!seen.has(t.group) && seen.add(t.group)));
+    const trackCount = (t: (typeof all)[number]) => (t.group ? all.filter((x) => x.group === t.group).length : 1);
     list.querySelector<HTMLElement>('[data-empty]')!.hidden = takes.length > 0;
     list.querySelectorAll('[data-card]').forEach((c) => c.remove());
 
@@ -161,7 +187,8 @@ const base = `/episodes/${episode.id}`;
           textContent: 'Export session →',
         });
         q('[data-download]').after(link);
-        q('[data-start]').textContent = `Continuous · ${retakes} retake${retakes === 1 ? '' : 's'}`;
+        const n = trackCount(t);
+        q('[data-start]').textContent = `Continuous · ${n} track${n === 1 ? '' : 's'} · ${retakes} retake${retakes === 1 ? '' : 's'}`;
       }
       const bytes = t.samples * (t.bitDepth / 8);
       q('[data-range]').textContent = `${formatDuration(takeSeconds(t))} · ${t.bitDepth}-bit · ${t.sampleRate / 1000} kHz · ${formatBytes(bytes)}`;

@@ -106,6 +106,10 @@ const menu = [
       <div class="flex flex-col gap-4 border-b border-line p-5">
         <h2 class="text-[13px] font-medium">Recording · <span data-recorder-name>{recorder.name}</span></h2>
         <div class="flex flex-col gap-[7px]">
+          <div class="text-[12px] text-muted">Mode</div>
+          <Segmented name="recmode" label="Recording mode" value="continuous" options={[{ value: 'continuous', label: 'Continuous' }, { value: 'takes', label: 'Takes' }]} />
+        </div>
+        <div class="flex flex-col gap-[7px]">
           <div class="text-[12px] text-muted">Bit depth</div>
           <Segmented name="depth" label="Bit depth" mono value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
         </div>
@@ -135,7 +139,7 @@ const menu = [
       <div class="mt-auto flex gap-2.5 p-5">
         <Button type="submit" variant="record" size="xl" class="flex-1 gap-2.5">
           <span class="size-2.5 rounded-full bg-white"></span>
-          Start take <span data-take-number>{episode.takeCount}</span>
+          <span data-start-label>Start take {episode.takeCount}</span>
         </Button>
         <button
           type="button"
@@ -196,6 +200,7 @@ const menu = [
     pick('depth', String(r.depth));
     pick('rate', String(r.rate));
     pick('mode', p.mode);
+    pick('recmode', r.mode);
     q<HTMLInputElement>('input[name=tone]').checked = r.tone;
     update();
 
@@ -206,13 +211,23 @@ const menu = [
         depth: Number(data.get('depth')) as 16 | 24,
         rate: Number(data.get('rate')) as 44.1 | 48,
         tone: data.has('tone'),
+        mode: data.get('recmode') as 'continuous' | 'takes',
       });
       saveSettings('prompter', { mode: data.get('mode') as 'voice' | 'manual' });
+      label();
     });
 
     offerRecovery(episodeId);
+    // "Start session" for continuous recording, "Start take N" for separate takes.
+    let nextTake = 1;
+    const label = () => {
+      const continuous = new FormData(form).get('recmode') === 'continuous';
+      q('[data-start-label]').textContent = continuous ? 'Start session' : `Start take ${nextTake}`;
+    };
+    label();
     listTakes(episodeId).then((takes) => {
-      q('[data-take-number]').textContent = String(takes.reduce((n, t) => Math.max(n, t.number), 0) + 1);
+      nextTake = takes.reduce((n, t) => Math.max(n, t.number), 0) + 1;
+      label();
     });
     form.dataset.next = takeUrl(episodeId);
   }

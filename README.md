@@ -23,8 +23,11 @@ Open `/screens` to see every screen, listed by its id from the design file. Link
 - **Recording** (`/episodes/142/recording`): mono WAV at 16 or 24-bit and 44.1 or 48 kHz from an AudioWorklet, with browser echo cancellation, noise suppression and auto gain turned off. Audio is saved to the browser's private file system every 5 seconds.
 - **Crash recovery**: if the tab closes mid-take, the next visit to the studio, library or takes page opens the recovered-take screen. At most the last 5 seconds are lost.
 - **Mic check**: real input list, level meter, clipping, noise floor, free space, and what voice follow heard.
-- **Continuous sessions** (8a): switch the recording screen to **Continuous** for one file per track. **R** marks a retake, beeps (the tone isn't recorded), and rolls every screen back to the start of the line; **P** marks a pause while recording keeps running. The screen shows a timeline and the marker list.
-- **Session export** (8b): the raw WAV with its markers embedded, plus Audacity labels and a CSV. An optional assembled edit keeps the last attempt of each line, with pauses cut, kept (and marked), or split into separate files.
+- **Continuous sessions** (8a, the default): the whole script scrolls with the reader, word by word, on the recording screen. Every speaker records their own track for the whole session, on one clock: pick a mic on this computer for each speaker (same-room, several mics) or leave them as remote (needs the server). The speaker whose line it is shows as "Talking now". **R** marks a retake on every track (the beep isn't recorded) and rolls every screen back to the start of the line; **P** marks a pause while recording keeps running. Click a line or use ← → to move the reader by hand; with Manual speed the prompter advances on its own. A "Heard:" line shows what voice follow is picking up.
+- **Solo reads**: a script without `NAME:` lines (or with one speaker) records one track and hides all speaker labels and controls.
+- **Your own script**: on the script page, **Import or paste** takes pasted text or a .txt/.md file (`NAME:` lines become speakers, `## Heading` lines become sections). Every screen uses it; lines can be edited in place. **Use example script** brings back the example episode.
+- **Session export** (8b): each track's raw WAV with its markers embedded, plus Audacity labels and a CSV. An optional assembled edit keeps the last attempt of each line and makes the same cuts on every track, with pauses cut, kept (and marked), or split into separate files.
+- **Takes mode** is still there as an option (the Takes / Continuous switch on the recording screen, or Mode in the studio).
 - **Takes and punch-ins**: play, download or delete takes. **Record from here** (or **R**) starts a punch-in, and the prompter rolls back two lines.
 - **Export**: separate WAVs, or one combined WAV per speaker with cue markers, the optional 1 kHz / −20 dBFS / 0.5 s tone, and a take list CSV. Several files download as one zip.
 - **Voice follow**: Chrome speech recognition, matched word by word against the script. It ignores ad-libs, shows "Lost your place" with tap-to-jump lines, and has **J** to jump to the last match. Manual mode scrolls at a set speed, with Space to pause and ↑ ↓ to change it.
@@ -58,6 +61,7 @@ src/
     zip.ts              stored zip writer for multi-file downloads
     speakers.ts         speaker color presets, custom colors, contrast check, persistence
     script-parser.ts    "NAME:" speakers and "## Heading" sections for script import
+    script-store.ts     the episode script every screen uses (the user's own or the example)
     states.ts           mock-state switching (?state=…) for multi-state screens
     mock-forms.ts       forms with data-next move to the next screen until the server exists
   layouts/              Base (browser gate, colors), AppShell (top bar), Phone, Setup
@@ -102,6 +106,7 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 
 - **Takes live in this browser** until the server exists. Podstudio asks Chrome for persistent storage, but clearing the site's data deletes them. Download takes you want to keep.
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection. How well it keeps up is worth testing with real scripts.
+- **Tracks from separate mics** start together but run on separate audio clocks, so very long sessions can drift by a few milliseconds; the server's clock alignment will correct this.
 - **Sync is same-browser only.** Phones and other computers need the server's WebSocket, which will carry the same messages as `lib/session.ts`.
 - **Needs the server:** sign-in and 2FA, remote guest tracks and uploads, Whisper transcripts, titles/chapters/soundbites, and the transcript, chapter and soundbite exports. Those screens still show mock data.
 - **Combined exports** need every take in the same format. Zips are limited to 4 GB.

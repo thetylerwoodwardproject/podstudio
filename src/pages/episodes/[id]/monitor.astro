@@ -46,6 +46,7 @@ const word =
   import { Prompter, startClock } from '@/lib/prompter';
   import { runPrompter } from '@/lib/prompter-live';
   import { applyPrompterLook, loadSettings, saveSettings } from '@/lib/settings';
+  import { loadScript } from '@/lib/script-store';
 
   const root = document.getElementById('monitor')!;
   const viewport = root.querySelector<HTMLElement>('[data-prompter-viewport]')!;
@@ -54,16 +55,17 @@ const word =
   const source = root.querySelector<HTMLElement>('[data-source]')!;
   const clock = [...root.querySelectorAll<HTMLElement>('[data-clock]')];
   const demo = new URL(location.href).searchParams.has('demo');
+  const script = loadScript(root.dataset.episode!);
 
   // Live: replace the design's narration with the episode script.
   if (!demo) {
     const tpl = (document.getElementById('monitor-word') as HTMLTemplateElement).content.firstElementChild!;
-    const words = JSON.parse(root.dataset.words!) as string[];
+    const words = script.words;
     track.replaceChildren(
-      ...words.map((w) => {
+      ...words.flatMap((w) => {
         const el = tpl.cloneNode() as HTMLElement;
         el.textContent = w;
-        return el;
+        return [el, ' '];
       }),
     );
   }
@@ -99,8 +101,8 @@ const word =
 
   const controls = runPrompter(p, {
     episodeId: root.dataset.episode!,
-    words: JSON.parse(root.dataset.words!),
-    lineStarts: JSON.parse(root.dataset.lineStarts!),
+    words: script.words,
+    lineStarts: script.lineStarts,
     onStatus: (s) => {
       source.textContent =
         s.kind === 'demo' ? 'FOLLOWING MACBOOK'

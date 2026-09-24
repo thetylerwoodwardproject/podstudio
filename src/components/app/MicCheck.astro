@@ -132,6 +132,7 @@ const LIT = 30;
   import { listTakes, storageLeft, formatBytes } from '@/lib/audio/takes';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { locate, normalize } from '@/lib/voice/match';
+  import { loadScript } from '@/lib/script-store';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
   const form = document.getElementById('mic-check') as HTMLFormElement;
@@ -142,8 +143,9 @@ const LIT = 30;
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
     const settings = loadSettings().recording;
     const episodeId = form.dataset.episode!;
-    const words = JSON.parse(form.dataset.words!) as string[];
-    const starts = JSON.parse(form.dataset.lineStarts!) as number[];
+    const script = loadScript(episodeId);
+    const words = script.words;
+    const starts = script.lineStarts;
     const ok = 'var(--color-ok)';
     const warn = 'var(--color-warn)';
     const bad = 'var(--color-rec)';
@@ -162,7 +164,11 @@ const LIT = 30;
     const params = new URL(location.href).search;
     form.dataset.next = `/episodes/${episodeId}/recording${params}`;
     const takes = await listTakes(episodeId);
-    $('[data-take-number]').textContent = String(takes.reduce((n, t) => Math.max(n, t.number), 0) + 1);
+    // Punch-ins are takes; otherwise the recording mode decides the wording.
+    const session = settings.mode === 'continuous' && !new URL(location.href).searchParams.has('from');
+    $('[data-start]').innerHTML = session
+      ? '●&nbsp; Start session'
+      : `●&nbsp; Start take ${takes.reduce((n, t) => Math.max(n, t.number), 0) + 1}`;
 
     const { free, hours } = await storageLeft(hz(settings.rate), settings.depth);
     check(4, `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`, hours < 2 ? warn : ok);

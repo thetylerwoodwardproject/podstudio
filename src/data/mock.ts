@@ -1,3 +1,5 @@
+import { defaultScript } from './script';
+
 /*
  * Mock data for the UI build. Every screen reads from here so the backend
  * can replace one module later. Content is copied from the design handoff.
@@ -43,14 +45,8 @@ export interface ScriptLine {
   text: string;
 }
 
-export const scriptLines: ScriptLine[] = [
-  { who: 'TYLER', text: 'It was a quiet week in the studio, until the new transmitter arrived.' },
-  { who: 'SAM', text: 'Four pallets? I heard it was five, and one of them was just foam.' },
-  { who: 'TYLER', text: 'Four. I counted. So this episode is about what happens after the crate is open.' },
-  { who: 'SAM', text: 'Power, cooling, and the first time we keyed it up.' },
-  { who: 'DANA', text: 'And whether the floor could hold it, which, for the record, nobody checked until I asked.' },
-  { who: 'TYLER', text: 'We measured it twice. The spec sheet and the building plans did not agree.' },
-];
+/** The example episode script (src/data/script.ts); every live screen can use the user's own instead. */
+export const scriptLines: ScriptLine[] = defaultScript.lines.map((l) => ({ who: l.who as SpeakerKey, text: l.text }));
 
 /** The script as one list of words; every prompter uses these indexes. */
 export const scriptWords = scriptLines.flatMap((l) => l.text.split(/\s+/).filter(Boolean));
@@ -66,12 +62,14 @@ export const monitorScript =
   'It was a quiet week in the studio, until the new transmitter arrived. Four pallets, one forklift, and a delivery driver who swore he had never seen anything that heavy come off a truck. So this episode is about what happens after the crate is open. Power, cooling, the first time you key it up and watch the meters move.';
 
 /** Script sections; `line` is the first script line of each. */
-export const sections = [
-  { title: 'Cold open', at: '0:00', line: 0 },
-  { title: 'Segment 1 · Install', at: '1:42', line: 2 },
-  { title: 'Segment 2 · Key-up', at: '14:50', line: 4 },
-  { title: 'Wrap', at: '27:05', line: 5 },
-];
+export const sections = (() => {
+  const times = ['0:00', '1:42', '14:50', '27:05'];
+  return defaultScript.sections.map((title, i) => ({
+    title,
+    at: times[i] ?? '',
+    line: defaultScript.lines.findIndex((l) => l.section === title),
+  }));
+})();
 
 export interface Device {
   id: string;

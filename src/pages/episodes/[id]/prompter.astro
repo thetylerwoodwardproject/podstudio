@@ -130,6 +130,7 @@ const foot = {
   import { runPrompter, type LiveStatus } from '@/lib/prompter-live';
   import { applyState } from '@/lib/states';
   import { applyPrompterLook, loadSettings } from '@/lib/settings';
+  import { loadScript, speakerColor, speakerName } from '@/lib/script-store';
 
   const root = document.getElementById('prompter')!;
   const viewport = root.querySelector<HTMLElement>('[data-prompter-viewport]')!;
@@ -146,6 +147,45 @@ const foot = {
     return s;
   };
   const look = applyLook();
+  const select = root.querySelector<HTMLSelectElement>('[data-me-select]')!;
+
+  // Live: show this episode's script (the user's own, or the example).
+  const script = loadScript(root.dataset.episode!);
+  if (!demo) {
+    const model = track.querySelector<HTMLElement>('[data-line]')!;
+    track.replaceChildren(
+      ...script.lines.map((l) => {
+        const row = model.cloneNode(true) as HTMLElement;
+        row.dataset.who = speakerName(l.who);
+        row.dataset.key = l.who;
+        row.removeAttribute('data-mine');
+        row.style.setProperty('--c', speakerColor(l.who));
+        row.firstElementChild!.firstChild!.textContent = l.who || '—';
+        const text = row.lastElementChild!;
+        const wordModel = text.querySelector('[data-word]')!;
+        text.replaceChildren(
+          ...l.text.split(/\s+/).filter(Boolean).flatMap((w) => {
+            const span = wordModel.cloneNode() as HTMLElement;
+            span.textContent = w;
+            return [span, ' '];
+          }),
+        );
+        return row;
+      }),
+    );
+    // A solo read has no speakers: no names, no "You're …", no "Next:".
+    if (script.speakers.length <= 1) {
+      track.querySelectorAll<HTMLElement>('[data-line]').forEach((r) => {
+        (r.firstElementChild as HTMLElement).hidden = true;
+        r.setAttribute('data-mine', '');
+      });
+      select.closest('label')!.hidden = true;
+      (root.querySelector('[data-next-who]')!.parentElement as HTMLElement).hidden = true;
+    }
+    // Speakers in this script, for "You're …".
+    const extra = script.speakers.filter((k) => ![...select.options].some((o) => o.value === k));
+    for (const k of extra) select.append(new Option(speakerName(k), k));
+  }
   const p = new Prompter(viewport, track, { line: demo ? 0.3 : look.line / 100 });
   document.addEventListener('prompter-settings', () => {
     applyLook();
@@ -154,13 +194,12 @@ const foot = {
 
   // Whose lines are highlighted on this screen.
   const ME_KEY = 'podstudio:prompter-speaker';
-  const select = root.querySelector<HTMLSelectElement>('[data-me-select]')!;
   const setMe = (key: string) => {
     root.dataset.me = key;
     select.value = key;
     root.querySelector('[data-me-name]')!.textContent = select.selectedOptions[0].textContent;
-    root.querySelector<HTMLElement>('[data-me-dot]')!.style.background = `var(--spk-${key.toLowerCase()})`;
-    p.lines.forEach((l) => l.toggleAttribute('data-mine', l.dataset.key === key));
+    root.querySelector<HTMLElement>('[data-me-dot]')!.style.background = speakerColor(key);
+    p.lines.forEach((l) => l.toggleAttribute('data-mine', l.dataset.key === key || (!demo && script.speakers.length <= 1)));
   };
   try {
     setMe(new URL(location.href).searchParams.get('as')?.toUpperCase() || localStorage.getItem(ME_KEY) || root.dataset.me!);
@@ -245,8 +284,8 @@ const foot = {
 
   const controls = runPrompter(p, {
     episodeId: root.dataset.episode!,
-    words: JSON.parse(root.dataset.words!),
-    lineStarts: JSON.parse(root.dataset.lineStarts!),
+    words: script.words,
+    lineStarts: script.lineStarts,
     onStatus: (s) => {
       live = s;
       renderFoot();

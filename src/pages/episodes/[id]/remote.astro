@@ -65,11 +65,33 @@ const lines = scriptLines.map((l) => ({ who: l.who, name: speakerByKey(l.who).na
 <script>
   import { startClock } from '@/lib/prompter';
   import { Session } from '@/lib/session';
+  import { loadScript, speakerColor } from '@/lib/script-store';
 
   const root = document.querySelector<HTMLElement>('[data-remote]')!;
-  const lines = JSON.parse(root.dataset.lines!) as { who: string; text: string; color: string }[];
-  const starts = JSON.parse(root.dataset.lineStarts!) as number[];
   const demo = new URL(location.href).searchParams.has('demo');
+  const script = loadScript(root.dataset.episode!);
+  const lines = demo
+    ? (JSON.parse(root.dataset.lines!) as { who: string; text: string; color: string }[])
+    : script.lines.map((l) => ({ who: l.who || '—', text: l.text, color: speakerColor(l.who) }));
+  const starts = demo ? (JSON.parse(root.dataset.lineStarts!) as number[]) : script.lineStarts;
+
+  // Live: the section list comes from the script's "## Heading" lines.
+  if (!demo) {
+    const model = root.querySelector<HTMLElement>('input[name=section]')!.closest('label')!;
+    const list = script.sections.length ? script.sections : [{ title: 'Start', line: 0 }];
+    model.parentElement!.querySelectorAll('label').forEach((l) => l !== model && l.remove());
+    const rows = list.map((sec, i) => {
+      const row = model.cloneNode(true) as HTMLElement;
+      const input = row.querySelector('input')!;
+      input.value = String(sec.line);
+      input.checked = i === 0;
+      const [title, at] = row.querySelectorAll('span');
+      title.textContent = sec.title;
+      at.textContent = `Line ${sec.line + 1}`;
+      return row;
+    });
+    model.replaceWith(...rows);
+  }
   let i = Number(root.dataset.start);
   let paused = false;
 
@@ -82,7 +104,7 @@ const lines = scriptLines.map((l) => ({ who: l.who, name: speakerByKey(l.who).na
   const lineOf = (word: number) => starts.reduce((line, s, n) => (word >= s ? n : line), 0);
 
   const show = () => {
-    who.textContent = `ON THE LINE · ${lines[i].who}`;
+    who.textContent = !demo && script.speakers.length <= 1 ? 'ON THE LINE' : `ON THE LINE · ${lines[i].who}`;
     who.style.color = lines[i].color;
     text.textContent = lines[i].text;
     // Highlight the section the current line is in.

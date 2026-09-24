@@ -37,7 +37,9 @@ export interface TakeMeta {
   status: 'recording' | 'done';
   /** Zero-based script line voice follow last placed the reader on */
   lastLine?: number;
-  /** Continuous sessions: retake and pause markers */
+  /** Continuous sessions: tracks recorded together share a group id */
+  group?: string;
+  /** Continuous sessions: retake and pause markers (shared by every track in the group) */
   markers?: SessionMarker[];
   /** Continuous sessions: when each script line was reached */
   lineLog?: LineStart[];

@@ -14,7 +14,7 @@ export interface RecordingSettings {
   download: 'separate' | 'combined';
   deviceId: string;
   recorder: string;
-  /** Separate takes, or one continuous file with retake and pause markers (8a) */
+  /** One continuous file with retake and pause markers (8a, the default), or separate takes */
   mode: 'takes' | 'continuous';
   /** Beep when a retake is marked in continuous mode */
   retakeTone: boolean;
@@ -40,7 +40,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac', mode: 'takes', retakeTone: true },
+  recording: { depth: 24, rate: 48, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac', mode: 'continuous', retakeTone: true },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -55,9 +55,14 @@ export const defaults: Settings = {
 
 const KEY = 'podstudio:settings';
 
+/** Bumped when a default changes and old saved values should give way to it. */
+const VERSION = 2;
+
 export function loadSettings(): Settings {
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Settings>;
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Settings> & { version?: number };
+    // v2: Continuous became the default recording mode.
+    if ((saved.version ?? 1) < 2 && saved.recording) delete (saved.recording as Partial<RecordingSettings>).mode;
     return {
       recording: { ...defaults.recording, ...saved.recording },
       prompter: { ...defaults.prompter, ...saved.prompter },
@@ -71,7 +76,7 @@ export function saveSettings<K extends keyof Settings>(group: K, patch: Partial<
   const s = loadSettings();
   s[group] = { ...s[group], ...patch };
   try {
-    localStorage.setItem(KEY, JSON.stringify(s));
+    localStorage.setItem(KEY, JSON.stringify({ ...s, version: VERSION }));
   } catch {
     // Storage blocked: settings last for this page only.
   }

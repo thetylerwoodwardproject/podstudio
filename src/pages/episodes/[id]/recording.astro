@@ -162,25 +162,44 @@ const modeOption =
   </div>
 
   <!-- 8a · Continuous mode: one file per track, retakes and pauses as markers -->
-  <div class="hidden lg:h-full lg:grid-cols-[1fr_360px] group-data-[mode=continuous]/rec:grid">
-    <section class="flex min-w-0 flex-col gap-3 border-line px-6 py-8 lg:border-r lg:px-12">
-      <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3 opacity-45" data-c-line="prev">
-        <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
-        <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Four pallets? I heard it was five, and one of them was just foam.</span>
-      </div>
-      <div class="grid grid-cols-[90px_1fr] gap-4.5 rounded-[10px] bg-surface px-3.5 py-3 shadow-[inset_0_0_0_1px_var(--color-edge)]" data-c-line="cur">
-        <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('TYLER') }} data-who>TYLER</span>
-        <div class="flex flex-col gap-2.5">
-          <span class="text-[22px] leading-[1.55]" data-text>Four. I counted. So this episode is about what happens after the crate is open.</span>
-          <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-warn" data-attempt>ATTEMPT 2 · RETAKE MARKED AT 24:02</span>
+  <div class="hidden lg:h-full lg:grid-cols-[1fr_360px] lg:grid-rows-[minmax(0,1fr)] group-data-[mode=continuous]/rec:grid">
+    <section class="flex min-h-0 min-w-0 flex-col gap-3 border-line px-6 py-6 max-lg:h-[80dvh] lg:border-r lg:px-12">
+      <div class="flex flex-col gap-3" data-demo-only>
+        <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3 opacity-45" data-c-line="prev">
+          <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
+          <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Four pallets? I heard it was five, and one of them was just foam.</span>
+        </div>
+        <div class="grid grid-cols-[90px_1fr] gap-4.5 rounded-[10px] bg-surface px-3.5 py-3 shadow-[inset_0_0_0_1px_var(--color-edge)]" data-c-line="cur">
+          <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('TYLER') }} data-who>TYLER</span>
+          <div class="flex flex-col gap-2.5">
+            <span class="text-[22px] leading-[1.55]" data-text>Four. I counted. So this episode is about what happens after the crate is open.</span>
+            <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-warn" data-attempt>ATTEMPT 2 · RETAKE MARKED AT 24:02</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3" data-c-line="next">
+          <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
+          <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Which is when the real trouble starts.</span>
         </div>
       </div>
-      <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3" data-c-line="next">
-        <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
-        <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Which is when the real trouble starts.</span>
+
+      <!-- Live: the whole script, scrolling with the reader -->
+      <div class="relative -mx-3.5 min-h-[200px] flex-1 overflow-hidden" data-live-only data-c-viewport>
+        <div class="pointer-events-none absolute inset-x-0 top-0 z-[1] h-12 bg-linear-to-b from-ink to-transparent" aria-hidden="true"></div>
+        <div class="flex flex-col gap-2 pt-4 transition-transform duration-500 ease-in-out" data-c-track></div>
+      </div>
+      <div class="flex flex-col gap-2" data-live-only>
+        <div class="flex h-10 w-full items-center gap-0.5" aria-hidden="true" data-live-wave data-solo-wave>
+          {Array.from({ length: BARS }, () => <span class="h-[4%] flex-1 rounded-[1px] opacity-25" style={{ background: spk(local) }} />)}
+        </div>
+        <!-- Multi-speaker: one continuously recorded track per speaker -->
+        <div class="flex flex-col border-t border-line" data-c-tracks hidden></div>
+        <div class="flex items-center justify-between gap-4 font-mono text-[11px] text-subtle">
+          <span class="min-w-0 truncate" data-heard>Heard: —</span>
+          <span class="flex flex-none items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-c-voice-dot></span><span data-c-voice>Voice follow starts with the session</span></span>
+        </div>
       </div>
 
-      <div class="mt-auto flex flex-col gap-2.5 pt-6">
+      <div class="flex flex-col gap-2.5 pt-2 [html[data-demo]_&]:mt-auto">
         <div class="flex justify-between font-mono text-[11px] text-subtle">
           <span>00:00</span><span data-c-files>One file · Tyler, Sam</span><span data-c-length>24:18</span>
         </div>
@@ -275,6 +294,8 @@ const modeOption =
   import { Session } from '@/lib/session';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import type { SessionMarker } from '@/lib/audio/assemble';
+  import { Prompter } from '@/lib/prompter';
+  import { loadScript, speakerColor, speakerName } from '@/lib/script-store';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
   const root = document.getElementById('recording')!;
@@ -304,9 +325,29 @@ const modeOption =
 
   async function live() {
     const episodeId = root.dataset.episode!;
-    const words = JSON.parse(root.dataset.words!) as string[];
-    const lines = JSON.parse(root.dataset.lines!) as { who: string; text: string }[];
-    const starts = JSON.parse(root.dataset.lineStarts!) as number[];
+    // The episode's script: the user's own if they pasted or imported one, else the example.
+    const script = loadScript(episodeId);
+    const words = script.words;
+    const lines = script.lines;
+    const starts = script.lineStarts;
+    const prompterSettings = loadSettings().prompter;
+    // Solo reads have one track and no speakers to show. With several speakers, every
+    // speaker records their own track for the whole session, on one shared clock.
+    const solo = script.speakers.length <= 1;
+    const host = script.speakers.includes(root.dataset.local!) ? root.dataset.local! : (script.speakers[0] ?? root.dataset.local!);
+    const trackSpeakers = solo ? [host] : script.speakers;
+    const INPUTS_KEY = 'podstudio:track-inputs';
+    // Per speaker: a mic on this computer ('default' = the Recording settings mic), 'remote', or 'off'.
+    let inputs: Record<string, string> = {};
+    try {
+      inputs = JSON.parse(localStorage.getItem(INPUTS_KEY) || '{}');
+    } catch {}
+    for (const k of trackSpeakers) inputs[k] ??= k === host ? 'default' : 'remote';
+    const saveInputs = () => {
+      try {
+        localStorage.setItem(INPUTS_KEY, JSON.stringify(inputs));
+      } catch {}
+    };
     const settings = loadSettings().recording;
     const params = new URL(location.href).searchParams;
     const fromLine = Math.max(0, Math.min(lines.length - 1, Number(params.get('from') ?? 0) || 0));
@@ -354,13 +395,111 @@ const modeOption =
       if (!lines[n]) return;
       const who = el.querySelector<HTMLElement>('[data-who]')!;
       who.textContent = lines[n].who;
-      who.style.color = `var(--spk-${lines[n].who.toLowerCase()})`;
+      who.style.color = speakerColor(lines[n].who);
       el.querySelector('[data-text]')!.textContent = lines[n].text;
     };
+    // Continuous view: the whole script as a prompter that scrolls with the reader.
+    const track = $('[data-c-track]');
+    track.replaceChildren(
+      ...lines.map((l, n) => {
+        const row = document.createElement('div');
+        row.dataset.line = String(n);
+        row.dataset.who = l.who;
+        row.className = `group grid cursor-pointer ${solo ? 'grid-cols-1' : 'grid-cols-[90px_1fr]'} gap-4.5 rounded-[10px] px-3.5 py-3 transition-[opacity,background-color] hover:bg-surface/60 data-[l=now]:bg-surface data-[l=now]:shadow-[inset_0_0_0_1px_var(--color-edge)] data-[l=past]:opacity-45 data-[theirs]:data-[l=next]:opacity-50`;
+        const who = document.createElement('span');
+        who.className = 'pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em] uppercase';
+        who.style.color = speakerColor(l.who);
+        who.textContent = l.who || '—';
+        who.hidden = solo;
+        const body = document.createElement('div');
+        body.className = 'flex flex-col gap-2.5';
+        const text = document.createElement('div');
+        text.className =
+          'flex flex-wrap gap-x-[0.25em] text-[18px] leading-[1.6] text-fg-soft transition-[font-size] group-data-[l=now]:text-[22px] group-data-[l=now]:leading-[1.55] group-data-[l=now]:text-fg';
+        for (const w of l.text.split(/\s+/).filter(Boolean)) {
+          const span = document.createElement('span');
+          span.dataset.word = '';
+          span.className =
+            'group-data-[l=now]:data-[w=past]:text-muted group-data-[l=now]:data-[w=now]:shadow-[inset_0_-3px_0_var(--color-rec)]';
+          span.textContent = w;
+          // A real space keeps copy and screen readers right; flex layout ignores it.
+          text.append(span, ' ');
+        }
+        const attempt = document.createElement('span');
+        attempt.className = 'font-mono text-[11px] font-medium tracking-[0.06em] text-warn';
+        attempt.dataset.lineAttempt = '';
+        attempt.hidden = true;
+        body.append(text, attempt);
+        row.append(who, body);
+        // Click a line to put the reader there (handy when voice follow can't hear you).
+        row.addEventListener('click', () => setWord(starts[n]));
+        return row;
+      }),
+    );
+    const cPrompter = new Prompter($('[data-c-viewport]'), track, { line: 0.3 });
+
+    // Tracks (multi-speaker continuous sessions): one row per speaker.
+    const tracksEl = $('[data-c-tracks]');
+    const rowFor = new Map<string, HTMLElement>();
+    const barsFor = new Map<string, HTMLElement[]>();
+    if (!solo) {
+      $('[data-solo-wave]').hidden = true;
+      tracksEl.hidden = false;
+      for (const k of trackSpeakers) {
+        const row = document.createElement('div');
+        row.className =
+          'grid grid-cols-[120px_minmax(0,1fr)_170px] items-center gap-4 border-b border-line py-2 data-[talking]:bg-surface data-[talking]:shadow-[inset_2px_0_0_var(--c)]';
+        row.style.setProperty('--c', speakerColor(k));
+        row.innerHTML = `
+          <div class="flex min-w-0 flex-col gap-0.5 pl-2">
+            <span class="flex items-center gap-2 text-[14px]"><span class="inline-block size-2 flex-none rounded-full" style="background:var(--c)"></span><span data-name></span></span>
+            <span class="font-mono text-[10px] tracking-[0.06em] text-(--c)" data-talking-label hidden>TALKING NOW</span>
+          </div>
+          <div class="flex h-8 w-full items-center gap-0.5" aria-hidden="true" data-bars></div>
+          <div class="min-w-0 pr-2">
+            <select class="w-full truncate rounded-md border border-edge bg-surface px-2 py-1 text-[12px] focus:border-fg focus:outline-none" aria-label="Input for this speaker" data-input></select>
+            <span class="block truncate font-mono text-[11px] text-muted" data-status hidden></span>
+          </div>`;
+        row.querySelector('[data-name]')!.textContent = speakerName(k);
+        const bars = row.querySelector<HTMLElement>('[data-bars]')!;
+        const list: HTMLElement[] = [];
+        for (let i = 0; i < 60; i++) {
+          const b = document.createElement('span');
+          b.className = 'h-[6%] flex-1 rounded-[1px] opacity-25';
+          b.style.background = 'var(--c)';
+          bars.append(b);
+          list.push(b);
+        }
+        barsFor.set(k, list);
+        const select = row.querySelector<HTMLSelectElement>('[data-input]')!;
+        select.addEventListener('change', () => {
+          inputs[k] = select.value;
+          saveInputs();
+        });
+        rowFor.set(k, row);
+        tracksEl.append(row);
+      }
+      // Mic names are available once microphone access has been granted.
+      MicCapture.inputs().then((devices) => {
+        for (const [k, row] of rowFor) {
+          const select = row.querySelector<HTMLSelectElement>('[data-input]')!;
+          select.replaceChildren(
+            new Option('This computer’s mic', 'default'),
+            ...devices.filter((d) => d.deviceId && d.deviceId !== 'default').map((d, i) => new Option(d.label || `Microphone ${i + 1}`, d.deviceId)),
+            new Option('Remote · own device', 'remote'),
+            new Option('Not recorded', 'off'),
+          );
+          select.value = [...select.options].some((o) => o.value === inputs[k]) ? inputs[k] : 'remote';
+        }
+      });
+    }
+    const filesLabel = () =>
+      solo ? 'One file' : `${trackSpeakers.length} tracks · ${trackSpeakers.map(speakerName).join(', ')} · one clock`;
+
     const showLine = (n: number) => {
       const who = $('[data-now-who]');
       who.textContent = lines[n].who;
-      who.style.color = `var(--spk-${lines[n].who.toLowerCase()})`;
+      who.style.color = speakerColor(lines[n].who);
       $('[data-now-text]').textContent = lines[n].text;
       fillLine('prev', n - 1);
       fillLine('cur', n);
@@ -369,6 +508,18 @@ const modeOption =
       const label = $('[data-attempt]');
       label.hidden = !a;
       if (a) label.textContent = `ATTEMPT ${a.n} · RETAKE MARKED AT ${fmt(a.at)}`;
+      // Same label on the live prompter's line.
+      const live = track.querySelector<HTMLElement>(`[data-line="${n}"] [data-line-attempt]`);
+      if (live) {
+        live.hidden = !a;
+        if (a) live.textContent = `ATTEMPT ${a.n} · RETAKE MARKED AT ${fmt(a.at)}`;
+      }
+      // Whose turn it is: their track is the one talking.
+      for (const [k, row] of rowFor) {
+        const on = k === lines[n].who;
+        row.toggleAttribute('data-talking', on);
+        row.querySelector<HTMLElement>('[data-talking-label]')!.hidden = !on;
+      }
     };
 
     const session = new Session(episodeId);
@@ -381,9 +532,10 @@ const modeOption =
     let currentLine = lineOf(word);
     showLine(currentLine);
     $('[data-c-length]').textContent = '00:00';
-    const localName = root.dataset.local!.charAt(0) + root.dataset.local!.slice(1).toLowerCase();
-    $('[data-c-files]').textContent = `One file · ${localName}`;
+    $('[data-c-files]').textContent = filesLabel();
+    if (!solo) $('[data-session-hint]').textContent = 'Every speaker’s track records the whole session, saved to this browser every 5 seconds.';
     let paused: SessionMarker | null = null;
+    cPrompter.setWord(word);
 
     /** Move to a script word; in a continuous session, log when a new line starts. */
     const setWord = (i: number, broadcast = true) => {
@@ -392,6 +544,7 @@ const modeOption =
       if (line !== currentLine && writer && continuous()) writer.meta.lineLog?.push({ t: writer.seconds, line });
       currentLine = line;
       showLine(line);
+      cPrompter.setWord(i);
       voice?.setWord(i);
       // Saved with the next segment, so a recovered take knows where it stopped.
       if (writer) writer.meta.lastLine = line;
@@ -413,8 +566,9 @@ const modeOption =
     });
 
     // Live waveform: one bar per quarter second, newest on the right.
-    const bars = [...document.querySelectorAll<HTMLElement>('[data-live-wave] span')];
-    const heights: number[] = bars.map(() => 0);
+    // Both views have a live waveform; they show the same bars.
+    const waves = [...document.querySelectorAll<HTMLElement>('[data-live-wave]')].map((w) => [...w.querySelectorAll<HTMLElement>('span')]);
+    const heights: number[] = waves[0].map(() => 0);
     let windowPeak = 0;
     let clipAt = 0;
     capture.addEventListener('level', (e) => {
@@ -422,16 +576,36 @@ const modeOption =
       windowPeak = Math.max(windowPeak, peak);
       if (peak > -0.5) clipAt = Date.now();
     });
+    // Multi-speaker rows: the level of each speaker's mic, newest bar on the right.
+    const rowPeaks = new Map<string, number>();
+    const rowHeights = new Map<string, number[]>([...barsFor.keys()].map((k) => [k, Array(60).fill(0)]));
+    setInterval(() => {
+      if (!writer || solo) return;
+      for (const [k, bars] of barsFor) {
+        const peak = rowPeaks.get(k) ?? -Infinity;
+        const h = rowHeights.get(k)!;
+        h.push(Number.isFinite(peak) ? Math.max(6, Math.min(100, ((peak + 60) / 60) * 100)) : 0);
+        h.shift();
+        bars.forEach((b, i) => {
+          b.style.height = `${h[i] || 6}%`;
+          b.style.opacity = h[i] ? '0.85' : '0.25';
+        });
+        if (rowPeaks.has(k)) rowPeaks.set(k, -Infinity);
+      }
+    }, 250);
+
     setInterval(() => {
       if (!writer) return;
       // -60..0 dBFS → 4..100 %
       const pct = Number.isFinite(windowPeak) ? Math.max(4, Math.min(100, ((windowPeak + 60) / 60) * 100)) : 4;
       heights.push(pct);
       heights.shift();
-      bars.forEach((b, i) => {
-        b.style.height = `${heights[i] || 4}%`;
-        b.style.opacity = heights[i] ? '0.85' : '0.25';
-      });
+      for (const bars of waves) {
+        bars.forEach((b, i) => {
+          b.style.height = `${heights[i] || 4}%`;
+          b.style.opacity = heights[i] ? '0.85' : '0.25';
+        });
+      }
       $('[data-peak]').textContent = Number.isFinite(windowPeak) ? `Peak ${Math.round(Math.min(0, windowPeak)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Peak —';
       $('[data-peak]').style.color = Date.now() - clipAt < 3000 ? 'var(--color-rec)' : '';
       windowPeak = -Infinity;
@@ -446,9 +620,21 @@ const modeOption =
       $('[data-save-dot]').style.background = 'var(--color-ok)';
     }, 1000);
 
+    let manualTimer: number | undefined;
     const startVoice = () => {
+      // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
+      if (prompterSettings.mode === 'manual') {
+        const text = `Manual · ${prompterSettings.wpm} wpm`;
+        $('[data-voice]').textContent = text;
+        $('[data-c-voice]').textContent = `${text} · P pauses`;
+        manualTimer = window.setInterval(() => {
+          if (writer && !paused && word < words.length - 1) setWord(word + 1);
+        }, 60000 / prompterSettings.wpm);
+        return;
+      }
       if (!voiceFollowSupported()) {
         $('[data-voice]').textContent = 'Needs Chrome';
+        $('[data-c-voice]').textContent = 'Voice follow needs Chrome';
         return;
       }
       voice = new VoiceFollow(words);
@@ -459,24 +645,44 @@ const modeOption =
       });
       voice.addEventListener('lost', () => session.send({ type: 'follow', state: 'lost' }));
       voice.addEventListener('found', () => session.send({ type: 'follow', state: 'read' }));
+      const voiceState = (text: string, color: string) => {
+        $('[data-voice]').textContent = text;
+        $('[data-voice-dot]').style.background = color;
+        $('[data-c-voice]').textContent = text === 'Listening' ? 'Voice follow listening' : text;
+        $('[data-c-voice-dot]').style.background = color;
+      };
       voice.addEventListener('status', (e) => {
         const on = (e as CustomEvent<string>).detail === 'listening';
-        $('[data-voice]').textContent = on ? 'Listening' : 'Off';
-        $('[data-voice-dot]').style.background = on ? 'var(--color-ok)' : 'var(--color-faint)';
+        voiceState(on ? 'Listening' : 'Off', on ? 'var(--color-ok)' : 'var(--color-faint)');
       });
-      voice.addEventListener('error', (e) => {
-        const err = (e as CustomEvent<string>).detail;
-        $('[data-voice]').textContent = voiceErrorText(err);
-        $('[data-voice-dot]').style.background = 'var(--color-warn)';
-      });
+      voice.addEventListener('error', (e) => voiceState(voiceErrorText((e as CustomEvent<string>).detail), 'var(--color-warn)'));
+      voice.addEventListener('heard', (e) => ($('[data-heard]').textContent = `Heard: “${(e as CustomEvent<string>).detail.split(/\s+/).slice(-12).join(' ')}”`));
+      voice.addEventListener('lost', () => ($('[data-c-voice]').textContent = 'Off script · keep reading or click a line'));
+      voice.addEventListener('found', () => ($('[data-c-voice]').textContent = 'Voice follow listening'));
       voice.start();
     };
 
+    // Extra mics (same-room sessions) and every speaker's writer, besides the main ones.
+    const extraCaptures: MicCapture[] = [];
+    const trackWriters: TakeWriter[] = [];
+
     async function start() {
       toggle.disabled = true;
+      sessionToggle.disabled = true;
+      const multi = continuous() && !solo;
+      // Which mic each locally recorded speaker uses; a mic shared by two speakers records once.
+      const deviceOf = (k: string) => (inputs[k] === 'default' ? settings.deviceId : inputs[k]);
+      const localSpeakers = multi ? trackSpeakers.filter((k) => inputs[k] !== 'remote' && inputs[k] !== 'off') : [host];
+      if (!localSpeakers.length) {
+        toggle.disabled = sessionToggle.disabled = false;
+        $('[data-session-hint]').textContent = 'Pick a mic on this computer for at least one speaker.';
+        return;
+      }
+      const firstDevice = deviceOf(localSpeakers[0]);
       try {
-        await capture.open({ deviceId: settings.deviceId, sampleRate: hz(settings.rate) });
+        await capture.open({ deviceId: firstDevice, sampleRate: hz(settings.rate) });
       } catch (err) {
+        sessionToggle.disabled = false;
         toggle.disabled = false;
         $('[data-hint]').textContent =
           (err as Error).name === 'NotAllowedError'
@@ -486,20 +692,54 @@ const modeOption =
       }
       $('[data-device]').textContent = `${capture.label || computer} · studio`;
       const isSession = continuous();
-      writer = await TakeWriter.start({
-        episodeId,
-        kind: isSession ? 'session' : punchIn ? 'punch-in' : 'full',
-        ...(isSession ? { markers: [], lineLog: [{ t: 0, line: currentLine }] } : {}),
-        startLine: fromLine,
-        startText: lines[fromLine].text,
-        speaker: root.dataset.local!,
-        device: capture.label || computer,
-        sampleRate: capture.sampleRate,
-        bitDepth: settings.depth,
-      });
-      const w = writer;
-      capture.addEventListener('chunk', (e) => w.push((e as CustomEvent<Float32Array>).detail));
-      capture.record();
+      // Tracks in one session share the same marker list and line log.
+      const shared = isSession ? { markers: [] as SessionMarker[], lineLog: [{ t: 0, line: currentLine }], group: `${episodeId}-g${Date.now().toString(36)}` } : {};
+      const byDevice = new Map<string, { cap: MicCapture; speaker: string }>([[firstDevice, { cap: capture, speaker: localSpeakers[0] }]]);
+      for (const k of localSpeakers.slice(1)) {
+        const dev = deviceOf(k);
+        const status = rowFor.get(k)?.querySelector<HTMLElement>('[data-status]');
+        if (byDevice.has(dev)) {
+          if (status) status.textContent = `Same mic as ${speakerName(byDevice.get(dev)!.speaker)}`;
+          continue;
+        }
+        const cap = new MicCapture();
+        try {
+          await cap.open({ deviceId: dev, sampleRate: hz(settings.rate) });
+        } catch {
+          if (status) status.textContent = 'Mic unavailable';
+          continue;
+        }
+        extraCaptures.push(cap);
+        byDevice.set(dev, { cap, speaker: k });
+      }
+      for (const { cap, speaker } of byDevice.values()) {
+        const w = await TakeWriter.start({
+          episodeId,
+          kind: isSession ? 'session' : punchIn ? 'punch-in' : 'full',
+          ...shared,
+          startLine: fromLine,
+          startText: lines[fromLine].text,
+          speaker,
+          device: cap.label || computer,
+          sampleRate: cap.sampleRate,
+          bitDepth: settings.depth,
+        });
+        trackWriters.push(w);
+        cap.addEventListener('chunk', (e) => w.push((e as CustomEvent<Float32Array>).detail));
+        cap.addEventListener('level', (e) => rowPeaks.set(speaker, Math.max(rowPeaks.get(speaker) ?? -Infinity, (e as CustomEvent<{ peak: number }>).detail.peak)));
+        const status = rowFor.get(speaker)?.querySelector<HTMLElement>('[data-status]');
+        if (status) status.textContent = `● ${cap.label || 'This computer'}`;
+      }
+      writer = trackWriters[0];
+      // Start every track together so they line up.
+      for (const { cap } of byDevice.values()) cap.record();
+      for (const [k, row] of rowFor) {
+        row.querySelector<HTMLElement>('[data-input]')!.hidden = true;
+        const status = row.querySelector<HTMLElement>('[data-status]')!;
+        status.hidden = false;
+        if (inputs[k] === 'remote') status.textContent = 'Remote · needs the server';
+        else if (inputs[k] === 'off') status.textContent = 'Not recorded';
+      }
       startedAt = Date.now();
       session.send(recMsg());
       session.send({ type: 'word', index: word, device: device() });
@@ -645,11 +885,13 @@ const modeOption =
       $('[data-session-label]').textContent = 'Saving…';
       if (paused) paused.end = writer.seconds;
       clearInterval(clock);
+      clearInterval(manualTimer);
       voice?.stop();
-      await capture.stop();
-      const meta = await writer.finish();
+      await Promise.all([capture, ...extraCaptures].map((c) => c.stop()));
+      const metas = await Promise.all(trackWriters.map((w) => w.finish()));
+      const meta = metas[0];
       writer = null;
-      await capture.close();
+      await Promise.all([capture, ...extraCaptures].map((c) => c.close()));
       session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
       location.href =
         meta.kind === 'session'

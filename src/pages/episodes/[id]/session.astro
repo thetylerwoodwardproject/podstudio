@@ -24,8 +24,8 @@ const greenSwitch =
     data-lines={JSON.stringify(scriptLines.map((l) => l.text))}
   >
     <div>
-      <h1 class="text-[22px] tracking-[-0.02em]">Session · <span data-length>41:07</span></h1>
-      <p class="mt-1.5 text-[13px] text-muted" data-counts>2 tracks · 14 retakes · 3 pauses</p>
+      <h1 class="text-[22px] tracking-[-0.02em]">Session · <span data-length><span data-demo-only>41:07</span></span></h1>
+      <p class="mt-1.5 text-[13px] text-muted" data-counts><span data-demo-only>2 tracks · 14 retakes · 3 pauses</span></p>
     </div>
 
     <p class="text-[13px] text-subtle" data-empty hidden>
@@ -53,7 +53,7 @@ const greenSwitch =
           <div class="text-[14px]">Assembled edit</div>
           <div class="mt-1 text-[12px] text-muted">
             Keeps the last attempt of each line and cuts the rest. Saved as a separate file, so the raw tracks stay as they
-            are. <span data-removes>Removes 6:52.</span>
+            are. <span data-removes><span data-demo-only>Removes 6:52.</span></span>
           </div>
         </div>
         <span class={greenSwitch}>
@@ -109,6 +109,7 @@ const greenSwitch =
   import { assemble, audacityLabels, mapTime, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
   import { formatBytes, getTake, listTakes, rangesWav, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { download, zip, type ZipEntry } from '@/lib/zip';
+  import { loadScript } from '@/lib/script-store';
 
   const form = document.getElementById('session') as HTMLFormElement;
   const dialog = document.getElementById('markers-dialog') as HTMLDialogElement;
@@ -134,7 +135,7 @@ const greenSwitch =
   async function live() {
     const episodeId = form.dataset.episode!;
     const label = form.dataset.label!;
-    const lines = JSON.parse(form.dataset.lines!) as string[];
+    const lines = loadScript(episodeId).lines.map((l) => l.text);
     const id = new URL(location.href).searchParams.get('take');
     const take: TakeMeta | null =
       (id ? await getTake(id) : null) ??
@@ -151,15 +152,17 @@ const greenSwitch =
       return;
     }
 
+    // Every speaker's track recorded in this session (one for a solo read).
+    const all = await listTakes(episodeId);
+    const tracks = take.group ? all.filter((t) => t.group === take.group && t.status === 'done') : [take];
     const duration = take.samples / take.sampleRate;
     const markers = take.markers ?? [];
     const lineLog = take.lineLog ?? [];
     const retakes = markers.filter((m) => m.kind === 'retake');
     const pauses = markers.filter((m) => m.kind === 'pause');
     const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-    const speaker = take.speaker.charAt(0) + take.speaker.slice(1).toLowerCase();
     $('[data-length]').textContent = clock(duration);
-    $('[data-counts]').textContent = `1 track · ${plural(retakes.length, 'retake')} · ${plural(pauses.length, 'pause')}`;
+    $('[data-counts]').textContent = `${plural(tracks.length, 'track')} · ${plural(retakes.length, 'retake')} · ${plural(pauses.length, 'pause')}`;
 
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
     const describe = (m: SessionMarker) =>
@@ -199,9 +202,9 @@ const greenSwitch =
       const o = options();
       const a = assemble(duration, markers, lineLog, o.pauses);
       $('[data-removes]').textContent = a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
-      const raw = take.samples * (take.bitDepth / 8);
-      const editBytes = (duration - a.removed) * take.sampleRate * (take.bitDepth / 8);
-      const files = 3 + (o.assembled ? a.files.length : 0);
+      const raw = tracks.reduce((n, t) => n + t.samples * (t.bitDepth / 8), 0);
+      const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8), 0);
+      const files = tracks.length + 2 + (o.assembled ? a.files.length * tracks.length : 0);
       $('[data-summary]').textContent = `${files} files · ${formatBytes(raw + (o.assembled ? editBytes : 0))}`;
     };
     form.addEventListener('change', refresh);
@@ -212,14 +215,17 @@ const greenSwitch =
       exportBtn.disabled = true;
       $('[data-export-label]').textContent = 'Preparing…';
       try {
-        const base = `${label}_Session_${speaker}`;
-        const cue = (m: SessionMarker, at = m.t) => ({ at: Math.round(at * take.sampleRate), label: describe(m) });
-        // Raw: untouched audio, with a cue at every retake and at both ends of each pause.
-        const rawCues = markers.flatMap((m) =>
-          m.kind === 'pause' && m.end != null ? [cue(m), { at: Math.round(m.end * take.sampleRate), label: 'Resume' }] : [cue(m)],
-        );
-        const raw = rawCues.length ? await rangesWav(take, [[0, duration]], rawCues) : await takeWav(take);
-        const entries: ZipEntry[] = [{ name: `${base}.wav`, data: raw }];
+        const name = (t: TakeMeta) => `${label}_Session_${t.speaker.charAt(0)}${t.speaker.slice(1).toLowerCase()}`;
+        const cue = (m: SessionMarker, rate: number, at = m.t) => ({ at: Math.round(at * rate), label: describe(m) });
+        const entries: ZipEntry[] = [];
+        // Raw: every track untouched, with a cue at every retake and at both ends of each pause.
+        for (const t of tracks) {
+          const len = t.samples / t.sampleRate;
+          const cues = markers.flatMap((m) =>
+            m.kind === 'pause' && m.end != null ? [cue(m, t.sampleRate), { at: Math.round(m.end * t.sampleRate), label: 'Resume' }] : [cue(m, t.sampleRate)],
+          );
+          entries.push({ name: `${name(t)}.wav`, data: cues.length ? await rangesWav(t, [[0, len]], cues) : await takeWav(t) });
+        }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
         const csv = [
           'time,end,kind,line,attempt,first words',
@@ -230,19 +236,21 @@ const greenSwitch =
         entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
 
         if (o.assembled) {
+          // The same cuts on every track, so the edits stay in sync.
           const a = assemble(duration, markers, lineLog, o.pauses);
-          for (const [i, ranges] of a.files.entries()) {
-            // Pauses left in the edit stay marked.
-            const kept =
-              o.pauses === 'keep'
-                ? markers
-                    .filter((m) => m.kind === 'pause')
-                    .map((m) => ({ m, at: mapTime(m.t, ranges) }))
-                    .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
-                    .map((x) => cue(x.m, x.at))
-                : [];
-            const name = a.files.length > 1 ? `${base}_edit_part${i + 1}.wav` : `${base}_edit.wav`;
-            entries.push({ name, data: await rangesWav(take, ranges, kept) });
+          for (const t of tracks) {
+            for (const [i, ranges] of a.files.entries()) {
+              const kept =
+                o.pauses === 'keep'
+                  ? markers
+                      .filter((m) => m.kind === 'pause')
+                      .map((m) => ({ m, at: mapTime(m.t, ranges) }))
+                      .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
+                      .map((x) => cue(x.m, t.sampleRate, x.at))
+                  : [];
+              const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}.wav` : `${name(t)}_edit.wav`;
+              entries.push({ name: file, data: await rangesWav(t, ranges, kept) });
+            }
           }
         }
         download(await zip(entries), `${label}_Session.zip`);

@@ -2,12 +2,20 @@
 // 5b · Script import: paste, upload, or Google Docs link
 import Button from '@/components/ui/Button.astro';
 import Dot from '@/components/ui/Dot.astro';
-import { importPreview, spk, speakerByKey } from '@/data/mock';
+import { episode, importPreview, spk, speakerByKey } from '@/data/mock';
+
+interface Props {
+  /** Episode the imported script goes to */
+  episodeId?: string;
+}
+const { episodeId = episode.id } = Astro.props;
 import { inputClass } from '@/lib/ui';
 ---
 
 <dialog
   id="import-dialog"
+  data-episode={episodeId}
+  data-target={`Ep. ${episodeId}`}
   aria-labelledby="import-title"
   class="m-auto w-[min(900px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-edge bg-panel p-0 text-fg backdrop:bg-black/60 md:h-[600px]"
 >
@@ -20,6 +28,7 @@ import { inputClass } from '@/lib/ui';
         class="flex min-h-40 flex-1 flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-edge-strong p-5 text-center transition-colors data-[over]:border-fg data-[over]:bg-surface"
       >
         <div class="text-[15px]">Drop a file or paste text</div>
+        <div class="text-[12px] text-subtle" data-live-only>Click here, then press ⌘V or Ctrl+V</div>
         <div class="meta text-subtle">.txt · .md · .docx · .fdx</div>
         <label class="inline-flex h-10 items-center rounded-lg border border-edge px-4 text-[14px] hover:bg-raised">
           Choose file
@@ -75,7 +84,7 @@ import { inputClass } from '@/lib/ui';
       </div>
       <form method="dialog" class="flex justify-end gap-2.5">
         <Button type="submit" value="cancel">Cancel</Button>
-        <Button type="submit" value="import" variant="primary">Import to {importPreview.target}</Button>
+        <Button type="submit" value="import" variant="primary" data-import>Import to <span data-target-label>{importPreview.target}</span></Button>
       </form>
     </div>
   </div>
@@ -101,15 +110,29 @@ import { inputClass } from '@/lib/ui';
 <script>
   import { parseScript } from '@/lib/script-parser';
   import { presets } from '@/lib/speakers';
+  import { saveScriptText } from '@/lib/script-store';
 
   const dialog = document.getElementById('import-dialog') as HTMLDialogElement;
   const drop = dialog.querySelector<HTMLElement>('[data-drop]')!;
   const fileInput = dialog.querySelector<HTMLInputElement>('[data-file]')!;
   const tpl = (id: string) => (document.getElementById(id) as HTMLTemplateElement).content.firstElementChild!;
 
+  const demo = new URL(location.href).searchParams.has('demo');
+  // Text parsed from a paste or a file, waiting for "Import".
+  let pending: string | null = null;
+  if (!demo) dialog.querySelector('[data-target-label]')!.textContent = dialog.dataset.target!;
+
   for (const opener of document.querySelectorAll('[data-open-import]')) {
     opener.addEventListener('click', () => dialog.showModal());
   }
+  drop.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('label')) drop.focus();
+  });
+  dialog.addEventListener('close', () => {
+    if (dialog.returnValue !== 'import' || !pending || demo) return;
+    saveScriptText(dialog.dataset.episode!, pending);
+    location.href = `/episodes/${dialog.dataset.episode}/script?imported`;
+  });
   // Click on the backdrop closes the dialog.
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog) dialog.close();
@@ -130,6 +153,7 @@ import { inputClass } from '@/lib/ui';
 
   function show(name: string, text: string) {
     const parsed = parseScript(text);
+    pending = parsed.lines.length ? text : null;
     dialog.querySelector('[data-file-name]')!.textContent = name;
     dialog.querySelector('[data-file-meta]')!.textContent =
       `${parsed.words.toLocaleString()} words · ${parsed.lines.length} lines · ${parsed.sections.length} sections`;
