@@ -1,13 +1,8 @@
 ---
-// 6b · Host view during a recording (Takes mode), and 8a · Continuous mode
+// 8a · Recording: one continuous session, retakes and pauses as markers
 import AppShell from '@/layouts/AppShell.astro';
-import Callout from '@/components/ui/Callout.astro';
 import Dot from '@/components/ui/Dot.astro';
-import StatusRow from '@/components/ui/StatusRow.astro';
-import Waveform from '@/components/ui/Waveform.astro';
-import Button from '@/components/ui/Button.astro';
-import { devices, episode, episodePaths, lineStarts, scriptLines, scriptWords, speakerByKey, spk, storage, tracks } from '@/data/mock';
-import { waveforms } from '@/data/waveforms';
+import { devices, episode, episodePaths, lineStarts, scriptLines, scriptWords, spk } from '@/data/mock';
 
 export const getStaticPaths = episodePaths;
 
@@ -25,29 +20,17 @@ const demoMarkers = [
   { t: '03:10', kind: 'Retake', text: 'Line 9' },
 ];
 const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
-const modeOption =
-  'flex h-7 items-center rounded-md px-3.5 text-[13px] text-muted hover:text-fg has-checked:bg-fg has-checked:font-medium has-checked:text-ink has-disabled:cursor-default has-disabled:opacity-60 has-focus-visible:outline-2 has-focus-visible:outline-fg';
 ---
 
 <AppShell title="Recording" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Recording' }]}>
-  <div
-    slot="topbar-center"
-    role="radiogroup"
-    aria-label="Recording mode"
-    class="flex gap-[3px] rounded-lg border border-line bg-surface p-[3px] max-sm:hidden"
-  >
-    <label class={modeOption}><input type="radio" name="rec-mode" value="takes" checked class="sr-only" data-mode-radio />Takes</label>
-    <label class={modeOption}><input type="radio" name="rec-mode" value="continuous" class="sr-only" data-mode-radio />Continuous</label>
-  </div>
   <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium" data-rec>
     <Dot color="var(--color-rec)" size={8} pulse data-rec-dot />
     <span data-rec-label>REC <span data-clock>24:10</span></span>
   </div>
 
   <div
-    class="group/rec lg:h-full"
+    class="lg:h-full"
     id="recording"
-    data-mode="takes"
     data-episode={episode.id}
     data-local={local}
     data-words={JSON.stringify(scriptWords)}
@@ -55,114 +38,8 @@ const modeOption =
     data-line-starts={JSON.stringify(lineStarts)}
     data-devices={JSON.stringify(Object.fromEntries(devices.map((d) => [d.id, d.name])))}
   >
-  <div class="grid lg:h-full lg:grid-cols-[1fr_360px] group-data-[mode=continuous]/rec:hidden">
-    <section class="flex min-w-0 flex-col gap-4.5 border-line px-6 py-7 lg:border-r lg:px-9">
-      <Callout title="Podstudio records. It doesn’t connect calls." color="var(--color-muted)">
-        Talk to remote guests over Zoom, Slack, Teams, Discord or any call app. Podstudio records each person’s own mic
-        on their own device, never the call audio.
-      </Callout>
-      <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 class="text-[14px] font-medium">Tracks</h2>
-        <div class="meta text-subtle" data-demo-only>24-bit · 48 kHz · mono · shared session clock</div>
-        <div class="meta text-subtle" data-live-only data-format></div>
-      </div>
-
-      <div class="flex flex-col border-t border-line" data-demo-only>
-        {
-          tracks.map((t) => (
-            <div class="grid grid-cols-[170px_minmax(0,1fr)_190px] items-center gap-5 border-b border-line py-4.5 max-md:grid-cols-[1fr_1fr]">
-              <div class="flex flex-col gap-1">
-                <div class="flex items-center gap-2 text-[15px]">
-                  <Dot color={spk(t.who)} size={8} />
-                  {speakerByKey(t.who).name}
-                </div>
-                <div class="font-mono text-[11px] text-subtle">{t.device}</div>
-              </div>
-              <Waveform bars={waveforms[t.who]} color={spk(t.who)} class="max-md:order-last max-md:col-span-2" />
-              <div class="flex flex-col gap-1 font-mono text-[11px] text-muted">
-                <span class="flex items-center gap-1.5">
-                  <Dot color={t.statusColor} />
-                  {t.status}
-                </span>
-                <span class="text-faint">{t.offset}</span>
-              </div>
-            </div>
-          ))
-        }
-      </div>
-
-      <div class="flex flex-col border-t border-line" data-live-only>
-        <div class="grid grid-cols-[170px_minmax(0,1fr)_190px] items-center gap-5 border-b border-line py-4.5 max-md:grid-cols-[1fr_1fr]">
-          <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-2 text-[15px]">
-              <Dot color={spk(local)} size={8} />
-              {speakerByKey(local).name}
-            </div>
-            <div class="truncate font-mono text-[11px] text-subtle" data-device>This computer</div>
-          </div>
-          <div class="flex h-10 w-full items-center gap-0.5 max-md:order-last max-md:col-span-2" aria-hidden="true" data-live-wave>
-            {Array.from({ length: BARS }, () => <span class="h-[4%] flex-1 rounded-[1px] opacity-25" style={{ background: spk(local) }} />)}
-          </div>
-          <div class="flex flex-col gap-1 font-mono text-[11px] text-muted">
-            <span class="flex items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-save-dot></span><span data-save>Ready</span></span>
-            <span class="text-faint" data-peak>Peak —</span>
-          </div>
-        </div>
-        <div class="border-b border-line py-4 text-[13px] text-subtle">
-          Remote guests show up here, one track each, once they join from an invite link. That needs the Podstudio server.
-        </div>
-      </div>
-
-      <p class="text-[12px] leading-normal text-subtle">
-        Each track records on the speaker’s own device. If someone’s connection drops, their device keeps recording and
-        uploads the rest when it reconnects.
-      </p>
-    </section>
-
-    <aside class="flex flex-col gap-3.5 p-6">
-      <h2 class="text-[14px] font-medium">Now reading</h2>
-      <div class="flex flex-col gap-1.5 rounded-[10px] bg-surface p-3.5" aria-live="polite">
-        <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('DANA') }} data-now-who>DANA</div>
-        <div class="text-[15px] leading-normal" data-now-text>And whether the floor could hold it, which nobody checked until I asked.</div>
-      </div>
-      <div class="mt-1.5 flex flex-col" data-demo-only>
-        <StatusRow label="Remote guests" value="2 connected" color="var(--color-ok)" dense />
-        <StatusRow label="Upload queue" value="2 chunks · 10 s" color="var(--color-warn)" dense />
-        <StatusRow label="Server space" value={`${storage.free} free`} dense />
-      </div>
-      <div class="mt-1.5 flex flex-col" data-live-only>
-        <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
-          <span class="text-muted">Saved in this browser</span>
-          <span class="meta" data-saved>—</span>
-        </div>
-        <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
-          <span class="text-muted">Voice follow</span>
-          <span class="meta flex items-center gap-2"><span class="inline-block size-1.5 rounded-full bg-faint" data-voice-dot></span><span data-voice>Starting…</span></span>
-        </div>
-        <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
-          <span class="text-muted">Free space</span>
-          <span class="meta" data-free>—</span>
-        </div>
-      </div>
-      <div class="mt-auto flex flex-col gap-2.5 pt-6">
-        <Button href={`/episodes/${episode.id}/transcribing?demo`} variant="record" size="xl" class="gap-2.5" data-demo-only>
-          <span class="size-3 rounded-[2px] bg-white"></span>
-          Stop take
-        </Button>
-        <Button variant="record" size="xl" class="gap-2.5" data-live-only data-toggle disabled>
-          <span class="size-3 rounded-full bg-white" data-toggle-icon></span>
-          <span data-toggle-label>Start take</span>
-        </Button>
-        <p class="text-center text-[12px] text-subtle" data-demo-only>Stopping waits for every guest’s upload to finish</p>
-        <p class="text-center text-[12px] text-subtle" data-live-only data-hint>
-          Audio is saved to this browser every 5 seconds as you record.
-        </p>
-      </div>
-    </aside>
-  </div>
-
-  <!-- 8a · Continuous mode: one file per track, retakes and pauses as markers -->
-  <div class="hidden lg:h-full lg:grid-cols-[1fr_360px] lg:grid-rows-[minmax(0,1fr)] group-data-[mode=continuous]/rec:grid">
+  <!-- One file per track, retakes and pauses as markers -->
+  <div class="grid lg:h-full lg:grid-cols-[1fr_360px] lg:grid-rows-[minmax(0,1fr)]">
     <section class="flex min-h-0 min-w-0 flex-col gap-3 border-line px-6 py-6 max-lg:h-[80dvh] lg:border-r lg:px-12">
       <div class="flex flex-col gap-3" data-demo-only>
         <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3 opacity-45" data-c-line="prev">
@@ -257,6 +134,20 @@ const modeOption =
         <p class="py-2.5 text-[13px] text-subtle" data-marker-empty>No markers yet. Press R to retake a line, P to pause.</p>
       </div>
       <div class="mt-auto flex flex-col gap-2.5 pt-4">
+        <dl class="flex flex-col text-[12px]" data-live-only>
+          {[
+            ['Input', 'device', 'This computer'],
+            ['Format', 'format', ''],
+            ['Level', 'peak', 'Peak —'],
+            ['Saved in this browser', 'saved', '—'],
+            ['Free space', 'free', '—'],
+          ].map(([label, key, value]) => (
+            <div class="flex items-center justify-between gap-4 border-b border-line py-2">
+              <dt class="flex-none text-muted">{label}</dt>
+              <dd class="meta min-w-0 truncate text-right" {...{ [`data-${key}`]: '' }}>{value}</dd>
+            </div>
+          ))}
+        </dl>
         <div class="flex items-center justify-between text-[13px]">
           <span class="text-muted" id="retake-tone-label">Retake tone</span>
           <label class="relative inline-flex h-5 w-[34px] flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
@@ -289,7 +180,7 @@ const modeOption =
 <script>
   import { MicCapture } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
-  import { TakeWriter, formatBytes, listTakes, storageLeft } from '@/lib/audio/takes';
+  import { TakeWriter, formatBytes, storageLeft } from '@/lib/audio/takes';
   import { startClock } from '@/lib/prompter';
   import { offerRecovery } from '@/lib/recovery';
   import { Session } from '@/lib/session';
@@ -303,23 +194,8 @@ const modeOption =
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   const demo = new URL(location.href).searchParams.has('demo');
 
-  // Takes or Continuous (8a). A punch-in link always records a take.
-  const params0 = new URL(location.href).searchParams;
-  const radios = [...document.querySelectorAll<HTMLInputElement>('[data-mode-radio]')];
-  const setMode = (m: string) => {
-    root.dataset.mode = m === 'continuous' ? 'continuous' : 'takes';
-    radios.forEach((r) => (r.checked = r.value === root.dataset.mode));
-  };
-  setMode(params0.get('mode') ?? (demo || params0.has('from') ? 'takes' : loadSettings().recording.mode));
-  radios.forEach((r) =>
-    r.addEventListener('change', () => {
-      setMode(r.value);
-      if (!demo) saveSettings('recording', { mode: r.value as 'takes' | 'continuous' });
-    }),
-  );
-
   if (demo) {
-    startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], root.dataset.mode === 'continuous' ? 24 * 60 + 18 : 24 * 60 + 10);
+    startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 24 * 60 + 18);
   } else {
     live();
   }
@@ -352,13 +228,10 @@ const modeOption =
     const settings = loadSettings().recording;
     const params = new URL(location.href).searchParams;
     const fromLine = Math.max(0, Math.min(lines.length - 1, Number(params.get('from') ?? 0) || 0));
-    const punchIn = params.has('from');
 
     await offerRecovery(episodeId);
 
-    const toggle = $<HTMLButtonElement>('[data-toggle]');
     const sessionToggle = $<HTMLButtonElement>('[data-session-toggle]');
-    const continuous = () => root.dataset.mode === 'continuous';
     const recLabel = $('[data-rec-label]');
     const recDot = $('[data-rec-dot]');
     const setRecIndicator = (on: boolean, text: string) => {
@@ -368,12 +241,7 @@ const modeOption =
     };
     setRecIndicator(false, 'READY');
 
-    const takes = await listTakes(episodeId);
-    const nextNumber = takes.reduce((n, t) => Math.max(n, t.number), 0) + 1;
-    $('[data-toggle-label]').textContent = `Start take ${nextNumber}`;
-    $('[data-format]').textContent =
-      `${settings.depth}-bit · ${settings.rate} kHz · ${settings.channels === 2 ? 'stereo' : 'mono'}${punchIn ? ` · punch-in from line ${fromLine + 1}` : ''}`;
-    toggle.disabled = false;
+    $('[data-format]').textContent = `${settings.depth}-bit · ${settings.rate} kHz · ${settings.channels === 2 ? 'stereo' : 'mono'}`;
     sessionToggle.disabled = false;
 
     const free = async () => {
@@ -382,13 +250,12 @@ const modeOption =
     };
     free();
 
-    // Now reading: the line voice follow says is being read.
     const lineOf = (i: number) => starts.reduce((line, s, n) => (i >= s ? n : line), 0);
     const fmt = (sec: number) => {
       const t = Math.floor(sec);
       return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
     };
-    // Continuous mode: retake attempts per line, and when the last retake was marked.
+    // Retake attempts per line, and when the last retake was marked.
     const attempts = new Map<number, { n: number; at: number }>();
     const fillLine = (slot: string, n: number) => {
       const el = root.querySelector<HTMLElement>(`[data-c-line="${slot}"]`)!;
@@ -507,10 +374,6 @@ const modeOption =
       solo ? 'One file' : `${trackSpeakers.length} tracks · ${trackSpeakers.map(speakerName).join(', ')} · one clock`;
 
     const showLine = (n: number) => {
-      const who = $('[data-now-who]');
-      who.textContent = lines[n].who;
-      who.style.color = speakerColor(lines[n].who);
-      $('[data-now-text]').textContent = lines[n].text;
       fillLine('prev', n - 1);
       fillLine('cur', n);
       fillLine('next', n + 1);
@@ -537,8 +400,8 @@ const modeOption =
     let writer: TakeWriter | null = null;
     let voice: VoiceFollow | null = null;
     let startedAt = 0;
-    // Punch-ins roll the prompter back two lines for a run-up.
-    let word = starts[Math.max(0, fromLine - (punchIn ? 2 : 0))];
+    // ?from=<line> starts the reader on that line (continuing a recovered session).
+    let word = starts[fromLine];
     let currentLine = lineOf(word);
     showLine(currentLine);
     $('[data-c-length]').textContent = '00:00';
@@ -547,16 +410,16 @@ const modeOption =
     let paused: SessionMarker | null = null;
     cPrompter.setWord(word);
 
-    /** Move to a script word; in a continuous session, log when a new line starts. */
+    /** Move to a script word; while recording, log when a new line starts. */
     const setWord = (i: number, broadcast = true) => {
       word = i;
       const line = lineOf(i);
-      if (line !== currentLine && writer && continuous()) writer.meta.lineLog?.push({ t: writer.seconds, line });
+      if (line !== currentLine && writer) writer.meta.lineLog?.push({ t: writer.seconds, line });
       currentLine = line;
       showLine(line);
       cPrompter.setWord(i);
       voice?.setWord(i);
-      // Saved with the next segment, so a recovered take knows where it stopped.
+      // Saved with the next segment, so a recovered session knows where it stopped.
       if (writer) writer.meta.lastLine = line;
       if (broadcast) session.send({ type: 'word', index: i, device: device() });
     };
@@ -571,15 +434,15 @@ const modeOption =
       if (m.action === 'goto' && m.word != null) setWord(m.word, false);
       if (m.action === 'next') setWord(starts[Math.min(currentLine + 1, starts.length - 1)], false);
       if (m.action === 'prev') setWord(starts[Math.max(currentLine - 1, 0)], false);
-      // The producer's pause becomes a pause marker in a continuous session.
-      if (continuous() && writer && ((m.action === 'pause' && !paused) || (m.action === 'resume' && paused))) togglePause(false);
+      // The producer's pause becomes a pause marker.
+      if (writer && ((m.action === 'pause' && !paused) || (m.action === 'resume' && paused))) togglePause(false);
     });
 
     // Live waveform: one bar per quarter second, newest on the right.
-    // Both views have a live waveform; they show the same bars.
     const waves = [...document.querySelectorAll<HTMLElement>('[data-live-wave]')].map((w) => [...w.querySelectorAll<HTMLElement>('span')]);
     const heights: number[] = waves[0].map(() => 0);
     let windowPeak = 0;
+    const held: number[] = [];
     let clipAt = 0;
     capture.addEventListener('level', (e) => {
       const { peak } = (e as CustomEvent<{ peak: number }>).detail;
@@ -616,7 +479,11 @@ const modeOption =
           b.style.opacity = heights[i] ? '0.85' : '0.25';
         });
       }
-      $('[data-peak]').textContent = Number.isFinite(windowPeak) ? `Peak ${Math.round(Math.min(0, windowPeak)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Peak —';
+      // The readout holds the highest peak of the last 1.5 s, so it can be read while talking.
+      held.push(windowPeak);
+      if (held.length > 6) held.shift();
+      const hold = Math.max(...held);
+      $('[data-peak]').textContent = Number.isFinite(hold) ? `Peak ${Math.round(Math.min(0, hold)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Silence';
       $('[data-peak]').style.color = Date.now() - clipAt < 3000 ? 'var(--color-rec)' : '';
       windowPeak = -Infinity;
     }, 250);
@@ -626,8 +493,6 @@ const modeOption =
       if (!writer) return;
       const ago = Math.round((Date.now() - writer.meta.updatedAt) / 1000);
       $('[data-saved]').textContent = writer.meta.segments ? `${ago} s ago` : 'first save at 5 s';
-      $('[data-save]').textContent = 'Local · saving every 5 s';
-      $('[data-save-dot]').style.background = 'var(--color-ok)';
     }, 1000);
 
     let manualTimer: number | undefined;
@@ -669,7 +534,6 @@ const modeOption =
       // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
       if (prompterSettings.mode === 'manual') {
         const text = `Manual · ${prompterSettings.wpm} wpm`;
-        $('[data-voice]').textContent = text;
         $('[data-c-voice]').textContent = `${text} · P pauses`;
         manualTimer = window.setInterval(() => {
           if (writer && !paused && word < words.length - 1) setWord(word + 1);
@@ -677,7 +541,6 @@ const modeOption =
         return;
       }
       if (!voiceFollowSupported()) {
-        $('[data-voice]').textContent = 'Needs Chrome';
         $('[data-c-voice]').textContent = 'Voice follow needs Chrome';
         return;
       }
@@ -693,8 +556,6 @@ const modeOption =
       voice.addEventListener('lost', () => session.send({ type: 'follow', state: 'lost' }));
       voice.addEventListener('found', () => session.send({ type: 'follow', state: 'read' }));
       const voiceState = (text: string, color: string) => {
-        $('[data-voice]').textContent = text;
-        $('[data-voice-dot]').style.background = color;
         $('[data-c-voice]').textContent = text === 'Listening' ? `Voice follow listening${engineLabel}${inputLabel ? ` · ${inputLabel}` : ''}` : text;
         $('[data-c-voice-dot]').style.background = color;
         // Anything but listening: point to the voice check.
@@ -716,14 +577,11 @@ const modeOption =
     const trackWriters: TakeWriter[] = [];
 
     async function start() {
-      toggle.disabled = true;
       sessionToggle.disabled = true;
-      const multi = continuous() && !solo;
       // Which mic each locally recorded speaker uses; a mic shared by two speakers records once.
-
-      const localSpeakers = multi ? trackSpeakers.filter((k) => inputs[k] !== 'remote' && inputs[k] !== 'off') : [host];
+      const localSpeakers = !solo ? trackSpeakers.filter((k) => inputs[k] !== 'remote' && inputs[k] !== 'off') : [host];
       if (!localSpeakers.length) {
-        toggle.disabled = sessionToggle.disabled = false;
+        sessionToggle.disabled = false;
         $('[data-session-hint]').textContent = 'Pick a mic on this computer for at least one speaker.';
         return;
       }
@@ -739,17 +597,14 @@ const modeOption =
         await capture.ctx!.resume();
       } catch (err) {
         sessionToggle.disabled = false;
-        toggle.disabled = false;
-        $('[data-hint]').textContent =
+        $('[data-session-hint]').textContent =
           (err as Error).name === 'NotAllowedError'
             ? 'Podstudio needs microphone access. Allow it in the address bar, then try again.'
             : `Couldn’t open the microphone: ${(err as Error).message}`;
         return;
       }
-      $('[data-device]').textContent = `${capture.label || computer} · studio`;
-      const isSession = continuous();
       // Tracks in one session share the same marker list and line log.
-      const shared = isSession ? { markers: [] as SessionMarker[], lineLog: [{ t: 0, line: currentLine }], group: `${episodeId}-g${Date.now().toString(36)}` } : {};
+      const shared = { markers: [] as SessionMarker[], lineLog: [{ t: 0, line: currentLine }], group: `${episodeId}-g${Date.now().toString(36)}` };
       const byDevice = new Map<string, { cap: MicCapture; speaker: string }>([[firstDevice, { cap: capture, speaker: localSpeakers[0] }]]);
       for (const k of localSpeakers.slice(1)) {
         const dev = deviceOf(k);
@@ -771,7 +626,7 @@ const modeOption =
       for (const { cap, speaker } of byDevice.values()) {
         const w = await TakeWriter.start({
           episodeId,
-          kind: isSession ? 'session' : punchIn ? 'punch-in' : 'full',
+          kind: 'session',
           ...shared,
           startLine: fromLine,
           startText: lines[fromLine].text,
@@ -807,19 +662,14 @@ const modeOption =
       };
       tick();
       clock = window.setInterval(tick, 1000);
-      $('[data-toggle-label]').textContent = 'Stop take';
-      $('[data-toggle-icon]').classList.replace('rounded-full', 'rounded-[2px]');
-      $('[data-hint]').textContent = 'Audio is saved to this browser every 5 seconds as you record.';
-      toggle.disabled = false;
       sessionToggle.dataset.running = '';
       $('[data-session-icon]').hidden = true;
       $('[data-session-label]').textContent = 'Stop session';
       sessionToggle.disabled = false;
-      radios.forEach((r) => (r.disabled = true));
-      retakeBtn.disabled = pauseBtn.disabled = !isSession;
+      retakeBtn.disabled = pauseBtn.disabled = false;
     }
 
-    // Continuous mode controls (8a).
+    // Retake and pause (8a).
     const retakeBtn = $<HTMLButtonElement>('[data-retake]');
     const pauseBtn = $<HTMLButtonElement>('[data-pause]');
     retakeBtn.disabled = pauseBtn.disabled = true;
@@ -843,7 +693,7 @@ const modeOption =
     };
 
     function retake() {
-      if (!writer || !continuous()) return;
+      if (!writer) return;
       const t = writer.seconds;
       const n = (attempts.get(currentLine)?.n ?? 1) + 1;
       attempts.set(currentLine, { n, at: t });
@@ -855,7 +705,7 @@ const modeOption =
     }
 
     function togglePause(broadcast = true) {
-      if (!writer || !continuous()) return;
+      if (!writer) return;
       const t = writer.seconds;
       if (paused) {
         paused.end = t;
@@ -923,21 +773,20 @@ const modeOption =
         list.append(row);
       }
     }
-    setInterval(() => writer && continuous() && renderSession(), 1000);
+    setInterval(() => writer && renderSession(), 1000);
 
     addEventListener('keydown', (e) => {
       if (!writer || e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement).matches('input, textarea, select, [contenteditable]')) return;
       const key = e.key.toLowerCase();
-      if (key === 'r' && continuous()) retake();
-      else if (key === 'p' && continuous()) togglePause();
+      if (key === 'r') retake();
+      else if (key === 'p') togglePause();
       else if (e.key === 'ArrowRight') setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
       else if (e.key === 'ArrowLeft') setWord(starts[Math.max(currentLine - 1, 0)]);
     });
 
     async function stop() {
       if (!writer) return;
-      toggle.disabled = sessionToggle.disabled = true;
-      $('[data-toggle-label]').textContent = 'Saving…';
+      sessionToggle.disabled = true;
       $('[data-session-label]').textContent = 'Saving…';
       if (paused) paused.end = writer.seconds;
       clearInterval(clock);
@@ -949,14 +798,10 @@ const modeOption =
       writer = null;
       await Promise.all([capture, ...extraCaptures].map((c) => c.close()));
       session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
-      location.href =
-        meta.kind === 'session'
-          ? `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`
-          : `/episodes/${episodeId}/takes?take=${encodeURIComponent(meta.id)}`;
+      location.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`;
     }
 
     // Ready for Start before the mic is open; start() waits for it.
-    toggle.addEventListener('click', () => (writer ? stop() : start()));
     sessionToggle.addEventListener('click', () => (writer ? stop() : start()));
     addEventListener('beforeunload', (e) => {
       if (writer) e.preventDefault();

@@ -11,14 +11,10 @@ export interface RecordingSettings {
   rate: 44.1 | 48;
   /** 1 mono, 2 stereo (inputs 1 and 2 as left and right) */
   channels: Channels;
-  tone: boolean;
   micCheck: boolean;
-  download: 'separate' | 'combined';
   deviceId: string;
   recorder: string;
-  /** One continuous file with retake and pause markers (8a, the default), or separate takes */
-  mode: 'takes' | 'continuous';
-  /** Beep when a retake is marked in continuous mode */
+  /** Beep when a retake is marked */
   retakeTone: boolean;
 }
 
@@ -44,7 +40,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac', mode: 'continuous', retakeTone: true },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', recorder: 'mac', retakeTone: true },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -66,8 +62,8 @@ const VERSION = 2;
 export function loadSettings(): Settings {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Settings> & { version?: number };
-    // v2: Continuous became the default recording mode.
-    if ((saved.version ?? 1) < 2 && saved.recording) delete (saved.recording as Partial<RecordingSettings>).mode;
+    // Settings from when separate takes existed.
+    if (saved.recording) for (const old of ['mode', 'tone', 'download']) delete (saved.recording as unknown as Record<string, unknown>)[old];
     return {
       recording: { ...defaults.recording, ...saved.recording },
       prompter: { ...defaults.prompter, ...saved.prompter },

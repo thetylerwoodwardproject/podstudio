@@ -3,7 +3,6 @@
 import AppShell from '@/layouts/AppShell.astro';
 import JoinCode from '@/components/app/JoinCode.astro';
 import Segmented from '@/components/ui/Segmented.astro';
-import Switch from '@/components/ui/Switch.astro';
 import Button from '@/components/ui/Button.astro';
 import { devices, episode, episodePaths, studioScript } from '@/data/mock';
 import { mbPerMinute } from '@/lib/audio/format';
@@ -18,10 +17,9 @@ const modeHelp = {
 };
 const menu = [
   { label: 'Edit script', href: `${base}/script` },
-  { label: 'Retake from a line', href: `${base}/takes` },
+  { label: 'Recorded sessions', href: `${base}/sessions` },
   { label: 'Open monitor view', href: `${base}/monitor` },
   { label: 'Producer remote', href: `${base}/remote` },
-  { label: 'Export', href: `${base}/export` },
 ];
 ---
 
@@ -106,10 +104,6 @@ const menu = [
       <div class="flex flex-col gap-4 border-b border-line p-5">
         <h2 class="text-[13px] font-medium">Recording · <span data-recorder-name>{recorder.name}</span></h2>
         <div class="flex flex-col gap-[7px]">
-          <div class="text-[12px] text-muted">Mode</div>
-          <Segmented name="recmode" label="Recording mode" value="continuous" options={[{ value: 'continuous', label: 'Continuous' }, { value: 'takes', label: 'Takes' }]} />
-        </div>
-        <div class="flex flex-col gap-[7px]">
           <div class="text-[12px] text-muted">Bit depth</div>
           <Segmented name="depth" label="Bit depth" mono value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
         </div>
@@ -120,13 +114,6 @@ const menu = [
         <div class="flex flex-col gap-[7px]">
           <div class="text-[12px] text-muted">Channels</div>
           <Segmented name="channels" label="Channels" value="1" options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} />
-        </div>
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <div class="text-[13px]">Tone between takes</div>
-            <div class="mt-0.5 text-[11px] text-subtle">1 kHz · −20 dBFS · 0.5 s</div>
-          </div>
-          <Switch name="tone" size="sm" label="Tone between takes" />
         </div>
         <div class="meta flex justify-between text-subtle">
           <span>Input: <span data-recorder-mic>{recorder.mic}</span></span>
@@ -143,7 +130,7 @@ const menu = [
       <div class="mt-auto flex gap-2.5 p-5">
         <Button type="submit" variant="record" size="xl" class="flex-1 gap-2.5">
           <span class="size-2.5 rounded-full bg-white"></span>
-          <span data-start-label>Start take {episode.takeCount}</span>
+          <span>Start session</span>
         </Button>
         <button
           type="button"
@@ -173,9 +160,8 @@ const menu = [
 
 <script>
   import { mbPerMinute } from '@/lib/audio/format';
-  import { listTakes } from '@/lib/audio/takes';
   import { describeInput } from '@/lib/audio/devices';
-  import { takeUrl } from '@/lib/flow';
+  import { sessionUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { loadSettings, saveSettings } from '@/lib/settings';
 
@@ -206,8 +192,6 @@ const menu = [
     pick('rate', String(r.rate));
     pick('channels', String(r.channels));
     pick('mode', p.mode);
-    pick('recmode', r.mode);
-    q<HTMLInputElement>('input[name=tone]').checked = r.tone;
     update();
 
     form.addEventListener('change', () => {
@@ -217,11 +201,8 @@ const menu = [
         depth: Number(data.get('depth')) as 16 | 24,
         rate: Number(data.get('rate')) as 44.1 | 48,
         channels: Number(data.get('channels')) as 1 | 2,
-        tone: data.has('tone'),
-        mode: data.get('recmode') as 'continuous' | 'takes',
       });
       saveSettings('prompter', { mode: data.get('mode') as 'voice' | 'manual' });
-      label();
       showInput();
     });
 
@@ -236,18 +217,7 @@ const menu = [
       });
     };
     showInput();
-    // "Start session" for continuous recording, "Start take N" for separate takes.
-    let nextTake = 1;
-    const label = () => {
-      const continuous = new FormData(form).get('recmode') === 'continuous';
-      q('[data-start-label]').textContent = continuous ? 'Start session' : `Start take ${nextTake}`;
-    };
-    label();
-    listTakes(episodeId).then((takes) => {
-      nextTake = takes.reduce((n, t) => Math.max(n, t.number), 0) + 1;
-      label();
-    });
-    form.dataset.next = takeUrl(episodeId);
+    form.dataset.next = sessionUrl(episodeId);
   }
   form.addEventListener('change', update);
 </script>

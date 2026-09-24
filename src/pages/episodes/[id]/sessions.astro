@@ -1,0 +1,124 @@
+---
+// This episode's recorded sessions: play, open to export, download, delete
+import AppShell from '@/layouts/AppShell.astro';
+import Button from '@/components/ui/Button.astro';
+import { episode, episodePaths } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const base = `/episodes/${episode.id}`;
+---
+
+<AppShell title="Sessions" crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Sessions' }]}>
+  <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-8" id="sessions" data-episode={episode.id}>
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-[22px] tracking-[-0.02em]">Sessions</h1>
+        <p class="mt-1.5 text-[13px] text-muted">
+          Every session keeps one file per speaker, with retakes and pauses as markers. Open one to export the edit.
+        </p>
+      </div>
+      <Button href={`${base}/mic-check`} variant="record" size="lg" class="gap-2.5" data-new-session>
+        <span class="size-2 rounded-full bg-white"></span>
+        New session
+      </Button>
+    </div>
+    <div class="flex flex-col gap-3.5" data-list>
+      <p class="rounded-xl bg-surface px-5 py-4 text-[13px] leading-normal text-subtle" data-empty>
+        No sessions yet. Start one from the studio.
+      </p>
+    </div>
+    <p class="text-[12px] leading-normal text-warn">
+      Sessions are kept in this browser until the Podstudio server is set up. Download them before clearing this site’s
+      data.
+    </p>
+  </div>
+
+  <template id="session-card">
+    <div class="flex flex-col gap-3 rounded-xl border border-line p-4.5 data-[selected]:border-fg">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <span class="text-[16px]" data-name></span>
+        <span class="meta text-muted" data-when></span>
+      </div>
+      <div class="meta text-muted" data-summary></div>
+      <audio controls preload="none" class="h-8 w-full [color-scheme:dark]" data-audio></audio>
+      <div class="flex flex-wrap items-center gap-4 text-[13px]">
+        <a class="inline-flex h-8 items-center rounded-lg bg-fg px-3 font-medium text-ink hover:bg-white hover:text-ink" data-open>Open &amp; export →</a>
+        <button type="button" class="text-fg hover:text-white" data-download>↓ Raw WAV</button>
+        <button type="button" class="ml-auto text-muted hover:text-rec" data-delete>Delete</button>
+      </div>
+    </div>
+  </template>
+</AppShell>
+
+<script>
+  import { deleteTake, formatBytes, formatDuration, listTakes, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { sessionUrl } from '@/lib/flow';
+  import { offerRecovery } from '@/lib/recovery';
+  import { download } from '@/lib/zip';
+  import { speakerName } from '@/lib/script-store';
+
+  const root = document.getElementById('sessions')!;
+  const episodeId = root.dataset.episode!;
+  root.querySelector<HTMLAnchorElement>('[data-new-session]')!.href = sessionUrl(episodeId);
+  render();
+
+  async function render() {
+    await offerRecovery(episodeId);
+    const list = root.querySelector<HTMLElement>('[data-list]')!;
+    const tpl = (document.getElementById('session-card') as HTMLTemplateElement).content.firstElementChild!;
+    const selected = new URL(location.href).searchParams.get('take');
+    const all = (await listTakes(episodeId)).filter((t) => t.status === 'done');
+    // One card per session, however many speaker tracks it has. Recordings made before
+    // sessions (separate takes) have no group and show on their own.
+    const groups = new Map<string, TakeMeta[]>();
+    for (const t of all) {
+      const key = t.group ?? t.id;
+      groups.set(key, [...(groups.get(key) ?? []), t]);
+    }
+    list.querySelector<HTMLElement>('[data-empty]')!.hidden = groups.size > 0;
+    list.querySelectorAll('[data-card]').forEach((c) => c.remove());
+
+    // Newest first.
+    const ordered = [...groups.values()].sort((a, b) => b[0].startedAt - a[0].startedAt);
+    for (const [i, tracks] of ordered.entries()) {
+      const t = tracks[0];
+      const card = tpl.cloneNode(true) as HTMLElement;
+      card.dataset.card = t.id;
+      card.toggleAttribute('data-selected', tracks.some((x) => x.id === selected));
+      const q = <T extends HTMLElement = HTMLElement>(s: string) => card.querySelector<T>(s)!;
+      const session = t.kind === 'session';
+      q('[data-name]').textContent = session ? `Session ${ordered.length - i}` : `${t.name} (older take)`;
+      q('[data-when]').textContent = new Date(t.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      const retakes = t.markers?.filter((m) => m.kind === 'retake').length ?? 0;
+      const pauses = t.markers?.filter((m) => m.kind === 'pause').length ?? 0;
+      const bytes = tracks.reduce((n, x) => n + takeBytes(x), 0);
+      q('[data-summary]').textContent = [
+        formatDuration(takeSeconds(t)),
+        tracks.length > 1 ? `${tracks.length} tracks · ${tracks.map((x) => speakerName(x.speaker)).join(', ')}` : speakerName(t.speaker),
+        session ? `${retakes} retake${retakes === 1 ? '' : 's'} · ${pauses} pause${pauses === 1 ? '' : 's'}` : '',
+        `${t.bitDepth}-bit · ${t.sampleRate / 1000} kHz · ${t.channels === 2 ? 'stereo' : 'mono'}`,
+        formatBytes(bytes),
+      ]
+        .filter(Boolean)
+        .join(' · ');
+
+      const open = q<HTMLAnchorElement>('[data-open]');
+      if (session) open.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(t.id)}`;
+      else open.remove();
+      // WAVs are disk-backed Blobs, so a URL per session costs nothing up front.
+      q<HTMLAudioElement>('[data-audio]').src = URL.createObjectURL(await takeWav(t));
+      q('[data-download]').addEventListener('click', async () => {
+        for (const x of tracks) download(await takeWav(x), takeFileName(x));
+      });
+      q('[data-delete]').addEventListener('click', async () => {
+        const what = tracks.length > 1 ? `this session and its ${tracks.length} tracks` : 'this recording';
+        if (!confirm(`Delete ${what}? This can’t be undone.`)) return;
+        for (const x of tracks) await deleteTake(x.id);
+        render();
+      });
+      list.append(card);
+    }
+    if (selected) list.querySelector('[data-selected]')?.scrollIntoView({ block: 'nearest' });
+  }
+</script>

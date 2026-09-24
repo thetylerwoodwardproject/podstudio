@@ -14,7 +14,7 @@
  * so even a long take never has to fit in memory.
  */
 
-import { markerChunks, pcmBytes, tone, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
+import { markerChunks, pcmBytes, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
 import type { LineStart, Range, SessionMarker } from './assemble';
 
 export interface TakeMeta {
@@ -167,60 +167,6 @@ export async function takeWav(meta: TakeMeta): Promise<Blob> {
   });
 }
 
-export interface CombinedOptions {
-  markers: boolean;
-  tone: boolean;
-}
-
-/**
- * One WAV with every take back to back, optionally with a marker at each
- * take and a short tone between them. Takes must share a sample rate and bit
- * depth; if any take is stereo the file is stereo and mono takes are doubled.
- */
-export async function combinedWav(takes: TakeMeta[], opts: CombinedOptions): Promise<{ blob: Blob; starts: number[] }> {
-  const { sampleRate, bitDepth } = takes[0];
-  const channels: Channels = takes.some((t) => channelsOf(t) === 2) ? 2 : 1;
-  const bytesPer = (bitDepth / 8) * channels;
-  const beep = opts.tone ? pcmBytes(tone(sampleRate, { channels }), bitDepth) : null;
-  const parts: BlobPart[] = [];
-  const markers: Marker[] = [];
-  const starts: number[] = [];
-  let samples = 0;
-  for (const [i, t] of takes.entries()) {
-    if (i > 0 && beep) {
-      parts.push(beep as BlobPart);
-      samples += beep.length / bytesPer;
-    }
-    starts.push(samples);
-    markers.push({ at: samples, label: t.kind === 'punch-in' ? `${t.name} · Punch-in L${t.startLine + 1}` : t.name });
-    for (const p of await pcmParts(t)) {
-      const part = channels === 2 && channelsOf(t) === 1 ? await monoToStereo(p, bitDepth) : p;
-      parts.push(part);
-      samples += part.size / bytesPer;
-    }
-  }
-  const tail = opts.markers ? markerChunks(markers) : new Uint8Array(0);
-  const pad = (samples * bytesPer) % 2;
-  const header = wavHeader(samples, { sampleRate, bitDepth, channels }, tail.length);
-  const blob = new Blob([header as BlobPart, ...parts, ...(pad ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], {
-    type: 'audio/wav',
-  });
-  return { blob, starts };
-}
-
-/** Mono PCM bytes with every sample written to both channels (one 5 s segment at a time). */
-async function monoToStereo(part: Blob, bitDepth: BitDepth): Promise<Blob> {
-  const b = bitDepth / 8;
-  const src = new Uint8Array(await part.arrayBuffer());
-  const out = new Uint8Array(src.length * 2);
-  for (let i = 0, o = 0; i < src.length; i += b, o += 2 * b) {
-    const s = src.subarray(i, i + b);
-    out.set(s, o);
-    out.set(s, o + b);
-  }
-  return new Blob([out as BlobPart]);
-}
-
 export const takeSeconds = (t: TakeMeta) => t.samples / t.sampleRate;
 /** Size of the take's audio in bytes */
 export const takeBytes = (t: TakeMeta) => t.samples * frameBytes(t);
@@ -233,8 +179,14 @@ export function formatDuration(seconds: number) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
-/** File name for a take, e.g. Ep142_Take3_L03_Four-I-counted.wav */
+/** File name for a recording, e.g. Ep142_Session_Tyler_2026-09-24-1930.wav (older takes: Ep142_Take3.wav) */
 export function takeFileName(t: TakeMeta, episodeLabel = `Ep${t.episodeId}`) {
+  if (t.kind === 'session') {
+    const d = new Date(t.startedAt);
+    const p = (n: number) => String(n).padStart(2, '0');
+    const when = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+    return `${episodeLabel}_Session_${t.speaker.charAt(0)}${t.speaker.slice(1).toLowerCase()}_${when}.wav`;
+  }
   const words = t.startText.split(/\s+/).slice(0, 3).join('-').replace(/[^\w-]/g, '');
   const line = t.kind === 'punch-in' ? `_L${String(t.startLine + 1).padStart(2, '0')}${words ? `_${words}` : ''}` : '';
   return `${episodeLabel}_Take${t.number}${line}.wav`;

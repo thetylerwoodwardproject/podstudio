@@ -118,7 +118,7 @@ const LIT = 30;
             <Button type="submit" variant="primary" size="lg" class="w-full">Join as Dana</Button>
           ) : (
             <Button type="submit" variant="record" size="lg" class="w-full" data-start>
-              ●&nbsp; Start take <span data-take-number>{episode.takeCount}</span>
+              ●&nbsp; Start session
             </Button>
           )
         }
@@ -130,7 +130,7 @@ const LIT = 30;
 <script>
   import { MicCapture } from '@/lib/audio/capture';
   import { availableInput, inputChoices } from '@/lib/audio/devices';
-  import { listTakes, storageLeft, formatBytes } from '@/lib/audio/takes';
+  import { storageLeft, formatBytes } from '@/lib/audio/takes';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { locate, normalize } from '@/lib/voice/match';
   import { loadScript } from '@/lib/script-store';
@@ -161,15 +161,9 @@ const LIT = 30;
     [0, 1, 2, 3].forEach((i) => check(i, 'Waiting…'));
     $('[data-heard]').textContent = 'Read a line from the script…';
 
-    // Carry a punch-in's line through to the recording screen.
+    // Carry a starting line (?from=, continuing a recovered session) through to the recording screen.
     const params = new URL(location.href).search;
     form.dataset.next = `/episodes/${episodeId}/recording${params}`;
-    const takes = await listTakes(episodeId);
-    // Punch-ins are takes; otherwise the recording mode decides the wording.
-    const session = settings.mode === 'continuous' && !new URL(location.href).searchParams.has('from');
-    $('[data-start]').innerHTML = session
-      ? '●&nbsp; Start session'
-      : `●&nbsp; Start take ${takes.reduce((n, t) => Math.max(n, t.number), 0) + 1}`;
 
     const { free, hours } = await storageLeft(hz(settings.rate), settings.depth, settings.channels);
     check(4, `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`, hours < 2 ? warn : ok);

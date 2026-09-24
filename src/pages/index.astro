@@ -16,7 +16,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
   <div class="flex flex-col gap-5.5 px-9 py-7 lg:h-full lg:overflow-auto">
     <Callout title={`Server storage is ${storage.pct}% full`} color="var(--color-warn)">
       {storage.usedGb} GB of {storage.totalGb} GB used. That leaves about {storage.hoursLeft} hours of 24-bit / 48 kHz audio.
-      Download and delete old takes, or add space.
+      Download and delete old sessions, or add space.
       <Button slot="action" href="/settings/server">Manage storage</Button>
     </Callout>
 
@@ -48,7 +48,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
       <table class="w-full min-w-[800px] border-t border-line">
         <thead>
           <tr class:list={[cols, 'border-b border-line py-3 text-left']}>
-            {['Episode', 'Status', 'Script', 'Takes', 'Length', 'Updated'].map((h) => <th class="eyebrow">{h}</th>)}
+            {['Episode', 'Status', 'Script', 'Sessions', 'Length', 'Updated'].map((h) => <th class="eyebrow">{h}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -66,7 +66,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
                   {ep.status}
                 </td>
                 <td class="meta text-muted">{ep.words}</td>
-                <td class="meta text-muted">{ep.takes}</td>
+                <td class="meta text-muted">{ep.sessions}</td>
                 <td class="meta text-muted">{ep.length}</td>
                 <td class="text-[13px] text-subtle">{ep.updated}</td>
               </tr>

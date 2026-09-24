@@ -21,7 +21,10 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
 >
   <Fragment slot="topbar">
     <JoinCode />
-    <Button href={`/episodes/${episode.id}/studio`} size="sm">Studio →</Button>
+    <Button href={`/episodes/${episode.id}/studio`} variant="record" size="md" class="gap-2.5 px-5">
+      <span class="size-2 rounded-full bg-white"></span>
+      Go to studio
+    </Button>
   </Fragment>
 
   <div class="grid lg:h-full lg:grid-cols-[1fr_360px]">
@@ -90,6 +93,13 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
             </div>
           ))
         }
+      </div>
+      <div class="mt-auto border-t border-line p-5 lg:sticky lg:bottom-0 lg:bg-ink">
+        <Button href={`/episodes/${episode.id}/studio`} variant="record" size="xl" class="w-full gap-2.5">
+          <span class="size-2.5 rounded-full bg-white"></span>
+          Go to studio
+        </Button>
+        <p class="mt-2 text-center text-[12px] text-subtle">Pick the mic, check levels, then record</p>
       </div>
     </aside>
   </div>

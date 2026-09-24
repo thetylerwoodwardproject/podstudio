@@ -36,7 +36,7 @@ export const episode = {
   fullTitle: 'Ep. 142 — The Transmitter',
   joinCode: 'K74-Q2R',
   length: '31:06',
-  takeCount: 3,
+  sessionCount: 2,
   words: 412,
 };
 
@@ -103,17 +103,17 @@ export const library: {
   title: string;
   status: EpisodeStatus;
   words: string;
-  takes: string;
+  sessions: string;
   length: string;
   updated: string;
   href?: string;
 }[] = [
-  { title: 'Ep. 143 — Antenna Season', status: 'Draft', words: '1,204 words', takes: '—', length: '—', updated: 'Today' },
-  { title: 'Ep. 142 — The Transmitter', status: 'Transcribed', words: '412 words', takes: '3 takes', length: '31:06', updated: 'Today', href: '/episodes/142/script' },
-  { title: 'Ep. 141 — Rack Room Tour', status: 'Published', words: '2,380 words', takes: '2 takes', length: '44:12', updated: 'Sep 17' },
-  { title: 'Ep. 140 — Studio B Rebuild', status: 'Published', words: '1,915 words', takes: '4 takes', length: '38:40', updated: 'Sep 10' },
-  { title: 'Ep. 139 — Mailbag', status: 'Recorded', words: '640 words', takes: '1 take', length: '22:03', updated: 'Sep 3' },
-  { title: 'Ep. 138 — Grounding, Again', status: 'Published', words: '1,760 words', takes: '2 takes', length: '35:51', updated: 'Aug 27' },
+  { title: 'Ep. 143 — Antenna Season', status: 'Draft', words: '1,204 words', sessions: '—', length: '—', updated: 'Today' },
+  { title: 'Ep. 142 — The Transmitter', status: 'Transcribed', words: '412 words', sessions: '2 sessions', length: '31:06', updated: 'Today', href: '/episodes/142/script' },
+  { title: 'Ep. 141 — Rack Room Tour', status: 'Published', words: '2,380 words', sessions: '1 session', length: '44:12', updated: 'Sep 17' },
+  { title: 'Ep. 140 — Studio B Rebuild', status: 'Published', words: '1,915 words', sessions: '3 sessions', length: '38:40', updated: 'Sep 10' },
+  { title: 'Ep. 139 — Mailbag', status: 'Recorded', words: '640 words', sessions: '1 session', length: '22:03', updated: 'Sep 3' },
+  { title: 'Ep. 138 — Grounding, Again', status: 'Published', words: '1,760 words', sessions: '1 session', length: '35:51', updated: 'Aug 27' },
 ];
 
 export const statusColor: Record<EpisodeStatus, string> = {
@@ -124,12 +124,6 @@ export const statusColor: Record<EpisodeStatus, string> = {
 };
 
 export const storage = { usedGb: 41, totalGb: 46, pct: 88, hoursLeft: 9, free: '5.1 GB' };
-
-export const takes = [
-  { name: 'Take 1', kind: 'FULL', range: '00:00 – 10:12', start: 'Starts at Line 1' },
-  { name: 'Take 2', kind: 'FULL', range: '00:00 – 18:48', start: 'Starts at Line 1' },
-  { name: 'Take 3', kind: 'PUNCH-IN', range: '09:15 – 11:21', start: 'Starts at Line 3 · “Four. I counted.”' },
-];
 
 /** Transcript with speakers (matched against the script), for 3c. */
 export const speakerTranscript: { t: string; who: SpeakerKey | '?'; text: string }[] = [

@@ -30,13 +30,8 @@ import Select from '@/components/ui/Select.astro';
   </div>
 </div>
 <div class="meta -mt-2 text-subtle"><span data-channels-label>Mono</span> WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
-<ToggleRow name="mic-check" checked title="Mic check before every take" hint="Level, clipping, room noise and voice follow" />
-<ToggleRow name="tone" title="Tone between takes" hint="1 kHz · −20 dBFS · 0.5 s, only in combined downloads" />
+<ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
 <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />
-<div class="flex flex-col gap-2">
-  <div class="text-[12px] text-muted">Default download</div>
-  <Segmented name="download" label="Default download" value="separate" options={[{ value: 'separate', label: 'Separate files' }, { value: 'combined', label: 'One combined file' }]} />
-</div>
 
 <script>
   import { channelsLabel, mbPerMinute } from '@/lib/audio/format';
@@ -86,9 +81,7 @@ import Select from '@/components/ui/Select.astro';
       pick('depth', String(r.depth));
       pick('rate', String(r.rate));
       pick('channels', String(r.channels));
-      pick('download', r.download);
       form.querySelector<HTMLInputElement>('input[name=mic-check]')!.checked = r.micCheck;
-      form.querySelector<HTMLInputElement>('input[name=tone]')!.checked = r.tone;
       refresh();
       form.addEventListener('change', () => {
         const data = new FormData(form);
@@ -98,9 +91,7 @@ import Select from '@/components/ui/Select.astro';
           channels,
           depth: Number(data.get('depth')) as 16 | 24,
           rate: Number(data.get('rate')) as 44.1 | 48,
-          download: data.get('download') as 'separate' | 'combined',
           micCheck: data.has('mic-check'),
-          tone: data.has('tone'),
         });
         if (changed) document.dispatchEvent(new Event('podstudio:channels'));
       });

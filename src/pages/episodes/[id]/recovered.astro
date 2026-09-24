@@ -1,5 +1,5 @@
 ---
-// 5f · Recovered take after a crash
+// 5f · Recovered session after a crash
 import Base from '@/layouts/Base.astro';
 import Dot from '@/components/ui/Dot.astro';
 import Button from '@/components/ui/Button.astro';
@@ -10,13 +10,13 @@ export const getStaticPaths = episodePaths;
 const base = `/episodes/${episode.id}`;
 const rows = [
   { k: 'Episode', v: episode.fullTitle, key: 'episode' },
-  { k: 'Take 3', v: '12:48 recovered', ok: true, key: 'take' },
+  { k: 'Session', v: '12:48 recovered', ok: true, key: 'take' },
   { k: 'Stopped at', v: '9:04 PM · line 18', key: 'stopped' },
   { k: 'Format', v: '24-bit · 48 kHz · 110.6 MB', key: 'format' },
 ];
 ---
 
-<Base title="We saved your take">
+<Base title="We saved your session">
   <dialog
     open
     aria-labelledby="recovered-title"
@@ -27,10 +27,10 @@ const rows = [
   >
     <h1 id="recovered-title" class="flex items-center gap-2.5 text-[20px] tracking-[-0.02em]">
       <Dot color="var(--color-ok)" size={9} />
-      We saved your take
+      We saved your session
     </h1>
     <p class="text-[14px] leading-[1.6] text-muted" data-summary>
-      The tab closed while Take 3 was recording. Audio is saved every 5 seconds, so you lost less than 5 seconds.
+      The tab closed while the session was recording. Audio is saved every 5 seconds, so you lost less than 5 seconds.
     </p>
     <dl class="flex flex-col">
       {
@@ -47,7 +47,7 @@ const rows = [
     </dl>
     <div class="flex flex-wrap justify-end gap-2.5">
       <Button href={`${base}/studio`} data-discard>Discard</Button>
-      <Button data-download>Download WAV</Button>
+      <Button data-download>Download</Button>
       <Button href={`${base}/prompter`} variant="primary" data-keep>Keep and continue from line <span data-line>18</span></Button>
     </div>
   </dialog>
@@ -55,8 +55,8 @@ const rows = [
 </Base>
 
 <script>
-  import { deleteTake, formatBytes, formatDuration, getTake, markDone, takeBytes, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
-  import { takeUrl } from '@/lib/flow';
+  import { deleteTake, formatBytes, formatDuration, getTake, listTakes, markDone, takeBytes, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
+  import { sessionUrl } from '@/lib/flow';
   import { download } from '@/lib/zip';
 
   const root = document.getElementById('recovered')!;
@@ -64,8 +64,10 @@ const rows = [
   const episodeId = root.dataset.episode!;
 
   if (id) {
-    getTake(id).then((take) => {
+    getTake(id).then(async (take) => {
       if (!take) return;
+      // Every speaker track of the session was cut off together.
+      const tracks = take.group ? (await listTakes(episodeId)).filter((t) => t.group === take.group) : [take];
       const set = (row: string, k: string | null, v: string) => {
         const el = root.querySelector(`[data-row="${row}"]`)!;
         if (k) el.querySelector('dt')!.textContent = k;
@@ -73,28 +75,28 @@ const rows = [
       };
       const stopped = new Date(take.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       root.querySelector('[data-summary]')!.textContent =
-        `The tab closed while ${take.name} was recording. Audio is saved every 5 seconds, so you lost less than 5 seconds.`;
+        `The tab closed while the session was recording${tracks.length > 1 ? ` (${tracks.length} tracks)` : ''}. Audio is saved every 5 seconds, so you lost less than 5 seconds.`;
       set('episode', null, root.dataset.title!);
-      set('take', take.name, `${formatDuration(takeSeconds(take))} recovered`);
+      set('take', 'Session', `${formatDuration(takeSeconds(take))} recovered`);
       set('stopped', null, `${stopped} · line ${(take.lastLine ?? take.startLine) + 1}`);
-      set('format', null, `${take.bitDepth}-bit · ${take.sampleRate / 1000} kHz · ${take.channels === 2 ? 'stereo' : 'mono'} · ${formatBytes(takeBytes(take))}`);
-      // Carry on as a punch-in from the last line voice follow saw.
+      set('format', null, `${take.bitDepth}-bit · ${take.sampleRate / 1000} kHz · ${take.channels === 2 ? 'stereo' : 'mono'} · ${formatBytes(tracks.reduce((n, t) => n + takeBytes(t), 0))}`);
+      // Carry on with a new session from the last line voice follow saw.
       const line = take.lastLine ?? take.startLine;
       root.querySelector('[data-line]')!.textContent = String(line + 1);
 
       root.querySelector<HTMLAnchorElement>('[data-discard]')!.addEventListener('click', async (e) => {
         e.preventDefault();
-        if (!confirm(`Discard ${take.name}? The saved audio will be deleted.`)) return;
-        await deleteTake(take.id);
+        if (!confirm('Discard this session? The saved audio will be deleted.')) return;
+        for (const t of tracks) await deleteTake(t.id);
         location.href = `/episodes/${episodeId}/studio`;
       });
       root.querySelector('[data-download]')!.addEventListener('click', async () => {
-        download(await takeWav(take), takeFileName(take));
+        for (const t of tracks) download(await takeWav(t), takeFileName(t));
       });
       root.querySelector<HTMLAnchorElement>('[data-keep]')!.addEventListener('click', async (e) => {
         e.preventDefault();
-        await markDone(take);
-        location.href = takeUrl(episodeId, line);
+        for (const t of tracks) await markDone(t);
+        location.href = sessionUrl(episodeId, line);
       });
     });
   }

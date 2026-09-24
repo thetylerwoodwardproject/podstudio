@@ -14,7 +14,7 @@ export const getStaticPaths = episodePaths;
       data-done={`/episodes/${episode.id}/package`}
     >
       <div>
-        <div class="eyebrow">{episode.label} · {episode.length} · {episode.takeCount} takes</div>
+        <div class="eyebrow">{episode.label} · {episode.length} · {episode.sessionCount} sessions</div>
         <h1 class="mt-2 text-[26px] tracking-[-0.02em]">Transcribing with Whisper</h1>
         <p class="mt-1.5 text-[13px] text-muted">You can close this tab. It keeps running on the server.</p>
       </div>
