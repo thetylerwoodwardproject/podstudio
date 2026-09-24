@@ -102,6 +102,15 @@
   }
 }
 
+/*
+ * Live screens show real data by default; ?demo swaps in the design's example
+ * content so the screens can be reviewed against the handoff.
+ */
+html:not([data-demo]) [data-demo-only],
+html[data-demo] [data-live-only] {
+  display: none !important;
+}
+
 /* Mono uppercase section label: "LIVE NOW", "CHECKS", "STEP 3 OF 5" */
 @utility eyebrow {
   font-family: var(--font-mono);

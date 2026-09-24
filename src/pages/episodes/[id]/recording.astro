@@ -6,19 +6,33 @@ import Dot from '@/components/ui/Dot.astro';
 import StatusRow from '@/components/ui/StatusRow.astro';
 import Waveform from '@/components/ui/Waveform.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths, speakerByKey, spk, storage, tracks } from '@/data/mock';
+import { devices, episode, episodePaths, lineStarts, scriptLines, scriptWords, speakerByKey, spk, storage, tracks } from '@/data/mock';
 import { waveforms } from '@/data/waveforms';
 
 export const getStaticPaths = episodePaths;
+
+/** The speaker on this computer's mic (the host, per the script editor's Screens list). */
+const local = 'TYLER';
+const BARS = 90;
+const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
 ---
 
 <AppShell title="Recording" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Recording' }]}>
-  <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium">
-    <Dot color="var(--color-rec)" size={8} pulse />
-    REC <span data-clock>24:10</span>
+  <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium" data-rec>
+    <Dot color="var(--color-rec)" size={8} pulse data-rec-dot />
+    <span data-rec-label>REC <span data-clock>24:10</span></span>
   </div>
 
-  <div class="grid lg:h-full lg:grid-cols-[1fr_360px]">
+  <div
+    class="grid lg:h-full lg:grid-cols-[1fr_360px]"
+    id="recording"
+    data-episode={episode.id}
+    data-local={local}
+    data-words={JSON.stringify(scriptWords)}
+    data-lines={JSON.stringify(lines)}
+    data-line-starts={JSON.stringify(lineStarts)}
+    data-devices={JSON.stringify(Object.fromEntries(devices.map((d) => [d.id, d.name])))}
+  >
     <section class="flex min-w-0 flex-col gap-4.5 border-line px-6 py-7 lg:border-r lg:px-9">
       <Callout title="Podstudio records. It doesn’t connect calls." color="var(--color-muted)">
         Talk to remote guests over Zoom, Slack, Teams, Discord or any call app. Podstudio records each person’s own mic
@@ -26,9 +40,11 @@ export const getStaticPaths = episodePaths;
       </Callout>
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 class="text-[14px] font-medium">Tracks</h2>
-        <div class="meta text-subtle">24-bit · 48 kHz · mono · shared session clock</div>
+        <div class="meta text-subtle" data-demo-only>24-bit · 48 kHz · mono · shared session clock</div>
+        <div class="meta text-subtle" data-live-only data-format></div>
       </div>
-      <div class="flex flex-col border-t border-line">
+
+      <div class="flex flex-col border-t border-line" data-demo-only>
         {
           tracks.map((t) => (
             <div class="grid grid-cols-[170px_minmax(0,1fr)_190px] items-center gap-5 border-b border-line py-4.5 max-md:grid-cols-[1fr_1fr]">
@@ -51,6 +67,29 @@ export const getStaticPaths = episodePaths;
           ))
         }
       </div>
+
+      <div class="flex flex-col border-t border-line" data-live-only>
+        <div class="grid grid-cols-[170px_minmax(0,1fr)_190px] items-center gap-5 border-b border-line py-4.5 max-md:grid-cols-[1fr_1fr]">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-2 text-[15px]">
+              <Dot color={spk(local)} size={8} />
+              {speakerByKey(local).name}
+            </div>
+            <div class="truncate font-mono text-[11px] text-subtle" data-device>This computer</div>
+          </div>
+          <div class="flex h-10 w-full items-center gap-0.5 max-md:order-last max-md:col-span-2" aria-hidden="true" data-live-wave>
+            {Array.from({ length: BARS }, () => <span class="h-[4%] flex-1 rounded-[1px] opacity-25" style={{ background: spk(local) }} />)}
+          </div>
+          <div class="flex flex-col gap-1 font-mono text-[11px] text-muted">
+            <span class="flex items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-save-dot></span><span data-save>Ready</span></span>
+            <span class="text-faint" data-peak>Peak —</span>
+          </div>
+        </div>
+        <div class="border-b border-line py-4 text-[13px] text-subtle">
+          Remote guests show up here, one track each, once they join from an invite link. That needs the Podstudio server.
+        </div>
+      </div>
+
       <p class="text-[12px] leading-normal text-subtle">
         Each track records on the speaker’s own device. If someone’s connection drops, their device keeps recording and
         uploads the rest when it reconnects.
@@ -59,27 +98,256 @@ export const getStaticPaths = episodePaths;
 
     <aside class="flex flex-col gap-3.5 p-6">
       <h2 class="text-[14px] font-medium">Now reading</h2>
-      <div class="flex flex-col gap-1.5 rounded-[10px] bg-surface p-3.5">
-        <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('DANA') }}>DANA</div>
-        <div class="text-[15px] leading-normal">And whether the floor could hold it, which nobody checked until I asked.</div>
+      <div class="flex flex-col gap-1.5 rounded-[10px] bg-surface p-3.5" aria-live="polite">
+        <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('DANA') }} data-now-who>DANA</div>
+        <div class="text-[15px] leading-normal" data-now-text>And whether the floor could hold it, which nobody checked until I asked.</div>
       </div>
-      <div class="mt-1.5 flex flex-col">
+      <div class="mt-1.5 flex flex-col" data-demo-only>
         <StatusRow label="Remote guests" value="2 connected" color="var(--color-ok)" dense />
         <StatusRow label="Upload queue" value="2 chunks · 10 s" color="var(--color-warn)" dense />
         <StatusRow label="Server space" value={`${storage.free} free`} dense />
       </div>
+      <div class="mt-1.5 flex flex-col" data-live-only>
+        <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
+          <span class="text-muted">Saved in this browser</span>
+          <span class="meta" data-saved>—</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
+          <span class="text-muted">Voice follow</span>
+          <span class="meta flex items-center gap-2"><span class="inline-block size-1.5 rounded-full bg-faint" data-voice-dot></span><span data-voice>Starts with the take</span></span>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
+          <span class="text-muted">Free space</span>
+          <span class="meta" data-free>—</span>
+        </div>
+      </div>
       <div class="mt-auto flex flex-col gap-2.5 pt-6">
-        <Button href={`/episodes/${episode.id}/transcribing`} variant="record" size="xl" class="gap-2.5">
+        <Button href={`/episodes/${episode.id}/transcribing?demo`} variant="record" size="xl" class="gap-2.5" data-demo-only>
           <span class="size-3 rounded-[2px] bg-white"></span>
           Stop take
         </Button>
-        <p class="text-center text-[12px] text-subtle">Stopping waits for every guest’s upload to finish</p>
+        <Button variant="record" size="xl" class="gap-2.5" data-live-only data-toggle disabled>
+          <span class="size-3 rounded-full bg-white" data-toggle-icon></span>
+          <span data-toggle-label>Start take</span>
+        </Button>
+        <p class="text-center text-[12px] text-subtle" data-demo-only>Stopping waits for every guest’s upload to finish</p>
+        <p class="text-center text-[12px] text-subtle" data-live-only data-hint>
+          Audio is saved to this browser every 5 seconds as you record.
+        </p>
       </div>
     </aside>
   </div>
 </AppShell>
 
 <script>
+  import { MicCapture } from '@/lib/audio/capture';
+  import { TakeWriter, formatBytes, listTakes, storageLeft } from '@/lib/audio/takes';
   import { startClock } from '@/lib/prompter';
-  startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 24 * 60 + 10);
+  import { offerRecovery } from '@/lib/recovery';
+  import { Session } from '@/lib/session';
+  import { hz, loadSettings } from '@/lib/settings';
+  import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
+
+  const root = document.getElementById('recording')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const demo = new URL(location.href).searchParams.has('demo');
+
+  if (demo) {
+    startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 24 * 60 + 10);
+  } else {
+    live();
+  }
+
+  async function live() {
+    const episodeId = root.dataset.episode!;
+    const words = JSON.parse(root.dataset.words!) as string[];
+    const lines = JSON.parse(root.dataset.lines!) as { who: string; text: string }[];
+    const starts = JSON.parse(root.dataset.lineStarts!) as number[];
+    const settings = loadSettings().recording;
+    const params = new URL(location.href).searchParams;
+    const fromLine = Math.max(0, Math.min(lines.length - 1, Number(params.get('from') ?? 0) || 0));
+    const punchIn = params.has('from');
+
+    await offerRecovery(episodeId);
+
+    const toggle = $<HTMLButtonElement>('[data-toggle]');
+    const recLabel = $('[data-rec-label]');
+    const recDot = $('[data-rec-dot]');
+    const setRecIndicator = (on: boolean, text: string) => {
+      recLabel.textContent = text;
+      recDot.style.background = on ? '' : 'var(--color-faint)';
+      recDot.style.animation = on ? '' : 'none';
+    };
+    setRecIndicator(false, 'READY');
+
+    const takes = await listTakes(episodeId);
+    const nextNumber = takes.reduce((n, t) => Math.max(n, t.number), 0) + 1;
+    $('[data-toggle-label]').textContent = `Start take ${nextNumber}`;
+    $('[data-format]').textContent =
+      `${settings.depth}-bit · ${settings.rate} kHz · mono${punchIn ? ` · punch-in from line ${fromLine + 1}` : ''}`;
+    toggle.disabled = false;
+
+    const free = async () => {
+      const { free, hours } = await storageLeft(hz(settings.rate), settings.depth);
+      $('[data-free]').textContent = `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`;
+    };
+    free();
+
+    // Now reading: the line voice follow says is being read.
+    const lineOf = (i: number) => starts.reduce((line, s, n) => (i >= s ? n : line), 0);
+    const showLine = (n: number) => {
+      const who = $('[data-now-who]');
+      who.textContent = lines[n].who;
+      who.style.color = `var(--spk-${lines[n].who.toLowerCase()})`;
+      $('[data-now-text]').textContent = lines[n].text;
+    };
+
+    const session = new Session(episodeId);
+    const capture = new MicCapture();
+    let writer: TakeWriter | null = null;
+    let voice: VoiceFollow | null = null;
+    let startedAt = 0;
+    // Punch-ins roll the prompter back two lines for a run-up.
+    let word = starts[Math.max(0, fromLine - (punchIn ? 2 : 0))];
+    showLine(lineOf(word));
+    let clock: number | undefined;
+    // Other screens show "Following <this computer>"; the mic's own name goes on the track.
+    const computer = (JSON.parse(root.dataset.devices!) as Record<string, string>)[settings.recorder] ?? 'This computer';
+    const device = () => computer;
+    const recMsg = () => ({ type: 'rec' as const, recording: !!writer, startedAt, device: device(), take: writer?.meta.id });
+
+    session.on('hello', () => writer && session.send(recMsg()));
+    session.on('control', (m) => {
+      if (m.action === 'goto' && m.word != null) word = m.word;
+      if (m.action === 'next') word = starts[Math.min(lineOf(word) + 1, starts.length - 1)];
+      if (m.action === 'prev') word = starts[Math.max(lineOf(word) - 1, 0)];
+      voice?.setWord(word);
+      showLine(lineOf(word));
+    });
+
+    // Live waveform: one bar per quarter second, newest on the right.
+    const bars = [...document.querySelectorAll<HTMLElement>('[data-live-wave] span')];
+    const heights: number[] = bars.map(() => 0);
+    let windowPeak = 0;
+    let clipAt = 0;
+    capture.addEventListener('level', (e) => {
+      const { peak } = (e as CustomEvent<{ peak: number }>).detail;
+      windowPeak = Math.max(windowPeak, peak);
+      if (peak > -0.5) clipAt = Date.now();
+    });
+    setInterval(() => {
+      if (!writer) return;
+      // -60..0 dBFS → 4..100 %
+      const pct = Number.isFinite(windowPeak) ? Math.max(4, Math.min(100, ((windowPeak + 60) / 60) * 100)) : 4;
+      heights.push(pct);
+      heights.shift();
+      bars.forEach((b, i) => {
+        b.style.height = `${heights[i] || 4}%`;
+        b.style.opacity = heights[i] ? '0.85' : '0.25';
+      });
+      $('[data-peak]').textContent = Number.isFinite(windowPeak) ? `Peak ${Math.round(Math.min(0, windowPeak)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Peak —';
+      $('[data-peak]').style.color = Date.now() - clipAt < 3000 ? 'var(--color-rec)' : '';
+      windowPeak = -Infinity;
+    }, 250);
+
+    // Saved-state line, refreshed every second.
+    setInterval(() => {
+      if (!writer) return;
+      const ago = Math.round((Date.now() - writer.meta.updatedAt) / 1000);
+      $('[data-saved]').textContent = writer.meta.segments ? `${ago} s ago` : 'first save at 5 s';
+      $('[data-save]').textContent = 'Local · saving every 5 s';
+      $('[data-save-dot]').style.background = 'var(--color-ok)';
+    }, 1000);
+
+    const startVoice = () => {
+      if (!voiceFollowSupported()) {
+        $('[data-voice]').textContent = 'Needs Chrome';
+        return;
+      }
+      voice = new VoiceFollow(words);
+      voice.setWord(word);
+      voice.addEventListener('word', (e) => {
+        word = (e as CustomEvent<number>).detail;
+        showLine(lineOf(word));
+        // Saved with the next segment, so a recovered take knows where it stopped.
+        if (writer) writer.meta.lastLine = lineOf(word);
+        session.send({ type: 'word', index: word, device: device() });
+      });
+      voice.addEventListener('lost', () => session.send({ type: 'follow', state: 'lost' }));
+      voice.addEventListener('found', () => session.send({ type: 'follow', state: 'read' }));
+      voice.addEventListener('status', (e) => {
+        const on = (e as CustomEvent<string>).detail === 'listening';
+        $('[data-voice]').textContent = on ? 'Listening' : 'Off';
+        $('[data-voice-dot]').style.background = on ? 'var(--color-ok)' : 'var(--color-faint)';
+      });
+      voice.addEventListener('error', (e) => {
+        const err = (e as CustomEvent<string>).detail;
+        $('[data-voice]').textContent = voiceErrorText(err);
+        $('[data-voice-dot]').style.background = 'var(--color-warn)';
+      });
+      voice.start();
+    };
+
+    async function start() {
+      toggle.disabled = true;
+      try {
+        await capture.open({ deviceId: settings.deviceId, sampleRate: hz(settings.rate) });
+      } catch (err) {
+        toggle.disabled = false;
+        $('[data-hint]').textContent =
+          (err as Error).name === 'NotAllowedError'
+            ? 'Podstudio needs microphone access. Allow it in the address bar, then try again.'
+            : `Couldn’t open the microphone: ${(err as Error).message}`;
+        return;
+      }
+      $('[data-device]').textContent = `${capture.label || computer} · studio`;
+      writer = await TakeWriter.start({
+        episodeId,
+        kind: punchIn ? 'punch-in' : 'full',
+        startLine: fromLine,
+        startText: lines[fromLine].text,
+        speaker: root.dataset.local!,
+        device: capture.label || computer,
+        sampleRate: capture.sampleRate,
+        bitDepth: settings.depth,
+      });
+      const w = writer;
+      capture.addEventListener('chunk', (e) => w.push((e as CustomEvent<Float32Array>).detail));
+      capture.record();
+      startedAt = Date.now();
+      session.send(recMsg());
+      session.send({ type: 'word', index: word, device: device() });
+      startVoice();
+
+      const tick = () => {
+        const s = Math.floor((Date.now() - startedAt) / 1000);
+        setRecIndicator(true, `REC ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`);
+      };
+      tick();
+      clock = window.setInterval(tick, 1000);
+      $('[data-toggle-label]').textContent = 'Stop take';
+      $('[data-toggle-icon]').classList.replace('rounded-full', 'rounded-[2px]');
+      $('[data-hint]').textContent = 'Audio is saved to this browser every 5 seconds as you record.';
+      toggle.disabled = false;
+    }
+
+    async function stop() {
+      if (!writer) return;
+      toggle.disabled = true;
+      $('[data-toggle-label]').textContent = 'Saving…';
+      clearInterval(clock);
+      voice?.stop();
+      await capture.stop();
+      const meta = await writer.finish();
+      writer = null;
+      await capture.close();
+      session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
+      location.href = `/episodes/${episodeId}/takes?take=${encodeURIComponent(meta.id)}`;
+    }
+
+    toggle.addEventListener('click', () => (writer ? stop() : start()));
+    addEventListener('beforeunload', (e) => {
+      if (writer) e.preventDefault();
+    });
+  }
 </script>

@@ -2,7 +2,7 @@
 import Section from './Section.astro';
 import ToggleRow from './ToggleRow.astro';
 import Segmented from '@/components/ui/Segmented.astro';
-import { mbPerMinute } from '@/lib/audio';
+import { mbPerMinute } from '@/lib/audio/format';
 ---
 
 <Section title="Recording" description="Defaults for new sessions. The host can change them per session from the studio screen." />
@@ -26,11 +26,40 @@ import { mbPerMinute } from '@/lib/audio';
 </div>
 
 <script>
-  import { mbPerMinute } from '@/lib/audio';
+  import { mbPerMinute } from '@/lib/audio/format';
+  import { loadSettings, saveSettings } from '@/lib/settings';
+
   const form = document.querySelector<HTMLFormElement>('[data-settings]')!;
-  form.addEventListener('change', () => {
-    const data = new FormData(form);
-    const size = form.querySelector('[data-size]');
-    if (size) size.textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
-  });
+  const size = form.querySelector('[data-size]');
+  if (size) {
+    const demo = new URL(location.href).searchParams.has('demo');
+    const refresh = () => {
+      const data = new FormData(form);
+      size.textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
+    };
+    if (!demo) {
+      const r = loadSettings().recording;
+      const pick = (name: string, value: string) => {
+        const el = form.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`);
+        if (el) el.checked = true;
+      };
+      pick('depth', String(r.depth));
+      pick('rate', String(r.rate));
+      pick('download', r.download);
+      form.querySelector<HTMLInputElement>('input[name=mic-check]')!.checked = r.micCheck;
+      form.querySelector<HTMLInputElement>('input[name=tone]')!.checked = r.tone;
+      refresh();
+      form.addEventListener('change', () => {
+        const data = new FormData(form);
+        saveSettings('recording', {
+          depth: Number(data.get('depth')) as 16 | 24,
+          rate: Number(data.get('rate')) as 44.1 | 48,
+          download: data.get('download') as 'separate' | 'combined',
+          micCheck: data.has('mic-check'),
+          tone: data.has('tone'),
+        });
+      });
+    }
+    form.addEventListener('change', refresh);
+  }
 </script>

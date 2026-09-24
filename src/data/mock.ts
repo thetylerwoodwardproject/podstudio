@@ -52,15 +52,25 @@ export const scriptLines: ScriptLine[] = [
   { who: 'TYLER', text: 'We measured it twice. The spec sheet and the building plans did not agree.' },
 ];
 
-/** Single-speaker narration used by the monitor's voice-follow demo. */
+/** The script as one list of words; every prompter uses these indexes. */
+export const scriptWords = scriptLines.flatMap((l) => l.text.split(/\s+/).filter(Boolean));
+
+/** Index in scriptWords of the first word of each line. */
+export const lineStarts = scriptLines.reduce<number[]>(
+  (acc, l, i) => [...acc, i === 0 ? 0 : acc[i - 1] + scriptLines[i - 1].text.split(/\s+/).filter(Boolean).length],
+  [],
+);
+
+/** Single-speaker narration from the monitor design (1e). */
 export const monitorScript =
   'It was a quiet week in the studio, until the new transmitter arrived. Four pallets, one forklift, and a delivery driver who swore he had never seen anything that heavy come off a truck. So this episode is about what happens after the crate is open. Power, cooling, the first time you key it up and watch the meters move.';
 
+/** Script sections; `line` is the first script line of each. */
 export const sections = [
-  { title: 'Cold open', at: '0:00' },
-  { title: 'Segment 1 · Install', at: '1:42' },
-  { title: 'Segment 2 · Key-up', at: '14:50' },
-  { title: 'Wrap', at: '27:05' },
+  { title: 'Cold open', at: '0:00', line: 0 },
+  { title: 'Segment 1 · Install', at: '1:42', line: 2 },
+  { title: 'Segment 2 · Key-up', at: '14:50', line: 4 },
+  { title: 'Wrap', at: '27:05', line: 5 },
 ];
 
 export interface Device {

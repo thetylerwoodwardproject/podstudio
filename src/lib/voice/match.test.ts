@@ -1,0 +1,48 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { locate, normalize, similarity } from './match.ts';
+
+const script = normalize(
+  'It was a quiet week in the studio, until the new transmitter arrived. Four pallets, one forklift, and a delivery driver who swore he had never seen anything that heavy come off a truck. So this episode is about what happens after the crate is open.',
+);
+const at = (i: number) => script[i];
+
+test('normalize strips punctuation and spells numbers', () => {
+  assert.deepEqual(normalize('Four. I counted 4 — it’s 21!'), ['four', 'i', 'counted', 'four', 'its', 'twenty', 'one']);
+});
+
+test('similarity tolerates small mishearings', () => {
+  assert.ok(similarity('transmitter', 'transmiter') > 0.85);
+  assert.ok(similarity('pallets', 'ballots') < 0.75);
+});
+
+test('follows a straight read', () => {
+  const r = locate(script, normalize('a quiet week in the'), 0);
+  assert.equal(r && at(r.index), 'the');
+  assert.equal(r!.index, 6);
+});
+
+test('handles dropped and misheard words', () => {
+  const r = locate(script, normalize('until new transmiter arrived'), 7);
+  assert.equal(r && at(r.index), 'arrived');
+});
+
+test('ignores ad-libs that are not in the script', () => {
+  assert.equal(locate(script, normalize('honestly that was wild right'), 12), null);
+});
+
+test('picks the occurrence nearest the cursor', () => {
+  // "the" appears several times; with context it should land on the second sentence's "the".
+  const r = locate(script, normalize('until the'), 7);
+  assert.equal(r!.index, 9);
+});
+
+test('recognition that jumps ahead a sentence is followed', () => {
+  const r = locate(script, normalize('so this episode is about'), 12);
+  assert.equal(r && at(r.index), 'about');
+});
+
+test('a single word only counts right after the cursor', () => {
+  assert.equal(locate(script, ['truck'], 0), null);
+  assert.equal(locate(script, ['it'], 0)!.index, 0);
+});

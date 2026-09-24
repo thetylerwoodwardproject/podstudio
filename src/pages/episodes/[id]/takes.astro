@@ -1,20 +1,21 @@
 ---
-// 5d · Retake from any line (punch-in)
+// 5d · Retake from any line (punch-in), plus this episode's takes
 import AppShell from '@/layouts/AppShell.astro';
 import SpeakerLabel from '@/components/ui/SpeakerLabel.astro';
+import Button from '@/components/ui/Button.astro';
 import { episode, episodePaths, scriptLines, spk, takes } from '@/data/mock';
 
 export const getStaticPaths = episodePaths;
 
-const lines = [...scriptLines.slice(0, 4), { who: 'DANA' as const, text: 'And whether the floor could hold it, which nobody checked until I asked.' }];
 const current = 2;
+const base = `/episodes/${episode.id}`;
 ---
 
-<AppShell title="Takes" crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Script' }]}>
-  <div class="grid lg:h-full lg:grid-cols-[1fr_380px]">
-    <section class="flex flex-col gap-3.5 border-line px-6 py-8 lg:border-r lg:px-12" data-lines>
+<AppShell title="Takes" crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Script' }]}>
+  <div class="grid lg:h-full lg:grid-cols-[1fr_380px]" id="takes" data-episode={episode.id}>
+    <section class="flex flex-col gap-3.5 border-line px-6 py-8 lg:overflow-auto lg:border-r lg:px-12" data-lines>
       {
-        lines.map((l, i) => (
+        scriptLines.map((l, i) => (
           <div
             data-line={i}
             data-current={i === current ? '' : undefined}
@@ -23,7 +24,8 @@ const current = 2;
             <SpeakerLabel name={l.who} color={spk(l.who)} />
             <span class="text-[18px] leading-[1.6] text-fg-soft">{l.text}</span>
             <a
-              href={`/episodes/${episode.id}/mic-check`}
+              href={`${base}/mic-check?from=${i}`}
+              data-punch={i}
               class="invisible col-start-2 flex h-8.5 items-center gap-2 justify-self-start rounded-lg bg-rec px-3 text-[13px] font-medium text-white group-hover:visible group-data-[current]:visible hover:text-white focus:visible sm:col-start-3 sm:justify-self-end"
             >
               <span class="size-[7px] rounded-full bg-white"></span>
@@ -38,38 +40,132 @@ const current = 2;
       </p>
     </section>
 
-    <aside class="flex flex-col gap-3.5 p-6">
-      <h2 class="text-[13px] font-medium">Takes</h2>
-      {
-        takes.map((t, i) => (
-          <div class:list={['flex flex-col gap-2 rounded-[10px] border p-3.5', i === takes.length - 1 ? 'border-fg' : 'border-line']}>
-            <div class="flex justify-between text-[14px]">
-              {t.name}
-              <span
-                class:list={[
-                  'rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em]',
-                  t.kind === 'PUNCH-IN' ? 'text-warn' : 'text-muted',
-                ]}
-              >
-                {t.kind}
-              </span>
+    <aside class="flex flex-col gap-3.5 p-6 lg:overflow-auto">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-[13px] font-medium">Takes</h2>
+        <a href={`${base}/export`} class="text-[12px] text-muted hover:text-fg" data-live-only>Export →</a>
+      </div>
+      <div class="flex flex-col gap-3.5" data-demo-only>
+        {
+          takes.map((t, i) => (
+            <div class:list={['flex flex-col gap-2 rounded-[10px] border p-3.5', i === takes.length - 1 ? 'border-fg' : 'border-line']}>
+              <div class="flex justify-between text-[14px]">
+                {t.name}
+                <span
+                  class:list={[
+                    'rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em]',
+                    t.kind === 'PUNCH-IN' ? 'text-warn' : 'text-muted',
+                  ]}
+                >
+                  {t.kind}
+                </span>
+              </div>
+              <div class="meta text-muted">{t.range}</div>
+              <div class="text-[12px] text-subtle">{t.start}</div>
             </div>
-            <div class="meta text-muted">{t.range}</div>
-            <div class="text-[12px] text-subtle">{t.start}</div>
-          </div>
-        ))
-      }
+          ))
+        }
+      </div>
+      <div class="flex flex-col gap-3.5" data-live-only data-take-list>
+        <p class="text-[13px] leading-normal text-subtle" data-empty>No takes yet. Start one from the studio, or pick a line to record from.</p>
+      </div>
+      <Button href={`${base}/mic-check`} variant="record" class="gap-2" data-live-only data-new-take>
+        <span class="size-2 rounded-full bg-white"></span>
+        Start a full take
+      </Button>
+      <p class="text-[12px] leading-normal text-warn" data-live-only>
+        Takes are kept in this browser until the Podstudio server is set up. Download them before clearing this site’s
+        data.
+      </p>
       <p class="mt-auto text-[12px] leading-normal text-subtle">
         Each punch-in is saved as its own WAV, named after the line it starts on, so you can drop it into your editor.
       </p>
     </aside>
   </div>
+
+  <template id="take-card">
+    <div class="flex flex-col gap-2 rounded-[10px] border border-line p-3.5 data-[selected]:border-fg">
+      <div class="flex justify-between text-[14px]">
+        <span data-name></span>
+        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium tracking-[0.06em] text-muted" data-kind></span>
+      </div>
+      <div class="meta text-muted" data-range></div>
+      <div class="text-[12px] text-subtle" data-start></div>
+      <audio controls preload="none" class="mt-1 h-8 w-full [color-scheme:dark]" data-audio></audio>
+      <div class="flex gap-3 pt-1 text-[12px]">
+        <button type="button" class="text-fg hover:text-white" data-download>↓ WAV</button>
+        <button type="button" class="text-muted hover:text-rec" data-delete>Delete</button>
+      </div>
+    </div>
+  </template>
 </AppShell>
 
 <script>
-  // R starts a punch-in on the current line.
+  import { deleteTake, formatBytes, formatDuration, listTakes, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
+  import { takeUrl } from '@/lib/flow';
+  import { offerRecovery } from '@/lib/recovery';
+  import { download } from '@/lib/zip';
+
+  const root = document.getElementById('takes')!;
+  const episodeId = root.dataset.episode!;
+  const demo = new URL(location.href).searchParams.has('demo');
+
+  // Record from here: respect the "mic check before every take" setting.
+  const punches = [...root.querySelectorAll<HTMLAnchorElement>('[data-punch]')];
+  if (!demo) {
+    punches.forEach((a) => (a.href = takeUrl(episodeId, Number(a.dataset.punch))));
+    root.querySelector<HTMLAnchorElement>('[data-new-take]')!.href = takeUrl(episodeId);
+  }
+
+  // Current line follows the mouse and the keyboard; R starts a punch-in there.
+  const rows = [...root.querySelectorAll<HTMLElement>('[data-line]')];
+  const setCurrent = (row: HTMLElement) => rows.forEach((r) => r.toggleAttribute('data-current', r === row));
+  rows.forEach((r) => r.addEventListener('mouseenter', () => setCurrent(r)));
   addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || (e.target as HTMLElement).matches('input, textarea, [contenteditable]')) return;
-    document.querySelector<HTMLAnchorElement>('[data-current] a')?.click();
+    if (e.metaKey || e.ctrlKey || (e.target as HTMLElement).matches('input, textarea, [contenteditable]')) return;
+    const i = rows.findIndex((r) => r.hasAttribute('data-current'));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCurrent(rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]);
+    }
+    if (e.key.toLowerCase() === 'r') root.querySelector<HTMLAnchorElement>('[data-current] a')?.click();
   });
+
+  if (!demo) render();
+
+  async function render() {
+    await offerRecovery(episodeId);
+    const list = root.querySelector<HTMLElement>('[data-take-list]')!;
+    const tpl = (document.getElementById('take-card') as HTMLTemplateElement).content.firstElementChild!;
+    const selected = new URL(location.href).searchParams.get('take');
+    const takes = (await listTakes(episodeId)).filter((t) => t.status === 'done');
+    list.querySelector<HTMLElement>('[data-empty]')!.hidden = takes.length > 0;
+    list.querySelectorAll('[data-card]').forEach((c) => c.remove());
+
+    for (const t of takes) {
+      const card = tpl.cloneNode(true) as HTMLElement;
+      card.dataset.card = t.id;
+      card.toggleAttribute('data-selected', t.id === selected);
+      const q = <T extends HTMLElement = HTMLElement>(s: string) => card.querySelector<T>(s)!;
+      q('[data-name]').textContent = t.name;
+      const kind = q('[data-kind]');
+      kind.textContent = t.kind === 'punch-in' ? 'PUNCH-IN' : 'FULL';
+      if (t.kind === 'punch-in') kind.classList.replace('text-muted', 'text-warn');
+      const bytes = t.samples * (t.bitDepth / 8);
+      q('[data-range]').textContent = `${formatDuration(takeSeconds(t))} · ${t.bitDepth}-bit · ${t.sampleRate / 1000} kHz · ${formatBytes(bytes)}`;
+      q('[data-start]').textContent = t.kind === 'punch-in' ? `Starts at Line ${t.startLine + 1} · “${t.startText.split(/\s+/).slice(0, 3).join(' ')}”` : `Starts at Line ${t.startLine + 1}`;
+
+      // Take WAVs are disk-backed Blobs, so a URL per take costs nothing up front.
+      q<HTMLAudioElement>('[data-audio]').src = URL.createObjectURL(await takeWav(t));
+      q('[data-download]').addEventListener('click', async () => download(await takeWav(t), takeFileName(t)));
+      q('[data-delete]').addEventListener('click', async () => {
+        if (!confirm(`Delete ${t.name}? This can’t be undone.`)) return;
+        await deleteTake(t.id);
+        render();
+      });
+      list.append(card);
+    }
+    if (selected) list.querySelector('[data-selected]')?.scrollIntoView({ block: 'nearest' });
+  }
+
 </script>

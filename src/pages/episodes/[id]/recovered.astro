@@ -9,10 +9,10 @@ export const getStaticPaths = episodePaths;
 
 const base = `/episodes/${episode.id}`;
 const rows = [
-  { k: 'Episode', v: episode.fullTitle },
-  { k: 'Take 3', v: '12:48 recovered', ok: true },
-  { k: 'Stopped at', v: '9:04 PM · line 18' },
-  { k: 'Format', v: '24-bit · 48 kHz · 110.6 MB' },
+  { k: 'Episode', v: episode.fullTitle, key: 'episode' },
+  { k: 'Take 3', v: '12:48 recovered', ok: true, key: 'take' },
+  { k: 'Stopped at', v: '9:04 PM · line 18', key: 'stopped' },
+  { k: 'Format', v: '24-bit · 48 kHz · 110.6 MB', key: 'format' },
 ];
 ---
 
@@ -21,32 +21,81 @@ const rows = [
     open
     aria-labelledby="recovered-title"
     class="fixed inset-0 z-10 m-auto flex w-[min(540px,calc(100vw-32px))] flex-col gap-5 rounded-2xl border border-edge bg-panel p-7 text-fg"
+    id="recovered"
+    data-episode={episode.id}
+    data-title={episode.fullTitle}
   >
     <h1 id="recovered-title" class="flex items-center gap-2.5 text-[20px] tracking-[-0.02em]">
       <Dot color="var(--color-ok)" size={9} />
       We saved your take
     </h1>
-    <p class="text-[14px] leading-[1.6] text-muted">
+    <p class="text-[14px] leading-[1.6] text-muted" data-summary>
       The tab closed while Take 3 was recording. Audio is saved every 5 seconds, so you lost less than 5 seconds.
     </p>
     <dl class="flex flex-col">
       {
         rows.map((r) => (
-          <div class="flex items-center justify-between gap-4 border-b border-line py-3 text-[13px]">
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 text-[13px]" data-row={r.key}>
             <dt class="text-muted">{r.k}</dt>
             <dd class="meta flex items-center gap-2">
               {r.ok && <Dot color="var(--color-ok)" />}
-              {r.v}
+              <span>{r.v}</span>
             </dd>
           </div>
         ))
       }
     </dl>
     <div class="flex flex-wrap justify-end gap-2.5">
-      <Button href={`${base}/studio`}>Discard</Button>
-      <Button>Download WAV</Button>
-      <Button href={`${base}/prompter`} variant="primary">Keep and continue from line 18</Button>
+      <Button href={`${base}/studio`} data-discard>Discard</Button>
+      <Button data-download>Download WAV</Button>
+      <Button href={`${base}/prompter`} variant="primary" data-keep>Keep and continue from line <span data-line>18</span></Button>
     </div>
   </dialog>
   <div class="fixed inset-0 bg-black/55" aria-hidden="true"></div>
 </Base>
+
+<script>
+  import { deleteTake, formatBytes, formatDuration, getTake, markDone, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
+  import { takeUrl } from '@/lib/flow';
+  import { download } from '@/lib/zip';
+
+  const root = document.getElementById('recovered')!;
+  const id = new URL(location.href).searchParams.get('take');
+  const episodeId = root.dataset.episode!;
+
+  if (id) {
+    getTake(id).then((take) => {
+      if (!take) return;
+      const set = (row: string, k: string | null, v: string) => {
+        const el = root.querySelector(`[data-row="${row}"]`)!;
+        if (k) el.querySelector('dt')!.textContent = k;
+        el.querySelector('dd span:last-child')!.textContent = v;
+      };
+      const stopped = new Date(take.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      root.querySelector('[data-summary]')!.textContent =
+        `The tab closed while ${take.name} was recording. Audio is saved every 5 seconds, so you lost less than 5 seconds.`;
+      set('episode', null, root.dataset.title!);
+      set('take', take.name, `${formatDuration(takeSeconds(take))} recovered`);
+      set('stopped', null, `${stopped} · line ${(take.lastLine ?? take.startLine) + 1}`);
+      set('format', null, `${take.bitDepth}-bit · ${take.sampleRate / 1000} kHz · ${formatBytes(take.samples * (take.bitDepth / 8))}`);
+      // Carry on as a punch-in from the last line voice follow saw.
+      const line = take.lastLine ?? take.startLine;
+      root.querySelector('[data-line]')!.textContent = String(line + 1);
+
+      root.querySelector<HTMLAnchorElement>('[data-discard]')!.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (!confirm(`Discard ${take.name}? The saved audio will be deleted.`)) return;
+        await deleteTake(take.id);
+        location.href = `/episodes/${episodeId}/studio`;
+      });
+      root.querySelector('[data-download]')!.addEventListener('click', async () => {
+        download(await takeWav(take), takeFileName(take));
+      });
+      root.querySelector<HTMLAnchorElement>('[data-keep]')!.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await markDone(take);
+        location.href = takeUrl(episodeId, line);
+      });
+    });
+  }
+</script>

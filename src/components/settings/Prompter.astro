@@ -26,7 +26,7 @@ const slider =
 const pct = (s: (typeof sliders)[number]) => `${(((s.value - s.min) / (s.max - s.min)) * 100).toFixed(1)}%`;
 ---
 
-<div class="grid gap-9 min-[1100px]:grid-cols-[1fr_340px]" data-prompter-settings data-themes={JSON.stringify(themes)}>
+<div class="grid gap-9 min-[1100px]:grid-cols-[1fr_340px]" data-prompter-settings>
   <div class="flex flex-col gap-5.5">
     <Section title="Prompter" description="Each screen can override these from its own menu." />
     <div class="flex flex-col gap-2">
@@ -102,23 +102,25 @@ const pct = (s: (typeof sliders)[number]) => `${(((s.value - s.min) / (s.max - s
 </div>
 
 <script>
+  import { loadSettings, saveSettings, themes, type PrompterSettings } from '@/lib/settings';
+
   const root = document.querySelector<HTMLElement>('[data-prompter-settings]');
   if (root) {
-    const themes = JSON.parse(root.dataset.themes!) as { value: string; bg: string; fg: string; dim: string }[];
+    const demo = new URL(location.href).searchParams.has('demo');
     const preview = root.querySelector<HTMLElement>('[data-preview]')!;
     const text = [...preview.querySelectorAll<HTMLElement>('[data-dim], [data-now]')];
+    const get = (n: string) => root.querySelector<HTMLInputElement>(`[name="${n}"]:checked, input[type=range][name="${n}"]`)!;
 
     const update = () => {
-      const get = (n: string) => root.querySelector<HTMLInputElement>(`[name="${n}"]:checked, input[type=range][name="${n}"]`)!;
       for (const r of root.querySelectorAll<HTMLInputElement>('input[type=range]')) {
         const p = ((Number(r.value) - Number(r.min)) / (Number(r.max) - Number(r.min))) * 100;
         r.style.setProperty('--pct', `${p}%`);
         root.querySelector(`[data-out="${r.name}"]`)!.textContent = r.name === 'spacing' ? Number(r.value).toFixed(1) : r.value;
       }
-      const theme = themes.find((t) => t.value === get('theme').value)!;
+      const theme = themes[get('theme').value as PrompterSettings['theme']];
       preview.style.background = theme.bg;
       preview.style.fontFamily = get('font').value;
-      preview.querySelector<HTMLElement>('[data-dim]')!.style.color = theme.dim;
+      preview.querySelector<HTMLElement>('[data-dim]')!.style.color = theme.nowPast;
       preview.querySelector<HTMLElement>('[data-now]')!.style.color = theme.fg;
       // Preview is scaled down: 34 pt on a prompter shows as 24 px here.
       const size = (Number(get('size').value) * 24) / 34;
@@ -127,6 +129,29 @@ const pct = (s: (typeof sliders)[number]) => `${(((s.value - s.min) / (s.max - s
         t.style.lineHeight = get('spacing').value;
       });
     };
+
+    if (!demo) {
+      const s = loadSettings().prompter;
+      const radio = (name: string, value: string) => {
+        const el = root.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`);
+        if (el) el.checked = true;
+      };
+      radio('font', s.font);
+      radio('theme', s.theme);
+      (root.querySelector('input[name=size]') as HTMLInputElement).value = String(s.size);
+      (root.querySelector('input[name=spacing]') as HTMLInputElement).value = String(s.spacing);
+      (root.querySelector('input[name=line]') as HTMLInputElement).value = String(s.line);
+      const save = () =>
+        saveSettings('prompter', {
+          font: get('font').value,
+          theme: get('theme').value as PrompterSettings['theme'],
+          size: Number(get('size').value),
+          spacing: Number(get('spacing').value),
+          line: Number(get('line').value),
+        });
+      root.addEventListener('change', save);
+    }
+    update();
     root.addEventListener('input', update);
     root.addEventListener('change', update);
   }

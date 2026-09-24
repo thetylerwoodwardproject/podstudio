@@ -7,6 +7,17 @@ import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 
 const e = '/episodes/142';
+const live: [string, string][] = [
+  ['Studio: pick format and scrolling, then Start take', `${e}/studio`],
+  ['Mic check: real level meter, clipping, noise floor, voice follow', `${e}/mic-check`],
+  ['Record a take (saved to this browser every 5 s)', `${e}/recording`],
+  ['Takes: play, download, delete, punch in from a line', `${e}/takes`],
+  ['Export: separate WAVs or one combined WAV with markers, tone and take list', `${e}/export`],
+  ['Phone prompter with voice follow (open while recording to follow along)', `${e}/prompter`],
+  ['Monitor window for a second screen', `${e}/monitor`],
+  ['Producer remote for the same browser', `${e}/remote`],
+];
+
 const groups: { title: string; items: [string, string, string][] }[] = [
   {
     title: 'Sign in & setup',
@@ -30,18 +41,18 @@ const groups: { title: string; items: [string, string, string][] }[] = [
     title: 'Recording',
     items: [
       ['1b', 'Join a session (phone)', '/join'],
-      ['1c', 'Studio control', `${e}/studio`],
-      ['7c', 'Mic check · host', `${e}/mic-check`],
+      ['1c', 'Studio control', `${e}/studio?demo`],
+      ['7c', 'Mic check · host', `${e}/mic-check?demo`],
       ['7c', 'Mic check · remote guest', '/invite/8f2k-q7mz'],
-      ['6b', 'Host view while recording', `${e}/recording`],
-      ['7d', 'Phone prompter · reading', `${e}/prompter`],
-      ['7d', 'Phone prompter · lost place', `${e}/prompter?state=lost`],
-      ['7d', 'Phone prompter · reconnecting', `${e}/prompter?state=off`],
-      ['7d', 'Phone prompter · guest upload', `${e}/prompter?state=up`],
-      ['1e', 'External monitor (M toggles mirror)', `${e}/monitor`],
-      ['5i', 'Producer remote (phone)', `${e}/remote`],
-      ['5d', 'Retake from a line', `${e}/takes`],
-      ['5f', 'Recovered take', `${e}/recovered`],
+      ['6b', 'Host view while recording', `${e}/recording?demo`],
+      ['7d', 'Phone prompter · reading', `${e}/prompter?demo`],
+      ['7d', 'Phone prompter · lost place', `${e}/prompter?demo&state=lost`],
+      ['7d', 'Phone prompter · reconnecting', `${e}/prompter?demo&state=off`],
+      ['7d', 'Phone prompter · guest upload', `${e}/prompter?demo&state=up`],
+      ['1e', 'External monitor (M toggles mirror)', `${e}/monitor?demo`],
+      ['5i', 'Producer remote (phone)', `${e}/remote?demo`],
+      ['5d', 'Retake from a line', `${e}/takes?demo`],
+      ['5f', 'Recovered take', `${e}/recovered?demo`],
     ],
   },
   {
@@ -50,7 +61,7 @@ const groups: { title: string; items: [string, string, string][] }[] = [
       ['2d', 'Transcribing', `${e}/transcribing`],
       ['2e', 'Transcript + episode package', `${e}/package`],
       ['3c', 'Transcript speakers', `${e}/transcript`],
-      ['7b', 'Export', `${e}/export`],
+      ['7b', 'Export', `${e}/export?demo`],
     ],
   },
   {
@@ -77,8 +88,28 @@ const groups: { title: string; items: [string, string, string][] }[] = [
     <div class="flex flex-col gap-3">
       <Logo />
       <h1 class="text-[26px] tracking-[-0.02em]">Screens</h1>
-      <p class="text-[13px] text-muted">Every screen from the design handoff, by its id. Data is mocked.</p>
+      <p class="text-[13px] text-muted">
+        Every screen from the design handoff, by its id. Links marked ?demo show the design’s example content.
+      </p>
     </div>
+    <section class="flex flex-col gap-2">
+      <h2 class="eyebrow">Try it live</h2>
+      <p class="text-[13px] leading-normal text-muted">
+        Recording, voice follow and exports work in this browser now. Open the monitor, prompter or remote in other tabs
+        or windows and they follow the recording tab. Syncing between devices, sign-in and transcripts need the server.
+      </p>
+      <ul class="flex flex-col border-t border-line">
+        {live.map(([label, href]) => (
+          <li>
+            <a href={href} class="flex items-center gap-4 border-b border-line py-3 text-[14px] text-fg hover:bg-surface">
+              <span class="w-8 font-mono text-[11px] text-ok">LIVE</span>
+              <span class="flex-1">{label}</span>
+              <span class="meta text-faint">{href}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
     {
       groups.map((g) => (
         <section class="flex flex-col gap-2">

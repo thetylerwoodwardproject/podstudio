@@ -37,11 +37,11 @@ until the new transmitter arrived.`;
 ---
 
 <AppShell title="Export" crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/package` }, { label: 'Export' }]}>
-  <form class="grid lg:h-full lg:grid-cols-[1fr_440px]">
+  <form class="grid lg:h-full lg:grid-cols-[1fr_440px]" id="export" data-episode={episode.id} data-label={`Ep${episode.number}`}>
     <div class="flex min-w-0 flex-col gap-5 border-line px-6 py-7 lg:overflow-auto lg:border-r lg:px-10">
       <div class="flex flex-col gap-1">
         <h2 class="eyebrow">Audio · one track per speaker</h2>
-        <div class="mt-2 flex flex-col border-t border-line">
+        <div class="mt-2 flex flex-col border-t border-line" data-demo-only>
           {
             tracks.map((t) => (
               <div class="grid grid-cols-[20px_150px_minmax(0,1fr)_70px] items-center gap-4 border-b border-line py-3">
@@ -60,6 +60,11 @@ until the new transmitter arrived.`;
               </div>
             ))
           }
+        </div>
+        <div class="mt-2 flex flex-col border-t border-line" data-live-only data-live-tracks>
+          <p class="border-b border-line py-4 text-[13px] text-subtle" data-empty>
+            No takes recorded yet. <a href={`/episodes/${episode.id}/studio`} class="text-fg">Go to the studio</a> to record one.
+          </p>
         </div>
         <p class="mt-1.5 text-[12px] text-subtle">Solo episodes show one track. Every track starts at 00:00:00 and has the same length.</p>
       </div>
@@ -80,7 +85,11 @@ until the new transmitter arrived.`;
         </div>
       </div>
 
-      <div class="flex flex-col gap-2">
+      <p class="text-[12px] text-subtle" data-live-only>
+        Transcripts, chapters and soundbites are made after Whisper runs on the Podstudio server, so they aren’t available
+        in this browser-only version yet.
+      </p>
+      <div class="flex flex-col gap-2 [html:not([data-demo])_&]:pointer-events-none [html:not([data-demo])_&]:opacity-40" data-needs-server>
         <h2 class="eyebrow">Transcript</h2>
         <div class="flex flex-wrap gap-2">
           {
@@ -101,7 +110,7 @@ until the new transmitter arrived.`;
         </Checkbox>
       </div>
 
-      <div class="grid gap-5 md:grid-cols-2">
+      <div class="grid gap-5 md:grid-cols-2 [html:not([data-demo])_&]:pointer-events-none [html:not([data-demo])_&]:opacity-40" data-needs-server>
         <div>
           <h2 class="eyebrow">Chapters</h2>
           <Checkbox name="ch-json" checked label="Podcasting 2.0 (.json)" class="gap-3 py-2 text-[14px]" />
@@ -115,8 +124,8 @@ until the new transmitter arrived.`;
       </div>
 
       <div class="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2">
-        <div class="meta text-muted">11 files · 838 MB</div>
-        <Button variant="primary">↓ Download selected (.zip)</Button>
+        <div class="meta text-muted" data-summary>11 files · 838 MB</div>
+        <Button variant="primary" data-download><span data-download-label>↓ Download selected (.zip)</span></Button>
       </div>
     </div>
 
@@ -126,4 +135,153 @@ until the new transmitter arrived.`;
       <CodeBlock code={vtt} />
     </aside>
   </form>
+
+  <template id="export-track">
+    <div class="grid grid-cols-[20px_150px_minmax(0,1fr)_70px] items-center gap-4 border-b border-line py-3">
+      <label class="flex items-center">
+        <input type="checkbox" checked class="peer sr-only" data-track-check />
+        <span
+          aria-hidden="true"
+          class="flex size-4 flex-none items-center justify-center rounded border border-edge-strong text-[11px] leading-none font-bold text-transparent peer-checked:border-fg peer-checked:bg-fg peer-checked:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-fg"
+          >✓</span
+        >
+        <span class="sr-only" data-track-label></span>
+      </label>
+      <div class="flex flex-col gap-[3px]">
+        <div class="flex items-center gap-2 text-[14px]"><span class="inline-block size-2 rounded-full" data-track-dot></span><span data-track-name></span></div>
+        <div class="truncate font-mono text-[10px] text-subtle" data-track-device></div>
+      </div>
+      <div class="flex h-9 w-full items-center gap-0.5" aria-hidden="true" data-track-wave></div>
+      <div class="text-right font-mono text-[11px] text-subtle" data-track-size></div>
+    </div>
+  </template>
 </AppShell>
+
+<script>
+  import { combinedWav, formatBytes, formatDuration, listTakes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { loadSettings } from '@/lib/settings';
+  import { download, zip, type ZipEntry } from '@/lib/zip';
+
+  const form = document.getElementById('export') as HTMLFormElement;
+  const demo = new URL(location.href).searchParams.has('demo');
+  if (!demo) live();
+
+  async function live() {
+    const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+    const episodeId = form.dataset.episode!;
+    const label = form.dataset.label!;
+    const takes = (await listTakes(episodeId)).filter((t) => t.status === 'done' && t.samples > 0);
+    const btn = $<HTMLButtonElement>('[data-download]');
+
+    // Default "Takes" choice from Recording settings.
+    const pref = loadSettings().recording.download;
+    form.querySelector<HTMLInputElement>(`input[name=takes][value=${pref}]`)!.checked = true;
+
+    // One row per speaker, built from that speaker's takes.
+    const bySpeaker = new Map<string, TakeMeta[]>();
+    for (const t of takes) bySpeaker.set(t.speaker, [...(bySpeaker.get(t.speaker) ?? []), t]);
+    const list = $('[data-live-tracks]');
+    $('[data-empty]').hidden = takes.length > 0;
+    const tpl = (document.getElementById('export-track') as HTMLTemplateElement).content.firstElementChild!;
+    for (const [speaker, own] of bySpeaker) {
+      const row = tpl.cloneNode(true) as HTMLElement;
+      const q = <T extends HTMLElement = HTMLElement>(s: string) => row.querySelector<T>(s)!;
+      const name = speaker.charAt(0) + speaker.slice(1).toLowerCase();
+      const color = `var(--spk-${speaker.toLowerCase()})`;
+      row.dataset.speaker = speaker;
+      q('[data-track-label]').textContent = name;
+      q('[data-track-name]').textContent = name;
+      q('[data-track-dot]').style.background = color;
+      q('[data-track-device]').textContent = `${own.length} take${own.length === 1 ? '' : 's'} · ${own[0].device}`;
+      q('[data-track-size]').textContent = formatBytes(own.reduce((n, t) => n + t.samples * (t.bitDepth / 8), 0));
+      // Waveform: all takes' half-second peaks squeezed into 70 bars.
+      const peaks = own.flatMap((t) => t.peaks);
+      const bars = 70;
+      const wave = q('[data-track-wave]');
+      for (let i = 0; i < bars; i++) {
+        const slice = peaks.slice(Math.floor((i * peaks.length) / bars), Math.floor(((i + 1) * peaks.length) / bars) || undefined);
+        const peak = slice.length ? Math.max(...slice) : 0;
+        const db = peak > 0 ? 20 * Math.log10(peak) : -60;
+        const bar = document.createElement('span');
+        bar.className = 'flex-1 rounded-[1px]';
+        bar.style.background = color;
+        bar.style.height = `${Math.max(6, Math.min(100, ((db + 60) / 60) * 100))}%`;
+        bar.style.opacity = db < -45 ? '0.25' : '0.85';
+        wave.append(bar);
+      }
+      list.append(row);
+    }
+
+    const selected = () => {
+      const on = new Set([...form.querySelectorAll<HTMLElement>('[data-speaker]')].filter((r) => r.querySelector<HTMLInputElement>('[data-track-check]')!.checked).map((r) => r.dataset.speaker));
+      return takes.filter((t) => on.has(t.speaker));
+    };
+    const opts = () => {
+      const data = new FormData(form);
+      return { combined: data.get('takes') === 'combined', markers: data.has('markers'), tone: data.has('tone'), csv: data.has('takelist') };
+    };
+
+    // Files that will be written, for the summary and the download.
+    const plan = () => {
+      const chosen = selected();
+      const o = opts();
+      const speakers = [...new Set(chosen.map((t) => t.speaker))];
+      const wavs = o.combined ? speakers.length : chosen.length;
+      const bytes = chosen.reduce((n, t) => n + t.samples * (t.bitDepth / 8), 0);
+      const files = wavs + (o.csv && chosen.length ? 1 : 0);
+      return { chosen, o, speakers, files, bytes };
+    };
+    const refresh = () => {
+      const { files, bytes } = plan();
+      $('[data-summary]').textContent = files ? `${files} file${files === 1 ? '' : 's'} · ${formatBytes(bytes)}` : 'Nothing selected';
+      btn.disabled = !files;
+      $('[data-download-label]').textContent = files === 1 ? '↓ Download selected (.wav)' : '↓ Download selected (.zip)';
+    };
+    form.addEventListener('change', refresh);
+    refresh();
+
+    const stamp = (seconds: number) => {
+      const ms = Math.round((seconds % 1) * 1000);
+      const s = Math.floor(seconds);
+      return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+    };
+    const csvCell = (v: string) => `"${v.replace(/"/g, '""')}"`;
+
+    btn.addEventListener('click', async () => {
+      const { chosen, o, speakers } = plan();
+      if (!chosen.length) return;
+      btn.disabled = true;
+      $('[data-download-label]').textContent = 'Preparing…';
+      try {
+        const entries: ZipEntry[] = [];
+        const rows = [['file', 'take', 'kind', 'start', 'length', 'first line'].join(',')];
+        if (o.combined) {
+          for (const speaker of speakers) {
+            const own = chosen.filter((t) => t.speaker === speaker);
+            const formats = new Set(own.map((t) => `${t.sampleRate}/${t.bitDepth}`));
+            if (formats.size > 1) throw new Error(`${speaker.charAt(0)}${speaker.slice(1).toLowerCase()}’s takes were recorded in different formats. Download them as separate files.`);
+            const name = `${label}_${speaker.charAt(0)}${speaker.slice(1).toLowerCase()}_combined.wav`;
+            const { blob, starts } = await combinedWav(own, { markers: o.markers, tone: o.tone });
+            entries.push({ name, data: blob });
+            own.forEach((t, i) =>
+              rows.push([name, t.name, t.kind, stamp(starts[i] / t.sampleRate), formatDuration(takeSeconds(t)), csvCell(t.startText)].join(',')),
+            );
+          }
+        } else {
+          for (const t of chosen) {
+            const name = takeFileName(t, label);
+            entries.push({ name, data: await takeWav(t) });
+            rows.push([name, t.name, t.kind, stamp(0), formatDuration(takeSeconds(t)), csvCell(t.startText)].join(','));
+          }
+        }
+        if (o.csv) entries.push({ name: `${label}_takes.csv`, data: rows.join('\n') + '\n' });
+        if (entries.length === 1) download(entries[0].data as Blob, entries[0].name);
+        else download(await zip(entries), `${label}_export.zip`);
+      } catch (err) {
+        alert((err as Error).message);
+      } finally {
+        refresh();
+      }
+    });
+  }
+</script>

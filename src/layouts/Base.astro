@@ -20,6 +20,10 @@ const { title, anyBrowser = false, bodyClass = '' } = Astro.props;
     <meta name="theme-color" content="#0b0b0c" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title === 'Podstudio' ? title : `${title} · Podstudio`}</title>
+    <script is:inline>
+      // ?demo shows the design's example content instead of live data (see [data-demo-only]).
+      if (new URLSearchParams(location.search).has('demo')) document.documentElement.dataset.demo = '';
+    </script>
     <script is:inline define:vars={{ STORAGE_KEY }}>
       // Apply saved speaker colors before first paint.
       try {

@@ -6,7 +6,7 @@ import Segmented from '@/components/ui/Segmented.astro';
 import Switch from '@/components/ui/Switch.astro';
 import Button from '@/components/ui/Button.astro';
 import { devices, episode, episodePaths, studioScript } from '@/data/mock';
-import { mbPerMinute } from '@/lib/audio';
+import { mbPerMinute } from '@/lib/audio/format';
 
 export const getStaticPaths = episodePaths;
 
@@ -28,7 +28,13 @@ const menu = [
 <AppShell title="Studio" crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}>
   <JoinCode slot="topbar" />
 
-  <form class="grid lg:h-full lg:grid-cols-[1fr_380px]" data-studio data-next={`${base}/mic-check`} data-mode-help={JSON.stringify(modeHelp)}>
+  <form
+    class="grid lg:h-full lg:grid-cols-[1fr_380px]"
+    data-studio
+    data-episode={episode.id}
+    data-next={`${base}/mic-check`}
+    data-mode-help={JSON.stringify(modeHelp)}
+  >
     <section class="flex min-h-0 flex-col border-line lg:border-r">
       <div class="flex items-center justify-between border-b border-line px-7 py-3.5 text-[13px] text-muted">
         <div class="flex gap-4.5">
@@ -129,7 +135,7 @@ const menu = [
       <div class="mt-auto flex gap-2.5 p-5">
         <Button type="submit" variant="record" size="xl" class="flex-1 gap-2.5">
           <span class="size-2.5 rounded-full bg-white"></span>
-          Start take {episode.takeCount}
+          Start take <span data-take-number>{episode.takeCount}</span>
         </Button>
         <button
           type="button"
@@ -158,11 +164,17 @@ const menu = [
 </AppShell>
 
 <script>
-  import { mbPerMinute } from '@/lib/audio';
+  import { mbPerMinute } from '@/lib/audio/format';
+  import { listTakes } from '@/lib/audio/takes';
+  import { takeUrl } from '@/lib/flow';
+  import { offerRecovery } from '@/lib/recovery';
+  import { loadSettings, saveSettings } from '@/lib/settings';
 
   const form = document.querySelector<HTMLFormElement>('[data-studio]')!;
   const help = JSON.parse(form.dataset.modeHelp!) as Record<string, string>;
   const q = <T extends Element = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+  const episodeId = form.dataset.episode!;
+  const demo = new URL(location.href).searchParams.has('demo');
 
   const update = () => {
     const data = new FormData(form);
@@ -172,5 +184,37 @@ const menu = [
     q('[data-size]').textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
     q('[data-mode-text]').textContent = help[String(data.get('mode'))];
   };
+
+  // Load the saved choices into the form, then save every change.
+  if (!demo) {
+    const { recording: r, prompter: p } = loadSettings();
+    const pick = (name: string, value: string) => {
+      const input = form.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`);
+      if (input && !input.disabled) input.checked = true;
+    };
+    pick('recorder', r.recorder);
+    pick('depth', String(r.depth));
+    pick('rate', String(r.rate));
+    pick('mode', p.mode);
+    q<HTMLInputElement>('input[name=tone]').checked = r.tone;
+    update();
+
+    form.addEventListener('change', () => {
+      const data = new FormData(form);
+      saveSettings('recording', {
+        recorder: String(data.get('recorder')),
+        depth: Number(data.get('depth')) as 16 | 24,
+        rate: Number(data.get('rate')) as 44.1 | 48,
+        tone: data.has('tone'),
+      });
+      saveSettings('prompter', { mode: data.get('mode') as 'voice' | 'manual' });
+    });
+
+    offerRecovery(episodeId);
+    listTakes(episodeId).then((takes) => {
+      q('[data-take-number]').textContent = String(takes.reduce((n, t) => Math.max(n, t.number), 0) + 1);
+    });
+    form.dataset.next = takeUrl(episodeId);
+  }
   form.addEventListener('change', update);
 </script>
