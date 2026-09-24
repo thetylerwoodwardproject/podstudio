@@ -57,3 +57,24 @@ test('a jump back is followed when the reader re-reads', () => {
   const r = locate(script, normalize('it was a quiet week'), 0, { behind: 0 });
   assert.equal(r && at(r.index), 'week');
 });
+
+// Takes mode showed the next speaker's line after a few words: these jumps caused it.
+const turn = normalize('Power, cooling, and the first time we keyed it up. And whether the floor could hold it.');
+
+test('a filler word does not jump the reader to the next line', () => {
+  // "and" heard after "first time" matches the next line's "And", five words on.
+  const r = locate(turn, normalize('first time and'), 6);
+  assert.ok(!r || r.index <= 8, `jumped to ${r && turn[r.index]}`);
+});
+
+test('a half word only moves the reader on when it starts the next word', () => {
+  // "so" isn't the start of "four", so the reader stays on "arrived".
+  const r = locate(script, normalize('the new transmitter arrived so'), 11);
+  assert.ok(!r || at(r.index) !== 'four', 'moved on to "four"');
+  assert.equal(at(locate(script, normalize('the new transmitter arrived fo'), 11)!.index), 'four');
+});
+
+test('common words in order still place the reader', () => {
+  const r = locate(turn, normalize('keyed it up and whether the'), 8);
+  assert.equal(r && turn[r.index], 'the');
+});
