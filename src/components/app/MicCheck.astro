@@ -129,6 +129,7 @@ const LIT = 30;
 
 <script>
   import { MicCapture } from '@/lib/audio/capture';
+  import { availableInput, inputChoices } from '@/lib/audio/devices';
   import { listTakes, storageLeft, formatBytes } from '@/lib/audio/takes';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { locate, normalize } from '@/lib/voice/match';
@@ -170,7 +171,7 @@ const LIT = 30;
       ? '●&nbsp; Start session'
       : `●&nbsp; Start take ${takes.reduce((n, t) => Math.max(n, t.number), 0) + 1}`;
 
-    const { free, hours } = await storageLeft(hz(settings.rate), settings.depth);
+    const { free, hours } = await storageLeft(hz(settings.rate), settings.depth, settings.channels);
     check(4, `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`, hours < 2 ? warn : ok);
 
     // Level meter: segments follow the scale under it (-60, -24, -12, -6, 0 dBFS evenly spaced).
@@ -233,7 +234,7 @@ const LIT = 30;
 
     async function open(deviceId: string) {
       try {
-        await capture.open({ deviceId, sampleRate: hz(settings.rate) });
+        await capture.open({ deviceId, sampleRate: hz(settings.rate), channels: settings.channels });
       } catch (err) {
         const denied = (err as Error).name === 'NotAllowedError';
         check(0, denied ? 'Microphone blocked' : 'No microphone', bad);
@@ -250,20 +251,22 @@ const LIT = 30;
         $('[data-heard]').textContent = 'Click anywhere to start the meter.';
         addEventListener('pointerdown', () => capture.ctx?.resume(), { once: true });
       }
-      // Real device names are only available after permission.
+      // Real device names are only available after permission. "System default" follows the
+      // computer's sound settings; interfaces list each input on its own.
       const select = $<HTMLSelectElement>('[data-mic]');
-      const inputs = await MicCapture.inputs();
-      select.replaceChildren(
-        ...inputs.map((d, i) => new Option(d.label || `Microphone ${i + 1}`, d.deviceId, false, d.deviceId === capture.deviceId)),
-      );
+      const choices = await inputChoices(settings.channels);
+      select.replaceChildren(...choices.map((c) => new Option(c.label, c.value, false, c.value === deviceId)));
+      if (select.value !== deviceId) select.value = '';
+      voice?.setTrack(capture.voiceTrack());
     }
 
+    let voice: VoiceFollow | null = null;
     $<HTMLSelectElement>('[data-mic]').addEventListener('change', (e) => {
       const deviceId = (e.target as HTMLSelectElement).value;
       saveSettings('recording', { deviceId });
       open(deviceId);
     });
-    await open(settings.deviceId);
+    await open(await availableInput(settings.deviceId, settings.channels));
 
     // Voice follow check: can Chrome hear you, and does it match the script?
     if (!voiceFollowSupported()) {
@@ -273,24 +276,27 @@ const LIT = 30;
     const tokens = words.flatMap((w) => normalize(w));
     const tokenLine: number[] = [];
     words.forEach((w, i) => normalize(w).forEach(() => tokenLine.push(starts.reduce((l, s, n) => (i >= s ? n : l), 0))));
-    const voice = new VoiceFollow(words);
+    voice = new VoiceFollow(words);
     voice.engine = loadSettings().prompter.voiceEngine;
-    voice.addEventListener('heard', (e) => {
+    // Listen to the selected input, not the system default mic.
+    voice.track = capture.voiceTrack();
+    const v = voice;
+    v.addEventListener('heard', (e) => {
       const text = (e as CustomEvent<string>).detail;
       $('[data-heard]').textContent = `“${text}”`;
       const hit = locate(tokens, normalize(text).slice(-8), 0, { behind: 0, ahead: tokens.length });
       if (hit) check(3, `Matched line ${tokenLine[hit.index] + 1}`, ok);
       else check(3, 'Listening · no script match yet', warn);
     });
-    voice.addEventListener('error', (e) => {
+    v.addEventListener('error', (e) => {
       const err = (e as CustomEvent<string>).detail;
       check(3, voiceErrorText(err), warn);
     });
-    voice.addEventListener('status', (e) => (e as CustomEvent<string>).detail === 'listening' && check(3, 'Listening…', warn));
-    voice.start();
+    v.addEventListener('status', (e) => (e as CustomEvent<string>).detail === 'listening' && check(3, 'Listening…', warn));
+    v.start();
 
     form.addEventListener('submit', () => {
-      voice.stop();
+      v.stop();
       capture.close();
     });
   }

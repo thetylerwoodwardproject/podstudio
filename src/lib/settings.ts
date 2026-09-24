@@ -3,12 +3,14 @@
  * screen, the settings pages and the prompters all read from here.
  */
 
-import type { BitDepth } from './audio/wav';
+import type { BitDepth, Channels } from './audio/wav';
 
 export interface RecordingSettings {
   depth: BitDepth;
   /** kHz, as shown in the UI */
   rate: 44.1 | 48;
+  /** 1 mono, 2 stereo (inputs 1 and 2 as left and right) */
+  channels: Channels;
   tone: boolean;
   micCheck: boolean;
   download: 'separate' | 'combined';
@@ -42,7 +44,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac', mode: 'continuous', retakeTone: true },
+  recording: { depth: 24, rate: 48, channels: 1, tone: false, micCheck: true, download: 'separate', deviceId: '', recorder: 'mac', mode: 'continuous', retakeTone: true },
   prompter: {
     mode: 'voice',
     wpm: 150,

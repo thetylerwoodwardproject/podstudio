@@ -55,7 +55,7 @@ const rows = [
 </Base>
 
 <script>
-  import { deleteTake, formatBytes, formatDuration, getTake, markDone, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
+  import { deleteTake, formatBytes, formatDuration, getTake, markDone, takeBytes, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
   import { takeUrl } from '@/lib/flow';
   import { download } from '@/lib/zip';
 
@@ -77,7 +77,7 @@ const rows = [
       set('episode', null, root.dataset.title!);
       set('take', take.name, `${formatDuration(takeSeconds(take))} recovered`);
       set('stopped', null, `${stopped} · line ${(take.lastLine ?? take.startLine) + 1}`);
-      set('format', null, `${take.bitDepth}-bit · ${take.sampleRate / 1000} kHz · ${formatBytes(take.samples * (take.bitDepth / 8))}`);
+      set('format', null, `${take.bitDepth}-bit · ${take.sampleRate / 1000} kHz · ${take.channels === 2 ? 'stereo' : 'mono'} · ${formatBytes(takeBytes(take))}`);
       // Carry on as a punch-in from the last line voice follow saw.
       const line = take.lastLine ?? take.startLine;
       root.querySelector('[data-line]')!.textContent = String(line + 1);

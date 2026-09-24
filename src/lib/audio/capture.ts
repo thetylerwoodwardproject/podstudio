@@ -3,8 +3,12 @@
  * (echo cancellation, noise suppression, auto gain) is turned off so the
  * WAV is the raw mic signal.
  *
- * Events: "level" { peak, rms } in dBFS, "chunk" Float32Array while recording.
+ * Events: "level" { peak, rms } in dBFS, "chunk" Float32Array while recording
+ * (interleaved L R when stereo).
  */
+
+import { parseInput } from './devices';
+import type { Channels } from './wav';
 
 export const toDb = (v: number) => (v > 0 ? 20 * Math.log10(v) : -Infinity);
 
@@ -36,12 +40,28 @@ export class MicCapture extends EventTarget {
     return this.stream?.getAudioTracks()[0]?.getSettings().deviceId ?? '';
   }
 
-  async open({ deviceId, sampleRate }: { deviceId?: string; sampleRate: number }) {
+  /** Input channel being recorded in mono, or null when all inputs are summed */
+  channel: number | null = null;
+  /** 1 for mono, 2 for stereo (inputs 1 and 2 as left and right) */
+  channels: Channels = 1;
+
+  /**
+   * Open a microphone. `deviceId` is a stored input value (see devices.ts):
+   * '' for the system default, a device id, or 'id#n' for one input of an interface
+   * (mono only: stereo always records the device's inputs 1 and 2).
+   */
+  async open({ deviceId, sampleRate, channels = 1 }: { deviceId?: string; sampleRate: number; channels?: Channels }) {
     await this.close();
+    const input = parseInput(deviceId);
+    this.channels = channels;
+    this.channel = channels === 2 ? null : input.channel;
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        deviceId: deviceId ? { exact: deviceId } : undefined,
-        channelCount: 1,
+        deviceId: input.deviceId ? { exact: input.deviceId } : undefined,
+        // The device's own inputs, mixed here if at all. Chrome's mono downmix averages
+        // them, so a mic on input 1 of a two-input interface would meter and record
+        // 6 dB low and clip at -6 dBFS.
+        channelCount: { ideal: Math.max(2, (this.channel ?? 0) + 1) },
         sampleRate,
         echoCancellation: false,
         noiseSuppression: false,
@@ -52,7 +72,16 @@ export class MicCapture extends EventTarget {
     this.ctx = new AudioContext({ sampleRate, latencyHint: 'interactive' });
     await this.ctx.audioWorklet.addModule('/worklets/recorder.js');
     const source = this.ctx.createMediaStreamSource(this.stream);
-    this.node = new AudioWorkletNode(this.ctx, 'podstudio-recorder', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1, channelCountMode: 'explicit' });
+    const inputs = Math.max(1, this.stream.getAudioTracks()[0]?.getSettings().channelCount ?? 1);
+    this.node = new AudioWorkletNode(this.ctx, 'podstudio-recorder', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      channelCount: inputs,
+      channelCountMode: 'explicit',
+      // Keep interface inputs separate instead of up/down-mixing them as speakers.
+      channelInterpretation: 'discrete',
+      processorOptions: { channel: this.channel, channels },
+    });
     const mute = this.ctx.createGain();
     mute.gain.value = 0;
     source.connect(this.node).connect(mute).connect(this.ctx.destination);
@@ -62,8 +91,19 @@ export class MicCapture extends EventTarget {
       if (d.type === 'chunk') this.dispatchEvent(new CustomEvent<Float32Array>('chunk', { detail: d.samples }));
       if (d.type === 'stopped') this.dispatchEvent(new Event('stopped'));
     };
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
+    // Without a click on this page, Chrome keeps audio suspended; don't wait on it.
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
   }
+
+  /**
+   * The mic as a live track, for voice follow. It's the device's own track (on an
+   * interface, every input mixed), so it works before any click on the page and
+   * hears everyone on that device.
+   */
+  voiceTrack(): MediaStreamTrack | null {
+    return this.stream?.getAudioTracks()[0] ?? null;
+  }
+
 
   record() {
     this.node?.port.postMessage('record');

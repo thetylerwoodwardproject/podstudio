@@ -158,7 +158,7 @@ until the new transmitter arrived.`;
 </AppShell>
 
 <script>
-  import { combinedWav, formatBytes, formatDuration, listTakes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { combinedWav, formatBytes, formatDuration, listTakes, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { loadSettings } from '@/lib/settings';
   import { download, zip, type ZipEntry } from '@/lib/zip';
 
@@ -193,7 +193,7 @@ until the new transmitter arrived.`;
       q('[data-track-name]').textContent = name;
       q('[data-track-dot]').style.background = color;
       q('[data-track-device]').textContent = `${own.length} take${own.length === 1 ? '' : 's'} · ${own[0].device}`;
-      q('[data-track-size]').textContent = formatBytes(own.reduce((n, t) => n + t.samples * (t.bitDepth / 8), 0));
+      q('[data-track-size]').textContent = formatBytes(own.reduce((n, t) => n + takeBytes(t), 0));
       // Waveform: all takes' half-second peaks squeezed into 70 bars.
       const peaks = own.flatMap((t) => t.peaks);
       const bars = 70;
@@ -227,7 +227,7 @@ until the new transmitter arrived.`;
       const o = opts();
       const speakers = [...new Set(chosen.map((t) => t.speaker))];
       const wavs = o.combined ? speakers.length : chosen.length;
-      const bytes = chosen.reduce((n, t) => n + t.samples * (t.bitDepth / 8), 0);
+      const bytes = chosen.reduce((n, t) => n + takeBytes(t), 0);
       const files = wavs + (o.csv && chosen.length ? 1 : 0);
       return { chosen, o, speakers, files, bytes };
     };

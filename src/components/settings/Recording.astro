@@ -3,10 +3,23 @@ import Section from './Section.astro';
 import ToggleRow from './ToggleRow.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import { mbPerMinute } from '@/lib/audio/format';
+import Select from '@/components/ui/Select.astro';
 ---
 
 <Section title="Recording" description="Defaults for new sessions. The host can change them per session from the studio screen." />
-<div class="grid gap-4 sm:grid-cols-2" data-format>
+<div class="flex flex-col gap-2" data-live-only>
+  <label for="rec-mic" class="text-[12px] text-muted">Microphone</label>
+  <Select id="rec-mic" options={['System default']} data-rec-mic />
+  <p class="text-[12px] text-subtle">
+    Recording and voice follow both use this input. “System default” follows your computer’s sound settings. In mono,
+    an interface with several inputs lists each one; stereo records inputs 1 and 2 as left and right.
+  </p>
+</div>
+<div class="grid gap-4 sm:grid-cols-3" data-format>
+  <div class="flex flex-col gap-2">
+    <div class="text-[12px] text-muted">Channels</div>
+    <Segmented name="channels" label="Channels" value="1" options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} />
+  </div>
   <div class="flex flex-col gap-2">
     <div class="text-[12px] text-muted">Bit depth</div>
     <Segmented name="depth" label="Bit depth" value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
@@ -16,7 +29,7 @@ import { mbPerMinute } from '@/lib/audio/format';
     <Segmented name="rate" label="Sample rate" value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
   </div>
 </div>
-<div class="meta -mt-2 text-subtle">Mono WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
+<div class="meta -mt-2 text-subtle"><span data-channels-label>Mono</span> WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
 <ToggleRow name="mic-check" checked title="Mic check before every take" hint="Level, clipping, room noise and voice follow" />
 <ToggleRow name="tone" title="Tone between takes" hint="1 kHz · −20 dBFS · 0.5 s, only in combined downloads" />
 <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />
@@ -26,8 +39,33 @@ import { mbPerMinute } from '@/lib/audio/format';
 </div>
 
 <script>
-  import { mbPerMinute } from '@/lib/audio/format';
+  import { channelsLabel, mbPerMinute } from '@/lib/audio/format';
   import { loadSettings, saveSettings } from '@/lib/settings';
+  import { inputChoices, inputFor } from '@/lib/audio/devices';
+
+  // Microphone: names show once the browser has been allowed to use the mic.
+  const micSelect = document.querySelector<HTMLSelectElement>('[data-rec-mic]');
+  if (micSelect) {
+    const fill = async () => {
+      const { deviceId, channels } = loadSettings().recording;
+      const saved = inputFor(deviceId, channels);
+      const choices = await inputChoices(channels);
+      micSelect.replaceChildren(...choices.map((c) => new Option(c.label, c.value, false, c.value === saved)));
+      if (saved && !choices.some((c) => c.value === saved)) {
+        micSelect.prepend(new Option('Saved mic (not connected)', saved, false, true));
+      }
+    };
+    fill();
+    navigator.mediaDevices.addEventListener('devicechange', fill);
+    // Stereo lists devices, mono lists each input: refill when it changes.
+    document.addEventListener('podstudio:channels', fill);
+    // Asking once reveals device names.
+    micSelect.addEventListener('focus', () => navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => (s.getTracks().forEach((t) => t.stop()), fill())).catch(() => {}), { once: true });
+    micSelect.addEventListener('change', (e) => {
+      e.stopPropagation();
+      saveSettings('recording', { deviceId: micSelect.value });
+    });
+  }
 
   const form = document.querySelector<HTMLFormElement>('[data-settings]')!;
   const size = form.querySelector('[data-size]');
@@ -35,7 +73,9 @@ import { mbPerMinute } from '@/lib/audio/format';
     const demo = new URL(location.href).searchParams.has('demo');
     const refresh = () => {
       const data = new FormData(form);
-      size.textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
+      const channels = Number(data.get('channels') ?? 1);
+      size.textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')), channels);
+      form.querySelector('[data-channels-label]')!.textContent = channelsLabel(channels);
     };
     if (!demo) {
       const r = loadSettings().recording;
@@ -45,19 +85,24 @@ import { mbPerMinute } from '@/lib/audio/format';
       };
       pick('depth', String(r.depth));
       pick('rate', String(r.rate));
+      pick('channels', String(r.channels));
       pick('download', r.download);
       form.querySelector<HTMLInputElement>('input[name=mic-check]')!.checked = r.micCheck;
       form.querySelector<HTMLInputElement>('input[name=tone]')!.checked = r.tone;
       refresh();
       form.addEventListener('change', () => {
         const data = new FormData(form);
+        const channels = Number(data.get('channels')) as 1 | 2;
+        const changed = channels !== loadSettings().recording.channels;
         saveSettings('recording', {
+          channels,
           depth: Number(data.get('depth')) as 16 | 24,
           rate: Number(data.get('rate')) as 44.1 | 48,
           download: data.get('download') as 'separate' | 'combined',
           micCheck: data.has('mic-check'),
           tone: data.has('tone'),
         });
+        if (changed) document.dispatchEvent(new Event('podstudio:channels'));
       });
     }
     form.addEventListener('change', refresh);

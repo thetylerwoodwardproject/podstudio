@@ -17,7 +17,8 @@ interface Recognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  start(): void;
+  /** Chrome: start(track) listens to that audio track instead of the default mic */
+  start(track?: MediaStreamTrack): void;
   stop(): void;
   abort(): void;
   onresult: ((e: RecognitionEvent) => void) | null;
@@ -102,6 +103,11 @@ export class VoiceFollow extends EventTarget {
   private running = false;
   /** Set before start(). */
   engine: Engine = 'auto';
+  /**
+   * The mic to listen to (the same input that's being recorded). Without it,
+   * Chrome listens to the system default mic, which may be a different device.
+   */
+  track: MediaStreamTrack | null = null;
   /** True once start() picked on-device recognition */
   local = false;
   private resultsThisSession = false;
@@ -168,6 +174,12 @@ export class VoiceFollow extends EventTarget {
     this.listen(C);
   }
 
+  /** Listen to a different mic from now on. */
+  setTrack(track: MediaStreamTrack | null) {
+    this.track = track;
+    if (this.running) this.rec?.abort(); // onend restarts on the new track
+  }
+
   stop() {
     this.running = false;
     this.announced = false;
@@ -217,7 +229,14 @@ export class VoiceFollow extends EventTarget {
       } else this.emit('status', 'stopped');
     };
     this.rec = rec;
-    rec.start();
+    const track = this.track?.readyState === 'live' ? this.track : null;
+    try {
+      if (track) rec.start(track);
+      else rec.start();
+    } catch {
+      // Older Chrome without track support: fall back to the default mic.
+      rec.start();
+    }
     if (!this.announced) this.emit('status', 'listening');
     this.announced = true;
   }

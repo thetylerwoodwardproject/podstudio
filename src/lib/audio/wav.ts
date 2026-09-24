@@ -1,5 +1,6 @@
 /*
- * Mono PCM WAV encoding, 16 or 24-bit. Takes float samples in chunks so a
+ * PCM WAV encoding, mono or stereo, 16 or 24-bit. Stereo samples are
+ * interleaved (L R L R …). Takes float samples in chunks so a
  * long take never needs one giant buffer: each chunk becomes one Blob part.
  * Optional cue markers (cue + LIST/adtl/labl) are read by Reaper, Audition,
  * Pro Tools and Logic.
@@ -7,8 +8,10 @@
 
 export type BitDepth = 16 | 24;
 
+export type Channels = 1 | 2;
+
 export interface Marker {
-  /** Position in samples from the start of the file */
+  /** Position in sample frames from the start of the file */
   at: number;
   label: string;
 }
@@ -16,6 +19,8 @@ export interface Marker {
 export interface WavOptions {
   sampleRate: number;
   bitDepth: BitDepth;
+  /** 1 (mono, the default) or 2 (stereo, interleaved) */
+  channels?: Channels;
   markers?: Marker[];
 }
 
@@ -81,10 +86,10 @@ export function markerChunks(markers: Marker[]): Uint8Array {
   return out;
 }
 
-/** RIFF + fmt + data headers for `samples` mono samples. */
-export function wavHeader(samples: number, { sampleRate, bitDepth }: WavOptions, trailingBytes = 0): Uint8Array {
-  const blockAlign = bitDepth / 8;
-  const dataSize = samples * blockAlign;
+/** RIFF + fmt + data headers for `frames` sample frames (one sample per channel). */
+export function wavHeader(frames: number, { sampleRate, bitDepth, channels = 1 }: WavOptions, trailingBytes = 0): Uint8Array {
+  const blockAlign = (bitDepth / 8) * channels;
+  const dataSize = frames * blockAlign;
   const pad = dataSize % 2;
   const out = new Uint8Array(44);
   const view = new DataView(out.buffer);
@@ -94,7 +99,7 @@ export function wavHeader(samples: number, { sampleRate, bitDepth }: WavOptions,
   ascii(view, 12, 'fmt ');
   view.setUint32(16, 16, true);
   view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
+  view.setUint16(22, channels, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * blockAlign, true);
   view.setUint16(32, blockAlign, true);
@@ -104,12 +109,12 @@ export function wavHeader(samples: number, { sampleRate, bitDepth }: WavOptions,
   return out;
 }
 
-/** Build a WAV Blob from float chunks. */
+/** Build a WAV Blob from float chunks (interleaved when stereo). */
 export function encodeWav(chunks: Float32Array[], opts: WavOptions): Blob {
   const samples = chunks.reduce((n, c) => n + c.length, 0);
   const markers = markerChunks(opts.markers ?? []);
   const pad = (samples * (opts.bitDepth / 8)) % 2;
-  const parts: BlobPart[] = [wavHeader(samples, opts, markers.length) as BlobPart];
+  const parts: BlobPart[] = [wavHeader(samples / (opts.channels ?? 1), opts, markers.length) as BlobPart];
   for (const c of chunks) parts.push(pcmBytes(c, opts.bitDepth) as BlobPart);
   if (pad) parts.push(new Uint8Array(1) as BlobPart);
   if (markers.length) parts.push(markers as BlobPart);
@@ -117,17 +122,21 @@ export function encodeWav(chunks: Float32Array[], opts: WavOptions): Blob {
 }
 
 /** Sine tone for marking joins between takes: 1 kHz at -20 dBFS for 0.5 s by default. */
-export function tone(sampleRate: number, { freq = 1000, dbfs = -20, seconds = 0.5 } = {}): Float32Array {
+export function tone(
+  sampleRate: number,
+  { freq = 1000, dbfs = -20, seconds = 0.5, channels = 1 as Channels } = {},
+): Float32Array {
   const amp = 10 ** (dbfs / 20);
   const n = Math.round(sampleRate * seconds);
-  const out = new Float32Array(n);
+  const out = new Float32Array(n * channels);
   const fade = Math.min(n / 2, Math.round(sampleRate * 0.005)); // 5 ms ramps avoid clicks
   for (let i = 0; i < n; i++) {
     const env = Math.min(1, i / fade, (n - 1 - i) / fade);
-    out[i] = amp * env * Math.sin((2 * Math.PI * freq * i) / sampleRate);
+    out.fill(amp * env * Math.sin((2 * Math.PI * freq * i) / sampleRate), i * channels, (i + 1) * channels);
   }
   return out;
 }
 
-/** Bytes per minute of mono audio at this format. */
-export const bytesPerSecond = (sampleRate: number, bitDepth: BitDepth) => sampleRate * (bitDepth / 8);
+/** Bytes per second of audio at this format. */
+export const bytesPerSecond = (sampleRate: number, bitDepth: BitDepth, channels: Channels = 1) =>
+  sampleRate * (bitDepth / 8) * channels;

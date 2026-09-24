@@ -117,6 +117,10 @@ const menu = [
           <div class="text-[12px] text-muted">Sample rate</div>
           <Segmented name="rate" label="Sample rate" mono value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
         </div>
+        <div class="flex flex-col gap-[7px]">
+          <div class="text-[12px] text-muted">Channels</div>
+          <Segmented name="channels" label="Channels" value="1" options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} />
+        </div>
         <div class="flex items-center justify-between gap-3">
           <div>
             <div class="text-[13px]">Tone between takes</div>
@@ -170,6 +174,7 @@ const menu = [
 <script>
   import { mbPerMinute } from '@/lib/audio/format';
   import { listTakes } from '@/lib/audio/takes';
+  import { describeInput } from '@/lib/audio/devices';
   import { takeUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { loadSettings, saveSettings } from '@/lib/settings';
@@ -185,7 +190,7 @@ const menu = [
     const rec = q<HTMLInputElement>('input[name=recorder]:checked');
     q('[data-recorder-name]').textContent = rec.dataset.name!;
     q('[data-recorder-mic]').textContent = rec.dataset.mic!;
-    q('[data-size]').textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')));
+    q('[data-size]').textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')), Number(data.get('channels') ?? 1));
     q('[data-mode-text]').textContent = help[String(data.get('mode'))];
   };
 
@@ -199,6 +204,7 @@ const menu = [
     pick('recorder', r.recorder);
     pick('depth', String(r.depth));
     pick('rate', String(r.rate));
+    pick('channels', String(r.channels));
     pick('mode', p.mode);
     pick('recmode', r.mode);
     q<HTMLInputElement>('input[name=tone]').checked = r.tone;
@@ -210,14 +216,26 @@ const menu = [
         recorder: String(data.get('recorder')),
         depth: Number(data.get('depth')) as 16 | 24,
         rate: Number(data.get('rate')) as 44.1 | 48,
+        channels: Number(data.get('channels')) as 1 | 2,
         tone: data.has('tone'),
         mode: data.get('recmode') as 'continuous' | 'takes',
       });
       saveSettings('prompter', { mode: data.get('mode') as 'voice' | 'manual' });
       label();
+      showInput();
     });
 
     offerRecovery(episodeId);
+    // The input that will actually be recorded (and that voice follow listens to).
+    // Other devices record on their own mic, shown from their card.
+    const showInput = () => {
+      if (q<HTMLInputElement>('input[name=recorder]:checked').value !== form.querySelector<HTMLInputElement>('input[name=recorder]')!.value) return;
+      const { deviceId, channels } = loadSettings().recording;
+      describeInput(deviceId, channels).then(({ label, missing }) => {
+        q('[data-recorder-mic]').textContent = missing ? `${label} (saved mic not connected)` : label;
+      });
+    };
+    showInput();
     // "Start session" for continuous recording, "Start take N" for separate takes.
     let nextTake = 1;
     const label = () => {

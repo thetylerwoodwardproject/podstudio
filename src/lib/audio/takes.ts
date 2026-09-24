@@ -3,6 +3,7 @@
  *
  *   takes/<id>/meta.json
  *   takes/<id>/seg-000001.pcm   5 s of little-endian PCM at the take's bit depth
+ *                              (interleaved L R when the take is stereo)
  *
  * Each segment is its own file, committed when written, so a crash or a
  * closed tab loses at most the last few seconds. While a take is recording,
@@ -13,7 +14,7 @@
  * so even a long take never has to fit in memory.
  */
 
-import { markerChunks, pcmBytes, tone, wavHeader, type BitDepth, type Marker } from './wav';
+import { markerChunks, pcmBytes, tone, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
 import type { LineStart, Range, SessionMarker } from './assemble';
 
 export interface TakeMeta {
@@ -30,6 +31,9 @@ export interface TakeMeta {
   device: string;
   sampleRate: number;
   bitDepth: BitDepth;
+  /** 2 for stereo; takes saved before stereo existed have none and are mono */
+  channels?: Channels;
+  /** Sample frames recorded (one sample per channel) */
   samples: number;
   segments: number;
   startedAt: number;
@@ -103,6 +107,11 @@ export async function markDone(meta: TakeMeta) {
 }
 
 /** The take's audio as raw PCM parts (disk-backed Files). */
+const channelsOf = (t: TakeMeta): Channels => t.channels ?? 1;
+/** Bytes per sample frame */
+const frameBytes = (t: TakeMeta) => (t.bitDepth / 8) * channelsOf(t);
+const formatOf = (t: TakeMeta) => ({ sampleRate: t.sampleRate, bitDepth: t.bitDepth, channels: channelsOf(t) });
+
 async function pcmParts(meta: TakeMeta): Promise<File[]> {
   const dir = await (await takesDir()).getDirectoryHandle(meta.id);
   const files: File[] = [];
@@ -121,7 +130,7 @@ async function pcmParts(meta: TakeMeta): Promise<File[]> {
  * Slices the disk-backed segment files, so nothing large is copied.
  */
 export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = []): Promise<Blob> {
-  const bytesPer = meta.bitDepth / 8;
+  const bytesPer = frameBytes(meta);
   const files = await pcmParts(meta);
   const offsets: number[] = [];
   let total = 0;
@@ -144,7 +153,7 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
     });
   }
   const tail = markerChunks(markers);
-  const header = wavHeader(bytes / bytesPer, { sampleRate: meta.sampleRate, bitDepth: meta.bitDepth }, tail.length);
+  const header = wavHeader(bytes / bytesPer, formatOf(meta), tail.length);
   return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], {
     type: 'audio/wav',
   });
@@ -153,9 +162,7 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
 export async function takeWav(meta: TakeMeta): Promise<Blob> {
   const parts = await pcmParts(meta);
   const bytes = parts.reduce((n, p) => n + p.size, 0);
-  const samples = bytes / (meta.bitDepth / 8);
-  const opts = { sampleRate: meta.sampleRate, bitDepth: meta.bitDepth };
-  return new Blob([wavHeader(samples, opts) as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : [])], {
+  return new Blob([wavHeader(bytes / frameBytes(meta), formatOf(meta)) as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : [])], {
     type: 'audio/wav',
   });
 }
@@ -167,12 +174,14 @@ export interface CombinedOptions {
 
 /**
  * One WAV with every take back to back, optionally with a marker at each
- * take and a short tone between them. Takes must share a format.
+ * take and a short tone between them. Takes must share a sample rate and bit
+ * depth; if any take is stereo the file is stereo and mono takes are doubled.
  */
 export async function combinedWav(takes: TakeMeta[], opts: CombinedOptions): Promise<{ blob: Blob; starts: number[] }> {
   const { sampleRate, bitDepth } = takes[0];
-  const bytesPer = bitDepth / 8;
-  const beep = opts.tone ? pcmBytes(tone(sampleRate), bitDepth) : null;
+  const channels: Channels = takes.some((t) => channelsOf(t) === 2) ? 2 : 1;
+  const bytesPer = (bitDepth / 8) * channels;
+  const beep = opts.tone ? pcmBytes(tone(sampleRate, { channels }), bitDepth) : null;
   const parts: BlobPart[] = [];
   const markers: Marker[] = [];
   const starts: number[] = [];
@@ -185,20 +194,36 @@ export async function combinedWav(takes: TakeMeta[], opts: CombinedOptions): Pro
     starts.push(samples);
     markers.push({ at: samples, label: t.kind === 'punch-in' ? `${t.name} · Punch-in L${t.startLine + 1}` : t.name });
     for (const p of await pcmParts(t)) {
-      parts.push(p);
-      samples += p.size / bytesPer;
+      const part = channels === 2 && channelsOf(t) === 1 ? await monoToStereo(p, bitDepth) : p;
+      parts.push(part);
+      samples += part.size / bytesPer;
     }
   }
   const tail = opts.markers ? markerChunks(markers) : new Uint8Array(0);
   const pad = (samples * bytesPer) % 2;
-  const header = wavHeader(samples, { sampleRate, bitDepth }, tail.length);
+  const header = wavHeader(samples, { sampleRate, bitDepth, channels }, tail.length);
   const blob = new Blob([header as BlobPart, ...parts, ...(pad ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], {
     type: 'audio/wav',
   });
   return { blob, starts };
 }
 
+/** Mono PCM bytes with every sample written to both channels (one 5 s segment at a time). */
+async function monoToStereo(part: Blob, bitDepth: BitDepth): Promise<Blob> {
+  const b = bitDepth / 8;
+  const src = new Uint8Array(await part.arrayBuffer());
+  const out = new Uint8Array(src.length * 2);
+  for (let i = 0, o = 0; i < src.length; i += b, o += 2 * b) {
+    const s = src.subarray(i, i + b);
+    out.set(s, o);
+    out.set(s, o + b);
+  }
+  return new Blob([out as BlobPart]);
+}
+
 export const takeSeconds = (t: TakeMeta) => t.samples / t.sampleRate;
+/** Size of the take's audio in bytes */
+export const takeBytes = (t: TakeMeta) => t.samples * frameBytes(t);
 
 export function formatDuration(seconds: number) {
   const s = Math.floor(seconds);
@@ -217,7 +242,8 @@ export function takeFileName(t: TakeMeta, episodeLabel = `Ep${t.episodeId}`) {
 
 /**
  * Writes one take as it records: collects samples and saves a segment every
- * five seconds. Call push() with each captured chunk and finish() at the end.
+ * five seconds. Call push() with each captured chunk (interleaved when stereo)
+ * and finish() at the end.
  */
 export class TakeWriter {
   private pending: Float32Array[] = [];
@@ -266,8 +292,8 @@ export class TakeWriter {
 
   push(samples: Float32Array) {
     this.pending.push(samples);
-    this.pendingSamples += samples.length;
-    const perPeak = this.meta.sampleRate * PEAK_SECONDS;
+    this.pendingSamples += samples.length / channelsOf(this.meta);
+    const perPeak = this.meta.sampleRate * PEAK_SECONDS * channelsOf(this.meta);
     for (let i = 0; i < samples.length; i++) {
       const a = Math.abs(samples[i]);
       if (a > this.peakAcc) this.peakAcc = a;
@@ -288,7 +314,7 @@ export class TakeWriter {
     this.pendingSamples = 0;
     if (!count) return this.writing;
     this.writing = this.writing.then(async () => {
-      const joined = new Float32Array(count);
+      const joined = new Float32Array(count * channelsOf(this.meta));
       let o = 0;
       for (const c of chunks) {
         joined.set(c, o);
@@ -314,10 +340,10 @@ export class TakeWriter {
 }
 
 /** Browser storage left for takes, and how much audio fits in it. */
-export async function storageLeft(sampleRate: number, bitDepth: BitDepth) {
+export async function storageLeft(sampleRate: number, bitDepth: BitDepth, channels: Channels = 1) {
   const { quota = 0, usage = 0 } = await navigator.storage.estimate();
   const free = Math.max(0, quota - usage);
-  return { free, hours: free / (sampleRate * (bitDepth / 8) * 3600) };
+  return { free, hours: free / (sampleRate * (bitDepth / 8) * channels * 3600) };
 }
 
 export function formatBytes(n: number) {

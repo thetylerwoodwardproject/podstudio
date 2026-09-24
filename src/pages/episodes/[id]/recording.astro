@@ -288,6 +288,7 @@ const modeOption =
 
 <script>
   import { MicCapture } from '@/lib/audio/capture';
+  import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
   import { TakeWriter, formatBytes, listTakes, storageLeft } from '@/lib/audio/takes';
   import { startClock } from '@/lib/prompter';
   import { offerRecovery } from '@/lib/recovery';
@@ -371,12 +372,12 @@ const modeOption =
     const nextNumber = takes.reduce((n, t) => Math.max(n, t.number), 0) + 1;
     $('[data-toggle-label]').textContent = `Start take ${nextNumber}`;
     $('[data-format]').textContent =
-      `${settings.depth}-bit · ${settings.rate} kHz · mono${punchIn ? ` · punch-in from line ${fromLine + 1}` : ''}`;
+      `${settings.depth}-bit · ${settings.rate} kHz · ${settings.channels === 2 ? 'stereo' : 'mono'}${punchIn ? ` · punch-in from line ${fromLine + 1}` : ''}`;
     toggle.disabled = false;
     sessionToggle.disabled = false;
 
     const free = async () => {
-      const { free, hours } = await storageLeft(hz(settings.rate), settings.depth);
+      const { free, hours } = await storageLeft(hz(settings.rate), settings.depth, settings.channels);
       $('[data-free]').textContent = `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`;
     };
     free();
@@ -482,19 +483,26 @@ const modeOption =
         tracksEl.append(row);
       }
       // Mic names are available once microphone access has been granted.
-      MicCapture.inputs().then((devices) => {
+      // Every input on this computer, including each input of a multi-input interface.
+      // Stereo lists each device once (inputs 1 + 2 as L / R).
+      inputChoices(settings.channels).then((choices) => {
         for (const [k, row] of rowFor) {
           const select = row.querySelector<HTMLSelectElement>('[data-input]')!;
           select.replaceChildren(
-            new Option('This computer’s mic', 'default'),
-            ...devices.filter((d) => d.deviceId && d.deviceId !== 'default').map((d, i) => new Option(d.label || `Microphone ${i + 1}`, d.deviceId)),
+            new Option(`Recording mic (${choices.find((c) => c.value === inputFor(settings.deviceId, settings.channels))?.label ?? choices[0].label})`, 'default'),
+            ...choices.map((c) => new Option(c.label, c.value || 'system')),
             new Option('Remote · own device', 'remote'),
             new Option('Not recorded', 'off'),
           );
-          select.value = [...select.options].some((o) => o.value === inputs[k]) ? inputs[k] : 'remote';
+          const saved = ['default', 'system', 'remote', 'off'].includes(inputs[k]) ? inputs[k] : inputFor(inputs[k], settings.channels);
+          select.value = [...select.options].some((o) => o.value === saved) ? saved : 'remote';
+          select.addEventListener('change', () => k === trackSpeakers.find((x) => inputs[x] !== 'remote' && inputs[x] !== 'off') && listenOn());
         }
       });
     }
+    // The stored input for a speaker's track: their own pick, or the Recording settings mic.
+    const deviceOf = (k: string) =>
+      inputFor(inputs[k] === 'default' ? settings.deviceId : inputs[k] === 'system' ? '' : inputs[k], settings.channels);
     const filesLabel = () =>
       solo ? 'One file' : `${trackSpeakers.length} tracks · ${trackSpeakers.map(speakerName).join(', ')} · one clock`;
 
@@ -624,6 +632,39 @@ const modeOption =
 
     let manualTimer: number | undefined;
     let engineLabel = '';
+    let inputLabel = '';
+    let openedInput: string | null = null;
+    // The mic open in progress, so starting a session right away waits for it instead of racing it.
+    let opening: Promise<void> = Promise.resolve();
+
+    /** Open the input the first local track records, and point voice follow at it. */
+    function listenOn() {
+      opening = opening.then(openListening);
+      return opening;
+    }
+    async function openListening() {
+      if (writer) return;
+      const first = solo ? host : trackSpeakers.find((k) => inputs[k] !== 'remote' && inputs[k] !== 'off');
+      const wanted = await availableInput(first ? deviceOf(first) : settings.deviceId, settings.channels);
+      const saved = inputFor(first ? deviceOf(first) : settings.deviceId, settings.channels);
+      try {
+        if (openedInput !== wanted || !capture.ctx) {
+          await capture.open({ deviceId: wanted, sampleRate: hz(settings.rate), channels: settings.channels });
+          openedInput = wanted;
+        }
+        const { label } = await describeInput(wanted, settings.channels);
+        inputLabel = label;
+        $('[data-device]').textContent = label;
+        if (saved && saved !== wanted) $('[data-c-voice]').textContent = `Saved mic not found · using ${label}`;
+      } catch (err) {
+        inputLabel = '';
+        $('[data-session-hint]').textContent =
+          (err as Error).name === 'NotAllowedError'
+            ? 'Podstudio needs microphone access. Allow it in the address bar, then reload.'
+            : `Couldn’t open the microphone: ${(err as Error).message}`;
+      }
+      voice?.setTrack(capture.voiceTrack());
+    }
     const startVoice = () => {
       // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
       if (prompterSettings.mode === 'manual') {
@@ -642,6 +683,7 @@ const modeOption =
       }
       voice = new VoiceFollow(words);
       voice.engine = prompterSettings.voiceEngine;
+      voice.track = capture.voiceTrack();
       voice.setWord(word);
       voice.addEventListener('engine', (e) => (engineLabel = (e as CustomEvent<string>).detail === 'local' ? ' · on-device' : ''));
       voice.addEventListener('word', (e) => {
@@ -653,7 +695,7 @@ const modeOption =
       const voiceState = (text: string, color: string) => {
         $('[data-voice]').textContent = text;
         $('[data-voice-dot]').style.background = color;
-        $('[data-c-voice]').textContent = text === 'Listening' ? `Voice follow listening${engineLabel}` : text;
+        $('[data-c-voice]').textContent = text === 'Listening' ? `Voice follow listening${engineLabel}${inputLabel ? ` · ${inputLabel}` : ''}` : text;
         $('[data-c-voice-dot]').style.background = color;
         // Anything but listening: point to the voice check.
         $('[data-voice-help]').hidden = text === 'Listening';
@@ -678,16 +720,23 @@ const modeOption =
       sessionToggle.disabled = true;
       const multi = continuous() && !solo;
       // Which mic each locally recorded speaker uses; a mic shared by two speakers records once.
-      const deviceOf = (k: string) => (inputs[k] === 'default' ? settings.deviceId : inputs[k]);
+
       const localSpeakers = multi ? trackSpeakers.filter((k) => inputs[k] !== 'remote' && inputs[k] !== 'off') : [host];
       if (!localSpeakers.length) {
         toggle.disabled = sessionToggle.disabled = false;
         $('[data-session-hint]').textContent = 'Pick a mic on this computer for at least one speaker.';
         return;
       }
-      const firstDevice = deviceOf(localSpeakers[0]);
+      await opening;
+      const firstDevice = await availableInput(deviceOf(localSpeakers[0]), settings.channels);
       try {
-        await capture.open({ deviceId: firstDevice, sampleRate: hz(settings.rate) });
+        // Usually already open (voice follow listens to it); reopen only if the input changed.
+        if (!capture.ctx || openedInput !== firstDevice) {
+          await capture.open({ deviceId: firstDevice, sampleRate: hz(settings.rate), channels: settings.channels });
+          openedInput = firstDevice;
+          voice?.setTrack(capture.voiceTrack());
+        }
+        await capture.ctx!.resume();
       } catch (err) {
         sessionToggle.disabled = false;
         toggle.disabled = false;
@@ -711,7 +760,7 @@ const modeOption =
         }
         const cap = new MicCapture();
         try {
-          await cap.open({ deviceId: dev, sampleRate: hz(settings.rate) });
+          await cap.open({ deviceId: dev, sampleRate: hz(settings.rate), channels: settings.channels });
         } catch {
           if (status) status.textContent = 'Mic unavailable';
           continue;
@@ -730,6 +779,7 @@ const modeOption =
           device: cap.label || computer,
           sampleRate: cap.sampleRate,
           bitDepth: settings.depth,
+          channels: cap.channels,
         });
         trackWriters.push(w);
         cap.addEventListener('chunk', (e) => w.push((e as CustomEvent<Float32Array>).detail));
@@ -905,13 +955,18 @@ const modeOption =
           : `/episodes/${episodeId}/takes?take=${encodeURIComponent(meta.id)}`;
     }
 
-    // Listen from the start, so the script follows you while you rehearse, before recording.
-    startVoice();
-
+    // Ready for Start before the mic is open; start() waits for it.
     toggle.addEventListener('click', () => (writer ? stop() : start()));
     sessionToggle.addEventListener('click', () => (writer ? stop() : start()));
     addEventListener('beforeunload', (e) => {
       if (writer) e.preventDefault();
     });
+    // Chrome keeps audio paused until the first click or key press on the page.
+    for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => capture.ctx?.resume(), { once: true });
+
+    // Open the chosen mic now: voice follow listens to exactly the input that will be recorded
+    // (not the system default mic), and the script follows you while you rehearse.
+    await listenOn();
+    startVoice();
   }
 </script>

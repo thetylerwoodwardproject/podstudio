@@ -101,7 +101,7 @@ const base = `/episodes/${episode.id}`;
 </AppShell>
 
 <script>
-  import { deleteTake, formatBytes, formatDuration, listTakes, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
+  import { deleteTake, formatBytes, formatDuration, listTakes, takeBytes, takeFileName, takeSeconds, takeWav } from '@/lib/audio/takes';
   import { takeUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { download } from '@/lib/zip';
@@ -190,7 +190,7 @@ const base = `/episodes/${episode.id}`;
         const n = trackCount(t);
         q('[data-start]').textContent = `Continuous · ${n} track${n === 1 ? '' : 's'} · ${retakes} retake${retakes === 1 ? '' : 's'}`;
       }
-      const bytes = t.samples * (t.bitDepth / 8);
+      const bytes = takeBytes(t);
       q('[data-range]').textContent = `${formatDuration(takeSeconds(t))} · ${t.bitDepth}-bit · ${t.sampleRate / 1000} kHz · ${formatBytes(bytes)}`;
 
       // Take WAVs are disk-backed Blobs, so a URL per take costs nothing up front.

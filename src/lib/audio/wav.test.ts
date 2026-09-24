@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeWav, pcmBytes, tone } from './wav.ts';
+import { encodeWav, pcmBytes, tone, wavHeader } from './wav.ts';
 
 const read = async (blob: Blob) => new DataView(await blob.arrayBuffer());
 const tag = (v: DataView, o: number) => String.fromCharCode(...[0, 1, 2, 3].map((i) => v.getUint8(o + i)));
@@ -54,4 +54,23 @@ test('tone is 1 kHz at -20 dBFS', () => {
   assert.equal(t.length, 24000);
   const peak = Math.max(...t);
   assert.ok(Math.abs(peak - 0.1) < 0.001, `peak ${peak}`);
+});
+
+test('stereo header counts frames and doubles the block', () => {
+  const h = new DataView(wavHeader(100, { sampleRate: 48000, bitDepth: 24, channels: 2 }).buffer);
+  assert.equal(h.getUint16(22, true), 2);
+  assert.equal(h.getUint16(32, true), 6);
+  assert.equal(h.getUint32(28, true), 48000 * 6);
+  assert.equal(h.getUint32(40, true), 600);
+});
+
+test('stereo WAV from interleaved samples', () => {
+  const blob = encodeWav([new Float32Array([0.5, -0.5, 0.25, -0.25])], { sampleRate: 44100, bitDepth: 16, channels: 2 });
+  assert.equal(blob.size, 44 + 8);
+});
+
+test('stereo tone has the same sample on both sides', () => {
+  const t = tone(48000, { channels: 2 });
+  assert.equal(t.length, 48000);
+  for (let i = 0; i < t.length; i += 2) assert.equal(t[i], t[i + 1]);
 });

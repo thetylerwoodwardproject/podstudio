@@ -11,8 +11,10 @@ class FakeRecognition extends EventTarget {
   onerror: ((e: unknown) => void) | null = null;
   onend: (() => void) | null = null;
   results: { transcript: string; isFinal: boolean }[] = [];
-  start() {
+  startedWith: unknown = null;
+  start(track?: unknown) {
     current = this;
+    this.startedWith = track ?? null;
   }
   stop() {}
   abort() {}
@@ -79,4 +81,12 @@ test('uses on-device recognition when the language pack is installed', async () 
   assert.equal(v.local, true);
   assert.equal((rec as unknown as { processLocally: boolean }).processLocally, true);
   delete (FakeRecognition as unknown as { available?: unknown }).available;
+});
+
+test('listens to the given mic track, not the default mic', async () => {
+  const v = new VoiceFollow(words, 'en-US');
+  const track = { kind: 'audio', readyState: 'live' };
+  v.track = track as unknown as MediaStreamTrack;
+  await v.start();
+  assert.equal((current as unknown as { startedWith: unknown }).startedWith, track);
 });

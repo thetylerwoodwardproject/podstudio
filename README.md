@@ -20,7 +20,9 @@ Open `/screens` to see every screen, listed by its id from the design file. Link
 
 ## What works now
 
-- **Recording** (`/episodes/142/recording`): mono WAV at 16 or 24-bit and 44.1 or 48 kHz from an AudioWorklet, with browser echo cancellation, noise suppression and auto gain turned off. Audio is saved to the browser's private file system every 5 seconds.
+- **Recording** (`/episodes/142/recording`): mono or stereo WAV at 16 or 24-bit and 44.1 or 48 kHz from an AudioWorklet, with browser echo cancellation, noise suppression and auto gain turned off. Audio is saved to the browser's private file system every 5 seconds.
+- **Microphone choice** (Settings → Recording, or the mic check): "System default" follows the computer's sound settings; anything else is used no matter what the OS default is. Recording, the meters and voice follow all use the same input. In mono, an interface with several inputs lists each one ("MOTU M2 · Input 1") plus all inputs summed; in stereo, inputs 1 and 2 become left and right (a one-input mic goes to both sides). A saved mic that's unplugged falls back to the system default and says so.
+- **Levels**: Podstudio mixes the interface's inputs itself instead of taking Chrome's mono downmix, which averages them and reads a mic on Input 1 of a two-input interface 6 dB low (it would clip at "-6 dBFS"). Meters show the hottest input, so clipping at the converter always shows.
 - **Crash recovery**: if the tab closes mid-take, the next visit to the studio, library or takes page opens the recovered-take screen. At most the last 5 seconds are lost.
 - **Mic check**: real input list, level meter, clipping, noise floor, free space, and what voice follow heard.
 - **Continuous sessions** (8a, the default): the whole script scrolls with the reader, word by word, on the recording screen. Every speaker records their own track for the whole session, on one clock: pick a mic on this computer for each speaker (same-room, several mics) or leave them as remote (needs the server). The speaker whose line it is shows as "Talking now". **R** marks a retake on every track (the beep isn't recorded) and rolls every screen back to the start of the line; **P** marks a pause while recording keeps running. Click a line or use ← → to move the reader by hand; with Manual speed the prompter advances on its own. A "Heard:" line shows what voice follow is picking up.
@@ -49,6 +51,7 @@ src/
   data/waveforms.ts     waveform bar heights taken from the design
   lib/
     audio/capture.ts    mic capture (AudioWorklet in public/worklets/recorder.js), levels
+    audio/devices.ts    input choices: system default, devices, each input of an interface
     audio/wav.ts        16/24-bit WAV encoding, cue markers, tone
     audio/assemble.ts   continuous sessions: assembled edit, pause handling, Audacity labels
     audio/takes.ts      take storage in OPFS (5 s segments, Web Lock crash detection), WAV assembly

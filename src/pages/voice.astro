@@ -21,6 +21,7 @@ import StatusRow from '@/components/ui/StatusRow.astro';
       <StatusRow label="Browser" value="…" data-row="browser" />
       <StatusRow label="Speech recognition" value="…" data-row="api" />
       <StatusRow label="Microphone permission" value="…" data-row="mic" />
+      <StatusRow label="Microphone in use" value="…" data-row="input" />
       <StatusRow label="On-device voice (no internet needed)" value="…" data-row="local" />
     </section>
 
@@ -64,6 +65,8 @@ import StatusRow from '@/components/ui/StatusRow.astro';
 <script>
   import { browserName, installLocalSpeech, localSpeechStatus, VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
   import { loadSettings, saveSettings } from '@/lib/settings';
+  import { MicCapture } from '@/lib/audio/capture';
+  import { availableInput, describeInput } from '@/lib/audio/devices';
 
   const form = document.getElementById('voice-check') as HTMLFormElement;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
@@ -109,6 +112,14 @@ import StatusRow from '@/components/ui/StatusRow.astro';
   };
   refreshLocal();
 
+  // The same mic as recording (Settings → Recording), not the OS default.
+  const showInput = async () => {
+    const saved = loadSettings().recording.deviceId;
+    const { label, missing } = await describeInput(saved);
+    row('input', missing ? `${label} · saved mic not found` : label, missing ? warn : ok);
+  };
+  showInput();
+
   $<HTMLButtonElement>('[data-install]').addEventListener('click', async (e) => {
     const btn = e.currentTarget as HTMLButtonElement;
     btn.disabled = true;
@@ -132,6 +143,7 @@ import StatusRow from '@/components/ui/StatusRow.astro';
   const log = $('[data-log]');
   const verdict = $('[data-verdict]');
   let voice: VoiceFollow | null = null;
+  let mic: MicCapture | null = null;
   let t0 = 0;
   const seen = new Set<string>();
   const note = (text: string, color = 'var(--color-muted)') => {
@@ -161,6 +173,8 @@ import StatusRow from '@/components/ui/StatusRow.astro';
     if (voice) {
       voice.stop();
       voice = null;
+      mic?.close();
+      mic = null;
       btn.textContent = '● Start listening';
       return;
     }
@@ -171,6 +185,15 @@ import StatusRow from '@/components/ui/StatusRow.astro';
     btn.textContent = 'Stop';
     voice = new VoiceFollow(['test'], lang);
     voice.engine = loadSettings().prompter.voiceEngine;
+    try {
+      mic = new MicCapture();
+      await mic.open({ deviceId: await availableInput(loadSettings().recording.deviceId), sampleRate: 48000 });
+      voice.setTrack(mic.voiceTrack());
+      note(`Listening to ${mic.label || 'the default mic'}`);
+      showInput();
+    } catch {
+      note('Couldn’t open the chosen mic; using the system default', warn);
+    }
     voice.addEventListener('engine', (ev) =>
       note((ev as CustomEvent<string>).detail === 'local' ? 'Using on-device voice' : 'Using Google’s speech service'),
     );
