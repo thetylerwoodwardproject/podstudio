@@ -5,7 +5,8 @@
  * with addModule().
  *
  * The level's peak is the hottest of what's recorded and every raw input, so
- * clipping at the interface's converter always shows.
+ * clipping at the interface's converter always shows. `inputs` has each raw
+ * input's own peak, for per-input meters.
  */
 class PodstudioRecorder extends AudioWorkletProcessor {
   constructor(options) {
@@ -23,6 +24,7 @@ class PodstudioRecorder extends AudioWorkletProcessor {
     this.sumSq = 0;
     this.count = 0;
     this.levelEvery = Math.round(sampleRate / 30); // ~30 level updates a second
+    this.inPeaks = [];
     this.port.onmessage = (e) => {
       if (e.data === 'record') this.recording = true;
       if (e.data === 'stop') {
@@ -54,6 +56,16 @@ class PodstudioRecorder extends AudioWorkletProcessor {
     const input = inputs[0];
     if (!input || !input.length) return true;
     const n = input[0].length;
+    // Every raw input's peak, before any choosing or mixing.
+    for (let c = 0; c < input.length; c++) {
+      const ch = input[c];
+      let p = this.inPeaks[c] || 0;
+      for (let i = 0; i < n; i++) {
+        const a = ch[i] < 0 ? -ch[i] : ch[i];
+        if (a > p) p = a;
+      }
+      this.inPeaks[c] = p;
+    }
     if (this.stereo) {
       const l = input[0];
       const r = input[1] || input[0];
@@ -67,12 +79,7 @@ class PodstudioRecorder extends AudioWorkletProcessor {
     } else {
       // Sum every input to mono. Averaging would put a single mic on a two-input
       // interface 6 dB low, so a clipped input would read as a safe -6 dBFS.
-      for (const c of input) {
-        for (let i = 0; i < n; i++) {
-          const a = c[i] < 0 ? -c[i] : c[i];
-          if (a > this.peak) this.peak = a;
-        }
-      }
+      for (const p of this.inPeaks) if (p > this.peak) this.peak = p;
       for (let i = 0; i < n; i++) {
         let s = 0;
         for (const c of input) s += c[i];
@@ -81,7 +88,8 @@ class PodstudioRecorder extends AudioWorkletProcessor {
     }
     this.count += n;
     if (this.count >= this.levelEvery) {
-      this.port.postMessage({ type: 'level', peak: this.peak, rms: Math.sqrt(this.sumSq / (this.count * this.width)) });
+      this.port.postMessage({ type: 'level', peak: this.peak, rms: Math.sqrt(this.sumSq / (this.count * this.width)), inputs: this.inPeaks.slice(0, input.length) });
+      this.inPeaks = [];
       this.peak = 0;
       this.sumSq = 0;
       this.count = 0;

@@ -253,8 +253,10 @@ export class VoiceFollow extends EventTarget {
       if (track) rec.start(track);
       else rec.start();
     } catch {
-      // Older Chrome without track support: fall back to the default mic.
+      // Older Chrome without track support: fall back to the default mic, which Chrome
+      // opens with its own auto gain. Say so: it can change the default mic's level.
       rec.start();
+      this.emit('diag', 'default-mic');
     }
     if (!this.announced) this.emit('status', 'listening');
     this.announced = true;

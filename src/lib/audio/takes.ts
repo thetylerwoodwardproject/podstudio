@@ -47,8 +47,23 @@ export interface TakeMeta {
   markers?: SessionMarker[];
   /** Continuous sessions: when each script line was reached */
   lineLog?: LineStart[];
+  /** Continuous sessions: every speaker and where their track comes from */
+  roster?: RosterEntry[];
+  /** Tracks added from a file a guest sent: the file's name */
+  imported?: string;
   /** Peak level per half second, 0..1, for waveforms */
   peaks: number[];
+}
+
+/**
+ * Where a speaker's track comes from: recorded here, on the same mic as another
+ * speaker here, on their own device (uploaded, or added from a file), or not at all.
+ */
+export interface RosterEntry {
+  speaker: string;
+  source: 'local' | 'shared' | 'remote' | 'off' | 'failed';
+  /** 'shared': whose track they're on */
+  with?: string;
 }
 
 const SEGMENT_SECONDS = 5;

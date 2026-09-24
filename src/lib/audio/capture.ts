@@ -15,6 +15,21 @@ export const toDb = (v: number) => (v > 0 ? 20 * Math.log10(v) : -Infinity);
 export interface Level {
   peak: number;
   rms: number;
+  /** Each raw input's peak (dBFS), before choosing or mixing */
+  inputs: number[];
+}
+
+/** What the browser actually opened, to check against what was asked for. */
+export interface Opened {
+  label: string;
+  /** Inputs the device delivers */
+  inputs: number;
+  /** The device's own rate, when the browser reports it */
+  deviceRate?: number;
+  /** The rate Podstudio records at */
+  sampleRate: number;
+  /** Browser processing that ended up on anyway (it alters levels) */
+  processing: string[];
 }
 
 export class MicCapture extends EventTarget {
@@ -87,7 +102,8 @@ export class MicCapture extends EventTarget {
     source.connect(this.node).connect(mute).connect(this.ctx.destination);
     this.node.port.onmessage = (e) => {
       const d = e.data;
-      if (d.type === 'level') this.dispatchEvent(new CustomEvent<Level>('level', { detail: { peak: toDb(d.peak), rms: toDb(d.rms) } }));
+      if (d.type === 'level')
+        this.dispatchEvent(new CustomEvent<Level>('level', { detail: { peak: toDb(d.peak), rms: toDb(d.rms), inputs: (d.inputs ?? []).map(toDb) } }));
       if (d.type === 'chunk') this.dispatchEvent(new CustomEvent<Float32Array>('chunk', { detail: d.samples }));
       if (d.type === 'stopped') this.dispatchEvent(new Event('stopped'));
     };
@@ -100,6 +116,18 @@ export class MicCapture extends EventTarget {
    * interface, every input mixed), so it works before any click on the page and
    * hears everyone on that device.
    */
+  opened(): Opened | null {
+    const track = this.stream?.getAudioTracks()[0];
+    if (!track || !this.ctx) return null;
+    const s = track.getSettings() as MediaTrackSettings & { autoGainControl?: boolean; noiseSuppression?: boolean; echoCancellation?: boolean };
+    const processing = [
+      s.autoGainControl && 'auto gain',
+      s.noiseSuppression && 'noise suppression',
+      s.echoCancellation && 'echo cancellation',
+    ].filter(Boolean) as string[];
+    return { label: track.label, inputs: s.channelCount ?? 1, deviceRate: s.sampleRate, sampleRate: this.ctx.sampleRate, processing };
+  }
+
   voiceTrack(): MediaStreamTrack | null {
     return this.stream?.getAudioTracks()[0] ?? null;
   }

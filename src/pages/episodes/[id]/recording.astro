@@ -192,7 +192,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
 <script>
   import { MicCapture } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
-  import { TakeWriter, formatBytes, storageLeft } from '@/lib/audio/takes';
+  import { TakeWriter, formatBytes, storageLeft, type RosterEntry } from '@/lib/audio/takes';
   import { startClock } from '@/lib/prompter';
   import { offerRecovery } from '@/lib/recovery';
   import { Session } from '@/lib/session';
@@ -625,11 +625,18 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       // Tracks in one session share the same marker list and line log.
       const shared = { markers: [] as SessionMarker[], lineLog: [{ t: 0, line: currentLine }], group: `${episodeId}-g${Date.now().toString(36)}` };
       const byDevice = new Map<string, { cap: MicCapture; speaker: string }>([[firstDevice, { cap: capture, speaker: localSpeakers[0] }]]);
+      // Who is on which track, so the wrap-up knows whose files to wait for.
+      const roster: RosterEntry[] = trackSpeakers.map((k) => ({
+        speaker: k,
+        source: localSpeakers.includes(k) ? 'local' : inputs[k] === 'off' ? 'off' : 'remote',
+      }));
+      const entry = (k: string) => roster.find((r) => r.speaker === k)!;
       for (const k of localSpeakers.slice(1)) {
         const dev = deviceOf(k);
         const status = rowFor.get(k)?.querySelector<HTMLElement>('[data-status]');
         if (byDevice.has(dev)) {
           if (status) status.textContent = `Same mic as ${speakerName(byDevice.get(dev)!.speaker)}`;
+          Object.assign(entry(k), { source: 'shared', with: byDevice.get(dev)!.speaker });
           continue;
         }
         const cap = new MicCapture();
@@ -637,6 +644,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
           await cap.open({ deviceId: dev, sampleRate: hz(settings.rate), channels: settings.channels });
         } catch {
           if (status) status.textContent = 'Mic unavailable';
+          entry(k).source = 'failed';
           continue;
         }
         extraCaptures.push(cap);
@@ -647,6 +655,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
           episodeId,
           kind: 'session',
           ...shared,
+          roster,
           startLine: fromLine,
           startText: lines[fromLine].text,
           speaker,
@@ -856,7 +865,8 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       writer = null;
       await Promise.all([capture, ...extraCaptures].map((c) => c.close()));
       session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
-      location.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`;
+      // Wrap up: wait for every speaker's track before exporting.
+      location.href = `/episodes/${episodeId}/wrap?take=${encodeURIComponent(meta.id)}`;
     }
 
     // Ready for Start before the mic is open; start() waits for it.

@@ -86,6 +86,10 @@ const LIT = 30;
       </div>
 
       <div class="flex flex-col gap-2">
+        <div class="flex items-baseline justify-between gap-3 text-[12px]" data-live-only>
+          <span class="text-muted">Recorded level</span>
+          <span class="font-mono text-fg-soft" data-readout>Peak — · RMS —</span>
+        </div>
         <div
           class="flex gap-[3px]"
           role="meter"
@@ -100,6 +104,12 @@ const LIT = 30;
         <div class="flex justify-between font-mono text-[11px] text-faint">
           <span>-60</span><span>-24</span><span>-12</span><span>-6</span><span class="text-rec">0 dBFS</span>
         </div>
+        <div class="flex items-center justify-between gap-3 text-[12px] text-subtle" data-live-only>
+          <span data-max>Highest peak —</span>
+          <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
+        </div>
+        <!-- One meter per input of an interface, to compare with its own meters -->
+        <div class="mt-1 flex flex-col gap-1.5" data-live-only data-input-meters hidden></div>
       </div>
 
       <div class="rounded-xl bg-surface px-4 py-3.5 text-[17px] leading-normal">
@@ -112,6 +122,12 @@ const LIT = 30;
       <h2 class="eyebrow">Checks</h2>
       {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
       <p class="mt-2.5 text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
+      <div class="mt-5 flex flex-col" data-live-only>
+        <h2 class="eyebrow mb-1">Browser input</h2>
+        <StatusRow label="Device" value="…" dense data-opened="device" />
+        <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
+        <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
+      </div>
       <div class="mt-auto pt-6">
         {
           guest ? (
@@ -128,8 +144,8 @@ const LIT = 30;
 </AppShell>
 
 <script>
-  import { MicCapture } from '@/lib/audio/capture';
-  import { availableInput, inputChoices } from '@/lib/audio/devices';
+  import { MicCapture, type Level } from '@/lib/audio/capture';
+  import { availableInput, inputChoices, parseInput } from '@/lib/audio/devices';
   import { storageLeft, formatBytes } from '@/lib/audio/takes';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { locate, normalize } from '@/lib/voice/match';
@@ -189,9 +205,54 @@ const LIT = 30;
     let lastClip = 0;
     let started = Date.now();
 
+    // Numbers to compare with the interface's own meters: peak held for a second, RMS,
+    // the highest peak since Reset, and a small meter per raw input.
+    let held: { t: number; db: number } = { t: 0, db: -Infinity };
+    let highest = -Infinity;
+    const dbText = (db: number) => (Number.isFinite(db) ? `${db.toFixed(1)}` : '−∞').replace('-', '−');
+    $('[data-reset]').addEventListener('click', () => {
+      highest = -Infinity;
+      $('[data-max]').textContent = 'Highest peak —';
+    });
+    const inputMeters = $('[data-input-meters]');
+    let inputRows: { bar: HTMLElement; value: HTMLElement }[] = [];
+    const recordedInputs = (count: number) => {
+      const { channel } = parseInput(settings.deviceId);
+      if (settings.channels === 2) return [0, 1];
+      return channel !== null ? [channel] : Array.from({ length: count }, (_, i) => i);
+    };
+    const buildInputMeters = (count: number) => {
+      inputMeters.hidden = count < 2;
+      const used = recordedInputs(count);
+      inputRows = Array.from({ length: count }, (_, i) => {
+        const row = document.createElement('div');
+        row.className = 'grid grid-cols-[92px_1fr_64px] items-center gap-3 font-mono text-[11px] text-muted';
+        row.innerHTML = '<span></span><span class="relative h-2 overflow-hidden rounded-full bg-line"><span class="absolute inset-y-0 left-0 rounded-full"></span></span><span class="text-right"></span>';
+        row.children[0].textContent = `Input ${i + 1}${used.includes(i) ? '' : ' · unused'}`;
+        const bar = row.children[1].firstElementChild as HTMLElement;
+        bar.style.background = used.includes(i) ? 'var(--color-fg)' : 'var(--color-faint)';
+        return { bar, value: row.children[2] as HTMLElement, row };
+      }).map(({ bar, value, row }) => (inputMeters.append(row), { bar, value }));
+    };
+
     capture.addEventListener('level', (e) => {
-      const { peak, rms } = (e as CustomEvent<{ peak: number; rms: number }>).detail;
+      const { peak, rms, inputs } = (e as CustomEvent<Level>).detail;
       const now = Date.now();
+      if (peak >= held.db || now - held.t > 1000) held = { t: now, db: peak };
+      if (peak > highest) {
+        highest = peak;
+        $('[data-max]').textContent = `Highest peak ${dbText(Math.min(0, highest))} dBFS${highest > -0.5 ? ' · CLIPPED' : ''}`;
+      }
+      $('[data-readout]').textContent = `Peak ${dbText(Math.min(0, held.db))} · RMS ${dbText(rms)} dBFS`;
+      if (inputs.length !== inputRows.length) {
+        inputMeters.replaceChildren();
+        buildInputMeters(inputs.length);
+      }
+      inputs.forEach((db, i) => {
+        inputRows[i].bar.style.width = `${toFraction(db) * 100}%`;
+        inputRows[i].value.textContent = dbText(Math.min(0, db));
+        inputRows[i].value.style.color = db > -0.5 ? 'var(--color-rec)' : '';
+      });
       peaks.push({ t: now, db: peak });
       while (peaks.length && now - peaks[0].t > 3000) peaks.shift();
       // Digital silence measures as -Infinity; count it as very quiet.
@@ -252,12 +313,38 @@ const LIT = 30;
       select.replaceChildren(...choices.map((c) => new Option(c.label, c.value, false, c.value === deviceId)));
       if (select.value !== deviceId) select.value = '';
       voice?.setTrack(capture.voiceTrack());
+      showOpened();
+    }
+
+    // What Chrome actually opened: the device, how many inputs at what rate, and whether
+    // any of its voice processing is on (auto gain moves levels around).
+    function showOpened() {
+      const o = capture.opened();
+      if (!o) return;
+      const row = (key: string, value: string, color?: string) => {
+        const el = form.querySelector<HTMLElement>(`[data-opened="${key}"]`)!;
+        el.querySelector('[data-value]')!.textContent = value;
+        const dot = el.querySelector<HTMLElement>('[data-dot]')!;
+        dot.hidden = !color;
+        if (color) dot.style.background = color;
+      };
+      row('device', o.label || 'Unknown');
+      const rate = (hz: number) => `${hz / 1000} kHz`;
+      row(
+        'format',
+        `${o.inputs} input${o.inputs === 1 ? '' : 's'} · ${o.deviceRate && o.deviceRate !== o.sampleRate ? `${rate(o.deviceRate)} → ${rate(o.sampleRate)}` : rate(o.sampleRate)}`,
+      );
+      row('processing', o.processing.length ? `${o.processing.join(', ')} on` : 'Off', o.processing.length ? bad : ok);
     }
 
     let voice: VoiceFollow | null = null;
     $<HTMLSelectElement>('[data-mic]').addEventListener('change', (e) => {
       const deviceId = (e.target as HTMLSelectElement).value;
       saveSettings('recording', { deviceId });
+      settings.deviceId = deviceId;
+      // Rebuild the per-input meters for the new device.
+      inputMeters.replaceChildren();
+      inputRows = [];
       open(deviceId);
     });
     await open(await availableInput(settings.deviceId, settings.channels));
@@ -287,6 +374,11 @@ const LIT = 30;
       check(3, voiceErrorText(err), warn);
     });
     v.addEventListener('status', (e) => (e as CustomEvent<string>).detail === 'listening' && check(3, 'Listening…', warn));
+    v.addEventListener('diag', (e) => {
+      // This Chrome can't point voice follow at the chosen mic; it opened the default one
+      // with its own auto gain, which can change that mic's level.
+      if ((e as CustomEvent<string>).detail === 'default-mic') check(3, 'Using the default mic · update Chrome', warn);
+    });
     v.start();
 
     form.addEventListener('submit', () => {

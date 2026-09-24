@@ -59,3 +59,8 @@ test('stereo from a mono device puts it on both sides', () => {
   const s = chunks[0].samples!;
   assert.equal(s[0], s[1]);
 });
+
+test('each raw input has its own peak', () => {
+  const { level } = run({ channel: 0 }, [block(0.5), block(0.125)]);
+  assert.deepEqual((level as unknown as { inputs: number[] }).inputs, [0.5, 0.125]);
+});
