@@ -1,0 +1,214 @@
+---
+// Voice check: find out why voice follow isn't hearing words.
+import AppShell from '@/layouts/AppShell.astro';
+import Button from '@/components/ui/Button.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import StatusRow from '@/components/ui/StatusRow.astro';
+---
+
+<AppShell title="Voice check" crumbs={[{ label: 'Settings', href: '/settings/prompter' }, { label: 'Voice check' }]}>
+  <form class="mx-auto flex max-w-[760px] flex-col gap-6 px-6 py-8" id="voice-check" onsubmit="return false">
+    <div>
+      <h1 class="text-[22px] tracking-[-0.02em]">Voice check</h1>
+      <p class="mt-1.5 max-w-[600px] text-[13px] leading-[1.55] text-muted">
+        Voice follow turns your speech into words, then matches them to the script. This page tests the first part on its
+        own, so you can see where it stops.
+      </p>
+    </div>
+
+    <section class="flex flex-col">
+      <h2 class="eyebrow mb-1">This browser</h2>
+      <StatusRow label="Browser" value="…" data-row="browser" />
+      <StatusRow label="Speech recognition" value="…" data-row="api" />
+      <StatusRow label="Microphone permission" value="…" data-row="mic" />
+      <StatusRow label="On-device voice (no internet needed)" value="…" data-row="local" />
+    </section>
+
+    <div class="flex flex-wrap items-center gap-3" data-install-row hidden>
+      <Button variant="primary" data-install>Download on-device voice</Button>
+      <span class="text-[12px] text-subtle">Chrome downloads the language pack once, then voice follow works offline.</span>
+    </div>
+
+    <section class="flex flex-col gap-2">
+      <h2 class="eyebrow">Speech engine</h2>
+      <Segmented
+        name="engine"
+        label="Speech engine"
+        value="auto"
+        options={[
+          { value: 'auto', label: 'Automatic' },
+          { value: 'local', label: 'On this device' },
+          { value: 'cloud', label: 'Google’s service' },
+        ]}
+      />
+      <p class="text-[12px] text-subtle">
+        Automatic uses the on-device voice when it’s downloaded, otherwise Google’s service (which needs internet and only
+        answers Google Chrome and Microsoft Edge).
+      </p>
+    </section>
+
+    <section class="flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <h2 class="eyebrow">Live test</h2>
+        <Button variant="record" size="sm" data-test>● Start listening</Button>
+      </div>
+      <div class="rounded-xl bg-surface px-4 py-3.5 text-[17px] leading-normal">
+        <span class="text-faint">Heard:</span> <span data-heard>—</span>
+      </div>
+      <ol class="flex flex-col font-mono text-[12px] text-muted" data-log></ol>
+      <p class="rounded-xl bg-surface px-4 py-3.5 text-[13px] leading-normal text-fg-soft" data-verdict hidden></p>
+    </section>
+  </form>
+</AppShell>
+
+<script>
+  import { browserName, installLocalSpeech, localSpeechStatus, VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
+  import { loadSettings, saveSettings } from '@/lib/settings';
+
+  const form = document.getElementById('voice-check') as HTMLFormElement;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+  const row = (key: string, value: string, color?: string) => {
+    const el = $(`[data-row="${key}"]`);
+    el.querySelector('[data-value]')!.textContent = value;
+    const dot = el.querySelector<HTMLElement>('[data-dot]')!;
+    dot.hidden = !color;
+    if (color) dot.style.background = color;
+  };
+  const ok = 'var(--color-ok)';
+  const warn = 'var(--color-warn)';
+  const bad = 'var(--color-rec)';
+  const lang = navigator.language || 'en-US';
+  const browser = browserName();
+  const googleBrowser = /Google Chrome|Microsoft Edge/.test(browser);
+
+  row('browser', browser, googleBrowser ? ok : warn);
+  row('api', voiceFollowSupported() ? `Available · ${lang}` : 'Missing', voiceFollowSupported() ? ok : bad);
+
+  navigator.permissions
+    ?.query({ name: 'microphone' as PermissionName })
+    .then((p) => {
+      const show = () => row('mic', { granted: 'Allowed', prompt: 'Not asked yet', denied: 'Blocked' }[p.state], p.state === 'granted' ? ok : p.state === 'denied' ? bad : warn);
+      show();
+      p.onchange = show;
+    })
+    .catch(() => row('mic', 'Unknown'));
+
+  const refreshLocal = async () => {
+    const status = await localSpeechStatus(lang);
+    const text = {
+      available: 'Ready',
+      downloadable: 'Not downloaded',
+      downloading: 'Downloading…',
+      unavailable: `Not offered for ${lang}`,
+      unsupported: 'Not in this browser (needs Chrome 139+)',
+    }[status];
+    row('local', text, status === 'available' ? ok : status === 'downloading' || status === 'downloadable' ? warn : undefined);
+    $('[data-install-row]').hidden = status !== 'downloadable';
+    if (status === 'downloading') setTimeout(refreshLocal, 2000);
+    return status;
+  };
+  refreshLocal();
+
+  $<HTMLButtonElement>('[data-install]').addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Downloading…';
+    row('local', 'Downloading…', warn);
+    const done = await installLocalSpeech(lang);
+    btn.disabled = false;
+    btn.textContent = done ? 'Downloaded' : 'Try again';
+    await refreshLocal();
+  });
+
+  // Engine choice is saved with the prompter settings.
+  const engineInput = (v: string) => form.querySelector<HTMLInputElement>(`input[name=engine][value=${v}]`)!;
+  engineInput(loadSettings().prompter.voiceEngine).checked = true;
+  form.addEventListener('change', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.name === 'engine') saveSettings('prompter', { voiceEngine: t.value as 'auto' | 'local' | 'cloud' });
+  });
+
+  // Live test: every step the recognizer reports, with the time since start.
+  const log = $('[data-log]');
+  const verdict = $('[data-verdict]');
+  let voice: VoiceFollow | null = null;
+  let t0 = 0;
+  const seen = new Set<string>();
+  const note = (text: string, color = 'var(--color-muted)') => {
+    // The same message again just bumps a counter.
+    const last = log.lastElementChild as HTMLElement | null;
+    if (last?.dataset.text === text) {
+      const n = Number(last.dataset.n ?? 1) + 1;
+      last.dataset.n = String(n);
+      (last.lastChild as HTMLElement).textContent = `${text} (×${n})`;
+      return;
+    }
+    const li = document.createElement('li');
+    li.dataset.text = text;
+    li.className = 'flex gap-3 border-b border-line py-1.5';
+    li.innerHTML = `<span class="w-14 text-faint">${((performance.now() - t0) / 1000).toFixed(1)} s</span><span></span>`;
+    (li.lastChild as HTMLElement).textContent = text;
+    (li.lastChild as HTMLElement).style.color = color;
+    log.append(li);
+  };
+  const conclude = (text: string) => {
+    verdict.hidden = false;
+    verdict.textContent = text;
+  };
+
+  $<HTMLButtonElement>('[data-test]').addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    if (voice) {
+      voice.stop();
+      voice = null;
+      btn.textContent = '● Start listening';
+      return;
+    }
+    log.replaceChildren();
+    seen.clear();
+    verdict.hidden = true;
+    t0 = performance.now();
+    btn.textContent = 'Stop';
+    voice = new VoiceFollow(['test'], lang);
+    voice.engine = loadSettings().prompter.voiceEngine;
+    voice.addEventListener('engine', (ev) =>
+      note((ev as CustomEvent<string>).detail === 'local' ? 'Using on-device voice' : 'Using Google’s speech service'),
+    );
+    voice.addEventListener('status', (ev) => note(`Recognizer ${(ev as CustomEvent<string>).detail}`));
+    voice.addEventListener('diag', (ev) => {
+      const step = (ev as CustomEvent<string>).detail;
+      if (seen.has(step)) return;
+      seen.add(step);
+      note({ audiostart: 'Microphone opened', soundstart: 'Sound detected', speechstart: 'Speech detected' }[step] ?? step, ok);
+    });
+    voice.addEventListener('heard', (ev) => {
+      const text = (ev as CustomEvent<string>).detail;
+      $('[data-heard]').textContent = `“${text.split(/\s+/).slice(-16).join(' ')}”`;
+      if (!seen.has('words')) {
+        seen.add('words');
+        note('Words came back', ok);
+        conclude('Speech recognition works. If the prompter still doesn’t move, the words aren’t matching the script: check that you’re reading the script shown on the recording screen.');
+      }
+    });
+    voice.addEventListener('error', (ev) => {
+      const err = (ev as CustomEvent<string>).detail;
+      note(`Error: ${err} · ${voiceErrorText(err)}`, bad);
+      if (err === 'not-allowed' || err === 'service-not-allowed')
+        conclude('The microphone is blocked. Allow it for this site (the icon in the address bar), and check System Settings → Privacy & Security → Microphone for your browser.');
+      else if (err === 'audio-capture') conclude('No microphone was found. Check that one is connected and selected in System Settings → Sound → Input.');
+      else if (err === 'network' || err === 'no-results')
+        conclude(
+          googleBrowser
+            ? 'Your voice reaches the recognizer, but Google’s speech service isn’t answering. Check the internet connection, or download the on-device voice above so it works without it.'
+            : `${browser} can’t use Google’s speech service. Download the on-device voice above if it’s offered, or use Google Chrome.`,
+        );
+      else if (err.startsWith('local')) conclude('The on-device voice isn’t ready. Download it above, or switch the engine to Automatic.');
+    });
+    await voice.start();
+    // No sound at all after a while: the mic isn't reaching the recognizer.
+    setTimeout(() => {
+      if (voice && verdict.hidden && !seen.has('soundstart') && !seen.has('words'))
+        conclude('The recognizer never heard sound. Check the microphone permission above, the input device in System Settings → Sound, and that the right mic isn’t muted.');
+    }, 8000);
+  });
+</script>

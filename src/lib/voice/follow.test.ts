@@ -31,24 +31,24 @@ class FakeRecognition extends EventTarget {
 const { VoiceFollow } = await import('./follow.ts');
 const words = 'It was a quiet week in the studio, until the new transmitter arrived. Four pallets? I heard it was five, and one of them was just foam.'.split(' ');
 
-function follow() {
+async function follow() {
   const v = new VoiceFollow(words, 'en-US');
   const seen: number[] = [];
   v.addEventListener('word', (e) => seen.push((e as CustomEvent<number>).detail));
-  v.start();
+  await v.start();
   return { v, seen, rec: current! };
 }
 
-test('follows a straight read, word by word', () => {
-  const { seen, rec } = follow();
+test('follows a straight read, word by word', async () => {
+  const { seen, rec } = await follow();
   rec.say('it was a');
   rec.say('it was a quiet week');
   rec.say('it was a quiet week in the studio', true);
   assert.equal(seen.at(-1), 7);
 });
 
-test('a jump back is not undone by words heard before it', () => {
-  const { v, seen, rec } = follow();
+test('a jump back is not undone by words heard before it', async () => {
+  const { v, seen, rec } = await follow();
   rec.say('it was a quiet week in the studio until the new transmitter arrived', true);
   assert.equal(words[seen.at(-1)!], 'arrived.');
   v.setWord(0); // clicked the first line
@@ -59,16 +59,24 @@ test('a jump back is not undone by words heard before it', () => {
   assert.equal(words[seen.at(-1)!], 'quiet');
 });
 
-test('a retake rollback sticks', () => {
-  const { v, seen, rec } = follow();
+test('a retake rollback sticks', async () => {
+  const { v, seen, rec } = await follow();
   rec.say('four pallets i heard it was five', true);
   v.setWord(13); // back to "Four"
   rec.say('four pallets');
   assert.equal(words[seen.at(-1)!], 'pallets?');
 });
 
-test('a half-heard last word still moves the reader', () => {
-  const { seen, rec } = follow();
+test('a half-heard last word still moves the reader', async () => {
+  const { seen, rec } = await follow();
   rec.say('it was a quiet week in the studio until the new transmi');
   assert.equal(words[seen.at(-1)!], 'transmitter');
+});
+
+test('uses on-device recognition when the language pack is installed', async () => {
+  (FakeRecognition as unknown as { available: () => Promise<string> }).available = async () => 'available';
+  const { v, rec } = await follow();
+  assert.equal(v.local, true);
+  assert.equal((rec as unknown as { processLocally: boolean }).processLocally, true);
+  delete (FakeRecognition as unknown as { available?: unknown }).available;
 });

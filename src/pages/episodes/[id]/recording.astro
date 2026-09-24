@@ -195,7 +195,7 @@ const modeOption =
         <div class="flex flex-col border-t border-line" data-c-tracks hidden></div>
         <div class="flex items-center justify-between gap-4 font-mono text-[11px] text-subtle">
           <span class="min-w-0 truncate" data-heard>Heard: —</span>
-          <span class="flex flex-none items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-c-voice-dot></span><span data-c-voice>Starting voice follow…</span></span>
+          <span class="flex flex-none items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-c-voice-dot></span><span data-c-voice>Starting voice follow…</span><a href="/voice" target="_blank" class="ml-1 text-fg underline-offset-2 hover:underline" data-voice-help hidden>Voice check →</a></span>
         </div>
       </div>
 
@@ -623,6 +623,7 @@ const modeOption =
     }, 1000);
 
     let manualTimer: number | undefined;
+    let engineLabel = '';
     const startVoice = () => {
       // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
       if (prompterSettings.mode === 'manual') {
@@ -640,7 +641,9 @@ const modeOption =
         return;
       }
       voice = new VoiceFollow(words);
+      voice.engine = prompterSettings.voiceEngine;
       voice.setWord(word);
+      voice.addEventListener('engine', (e) => (engineLabel = (e as CustomEvent<string>).detail === 'local' ? ' · on-device' : ''));
       voice.addEventListener('word', (e) => {
         // Talk during a pause isn't part of the script.
         if (!paused) setWord((e as CustomEvent<number>).detail);
@@ -650,8 +653,10 @@ const modeOption =
       const voiceState = (text: string, color: string) => {
         $('[data-voice]').textContent = text;
         $('[data-voice-dot]').style.background = color;
-        $('[data-c-voice]').textContent = text === 'Listening' ? 'Voice follow listening' : text;
+        $('[data-c-voice]').textContent = text === 'Listening' ? `Voice follow listening${engineLabel}` : text;
         $('[data-c-voice-dot]').style.background = color;
+        // Anything but listening: point to the voice check.
+        $('[data-voice-help]').hidden = text === 'Listening';
       };
       voice.addEventListener('status', (e) => {
         const on = (e as CustomEvent<string>).detail === 'listening';

@@ -274,6 +274,7 @@ const LIT = 30;
     const tokenLine: number[] = [];
     words.forEach((w, i) => normalize(w).forEach(() => tokenLine.push(starts.reduce((l, s, n) => (i >= s ? n : l), 0))));
     const voice = new VoiceFollow(words);
+    voice.engine = loadSettings().prompter.voiceEngine;
     voice.addEventListener('heard', (e) => {
       const text = (e as CustomEvent<string>).detail;
       $('[data-heard]').textContent = `“${text}”`;

@@ -32,6 +32,8 @@ export interface PrompterSettings {
   line: number;
   theme: 'dark' | 'contrast' | 'light' | 'amber';
   mirror: boolean;
+  /** Speech engine for voice follow: on-device when installed, else Google's service */
+  voiceEngine: 'auto' | 'local' | 'cloud';
 }
 
 export interface Settings {
@@ -50,6 +52,7 @@ export const defaults: Settings = {
     line: 34,
     theme: 'dark',
     mirror: true,
+    voiceEngine: 'auto',
   },
 };
 

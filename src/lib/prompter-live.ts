@@ -61,6 +61,7 @@ export function runPrompter(p: Prompter, opts: LiveOptions) {
 
   const startVoice = () => {
     voice = new VoiceFollow(opts.words);
+    voice.engine = settings.voiceEngine;
     voice.setWord(p.index);
     voice.addEventListener('word', (e) => !paused && p.setWord((e as CustomEvent<number>).detail));
     voice.addEventListener('lost', () => opts.onFollow('lost'));
