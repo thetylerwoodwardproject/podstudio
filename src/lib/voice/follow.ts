@@ -11,7 +11,7 @@
  *   "error"  detail: 'not-allowed' | 'network' | 'unsupported' | string
  */
 
-import { locate, normalize } from './match';
+import { locate, normalize } from './match.ts';
 
 interface Recognition extends EventTarget {
   continuous: boolean;
@@ -48,13 +48,19 @@ export class VoiceFollow extends EventTarget {
   private rec: Recognition | null = null;
   private running = false;
   private heardCount = 0;
+  /** Heard words before this index (in the current recognition session) are ignored */
+  private baseline = 0;
+  private lastText = '';
   private offScript = 0;
   lost = false;
   /** Display index of the last word matched by voice */
   lastMatch = -1;
 
-  constructor(displayWords: string[], readonly lang = navigator.language || 'en-US') {
+  readonly lang: string;
+
+  constructor(displayWords: string[], lang = navigator.language || 'en-US') {
     super();
+    this.lang = lang;
     displayWords.forEach((w, i) => {
       for (const t of normalize(w)) {
         this.tokens.push(t);
@@ -63,11 +69,22 @@ export class VoiceFollow extends EventTarget {
     });
   }
 
-  /** Move the expected position, e.g. after a manual jump or tap. */
+  /**
+   * Move the expected position after a manual jump (click, arrow keys, retake,
+   * producer remote). Words heard before the jump are forgotten, so they can't
+   * pull the reader back to where they were.
+   */
   setWord(displayIndex: number) {
+    if (displayIndex === this.lastMatch) return; // our own match echoed back
     const t = this.tokenWord.findIndex((w) => w >= displayIndex);
     this.cursor = t < 0 ? this.tokens.length - 1 : t;
     this.offScript = 0;
+    this.baseline = this.heardCount;
+    this.lastMatch = -1;
+    if (this.lost) {
+      this.lost = false;
+      this.emit('found');
+    }
   }
 
   start() {
@@ -93,6 +110,8 @@ export class VoiceFollow extends EventTarget {
     rec.interimResults = true;
     rec.lang = this.lang;
     this.heardCount = 0;
+    this.baseline = 0;
+    this.lastText = '';
     rec.onresult = (e) => this.onResult(e);
     rec.onerror = (e) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
@@ -112,13 +131,18 @@ export class VoiceFollow extends EventTarget {
   private onResult(e: RecognitionEvent) {
     let text = '';
     for (let i = 0; i < e.results.length; i++) text += ' ' + e.results[i][0].transcript;
+    // Interim results are revised as Chrome hears more; a changed guess is worth a
+    // look even when the word count stays the same.
+    if (text === this.lastText) return;
+    this.lastText = text;
     const words = normalize(text);
     const fresh = Math.max(0, words.length - this.heardCount);
     this.heardCount = words.length;
-    if (!fresh) return;
     this.emit('heard', text.trim());
 
-    const hit = locate(this.tokens, words.slice(-TAIL), this.cursor, { ahead: this.lost ? 400 : 60, behind: this.lost ? 400 : 12 });
+    const usable = words.slice(Math.min(this.baseline, words.length));
+    if (!usable.length) return;
+    const hit = locate(this.tokens, usable.slice(-TAIL), this.cursor, { ahead: this.lost ? 400 : 60, behind: this.lost ? 400 : 12 });
     if (hit) {
       this.cursor = Math.min(hit.index + 1, this.tokens.length - 1);
       this.offScript = 0;

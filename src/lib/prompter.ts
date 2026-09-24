@@ -70,9 +70,18 @@ export class Prompter {
     return this.mirrored;
   }
 
+  /** Scroll by hand (wheel, trackpad, drag) to look at other lines. The next word snaps back. */
+  nudge(dy: number) {
+    const lineY = this.viewport.clientHeight * this.lineAt;
+    this.track.style.transition = 'none';
+    this.offset = Math.max(lineY - this.track.offsetHeight, Math.min(lineY, this.offset + dy));
+    this.apply();
+  }
+
   private scroll() {
     const w = this.words[Math.min(this.index, this.words.length - 1)];
     if (!w) return;
+    this.track.style.transition = '';
     const lineY = this.viewport.clientHeight * this.lineAt;
     this.offset = Math.round(lineY - (w.offsetTop + w.offsetHeight * 0.78));
     this.apply();
@@ -115,4 +124,43 @@ export function startClock(els: HTMLElement[], startSeconds: number, paused: () 
     t += 1;
     els.forEach((e) => (e.textContent = fmt()));
   }, 1000);
+}
+
+/**
+ * Let the reader scroll a prompter by hand: wheel or trackpad, or drag on a
+ * touch screen. A drag doesn't count as a tap on the line under it.
+ */
+export function enableHandScroll(p: Prompter, viewport: HTMLElement) {
+  viewport.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      p.nudge(-e.deltaY);
+    },
+    { passive: false },
+  );
+  viewport.style.touchAction = 'none';
+  let lastY: number | null = null;
+  let moved = 0;
+  viewport.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    lastY = e.clientY;
+    moved = 0;
+  });
+  viewport.addEventListener('pointermove', (e) => {
+    if (lastY == null) return;
+    const dy = e.clientY - lastY;
+    moved += Math.abs(dy);
+    lastY = e.clientY;
+    p.nudge(dy);
+  });
+  const end = () => {
+    if (lastY != null && moved > 8) {
+      // Swallow the click that ends a drag.
+      viewport.addEventListener('click', (e) => e.stopPropagation(), { capture: true, once: true });
+    }
+    lastY = null;
+  };
+  viewport.addEventListener('pointerup', end);
+  viewport.addEventListener('pointercancel', end);
 }

@@ -137,7 +137,7 @@ const modeOption =
         </div>
         <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
           <span class="text-muted">Voice follow</span>
-          <span class="meta flex items-center gap-2"><span class="inline-block size-1.5 rounded-full bg-faint" data-voice-dot></span><span data-voice>Starts with the take</span></span>
+          <span class="meta flex items-center gap-2"><span class="inline-block size-1.5 rounded-full bg-faint" data-voice-dot></span><span data-voice>Starting…</span></span>
         </div>
         <div class="flex items-center justify-between gap-4 border-b border-line py-[11px] text-[13px]">
           <span class="text-muted">Free space</span>
@@ -195,7 +195,7 @@ const modeOption =
         <div class="flex flex-col border-t border-line" data-c-tracks hidden></div>
         <div class="flex items-center justify-between gap-4 font-mono text-[11px] text-subtle">
           <span class="min-w-0 truncate" data-heard>Heard: —</span>
-          <span class="flex flex-none items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-c-voice-dot></span><span data-c-voice>Voice follow starts with the session</span></span>
+          <span class="flex flex-none items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-c-voice-dot></span><span data-c-voice>Starting voice follow…</span></span>
         </div>
       </div>
 
@@ -294,7 +294,7 @@ const modeOption =
   import { Session } from '@/lib/session';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import type { SessionMarker } from '@/lib/audio/assemble';
-  import { Prompter } from '@/lib/prompter';
+  import { Prompter, enableHandScroll } from '@/lib/prompter';
   import { loadScript, speakerColor, speakerName } from '@/lib/script-store';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
@@ -437,6 +437,8 @@ const modeOption =
       }),
     );
     const cPrompter = new Prompter($('[data-c-viewport]'), track, { line: 0.3 });
+    // Scroll to any line (wheel, trackpad or drag) and click it to put the reader there.
+    enableHandScroll(cPrompter, $('[data-c-viewport]'));
 
     // Tracks (multi-speaker continuous sessions): one row per speaker.
     const tracksEl = $('[data-c-tracks]');
@@ -743,7 +745,6 @@ const modeOption =
       startedAt = Date.now();
       session.send(recMsg());
       session.send({ type: 'word', index: word, device: device() });
-      startVoice();
 
       const tick = () => {
         const s = Math.floor((Date.now() - startedAt) / 1000);
@@ -898,6 +899,9 @@ const modeOption =
           ? `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`
           : `/episodes/${episodeId}/takes?take=${encodeURIComponent(meta.id)}`;
     }
+
+    // Listen from the start, so the script follows you while you rehearse, before recording.
+    startVoice();
 
     toggle.addEventListener('click', () => (writer ? stop() : start()));
     sessionToggle.addEventListener('click', () => (writer ? stop() : start()));

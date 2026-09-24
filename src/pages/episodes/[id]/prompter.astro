@@ -126,7 +126,7 @@ const foot = {
 </Phone>
 
 <script>
-  import { Prompter, startClock } from '@/lib/prompter';
+  import { Prompter, enableHandScroll, startClock } from '@/lib/prompter';
   import { runPrompter, type LiveStatus } from '@/lib/prompter-live';
   import { applyState } from '@/lib/states';
   import { applyPrompterLook, loadSettings } from '@/lib/settings';
@@ -292,8 +292,18 @@ const foot = {
     },
     onFollow: (s) => applyState(root, s),
   });
+  // Drag to look at other lines; tap a line to move every screen there.
+  enableHandScroll(p, viewport);
   if (controls) {
     jump = controls.jump;
+    p.lines.forEach((line) => {
+      line.style.cursor = 'pointer';
+      line.addEventListener('click', () => {
+        const word = p.lineStart(line);
+        controls.jump(word);
+        controls.session.send({ type: 'control', action: 'goto', word });
+      });
+    });
     root.querySelector('[data-foot]')!.addEventListener('click', () => live.kind === 'voice-off' && controls.retry());
     // Show the recorder's clock while a take is running in this browser.
     let timer: number | undefined;

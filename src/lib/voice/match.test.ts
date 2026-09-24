@@ -46,3 +46,14 @@ test('a single word only counts right after the cursor', () => {
   assert.equal(locate(script, ['truck'], 0), null);
   assert.equal(locate(script, ['it'], 0)!.index, 0);
 });
+
+test('a half-recognized last word still places the reader', () => {
+  // "...until the new transmi" → reader is on "transmitter"
+  const r = locate(script, normalize('studio until the new transmi'), 7);
+  assert.equal(r && at(r.index), 'transmitter');
+});
+
+test('a jump back is followed when the reader re-reads', () => {
+  const r = locate(script, normalize('it was a quiet week'), 0, { behind: 0 });
+  assert.equal(r && at(r.index), 'week');
+});

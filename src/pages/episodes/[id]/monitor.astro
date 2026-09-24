@@ -43,7 +43,7 @@ const word =
 </Base>
 
 <script>
-  import { Prompter, startClock } from '@/lib/prompter';
+  import { Prompter, enableHandScroll, startClock } from '@/lib/prompter';
   import { runPrompter } from '@/lib/prompter-live';
   import { applyPrompterLook, loadSettings, saveSettings } from '@/lib/settings';
   import { loadScript } from '@/lib/script-store';
@@ -78,6 +78,7 @@ const word =
   };
   const look = applyLook();
   const p = new Prompter(viewport, track, { line: demo ? 0.34 : look.line / 100, mirror: look.mirror });
+  enableHandScroll(p, viewport);
   document.addEventListener('prompter-settings', () => {
     applyLook();
     p.setWord(p.index);

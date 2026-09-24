@@ -96,18 +96,23 @@ export function locate(script: string[], heard: string[], cursor: number, opts: 
     }
   }
 
-  // Only alignments that end on the most recent heard word say where the reader is now.
+  // Alignments that end on the most recent heard word say where the reader is now.
+  // Recognition often reports the word being spoken half-finished ("transmi"), so an
+  // alignment ending on the word before it also counts, placing the reader one word on.
   let best: MatchResult | null = null;
   const last = rows - 1;
-  for (let j = 1; j < cols; j++) {
-    const index = from + j - 1;
-    const matched = M[last][j];
-    if (!matched || MATCH(heard[last - 1], win[j - 1]) < 0) continue;
-    // Prefer positions close to (and just after) the cursor.
-    const distance = index >= cursor ? index - cursor : (cursor - index) * 2;
-    const score = H[last][j] - distance * 0.05;
-    const enough = matched >= minWords || (matched === 1 && index >= cursor && index <= cursor + 2);
-    if (enough && (!best || score > best.score)) best = { index, matched, score };
+  for (const [row, step, penalty] of [[last, 0, 0], [last - 1, 1, 0.8]] as const) {
+    if (row < 1) continue;
+    for (let j = 1; j < cols; j++) {
+      const matched = M[row][j];
+      if (!matched || MATCH(heard[row - 1], win[j - 1]) < 0) continue;
+      const index = Math.min(from + j - 1 + step, script.length - 1);
+      // Prefer positions close to (and just after) the cursor.
+      const distance = index >= cursor ? index - cursor : (cursor - index) * 2;
+      const score = H[row][j] - distance * 0.05 - penalty;
+      const enough = matched >= minWords || (matched === 1 && index >= cursor && index <= cursor + 2);
+      if (enough && (!best || score > best.score)) best = { index, matched, score };
+    }
   }
   return best;
 }
