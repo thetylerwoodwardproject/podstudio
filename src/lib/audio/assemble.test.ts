@@ -62,3 +62,9 @@ test('mapTime follows the kept ranges', async () => {
   assert.equal(mapTime(30, [[0, 10], [25, 60]]), 15);
   assert.equal(mapTime(15, [[0, 10], [25, 60]]), null);
 });
+
+test('ad-libs are marked, not cut', () => {
+  const a = assemble(60, [{ t: 10, kind: 'adlib', line: 2, end: 25 }], [{ t: 0, line: 0 }], 'cut');
+  assert.equal(a.removed, 0);
+  assert.deepEqual(a.files, [[[0, 60]]]);
+});

@@ -94,6 +94,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         <div class="flex gap-4.5 text-[12px] text-muted">
           <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] bg-warn"></span>Retake</span>
           <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] border border-dashed border-subtle"></span>Pause</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] bg-adlib"></span>Ad-lib</span>
         </div>
       </div>
     </section>
@@ -117,9 +118,20 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
           <span class="text-[15px] font-medium" data-pause-label>Pause</span>
           <span class="font-mono text-[11px] font-medium text-muted" data-pause-key>P</span>
         </button>
+        <button
+          type="button"
+          class="col-span-2 flex h-11 items-center justify-center gap-3 rounded-xl border border-edge text-[14px] hover:bg-raised aria-pressed:border-transparent aria-pressed:bg-adlib aria-pressed:text-ink disabled:opacity-40"
+          aria-pressed="false"
+          data-adlib
+          disabled
+        >
+          <span data-adlib-label>Ad-lib</span>
+          <span class="font-mono text-[11px] font-medium opacity-60">A</span>
+        </button>
       </div>
       <p class="text-[12px] leading-normal text-subtle">
         Retake keeps recording, plays a short tone, drops a marker and rolls the prompter back to the start of the line.
+        Ad-libs are spotted on their own: the prompter holds your place and they’re marked, not cut.
       </p>
       <h2 class="mt-1.5 text-[13px] font-medium">Markers</h2>
       <div class="flex min-h-0 flex-col overflow-auto" data-demo-only>
@@ -131,7 +143,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         ))}
       </div>
       <div class="flex min-h-0 flex-col overflow-auto" data-live-only data-marker-list>
-        <p class="py-2.5 text-[13px] text-subtle" data-marker-empty>No markers yet. Press R to retake a line, P to pause.</p>
+        <p class="py-2.5 text-[13px] text-subtle" data-marker-empty>No markers yet. Press R to retake a line, P to pause, A to mark an ad-lib.</p>
       </div>
       <div class="mt-auto flex flex-col gap-2.5 pt-4">
         <dl class="flex flex-col text-[12px]" data-live-only>
@@ -553,8 +565,15 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         // Talk during a pause isn't part of the script.
         if (!paused) setWord((e as CustomEvent<number>).detail);
       });
-      voice.addEventListener('lost', () => session.send({ type: 'follow', state: 'lost' }));
-      voice.addEventListener('found', () => session.send({ type: 'follow', state: 'read' }));
+      voice.addEventListener('lost', (e) => {
+        session.send({ type: 'follow', state: 'lost' });
+        startAdlib((e as CustomEvent<{ since: number }>).detail.since);
+      });
+      voice.addEventListener('found', () => {
+        session.send({ type: 'follow', state: 'read' });
+        // The words that brought the reader back were script, so end a moment before them.
+        endAdlib(1);
+      });
       const voiceState = (text: string, color: string) => {
         $('[data-c-voice]').textContent = text === 'Listening' ? `Voice follow listening${engineLabel}${inputLabel ? ` · ${inputLabel}` : ''}` : text;
         $('[data-c-voice-dot]').style.background = color;
@@ -567,7 +586,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       });
       voice.addEventListener('error', (e) => voiceState(voiceErrorText((e as CustomEvent<string>).detail), 'var(--color-warn)'));
       voice.addEventListener('heard', (e) => ($('[data-heard]').textContent = `Heard: “${(e as CustomEvent<string>).detail.split(/\s+/).slice(-12).join(' ')}”`));
-      voice.addEventListener('lost', () => ($('[data-c-voice]').textContent = 'Off script · keep reading or click a line'));
+      voice.addEventListener('lost', () => ($('[data-c-voice]').textContent = 'Ad-lib · holding your place until the script resumes'));
       voice.addEventListener('found', () => ($('[data-c-voice]').textContent = 'Voice follow listening'));
       voice.start();
     };
@@ -666,7 +685,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       $('[data-session-icon]').hidden = true;
       $('[data-session-label]').textContent = 'Stop session';
       sessionToggle.disabled = false;
-      retakeBtn.disabled = pauseBtn.disabled = false;
+      retakeBtn.disabled = pauseBtn.disabled = adlibBtn.disabled = false;
     }
 
     // Retake and pause (8a).
@@ -707,6 +726,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     function togglePause(broadcast = true) {
       if (!writer) return;
       const t = writer.seconds;
+      endAdlib();
       if (paused) {
         paused.end = t;
         paused = null;
@@ -721,8 +741,42 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       renderSession();
     }
 
+    // Ad-libs: talk that isn't in the script, by anyone. Voice follow holds the reader's place
+    // and spots them itself; A (or the button) marks one by hand. They stay in the edit.
+    const adlibBtn = $<HTMLButtonElement>('[data-adlib]');
+    adlibBtn.disabled = true;
+    let adlib: SessionMarker | null = null;
+    function startAdlib(since = Date.now()) {
+      if (!writer || paused || adlib) return;
+      // Backdate to the first off-script word voice follow heard.
+      const t = Math.max(0, writer.seconds - (Date.now() - since) / 1000);
+      adlib = { t, kind: 'adlib', line: currentLine };
+      writer.meta.markers!.push(adlib);
+      adlibBtn.setAttribute('aria-pressed', 'true');
+      $('[data-adlib-label]').textContent = 'Ad-lib · back to script';
+      renderSession();
+    }
+    /** `lead`: seconds of script already heard when voice follow noticed it resumed. */
+    function endAdlib(lead = 0) {
+      if (!adlib || !writer) return;
+      adlib.end = Math.max(adlib.t, writer.seconds - lead);
+      adlib = null;
+      adlibBtn.setAttribute('aria-pressed', 'false');
+      $('[data-adlib-label]').textContent = 'Ad-lib';
+      renderSession();
+    }
+    function toggleAdlib() {
+      if (!writer || paused) return;
+      if (adlib) {
+        endAdlib();
+        voice?.release();
+      } else if (voice) voice.holdAdlib();
+      else startAdlib();
+    }
+
     retakeBtn.addEventListener('click', retake);
     pauseBtn.addEventListener('click', () => togglePause());
+    adlibBtn.addEventListener('click', toggleAdlib);
 
     // Timeline and marker list, newest marker first.
     const markerTpl = document.createElement('div');
@@ -737,9 +791,10 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         ...markers.map((m) => {
           const el = document.createElement('div');
           const left = (m.t / Math.max(now, 1)) * 100;
-          if (m.kind === 'pause') {
+          if (m.kind === 'pause' || m.kind === 'adlib') {
             const width = (((m.end ?? now) - m.t) / Math.max(now, 1)) * 100;
-            el.className = 'absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink';
+            el.className =
+              m.kind === 'pause' ? 'absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink' : 'absolute inset-y-1.5 rounded-sm bg-adlib/60';
             el.style.cssText = `left:${left}%;width:${Math.max(width, 0.4)}%`;
           } else {
             el.className = 'absolute inset-y-0 w-0.5 bg-warn';
@@ -759,12 +814,14 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         time.textContent = fmt(m.t);
         const text = document.createElement('span');
         const kind = document.createElement('span');
-        kind.className = m.kind === 'retake' ? 'text-warn' : 'text-fg-soft';
-        kind.textContent = m.kind === 'retake' ? 'Retake' : 'Pause';
+        kind.className = { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib' }[m.kind];
+        kind.textContent = { retake: 'Retake', pause: 'Pause', adlib: 'Ad-lib' }[m.kind];
         const words = lines[m.line].text.split(/\s+/).slice(0, 3).join(' ');
         const detail =
           m.kind === 'retake'
             ? m.attempt === 2 ? `Line ${m.line + 1} · “${words}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
+            : m.kind === 'adlib'
+              ? m.end == null ? `running · after Line ${m.line + 1}` : `${fmt(m.end - m.t).replace(/^0/, '')} · during Line ${m.line + 1}`
             : m.end == null
               ? `running · Line ${m.line + 1}`
               : `${fmt(m.end - m.t).replace(/^0/, '')} · before Line ${(writer.meta.lineLog?.find((l) => l.t >= m.end!)?.line ?? currentLine) + 1}`;
@@ -780,6 +837,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       const key = e.key.toLowerCase();
       if (key === 'r') retake();
       else if (key === 'p') togglePause();
+      else if (key === 'a') toggleAdlib();
       else if (e.key === 'ArrowRight') setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
       else if (e.key === 'ArrowLeft') setWord(starts[Math.max(currentLine - 1, 0)]);
     });

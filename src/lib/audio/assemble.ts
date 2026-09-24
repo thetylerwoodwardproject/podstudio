@@ -5,17 +5,18 @@
  * The assembled edit keeps the last attempt of each line: a retake on line L
  * at time t cuts from the most recent time line L started (before t) up to
  * t. Pauses are cut, kept, or used to split the edit into separate files.
+ * Ad-libs are only marked: they stay in the edit.
  * All times are in seconds from the start of the session.
  */
 
 export interface SessionMarker {
   t: number;
-  kind: 'retake' | 'pause';
+  kind: 'retake' | 'pause' | 'adlib';
   /** Zero-based script line */
   line: number;
   /** Retakes: which attempt this starts (2 = first retake) */
   attempt?: number;
-  /** Pauses: when recording resumed */
+  /** Pauses: when recording resumed. Ad-libs: when the script resumed */
   end?: number;
 }
 

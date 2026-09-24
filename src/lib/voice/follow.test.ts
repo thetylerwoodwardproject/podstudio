@@ -90,3 +90,30 @@ test('listens to the given mic track, not the default mic', async () => {
   await v.start();
   assert.equal((current as unknown as { startedWith: unknown }).startedWith, track);
 });
+
+test('an ad-lib holds the reader in place and the script brings them back', async () => {
+  const { v, seen, rec } = await follow();
+  const events: string[] = [];
+  v.addEventListener('lost', () => events.push('lost'));
+  v.addEventListener('found', () => events.push('found'));
+  rec.say('it was a quiet week in the studio', true);
+  const at = seen.at(-1)!;
+  rec.say('ha honestly that was the best week we ever had in there', true);
+  assert.deepEqual(events, ['lost']);
+  assert.equal(seen.at(-1), at, 'the ad-lib moved the reader');
+  rec.say('the', false); // one stray word isn't the script resuming
+  assert.deepEqual(events, ['lost']);
+  rec.say('the until the new', true);
+  assert.deepEqual(events, ['lost', 'found']);
+  assert.equal(words[seen.at(-1)!], 'new');
+});
+
+test('an ad-lib marked by hand holds until released', async () => {
+  const { v } = await follow();
+  const events: { type: string; manual?: boolean }[] = [];
+  v.addEventListener('lost', (e) => events.push({ type: 'lost', manual: (e as CustomEvent<{ manual: boolean }>).detail.manual }));
+  v.addEventListener('found', () => events.push({ type: 'found' }));
+  v.holdAdlib();
+  v.release();
+  assert.deepEqual(events, [{ type: 'lost', manual: true }, { type: 'found' }]);
+});

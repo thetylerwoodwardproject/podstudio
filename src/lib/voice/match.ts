@@ -77,6 +77,8 @@ export interface MatchOptions {
   minWords?: number;
   /** Words needed to jump further ahead than this many words (skipping part of the script) */
   skip?: number;
+  /** Coming back from an ad-lib: even the next word needs the one before it heard in order */
+  strict?: boolean;
 }
 
 /**
@@ -84,7 +86,7 @@ export interface MatchOptions {
  * near `cursor`. Returns null when nothing lines up well enough.
  */
 export function locate(script: string[], heard: string[], cursor: number, opts: MatchOptions = {}): MatchResult | null {
-  const { behind = 12, ahead = 60, minWords = 2, skip = 6 } = opts;
+  const { behind = 12, ahead = 60, minWords = 2, skip = 6, strict = false } = opts;
   if (!heard.length || !script.length) return null;
   const from = Math.max(0, cursor - behind);
   const to = Math.min(script.length, cursor + ahead + 1);
@@ -131,14 +133,26 @@ export function locate(script: string[], heard: string[], cursor: number, opts: 
       const score = H[row][j] - distance * 0.05 - penalty;
       // Next to the cursor, one word (even a common one) is enough. Anywhere else the
       // reader must be on a real word, or on a common one ("of", a filler "and") right
-      // after two words heard in order. Skipping ahead needs four words lined up.
+      // after two words heard in order. Jumping further, ahead or back, needs four words lined up.
       const near = index >= cursor && index <= cursor + 2;
       const end = index - step;
       const inStep = (k: number) => row - 1 - k >= 0 && end - k >= 0 && MATCH(heard[row - 1 - k], script[end - k]) > 0;
+      // One of the two heard words before the last one matches one of the two script words
+      // before `end` (recognition drops words, and inserts the odd "the" or "um").
+      const led = [2, 3].some((h) => row - h >= 0 && [1, 2].some((k) => end - k >= 0 && MATCH(heard[row - h], script[end - k]) > 0));
+      // Reading lines words up one after another; talk around the script (ad-libs) only
+      // hits a script word here and there. Moving past the next couple of words needs a run.
+      if ((!near || strict) && !led) continue;
+      // Even next to the cursor, a lone word has to follow on from the script unless it's
+      // exactly the expected word, or ad-libs creep the reader forward: a real word may be
+      // one word on, a common one ("was", "the") none.
+      if (near && !led && index > cursor && (COMMON.has(script[end]) || index > cursor + 1)) continue;
+      // A common word ahead of the cursor, led only across a dropped word ("the … is"), is too loose.
+      if (near && index > cursor && COMMON.has(script[end]) && !inStep(1)) continue;
       if (!near && COMMON.has(script[end]) && !(inStep(1) && inStep(2))) continue;
       const enough = near
         ? matched >= 1 || H[row][j] >= 1.5
-        : matched >= minWords && (index <= cursor + skip || T[row][j] >= 4);
+        : matched >= minWords && (Math.abs(index - cursor) <= skip || (T[row][j] >= 4 && matched >= 2));
       if (enough && (!best || score > best.score)) best = { index, matched, score };
     }
   }

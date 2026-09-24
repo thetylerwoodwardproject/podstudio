@@ -4,7 +4,8 @@
  *
  * Events:
  *   "word"   detail: index of the script word just spoken (display word index)
- *   "lost"   the reader has gone off script for a while (ad-lib or skipped)
+ *   "lost"   the reader has gone off script (an ad-lib, or skipped ahead); detail:
+ *            { since: ms timestamp of the first off-script word, manual: boolean }
  *   "found"  back on script after "lost"
  *   "heard"  detail: the latest recognized text
  *   "status" detail: 'listening' | 'stopped' | 'error'
@@ -90,8 +91,8 @@ export function browserName(): string {
   return 'This browser';
 }
 
-/** Words heard off script before voice follow says it has lost the reader. */
-const LOST_AFTER_WORDS = 9;
+/** Words heard off script before voice follow calls it an ad-lib and holds the reader's place. */
+const LOST_AFTER_WORDS = 6;
 const TAIL = 8;
 
 export class VoiceFollow extends EventTarget {
@@ -119,6 +120,8 @@ export class VoiceFollow extends EventTarget {
   private baseline = 0;
   private lastText = '';
   private offScript = 0;
+  /** When the current run of off-script words started */
+  private offSince = 0;
   lost = false;
   /** Display index of the last word matched by voice */
   lastMatch = -1;
@@ -152,6 +155,22 @@ export class VoiceFollow extends EventTarget {
       this.lost = false;
       this.emit('found');
     }
+  }
+
+  /** The host marked an ad-lib: hold the reader's place until the script resumes. */
+  holdAdlib() {
+    if (this.lost) return;
+    this.lost = true;
+    this.offScript = LOST_AFTER_WORDS;
+    this.emit('lost', { since: Date.now(), manual: true });
+  }
+
+  /** End an ad-lib by hand (the script may not have resumed yet). */
+  release() {
+    if (!this.lost) return;
+    this.lost = false;
+    this.offScript = 0;
+    this.emit('found');
   }
 
   async start() {
@@ -258,7 +277,13 @@ export class VoiceFollow extends EventTarget {
 
     const usable = words.slice(Math.min(this.baseline, words.length));
     if (!usable.length) return;
-    const hit = locate(this.tokens, usable.slice(-TAIL), this.cursor, { ahead: this.lost ? 400 : 60, behind: this.lost ? 400 : 12 });
+    // After an ad-lib the reader may carry on anywhere, but only words heard in script
+    // order bring them back, so talk that happens to share a word can't.
+    const hit = locate(this.tokens, usable.slice(-TAIL), this.cursor, {
+      ahead: this.lost ? 400 : 60,
+      behind: this.lost ? 400 : 12,
+      strict: this.lost,
+    });
     if (hit) {
       this.cursor = Math.min(hit.index + 1, this.tokens.length - 1);
       this.offScript = 0;
@@ -269,10 +294,11 @@ export class VoiceFollow extends EventTarget {
         this.emit('found');
       }
     } else {
+      if (!this.offScript && fresh) this.offSince = Date.now();
       this.offScript += fresh;
       if (!this.lost && this.offScript >= LOST_AFTER_WORDS) {
         this.lost = true;
-        this.emit('lost');
+        this.emit('lost', { since: this.offSince, manual: false });
       }
     }
   }

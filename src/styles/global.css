@@ -41,6 +41,7 @@
   --color-rec: #ff453a;
   --color-ok: #30d158;
   --color-warn: #ff9f0a;
+  --color-adlib: #6ea8ff;
 
   /* Speaker presets (Syntax color scales, brightened for dark screens) */
   --color-spk-yellow: oklch(83.77% 0.148 81.72);
