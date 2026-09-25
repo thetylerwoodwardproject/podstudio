@@ -24,20 +24,34 @@ function run(options: object, input: Float32Array[], record = false) {
 
 const block = (v: number) => new Float32Array(128).fill(v);
 
-test('a full-scale mic on input 1 of a two-input interface meters 0 dBFS, not -6', () => {
+test('a full-scale mic on input 1 of a two-input interface flags clipping, even mixed', () => {
   const { level } = run({ channel: null }, [block(1), block(0)]);
-  assert.equal(level.peak, 1);
+  assert.equal((level as unknown as { hot: number }).hot, 1);
 });
 
-test('mono summed records the single mic at its own level', () => {
-  const { chunks } = run({ channel: null }, [block(0.5), block(0)], true);
+test('mixing a mono source that arrives as two identical channels keeps its level', () => {
+  // Chrome doubles a one-channel source into two; summing made -6 dBFS clip.
+  const { level, chunks } = run({ channel: null }, [block(0.5), block(0.5)], true);
   assert.equal(chunks[0].samples![0], 0.5);
+  assert.equal(level.peak, 0.5);
 });
 
-test('clipping on an input the recording sums away still shows', () => {
-  // Opposite signals cancel in the sum, but the converter saw full scale.
+test('mixing never goes past full scale', () => {
+  const { chunks } = run({ channel: null }, [block(1), block(1)], true);
+  assert.equal(Math.max(...chunks.flatMap((c) => [...c.samples!])), 1);
+});
+
+test('clipping on an input the mix averages away still shows', () => {
+  // Opposite signals cancel in the mix, but the converter saw full scale.
   const { level } = run({ channel: null }, [block(1), block(-1)]);
-  assert.equal(level.peak, 1);
+  const l = level as unknown as { peak: number; hot: number };
+  assert.equal(l.peak, 0, 'the meter shows what is recorded');
+  assert.equal(l.hot, 1, 'and still flags the clipped input');
+});
+
+test('an input that is not recorded does not light the clip flag', () => {
+  const { level } = run({ channel: 0 }, [block(0.25), block(1)]);
+  assert.equal((level as unknown as { hot: number }).hot, 0.25);
 });
 
 test('one input of an interface', () => {

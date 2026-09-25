@@ -190,7 +190,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
 </AppShell>
 
 <script>
-  import { MicCapture } from '@/lib/audio/capture';
+  import { MicCapture, type Level } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
   import { TakeWriter, formatBytes, storageLeft, type RosterEntry } from '@/lib/audio/takes';
   import { startClock } from '@/lib/prompter';
@@ -426,7 +426,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     const setWord = (i: number, broadcast = true) => {
       word = i;
       const line = lineOf(i);
-      if (line !== currentLine && writer) writer.meta.lineLog?.push({ t: writer.seconds, line });
+      if (line !== currentLine && writer) writer.meta.lineLog?.push({ t: capture.elapsed(), line });
       currentLine = line;
       showLine(line);
       cPrompter.setWord(i);
@@ -457,9 +457,9 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     const held: number[] = [];
     let clipAt = 0;
     capture.addEventListener('level', (e) => {
-      const { peak } = (e as CustomEvent<{ peak: number }>).detail;
+      const { peak, hot } = (e as CustomEvent<Level>).detail;
       windowPeak = Math.max(windowPeak, peak);
-      if (peak > -0.5) clipAt = Date.now();
+      if (hot > -0.5) clipAt = Date.now();
     });
     // Multi-speaker rows: the level of each speaker's mic, newest bar on the right.
     const rowPeaks = new Map<string, number>();
@@ -496,7 +496,9 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       if (held.length > 6) held.shift();
       const hold = Math.max(...held);
       $('[data-peak]').textContent = Number.isFinite(hold) ? `Peak ${Math.round(Math.min(0, hold)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Silence';
-      $('[data-peak]').style.color = Date.now() - clipAt < 3000 ? 'var(--color-rec)' : '';
+      // Same zones as the mic check: amber above -6 dBFS, red above -2 or when clipping.
+      $('[data-peak]').style.color =
+        Date.now() - clipAt < 3000 || hold > -2 ? 'var(--color-rec)' : hold > -6 ? 'var(--color-warn)' : '';
       windowPeak = -Infinity;
     }, 250);
 
@@ -531,6 +533,10 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         }
         const { label } = await describeInput(wanted, settings.channels);
         inputLabel = label;
+        // Recorded at the device's own rate (no resampling), which may differ from the setting.
+        const rate = capture.sampleRate / 1000;
+        $('[data-format]').textContent =
+          `${settings.depth}-bit · ${rate} kHz${rate !== settings.rate ? ' (the mic’s rate)' : ''} · ${settings.channels === 2 ? 'stereo' : 'mono'}`;
         $('[data-device]').textContent = label;
         if (saved && saved !== wanted) $('[data-c-voice]').textContent = `Saved mic not found · using ${label}`;
       } catch (err) {
@@ -666,6 +672,9 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         });
         trackWriters.push(w);
         cap.addEventListener('chunk', (e) => w.push((e as CustomEvent<Float32Array>).detail));
+        // The recording's own rate, if the device reported a different one up front.
+        cap.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
+        cap.addEventListener('error', (e) => ($('[data-session-hint]').textContent = `Recording problem: ${(e as CustomEvent<string>).detail}`));
         cap.addEventListener('level', (e) => rowPeaks.set(speaker, Math.max(rowPeaks.get(speaker) ?? -Infinity, (e as CustomEvent<{ peak: number }>).detail.peak)));
         const status = rowFor.get(speaker)?.querySelector<HTMLElement>('[data-status]');
         if (status) status.textContent = `● ${cap.label || 'This computer'}`;
@@ -722,7 +731,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
 
     function retake() {
       if (!writer) return;
-      const t = writer.seconds;
+      const t = capture.elapsed();
       const n = (attempts.get(currentLine)?.n ?? 1) + 1;
       attempts.set(currentLine, { n, at: t });
       writer.meta.markers!.push({ t, kind: 'retake', line: currentLine, attempt: n });
@@ -734,7 +743,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
 
     function togglePause(broadcast = true) {
       if (!writer) return;
-      const t = writer.seconds;
+      const t = capture.elapsed();
       endAdlib();
       if (paused) {
         paused.end = t;
@@ -758,7 +767,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     function startAdlib(since = Date.now()) {
       if (!writer || paused || adlib) return;
       // Backdate to the first off-script word voice follow heard.
-      const t = Math.max(0, writer.seconds - (Date.now() - since) / 1000);
+      const t = Math.max(0, capture.elapsed() - (Date.now() - since) / 1000);
       adlib = { t, kind: 'adlib', line: currentLine };
       writer.meta.markers!.push(adlib);
       adlibBtn.setAttribute('aria-pressed', 'true');
@@ -768,7 +777,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     /** `lead`: seconds of script already heard when voice follow noticed it resumed. */
     function endAdlib(lead = 0) {
       if (!adlib || !writer) return;
-      adlib.end = Math.max(adlib.t, writer.seconds - lead);
+      adlib.end = Math.max(adlib.t, capture.elapsed() - lead);
       adlib = null;
       adlibBtn.setAttribute('aria-pressed', 'false');
       $('[data-adlib-label]').textContent = 'Ad-lib';
@@ -792,7 +801,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     markerTpl.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
     function renderSession() {
       if (!writer?.meta.markers) return;
-      const now = writer.seconds;
+      const now = capture.elapsed();
       const markers = writer.meta.markers;
       $('[data-c-length]').textContent = fmt(now);
       const timeline = $('[data-timeline-live]');
@@ -855,7 +864,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       if (!writer) return;
       sessionToggle.disabled = true;
       $('[data-session-label]').textContent = 'Saving…';
-      if (paused) paused.end = writer.seconds;
+      if (paused) paused.end = capture.elapsed();
       clearInterval(clock);
       clearInterval(manualTimer);
       voice?.stop();

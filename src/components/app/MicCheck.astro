@@ -42,6 +42,7 @@ const c = guest
         ['Noise floor', '-61 dBFS', ok],
         ['Voice follow', 'Matched line 1', ok],
         ['Free space', '5.1 GB · about 9 h', 'var(--color-warn)'],
+        ['Test recording', 'Played back · peak -7', ok],
       ],
       next: `${base}/recording`,
     };
@@ -112,6 +113,32 @@ const LIT = 30;
         <div class="mt-1 flex flex-col gap-1.5" data-live-only data-input-meters hidden></div>
       </div>
 
+      {
+        !guest && (
+          <div class="flex flex-col gap-3 rounded-xl border border-line p-4" data-live-only data-test>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-[14px]">Test recording</div>
+                <div class="mt-0.5 text-[12px] text-subtle" data-test-hint>
+                  Record 10 seconds at your loudest, then play it back. It goes through the same path as a session, so
+                  what you hear is what you’ll get.
+                </div>
+              </div>
+              <button
+                type="button"
+                class="inline-flex h-9 flex-none items-center gap-2 rounded-lg bg-rec px-3.5 text-[13px] font-medium text-white disabled:opacity-50 data-[running]:bg-raised data-[running]:text-fg"
+                data-test-btn
+              >
+                <span class="size-2 rounded-full bg-current" data-test-icon></span>
+                <span data-test-label>Record 10 s</span>
+              </button>
+            </div>
+            <audio controls class="h-8 w-full [color-scheme:dark]" data-test-audio hidden></audio>
+            <div class="font-mono text-[12px]" data-test-result hidden></div>
+          </div>
+        )
+      }
+
       <div class="rounded-xl bg-surface px-4 py-3.5 text-[17px] leading-normal">
         <span class="text-faint">Heard:</span>
         <span data-heard>{c.heard}</span>
@@ -145,7 +172,8 @@ const LIT = 30;
 
 <script>
   import { MicCapture, type Level } from '@/lib/audio/capture';
-  import { availableInput, inputChoices, parseInput } from '@/lib/audio/devices';
+  import { encodeWav } from '@/lib/audio/wav';
+  import { availableInput, inputChoices, parseInput, sameInput } from '@/lib/audio/devices';
   import { storageLeft, formatBytes } from '@/lib/audio/takes';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { locate, normalize } from '@/lib/voice/match';
@@ -175,6 +203,7 @@ const LIT = 30;
       if (color) dot.style.background = color;
     };
     [0, 1, 2, 3].forEach((i) => check(i, 'Waiting…'));
+    check(5, 'Not done yet · record one below', warn);
     $('[data-heard]').textContent = 'Read a line from the script…';
 
     // Carry a starting line (?from=, continuing a recovered session) through to the recording screen.
@@ -197,6 +226,15 @@ const LIT = 30;
       }
       return 1;
     };
+    // Zones, as on a hardware meter: green up to -6 dBFS (where peaks should stay),
+    // amber to -2 (hot), red above.
+    const levelColor = (db: number) => (db > -2 ? bad : db > -6 ? warn : ok);
+    // Each segment's colour is its zone: the level at the segment's top edge.
+    const zoneOf = (i: number) => {
+      const f = (i + 1) / segs.length;
+      return f > toFraction(-2) ? bad : f > toFraction(-6) ? warn : ok;
+    };
+    segs.forEach((seg, i) => (seg.style.background = `color-mix(in oklab, ${zoneOf(i)} 16%, var(--color-line))`));
 
     const capture = new MicCapture();
     const peaks: { t: number; db: number }[] = [];
@@ -209,9 +247,12 @@ const LIT = 30;
     // the highest peak since Reset, and a small meter per raw input.
     let held: { t: number; db: number } = { t: 0, db: -Infinity };
     let highest = -Infinity;
+    let clippedSinceReset = false;
+    let offInput: { i: number; since: number } | null = null;
     const dbText = (db: number) => (Number.isFinite(db) ? `${db.toFixed(1)}` : '−∞').replace('-', '−');
     $('[data-reset]').addEventListener('click', () => {
       highest = -Infinity;
+      clippedSinceReset = false;
       $('[data-max]').textContent = 'Highest peak —';
     });
     const inputMeters = $('[data-input-meters]');
@@ -226,7 +267,7 @@ const LIT = 30;
       const used = recordedInputs(count);
       inputRows = Array.from({ length: count }, (_, i) => {
         const row = document.createElement('div');
-        row.className = 'grid grid-cols-[92px_1fr_64px] items-center gap-3 font-mono text-[11px] text-muted';
+        row.className = 'grid grid-cols-[120px_1fr_64px] items-center gap-3 font-mono text-[11px] text-muted';
         row.innerHTML = '<span></span><span class="relative h-2 overflow-hidden rounded-full bg-line"><span class="absolute inset-y-0 left-0 rounded-full"></span></span><span class="text-right"></span>';
         row.children[0].textContent = `Input ${i + 1}${used.includes(i) ? '' : ' · unused'}`;
         const bar = row.children[1].firstElementChild as HTMLElement;
@@ -236,20 +277,27 @@ const LIT = 30;
     };
 
     capture.addEventListener('level', (e) => {
-      const { peak, rms, inputs } = (e as CustomEvent<Level>).detail;
+      const { peak, hot, rms, inputs } = (e as CustomEvent<Level>).detail;
       const now = Date.now();
       if (peak >= held.db || now - held.t > 1000) held = { t: now, db: peak };
-      if (peak > highest) {
-        highest = peak;
-        $('[data-max]').textContent = `Highest peak ${dbText(Math.min(0, highest))} dBFS${highest > -0.5 ? ' · CLIPPED' : ''}`;
+      if (hot > -0.5) clippedSinceReset = true;
+      if (peak > highest || (hot > -0.5 && !$('[data-max]').textContent!.includes('CLIPPED'))) {
+        highest = Math.max(highest, peak);
+        $('[data-max]').textContent = `Highest peak ${dbText(Math.min(0, highest))} dBFS${clippedSinceReset ? ' · CLIPPED' : ''}`;
       }
+      // Voice on an input that isn't recorded: louder there than in the recording, for a while.
+      const used = recordedInputs(inputs.length);
+      const elsewhere = inputs.findIndex((db, i) => !used.includes(i) && db > -40 && db > peak + 10);
+      offInput = elsewhere >= 0 ? { i: elsewhere, since: offInput?.i === elsewhere ? offInput.since : now } : null;
       $('[data-readout]').textContent = `Peak ${dbText(Math.min(0, held.db))} · RMS ${dbText(rms)} dBFS`;
+      $('[data-readout]').style.color = held.db > -6 ? levelColor(held.db) : '';
       if (inputs.length !== inputRows.length) {
         inputMeters.replaceChildren();
         buildInputMeters(inputs.length);
       }
       inputs.forEach((db, i) => {
         inputRows[i].bar.style.width = `${toFraction(db) * 100}%`;
+        if (used.includes(i)) inputRows[i].bar.style.background = levelColor(db);
         inputRows[i].value.textContent = dbText(Math.min(0, db));
         inputRows[i].value.style.color = db > -0.5 ? 'var(--color-rec)' : '';
       });
@@ -258,13 +306,14 @@ const LIT = 30;
       // Digital silence measures as -Infinity; count it as very quiet.
       floors.push(Number.isFinite(rms) ? rms : -120);
       if (floors.length > 300) floors.shift();
-      if (peak > -0.5) lastClip = now;
+      if (hot > -0.5) lastClip = now;
       // Fast attack, slow release, like a hardware meter.
       const target = toFraction(peak) * segs.length;
       shown = target > shown ? target : Math.max(target, shown - 0.6);
       segs.forEach((s, i) => {
         const lit = i < Math.round(shown);
-        s.style.background = lit ? (i >= segs.length - 2 ? bad : 'var(--color-fg)') : 'var(--color-line)';
+        const zone = zoneOf(i);
+        s.style.background = lit ? zone : `color-mix(in oklab, ${zone} 16%, var(--color-line))`;
       });
       meter.setAttribute('aria-valuenow', String(Math.round(peak)));
     });
@@ -272,8 +321,9 @@ const LIT = 30;
     setInterval(() => {
       if (!capture.ctx) return;
       const max = Math.min(0, Math.max(...peaks.map((p) => p.db)));
-      if (!Number.isFinite(max) || max < -45) check(0, 'Waiting for your voice', warn);
-      else if (max > -3) check(0, `Hot · peaks around ${Math.round(max) || 0}`, warn);
+      if (offInput && Date.now() - offInput.since > 1500) check(0, `Your voice is on Input ${offInput.i + 1} · pick it above`, warn);
+      else if (!Number.isFinite(max) || max < -45) check(0, 'Waiting for your voice', warn);
+      else if (max > -6) check(0, `Hot · peaks around ${Math.round(max) || 0} · aim for -6 or lower`, warn);
       else if (max < -30) check(0, `Quiet · peaks around ${Math.round(max) || 0}`, warn);
       else check(0, `Good · peaks around ${Math.round(max) || 0}`, ok);
 
@@ -310,8 +360,10 @@ const LIT = 30;
       // computer's sound settings; interfaces list each input on its own.
       const select = $<HTMLSelectElement>('[data-mic]');
       const choices = await inputChoices(settings.channels);
-      select.replaceChildren(...choices.map((c) => new Option(c.label, c.value, false, c.value === deviceId)));
-      if (select.value !== deviceId) select.value = '';
+      // The saved mic's entry, even when it's stored as the device alone ('id' is its input 1).
+      const current = choices.find((c) => sameInput(c.value, deviceId))?.value ?? '';
+      select.replaceChildren(...choices.map((c) => new Option(c.label, c.value, false, c.value === current)));
+      select.value = current;
       voice?.setTrack(capture.voiceTrack());
       showOpened();
     }
@@ -330,11 +382,68 @@ const LIT = 30;
       };
       row('device', o.label || 'Unknown');
       const rate = (hz: number) => `${hz / 1000} kHz`;
-      row(
-        'format',
-        `${o.inputs} input${o.inputs === 1 ? '' : 's'} · ${o.deviceRate && o.deviceRate !== o.sampleRate ? `${rate(o.deviceRate)} → ${rate(o.sampleRate)}` : rate(o.sampleRate)}`,
-      );
+      // Sessions record at the device's own rate, with no resampling.
+      row('format', `${o.inputs} input${o.inputs === 1 ? '' : 's'} · ${rate(capture.sampleRate)}`);
       row('processing', o.processing.length ? `${o.processing.join(', ')} on` : 'Off', o.processing.length ? bad : ok);
+    }
+
+    // Test recording: a short take through the real recording path, to play back and
+    // measure before a session.
+    const testBtn = $<HTMLButtonElement>('[data-test-btn]');
+    const testHint = $('[data-test-hint]');
+    let test: { chunks: Float32Array[]; rate: number; t0: number; timer: number } | null = null;
+    const onTestChunk = (e: Event) => test?.chunks.push((e as CustomEvent<Float32Array>).detail);
+    const onTestFormat = (e: Event) => test && (test.rate = (e as CustomEvent<number>).detail);
+    capture.addEventListener('chunk', onTestChunk);
+    capture.addEventListener('format', onTestFormat);
+    testBtn.addEventListener('click', async () => {
+      if (test) return finishTest();
+      await capture.ctx?.resume();
+      test = { chunks: [], rate: capture.sampleRate, t0: Date.now(), timer: 0 };
+      capture.record();
+      testBtn.dataset.running = '';
+      $('[data-test-label]').textContent = 'Stop';
+      $('[data-test-icon]').classList.replace('rounded-full', 'rounded-[1px]');
+      test.timer = window.setInterval(() => {
+        const left = 10 - (Date.now() - test!.t0) / 1000;
+        testHint.textContent = `Recording… ${Math.max(0, Math.ceil(left))} s · talk at your loudest`;
+        if (left <= 0) finishTest();
+      }, 200);
+    });
+    async function finishTest() {
+      if (!test) return;
+      const t = test;
+      clearInterval(t.timer);
+      testBtn.disabled = true;
+      await capture.stop();
+      test = null;
+      delete testBtn.dataset.running;
+      testBtn.disabled = false;
+      $('[data-test-label]').textContent = 'Record again';
+      $('[data-test-icon]').classList.replace('rounded-[1px]', 'rounded-full');
+      testHint.textContent = 'Play it back: listen for distortion, crackle or clicks, especially on your loudest words.';
+      const audio = $<HTMLAudioElement>('[data-test-audio]');
+      if (audio.src) URL.revokeObjectURL(audio.src);
+      audio.src = URL.createObjectURL(encodeWav(t.chunks, { sampleRate: t.rate, bitDepth: settings.depth, channels: settings.channels }));
+      audio.hidden = false;
+      // What the file itself measures.
+      let peak = 0;
+      let full = 0;
+      for (const c of t.chunks) {
+        for (const v of c) {
+          const a = Math.abs(v);
+          if (a > peak) peak = a;
+          if (a >= 0.999) full++;
+        }
+      }
+      const db = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
+      const result = $('[data-test-result]');
+      result.hidden = false;
+      result.style.color = levelColor(db);
+      result.textContent = !t.chunks.length
+        ? 'Nothing was recorded'
+        : `File peak ${dbText(Math.min(0, db))} dBFS · ${full ? `${full} samples at full scale: turn the gain down` : db > -6 ? 'hot: aim for -6 or lower' : db < -30 ? 'quiet: turn the gain up' : 'no clipping'}`;
+      check(5, full ? 'Clipped · turn the gain down' : `Done · peak ${Math.round(db)}`, full ? bad : db > -6 ? warn : ok);
     }
 
     let voice: VoiceFollow | null = null;

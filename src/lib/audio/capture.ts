@@ -3,17 +3,30 @@
  * (echo cancellation, noise suppression, auto gain) is turned off so the
  * WAV is the raw mic signal.
  *
+ * Recording goes through MediaRecorder as lossless PCM, on the microphone's
+ * own clock. Web Audio (the AudioWorklet) only drives the meters: it runs on
+ * the output device's clock, and with an interface in and other speakers out
+ * Chrome drops or repeats samples to keep the two in step, which is crackle
+ * in a recording. Browsers without PCM MediaRecorder record through the
+ * worklet as before.
+ *
  * Events: "level" { peak, rms } in dBFS, "chunk" Float32Array while recording
  * (interleaved L R when stereo).
  */
 
 import { parseInput } from './devices';
 import type { Channels } from './wav';
+import { WebmPcmReader, pickChannels } from './webm-pcm';
+
+const PCM = 'audio/webm;codecs=pcm';
 
 export const toDb = (v: number) => (v > 0 ? 20 * Math.log10(v) : -Infinity);
 
 export interface Level {
+  /** Peak of what's recorded (dBFS) */
   peak: number;
+  /** Peak of what's recorded and every input feeding it: over -0.5 dBFS means clipping */
+  hot: number;
   rms: number;
   /** Each raw input's peak (dBFS), before choosing or mixing */
   inputs: number[];
@@ -42,8 +55,28 @@ export class MicCapture extends EventTarget {
     return all.filter((d) => d.kind === 'audioinput');
   }
 
+  /** Records through MediaRecorder (lossless PCM) rather than the worklet */
+  static get pcmRecording() {
+    return typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(PCM);
+  }
+
+  /**
+   * The rate the recording is made at. MediaRecorder records at the device's own
+   * rate; the worklet at the audio context's. A 'format' event corrects it if the
+   * recording says otherwise.
+   */
   get sampleRate() {
+    if (MicCapture.pcmRecording) return this.stream?.getAudioTracks()[0]?.getSettings().sampleRate || this.ctx?.sampleRate || 0;
     return this.ctx?.sampleRate ?? 0;
+  }
+
+  private recorder: MediaRecorder | null = null;
+  private recorded: Promise<void> = Promise.resolve();
+  private startedAt = 0;
+
+  /** Seconds since recording started, on the wall clock (markers use this, not samples saved). */
+  elapsed() {
+    return this.startedAt ? (performance.now() - this.startedAt) / 1000 : 0;
   }
 
   /** Label of the input in use, once permission is granted. */
@@ -55,7 +88,7 @@ export class MicCapture extends EventTarget {
     return this.stream?.getAudioTracks()[0]?.getSettings().deviceId ?? '';
   }
 
-  /** Input channel being recorded in mono, or null when all inputs are summed */
+  /** Input channel being recorded in mono, or null when all inputs are averaged */
   channel: number | null = null;
   /** 1 for mono, 2 for stereo (inputs 1 and 2 as left and right) */
   channels: Channels = 1;
@@ -103,7 +136,7 @@ export class MicCapture extends EventTarget {
     this.node.port.onmessage = (e) => {
       const d = e.data;
       if (d.type === 'level')
-        this.dispatchEvent(new CustomEvent<Level>('level', { detail: { peak: toDb(d.peak), rms: toDb(d.rms), inputs: (d.inputs ?? []).map(toDb) } }));
+        this.dispatchEvent(new CustomEvent<Level>('level', { detail: { peak: toDb(d.peak), hot: toDb(d.hot ?? d.peak), rms: toDb(d.rms), inputs: (d.inputs ?? []).map(toDb) } }));
       if (d.type === 'chunk') this.dispatchEvent(new CustomEvent<Float32Array>('chunk', { detail: d.samples }));
       if (d.type === 'stopped') this.dispatchEvent(new Event('stopped'));
     };
@@ -134,11 +167,45 @@ export class MicCapture extends EventTarget {
 
 
   record() {
-    this.node?.port.postMessage('record');
+    this.startedAt = performance.now();
+    if (!MicCapture.pcmRecording || !this.stream) {
+      this.node?.port.postMessage('record');
+      return;
+    }
+    const reader = new WebmPcmReader();
+    let chain = Promise.resolve();
+    let told = false;
+    const rec = new MediaRecorder(this.stream, { mimeType: PCM });
+    // Chunks are read in order, one after another.
+    rec.ondataavailable = (e) => {
+      chain = chain
+        .then(async () => {
+          for (const samples of reader.push(new Uint8Array(await e.data.arrayBuffer()))) {
+            const f = reader.format!;
+            if (!told) {
+              told = true;
+              this.dispatchEvent(new CustomEvent<number>('format', { detail: f.sampleRate }));
+            }
+            this.dispatchEvent(new CustomEvent<Float32Array>('chunk', { detail: pickChannels(samples, f.channels, this.channel, this.channels === 2) }));
+          }
+        })
+        .catch((err) => {
+          this.dispatchEvent(new CustomEvent<string>('error', { detail: (err as Error).message }));
+        });
+    };
+    this.recorded = new Promise((resolve) => (rec.onstop = () => chain.then(resolve)));
+    rec.start(250);
+    this.recorder = rec;
   }
 
   /** Stop recording; resolves after the last partial chunk has been delivered. */
   stop(): Promise<void> {
+    if (this.recorder) {
+      const done = this.recorded;
+      if (this.recorder.state !== 'inactive') this.recorder.stop();
+      this.recorder = null;
+      return done;
+    }
     return new Promise((resolve) => {
       if (!this.node) return resolve();
       this.addEventListener('stopped', () => resolve(), { once: true });

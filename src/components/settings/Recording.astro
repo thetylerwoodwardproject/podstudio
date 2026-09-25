@@ -29,6 +29,7 @@ import Select from '@/components/ui/Select.astro';
     <Segmented name="rate" label="Sample rate" value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
   </div>
 </div>
+<p class="-mt-2 text-[12px] text-subtle">If the mic or interface runs at a different rate, Podstudio records at its rate instead, so nothing is resampled.</p>
 <div class="meta -mt-2 text-subtle"><span data-channels-label>Mono</span> WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
 <ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
 <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />

@@ -1,25 +1,37 @@
 /*
  * Microphone choices. An input is stored as a string:
- *   ''          the system default (follows macOS / Windows sound settings)
- *   'id'        a specific device, all its inputs mixed to mono
+ *   ''          the system default (follows macOS / Windows sound settings), input 1
+ *   'id'        a specific device, input 1
  *   'id#2'      one input of a multi-input interface (zero-based channel)
+ *   'id#mix'    every input of the device, averaged to mono
  *
- * Mono records one input, or every input of the device summed. Stereo records
- * a device's inputs 1 and 2 as left and right, so there's no per-input choice.
+ * Mono records one input, like a mono track in a DAW. Mixing averages rather
+ * than sums: a mono source arrives as identical channels, and summing them
+ * doubled it (+6 dB), so -6 dBFS clipped. Stereo records a device's inputs 1
+ * and 2 as left and right, so there's no per-input choice.
  */
 
 import type { Channels } from './wav';
 
 export interface InputRef {
   deviceId: string;
+  /** Zero-based input, or null for every input averaged */
   channel: number | null;
 }
 
 export function parseInput(value: string | undefined | null): InputRef {
   const v = value ?? '';
   const i = v.lastIndexOf('#');
-  if (i > 0 && /^\d+$/.test(v.slice(i + 1))) return { deviceId: v.slice(0, i), channel: Number(v.slice(i + 1)) };
-  return { deviceId: v, channel: null };
+  if (i >= 0 && v.slice(i + 1) === 'mix') return { deviceId: v.slice(0, i), channel: null };
+  if (i >= 0 && /^\d+$/.test(v.slice(i + 1))) return { deviceId: v.slice(0, i), channel: Number(v.slice(i + 1)) };
+  return { deviceId: v, channel: 0 };
+}
+
+/** Two stored inputs mean the same thing ('id' and 'id#0' are both input 1). */
+export function sameInput(a: string, b: string): boolean {
+  const x = parseInput(a);
+  const y = parseInput(b);
+  return x.deviceId === y.deviceId && x.channel === y.channel;
 }
 
 export interface InputChoice {
@@ -56,7 +68,7 @@ export async function inputChoices(channels: Channels = 1): Promise<InputChoice[
       out.push({ value: d.deviceId, label: inputs > 1 ? `${name} · Inputs 1 + 2 as L / R` : `${name} · mono on both sides` });
     } else if (inputs > 1) {
       for (let c = 0; c < inputs; c++) out.push({ value: `${d.deviceId}#${c}`, label: `${name} · Input ${c + 1}` });
-      out.push({ value: d.deviceId, label: `${name} · all inputs summed` });
+      out.push({ value: `${d.deviceId}#mix`, label: `${name} · all inputs mixed` });
     } else {
       out.push({ value: d.deviceId, label: name });
     }
@@ -68,7 +80,7 @@ export async function inputChoices(channels: Channels = 1): Promise<InputChoice[
 export async function describeInput(value: string, channels: Channels = 1): Promise<{ label: string; missing: boolean }> {
   value = inputFor(value, channels);
   const choices = await inputChoices(channels);
-  const hit = choices.find((c) => c.value === value);
+  const hit = choices.find((c) => sameInput(c.value, value));
   if (hit) return { label: hit.label, missing: false };
   return { label: choices[0].label, missing: value !== '' };
 }
@@ -80,5 +92,5 @@ export async function availableInput(value: string, channels: Channels = 1): Pro
   const choices = await inputChoices(channels);
   // Before permission, device ids aren't listed; trust the saved value.
   if (choices.length === 1) return value;
-  return choices.some((c) => c.value === value) ? value : '';
+  return choices.some((c) => sameInput(c.value, value)) ? value : '';
 }

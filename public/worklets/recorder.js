@@ -4,15 +4,15 @@
  * chunks, interleaved L R when stereo. Plain JS because it is loaded by URL
  * with addModule().
  *
- * The level's peak is the hottest of what's recorded and every raw input, so
- * clipping at the interface's converter always shows. `inputs` has each raw
- * input's own peak, for per-input meters.
+ * The level's `peak` is exactly what's recorded. `hot` also counts every input
+ * that goes into it, so clipping at the interface's converter shows even when
+ * the mix averages it down. `inputs` has each raw input's own peak.
  */
 class PodstudioRecorder extends AudioWorkletProcessor {
   constructor(options) {
     super();
     const opts = (options && options.processorOptions) || {};
-    // Mono: one input of an interface, or null to sum them all.
+    // Mono: one input of an interface, or null to average them all.
     this.channel = typeof opts.channel === 'number' ? opts.channel : null;
     // Stereo: inputs 1 and 2 as left and right (a mono device goes to both).
     this.stereo = opts.channels === 2;
@@ -77,18 +77,22 @@ class PodstudioRecorder extends AudioWorkletProcessor {
       const ch = input[this.channel] || input[0];
       for (let i = 0; i < n; i++) this.write(ch[i]);
     } else {
-      // Sum every input to mono. Averaging would put a single mic on a two-input
-      // interface 6 dB low, so a clipped input would read as a safe -6 dBFS.
-      for (const p of this.inPeaks) if (p > this.peak) this.peak = p;
+      // Every input averaged to mono, which can't go past full scale. (Summing doubled
+      // a mono source, which arrives as identical channels: -6 dBFS clipped.)
+      const k = 1 / input.length;
       for (let i = 0; i < n; i++) {
         let s = 0;
         for (const c of input) s += c[i];
-        this.write(s);
+        this.write(s * k);
       }
     }
     this.count += n;
     if (this.count >= this.levelEvery) {
-      this.port.postMessage({ type: 'level', peak: this.peak, rms: Math.sqrt(this.sumSq / (this.count * this.width)), inputs: this.inPeaks.slice(0, input.length) });
+      const inputs = this.inPeaks.slice(0, input.length);
+      // Inputs that feed the recording: the chosen one, inputs 1-2 in stereo, or all when mixed.
+      const fed = this.stereo ? inputs.slice(0, 2) : this.channel !== null ? [inputs[this.channel] || 0] : inputs;
+      const hot = Math.max(this.peak, ...fed);
+      this.port.postMessage({ type: 'level', peak: this.peak, hot, rms: Math.sqrt(this.sumSq / (this.count * this.width)), inputs });
       this.inPeaks = [];
       this.peak = 0;
       this.sumSq = 0;
