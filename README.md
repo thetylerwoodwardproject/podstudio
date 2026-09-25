@@ -1,8 +1,8 @@
 # Podstudio
 
-A free, self-hosted teleprompter and recorder for single-host podcasts. One person, one track, on a laptop or a phone: voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, cough cuts, pauses and ad-libs as markers.
+A free, self-hosted teleprompter and recorder for podcasts, audio only. Record solo, or with **one guest** and an optional **producer**: everyone talks on their usual call (Zoom, Teams…) and Podstudio records each person on their own device, losslessly, with the script kept in step. Voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, cough cuts, pauses and ad-libs as markers.
 
-Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now**; everything that needs the server (sign-in, 2FA, uploads, Whisper transcripts) still runs on mock data. Guests and multi-device recording are out of scope for now.
+Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now.** Guests and producers connect through the Podstudio server; until it exists, `npm run dev` and `npm run preview` include a stand-in that speaks its API (`docs/server-api.md`). Sign-in, 2FA and Whisper transcripts still run on mock data.
 
 ## Run it
 
@@ -10,10 +10,10 @@ Needs Node 22.12 or later.
 
 ```sh
 npm install
-npm run dev        # http://localhost:4321
-npm run dev:phone  # https://<this computer's IP>:4321, for testing on a phone (self-signed certificate)
+npm run dev        # https://localhost:4321 (self-signed certificate), with the dev relay for guests
+npm run dev:phone  # the same, reachable from phones and other computers on your network
 npm run build      # type-check, then build the static site into dist/
-npm run preview
+npm run preview    # serves dist/ over https with the dev relay
 npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, noise suppression, zip writer
 ```
 
@@ -29,7 +29,7 @@ Open `/screens` to see every screen, listed by its id from the design file. Link
 
 Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened over plain `http://` from another device: browsers only allow the mic, recording storage and audio processing on `https://` or `localhost`. iPhones are judged on features, not the version in the user agent (Safari has reported iOS 18.6 since iOS 26); a WebKit without AudioWorklet or OPFS gets "Update iOS". The unsupported page has a **Details** panel listing exactly what's missing, with **Copy details**. Safari before 26 has no `createWritable()`, so recordings are written from a worker there (`lib/audio/opfs-write.worker.ts`).
 
-**Testing on a phone:** run `npm run dev:phone` and open the `https://` Network address it prints on the phone, on the same Wi-Fi. The certificate is self-signed, so accept the warning once.
+**HTTPS is the default.** Podstudio always serves `https://`, with a self-signed certificate until the real server sets one up with Caddy or Nginx + Certbot. Each device shows a certificate warning the first time; accept it once. On a phone or a guest's computer, open the `https://` Network address that `npm run dev:phone` prints, on the same Wi-Fi.
 
 ## What works now
 
@@ -66,6 +66,22 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 - **Sessions list** (`/episodes/142/sessions`): play, open to export, download or delete.
 - **Settings are saved**: recording format, mic, the mic-check toggle, scrolling mode, and the prompter font.
 
+## With a guest and a producer
+
+- **Set it up** in the studio's **Show** panel: Solo or **With a guest**, the script mode, and whether there's a **producer**. It's saved per episode. The panel shows two **6-digit codes** (guest and producer), with Copy link, New code and Revoke; revoking signs that person out.
+- **Script modes**, chosen by the host:
+  - **Speaker lines**: each line is the host's or the guest's (tap HOST/GUEST on the script page, or import a script with `NAME:` lines: the first name is the host, anyone else the guest). Each screen highlights its own lines, and on the guest's lines their own voice follow moves the reader.
+  - **Host script, guest free**: the guest sees a recording light and their level, no script.
+  - **Talking points**: bullets (the script page's Talking points tab). Everyone sees them; the host's ← →, a tap, or the producer moves the current one. No voice follow.
+  - **Ad-lib**: no script; markers work as usual.
+- **Joining** (`/join`): type the code, or open a `/join?code=123456` link.
+  - **Guest** (`/guest`), on a laptop or phone (iPhone too): a green room (name, mic, level in the usual zones, "on the call with headphones"), then waiting for the host. When the session starts, their device records their mic losslessly and **uploads 5 s pieces as it goes**, retrying when the network drops. Cough (hold) on their screen marks a cut on both tracks. At the end: "All sent", and **Download my recording** as a backup. Only one guest can be connected at a time.
+  - **Producer** (`/producer`), any browser, never asks for a mic: the live script (edit any line and everyone gets it), Start / Pause / End for everyone, Retake, Ad-lib and Cut, ← → and sections, and the guest's level, upload progress and code.
+- **The host's recording screen** is in charge: it records your track, shares the session state, and applies the producer's and guest's actions. A chip in the header shows the guest's level and uploads, with a warning if they stop recording or drop off.
+- **Wrapping up** (`/episodes/142/wrap`): after End, it waits for the guest's last pieces, brings their track into this browser, then opens Export. If an upload failed, **Add the guest's file** takes the WAV they downloaded.
+- **Export** has a raw WAV and an edit for each person, lined up: each track records when it started on the server's clock, so the guest's is padded or trimmed to match yours, and both edits get the same cuts. Noise suppression makes cleaned copies of both; marker tones go on your track only.
+- **The server API** is in `docs/server-api.md`. `dev/relay.ts` implements it for testing (sessions in memory, tracks in `.podstudio-dev/`), and the real server replaces it without app changes.
+
 ## Keys (laptop)
 
 | Key | What it does |
@@ -90,6 +106,10 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 ## Layout
 
 ```
+dev/
+  relay.ts, relay-core.ts   stand-in for the Podstudio server (docs/server-api.md), in npm run dev / preview
+  serve.ts                  npm run preview: dist/ over https, with the relay
+docs/server-api.md          what the server needs to provide for guests and producers
 src/
   styles/global.css     design tokens (@theme), base styles, the eyebrow/meta utilities
   data/mock.ts          all mock content: episode, script, transcript, package, settings
@@ -110,6 +130,10 @@ src/
     zip.ts              stored zip writer for multi-file downloads
     script-parser.ts    "## Heading" sections for script import
     markers.ts          marker names and counts ("3 retakes · 2 cuts · 1 ad-lib")
+    room.ts             guests and producer: server API calls, the live room, the server-clock offset
+    show.ts             per-episode show setup: solo or with a guest, script mode, producer
+    upload.ts           sends a recording's 5 s segments to the server in order, with retries
+    audio/align.ts      lines a guest's track up with the host's
     platform.ts         iPhone/iPad, Android, touch
     script-store.ts     the episode script every screen uses (the user's own or the example)
     states.ts           mock-state switching (?state=…) for multi-state screens
@@ -140,6 +164,10 @@ chats/                  the design conversation
 | — | `/episodes/142/mic-check` | Mic check before recording |
 | — | `/episodes/142/sessions` | Recorded sessions |
 | — | `/episodes/142/recovered` | After a crash |
+| — | `/join` | Enter a 6-digit guest or producer code |
+| 6a | `/guest` | The guest: green room, waiting, recording and upload |
+| — | `/producer` | The producer: live script, session controls, the guest |
+| — | `/episodes/142/wrap` | Waiting for the guest's track before export |
 | 8b | `/episodes/142/session` | Export |
 | 2d, 2e | `/episodes/142/transcribing`, `/episodes/142/package` | Transcript and episode package (mock data) |
 | 7a | `/settings/<section>` | Nine sections, including About & credits. Domain & HTTPS has `?state=ok\|warn\|local`. |
@@ -152,9 +180,10 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 - **Server upload** (5 s segments to `PUT /api/sessions/:id/segments/:n`, approved in the handoff) is waiting for the server.
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
-- **Needs the server:** sign-in and 2FA, uploads and opening a session from another device, Whisper transcripts, titles/chapters/soundbites. Those screens show mock data.
+- **Needs the server:** sign-in and 2FA, Whisper transcripts, titles/chapters/soundbites (those screens show mock data), and a real home for guest sessions: the dev relay keeps sessions in memory, so restarting it forgets codes (the studio makes a new session).
+- **Host tracks don't upload yet**: yours is saved in this browser. The same segment upload will send it to the server once it exists.
 - **Zips** are limited to 4 GB.
 - **Setup wizard:** the Server check, Admin account, OpenAI key and Done steps have no designs yet, so "Verify and continue" goes straight to the Domain step.
 - **OpenDyslexic** is listed as a prompter font, but the font isn't bundled yet, so it falls back to Atkinson Hyperlegible.
 - **Mock values:** model names, versions and the installer URL are placeholders.
-- **Guests and multi-device** (remote guest tracks, phone as prompter, producer remote) were removed for now and will be revisited later.
+- **One guest per session**, by design. Video isn't part of it: the call app carries video if you want it.
