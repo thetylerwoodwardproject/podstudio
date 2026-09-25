@@ -37,7 +37,7 @@ const c = guest
       inputs: ['Shure MV7 (USB)', 'MacBook Pro Microphone'],
       heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
       checks: [
-        ['Level', 'In the sweet spot · peaks around -8', ok],
+        ['Level', 'In the sweet spot · peaks around -15', ok],
         ['Clipping', 'None in the last 30 s', ok],
         ['Noise floor', '-61 dBFS', ok],
         ['Voice follow', 'Matched line 1', ok],
@@ -55,7 +55,7 @@ const LIT = 30;
   <span slot="topbar" class="truncate text-[13px] text-muted max-sm:hidden">{c.who}</span>
 
   <form
-    class="grid gap-11 px-6 py-9 lg:h-full lg:grid-cols-[1fr_340px] lg:px-13"
+    class="mx-auto flex w-full max-w-[880px] flex-col px-6 py-9"
     id="mic-check"
     data-mode={mode}
     data-next={c.next}
@@ -87,9 +87,9 @@ const LIT = 30;
       </div>
 
       <div class="flex flex-col gap-2">
-        <!-- Where speech should peak: -12 to -6 dBFS (half to three quarters of the meter) -->
+        <!-- Where speech should peak: -18 to -12 dBFS (37.5 % to 50 % of the meter) -->
         <div class="relative h-5 font-mono text-[10px] font-medium tracking-[0.08em]" aria-hidden="true">
-          <span class="absolute inset-y-0 left-1/2 flex w-1/4 items-start justify-center rounded-t-[4px] border-x border-t border-ok/60 pt-[3px] text-ok">SWEET SPOT</span>
+          <span class="absolute inset-y-0 left-[37.5%] flex w-[12.5%] items-start justify-center rounded-t-[4px] border-x border-t border-ok/60 pt-[3px] whitespace-nowrap text-ok">SWEET SPOT</span>
         </div>
         <div
           class="-mt-2 flex gap-[3px]"
@@ -102,8 +102,14 @@ const LIT = 30;
         >
           {Array.from({ length: SEGMENTS }, (_, i) => <span class:list={['h-6.5 flex-1 rounded-[2px]', i < LIT ? 'bg-fg' : 'bg-line']} data-seg />)}
         </div>
-        <div class="flex justify-between font-mono text-[11px] text-faint">
-          <span>-60</span><span>-24</span><span>-12</span><span>-6</span><span class="text-rec">0 dBFS</span>
+        <!-- Labels sit where their level is on the meter -->
+        <div class="relative h-4 font-mono text-[11px] text-faint">
+          <span class="absolute left-0">-60</span>
+          <span class="absolute left-1/4 -translate-x-1/2">-24</span>
+          <span class="absolute left-[37.5%] -translate-x-1/2 text-ok">-18</span>
+          <span class="absolute left-1/2 -translate-x-1/2 text-ok">-12</span>
+          <span class="absolute left-3/4 -translate-x-1/2">-6</span>
+          <span class="absolute right-0 text-rec">0 dBFS</span>
         </div>
         <!-- One plain-language line: where the level is and what to do about it -->
         <div class="mt-1.5 flex items-center gap-2.5" data-live-only>
@@ -143,36 +149,7 @@ const LIT = 30;
         <span data-heard>{c.heard}</span>
       </div>
 
-      <!-- The numbers, for comparing with an interface's own meters -->
-      <details class="group rounded-xl border border-line" data-live-only>
-        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] text-muted hover:text-fg">
-          Details
-          <span class="text-faint transition-transform group-open:rotate-180">▾</span>
-        </summary>
-        <div class="flex flex-col gap-3 border-t border-line px-4 pt-3 pb-4">
-          <div class="flex items-baseline justify-between gap-3 font-mono text-[12px]">
-            <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
-            <span class="flex items-center gap-3 text-subtle">
-              <span data-max>Highest peak —</span>
-              <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
-            </span>
-          </div>
-          <!-- One meter per input of an interface, to compare with its own meters -->
-          <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
-          <div class="flex flex-col">
-            <StatusRow label="Device" value="…" dense data-opened="device" />
-            <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
-            <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
-          </div>
-        </div>
-      </details>
-    </div>
-
-    <div class="flex flex-col gap-1">
-      <h2 class="eyebrow">Checks</h2>
-      {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
-      <p class="mt-2.5 text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
-      <div class="mt-auto pt-6">
+      <div class="flex flex-col gap-2.5">
         {
           guest ? (
             <Button type="submit" variant="primary" size="lg" class="w-full">Join as Dana</Button>
@@ -183,6 +160,36 @@ const LIT = 30;
           )
         }
       </div>
+
+      <!-- Everything else, for when it's needed: the checks, the numbers, what the browser opened -->
+      <details class="group rounded-xl border border-line">
+        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] text-muted hover:text-fg">
+          Advanced details
+          <span class="text-faint transition-transform group-open:rotate-180">▾</span>
+        </summary>
+        <div class="flex flex-col gap-4 border-t border-line px-4 pt-3 pb-4">
+          <div class="flex flex-col">
+            {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
+          </div>
+          <div class="flex flex-col gap-3" data-live-only>
+            <div class="flex items-baseline justify-between gap-3 font-mono text-[12px]">
+              <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
+              <span class="flex items-center gap-3 text-subtle">
+                <span data-max>Highest peak —</span>
+                <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
+              </span>
+            </div>
+            <!-- One meter per input of an interface, to compare with its own meters -->
+            <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
+            <div class="flex flex-col">
+              <StatusRow label="Device" value="…" dense data-opened="device" />
+              <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
+              <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
+            </div>
+          </div>
+          <p class="text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
+        </div>
+      </details>
     </div>
   </form>
 </AppShell>
@@ -247,27 +254,27 @@ const LIT = 30;
       }
       return 1;
     };
-    // Zones: speech should peak in the sweet spot, -12 to -6 dBFS (green). Amber to -2
+    // Zones: speech should peak in the sweet spot, -18 to -12 dBFS (green). Amber to -2
     // is hot, red above; below the sweet spot the meter stays neutral.
     const neutral = 'var(--color-fg)';
-    const levelColor = (db: number) => (db > -2 ? bad : db > -6 ? warn : db >= -12 ? ok : neutral);
+    const levelColor = (db: number) => (db > -2 ? bad : db > -12 ? warn : db >= -18 ? ok : neutral);
     // Judged on the whole-dB value the screen shows, so a peak shown as -12 or -6 is in.
     const verdict = (exact: number): [string, string] => {
       const db = Math.round(exact);
       return db > -2
         ? ['Too hot · turn the gain down', bad]
-        : db > -6
+        : db > -12
           ? ['A little hot · turn the gain down a touch', warn]
-          : db >= -12
+          : db >= -18
             ? ['In the sweet spot', ok]
-            : db >= -18
+            : db >= -24
               ? ['A little quiet · turn the gain up a touch', warn]
               : ['Quiet · turn the gain up', warn];
     };
     // Each segment's colour is its zone: the level at the segment's top edge.
     const zoneOf = (i: number) => {
       const f = (i + 1) / segs.length;
-      return f > toFraction(-2) ? bad : f > toFraction(-6) ? warn : f > toFraction(-12) ? ok : neutral;
+      return f > toFraction(-2) ? bad : f > toFraction(-12) ? warn : f > toFraction(-18) ? ok : neutral;
     };
     const unlit = (i: number) => (zoneOf(i) === neutral ? 'var(--color-line)' : `color-mix(in oklab, ${zoneOf(i)} 22%, var(--color-line))`);
     segs.forEach((seg, i) => (seg.style.background = unlit(i)));
@@ -514,7 +521,16 @@ const LIT = 30;
     // Listen to the selected input, not the system default mic.
     voice.track = capture.voiceTrack();
     const v = voice;
+    // With the checks tucked away, a voice follow problem shows where the words would.
+    let heardAny = false;
+    const voiceProblem = (text: string) => {
+      if (heardAny) return;
+      const box = $('[data-heard]');
+      box.textContent = `${text} · `;
+      box.append(Object.assign(document.createElement('a'), { href: '/voice', target: '_blank', className: 'text-fg underline underline-offset-2', textContent: 'Voice check' }));
+    };
     v.addEventListener('heard', (e) => {
+      heardAny = true;
       const text = (e as CustomEvent<string>).detail;
       $('[data-heard]').textContent = `“${text}”`;
       const hit = locate(tokens, normalize(text).slice(-8), 0, { behind: 0, ahead: tokens.length });
@@ -524,6 +540,7 @@ const LIT = 30;
     v.addEventListener('error', (e) => {
       const err = (e as CustomEvent<string>).detail;
       check(3, voiceErrorText(err), warn);
+      voiceProblem(`Voice follow: ${voiceErrorText(err)}`);
     });
     v.addEventListener('status', (e) => (e as CustomEvent<string>).detail === 'listening' && check(3, 'Listening…', warn));
     v.addEventListener('diag', (e) => {
