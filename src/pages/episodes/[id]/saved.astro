@@ -33,13 +33,7 @@ const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5
     </dl>
 
     <audio class="mt-6 w-full" controls data-player hidden></audio>
-    <div class="mt-3 flex items-center gap-3" data-ab hidden>
-      <div class="flex overflow-hidden rounded-[10px] border border-edge text-[13px]" role="group" aria-label="Listen to">
-        <button type="button" class="px-3.5 py-2 aria-pressed:bg-fg aria-pressed:text-ink" aria-pressed="true" data-ab-btn="before">Original</button>
-        <button type="button" class="px-3.5 py-2 aria-pressed:bg-fg aria-pressed:text-ink disabled:opacity-50" aria-pressed="false" data-ab-btn="after">Cleaned</button>
-      </div>
-      <span class="meta text-muted" data-ab-note></span>
-    </div>
+    <div class="mt-3" data-ab hidden></div>
     <a href={`/episodes/${episode.id}/session`} class="mt-5 text-[14px] text-muted underline-offset-2 hover:text-fg hover:underline" data-export>
       Export the WAV, markers and edit →
     </a>
@@ -65,8 +59,7 @@ const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5
   import { formatBytes, formatDuration, getTake, listTakes, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { sessionUrl } from '@/lib/flow';
   import { markerCounts } from '@/lib/markers';
-  import { previewTake } from '@/lib/audio/denoise';
-  import { loadSettings } from '@/lib/settings';
+  import { noiseToggle, noiseToggleHtml } from '@/lib/player';
 
   const root = document.getElementById('saved')!;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
@@ -95,40 +88,16 @@ const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5
 
     const player = $<HTMLAudioElement>('[data-player]');
     let original = '';
+    const originalUrl = async () => (original ||= URL.createObjectURL(await takeWav(take)));
+    // Noise suppression on the player: the whole session, cleaned once and kept.
+    const ab = $('[data-ab]');
+    ab.innerHTML = noiseToggleHtml('saved-ns');
+    noiseToggle(player, ab.querySelector<HTMLInputElement>('[data-ns-toggle]')!, ab.querySelector<HTMLElement>('[data-ns-status]')!, take, originalUrl);
     $('[data-listen]').addEventListener('click', async () => {
-      if (!original) original = player.src = URL.createObjectURL(await takeWav(take));
+      if (!player.src) player.src = await originalUrl();
       player.hidden = false;
-      $('[data-ab]').hidden = false;
+      ab.hidden = false;
       player.play();
     });
-
-    // Original / Cleaned: the first minute with noise suppression, at the export default (or 50 %).
-    const amount = loadSettings().recording.noiseSuppression || 50;
-    const note = $('[data-ab-note]');
-    note.textContent = `Cleaned: first minute, ${amount}%`;
-    let cleaned: Promise<string> | null = null;
-    const pick = async (which: 'before' | 'after') => {
-      const at = player.currentTime;
-      if (which === 'after') {
-        const btn = $<HTMLButtonElement>('[data-ab-btn=after]');
-        btn.disabled = true;
-        note.textContent = 'Cleaning the first minute…';
-        cleaned ??= previewTake(take, amount, 60).then((p) => URL.createObjectURL(p.after));
-        try {
-          player.src = await cleaned;
-          note.textContent = `Cleaned: first minute, ${amount}%`;
-        } catch (err) {
-          cleaned = null;
-          note.textContent = `Couldn’t clean: ${(err as Error).message}`;
-          btn.disabled = false;
-          return;
-        }
-        btn.disabled = false;
-      } else player.src = original;
-      player.currentTime = Math.min(at, which === 'after' ? 60 : Infinity);
-      player.play();
-      root.querySelectorAll<HTMLElement>('[data-ab-btn]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.abBtn === which)));
-    };
-    root.querySelectorAll<HTMLElement>('[data-ab-btn]').forEach((b) => b.addEventListener('click', () => pick(b.dataset.abBtn as 'before' | 'after')));
   }
 </script>

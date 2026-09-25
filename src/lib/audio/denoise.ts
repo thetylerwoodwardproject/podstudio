@@ -72,11 +72,23 @@ function interleave(chans: Float32Array[], frames: number) {
   return out;
 }
 
+// The worker keeps one model per channel, so jobs take turns.
+let turn: Promise<unknown> = Promise.resolve();
+function inTurn<T>(job: () => Promise<T>): Promise<T> {
+  const next = turn.then(job, job);
+  turn = next.catch(() => {});
+  return next;
+}
+
 /**
  * Clean interleaved samples in chunks. `read(from, count)` supplies the input
  * frames, `write` gets the cleaned frames in order, lined up with the input.
  */
-async function run(
+function run(...args: Parameters<typeof runNow>) {
+  return inTurn(() => runNow(...args));
+}
+
+async function runNow(
   frames: number,
   channels: number,
   rate: number,
@@ -165,11 +177,12 @@ export async function denoiseSamples(samples: Float32Array, channels: number, ra
   return all;
 }
 
-/** Before and after for the first `seconds` of a take. */
-export async function previewTake(meta: TakeMeta, amount: number, seconds = 30): Promise<Preview> {
+/** Before and after for `seconds` of a take, starting `from` seconds in. */
+export async function previewTake(meta: TakeMeta, amount: number, seconds = 30, from = 0): Promise<Preview> {
   const channels = meta.channels ?? 1;
-  const frames = Math.min(meta.samples, Math.round(seconds * meta.sampleRate));
-  const input = await readFrames(meta, 0, frames);
+  const start = Math.max(0, Math.min(meta.samples, Math.round(from * meta.sampleRate)));
+  const frames = Math.min(meta.samples - start, Math.round(seconds * meta.sampleRate));
+  const input = await readFrames(meta, start, frames);
   return previewSamples(input, channels, meta.sampleRate, meta.bitDepth, amount);
 }
 

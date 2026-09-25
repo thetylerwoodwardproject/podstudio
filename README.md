@@ -11,6 +11,7 @@ Needs Node 22.12 or later.
 ```sh
 npm install
 npm run dev        # http://localhost:4321
+npm run dev:phone  # https://<this computer's IP>:4321, for testing on a phone (self-signed certificate)
 npm run build      # type-check, then build the static site into dist/
 npm run preview
 npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, noise suppression, zip writer
@@ -26,7 +27,9 @@ Open `/screens` to see every screen, listed by its id from the design file. Link
 | Android phone | Chrome | Chrome speech recognition | MediaRecorder PCM |
 | iPhone or iPad, iOS 17+ | Any (they're all WebKit) | Manual scroll by default; Siri voice follow is an opt-in experiment in More | AudioWorklet PCM |
 
-Firefox and Safari on the Mac go to `/unsupported`. iOS 16 and earlier (or a WebKit without AudioWorklet or OPFS) get "Update iOS".
+Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened over plain `http://` from another device: browsers only allow the mic, recording storage and audio processing on `https://` or `localhost`. iPhones are judged on features, not the version in the user agent (Safari has reported iOS 18.6 since iOS 26); a WebKit without AudioWorklet or OPFS gets "Update iOS". The unsupported page has a **Details** panel listing exactly what's missing, with **Copy details**. Safari before 26 has no `createWritable()`, so recordings are written from a worker there (`lib/audio/opfs-write.worker.ts`).
+
+**Testing on a phone:** run `npm run dev:phone` and open the `https://` Network address it prints on the phone, on the same Wi-Fi. The certificate is self-signed, so accept the warning once.
 
 ## What works now
 
@@ -44,6 +47,8 @@ Firefox and Safari on the Mac go to `/unsupported`. iOS 16 and earlier (or a Web
   - Clipping, a Bluetooth mic (call quality; tap to switch to the built-in mic before you start), battery at 20 % and 10 % (where the browser reports it), and less than 30 minutes of space left.
   - The screen stays awake while recording.
 - **Session saved** (1i, `/episodes/142/saved`): length, markers, size and format, how long the assembled edit is, then Transcribe, Listen or Record another. Export is linked from there.
+- **Voice follow keeps going**: after a network error it keeps reconnecting (waiting up to 30 s between tries), a failed start is retried, and a watchdog restarts recognition when the meter hears you talking but no words come back for 10 s (Chrome sometimes stalls silently). A ring next to REC shows its state (green listening, amber reconnecting, red stopped), More shows it with the restart count, and a warning with **Restart voice follow** appears if it stays down. Every restart, error and stall goes into the session's voice log: **Copy diagnostics** in More, and `…_voice-log.txt` in the export.
+- **Marker tones** (export switch, set up in Settings → Recording): a short beep mixed into the full recording at each retake, and optionally cough cuts, ad-libs, pauses and mic stops, each at its own pitch. The tones are ducked under your voice (default 12 dB) with an adjustable attack (how fast they drop when you start talking, default 10 ms) and release (how fast they come back, default 150 ms). The edit stays clean, and only the moments around the tones are re-encoded.
 - **Lossless audio**: mono or stereo WAV at 16 or 24-bit, recorded through MediaRecorder PCM on the mic's own clock and at its own rate (nothing is resampled). Web Audio only drives the meters, because it runs on the output device's clock, and with an interface in and other speakers out Chrome dropped or repeated samples. Browser echo cancellation, noise suppression and auto gain are off. Audio is saved to the browser's private file system every 5 seconds.
 - **Microphone choice** (Settings → Recording, the mic check, or More before you start): "System default" follows the computer's sound settings; anything else is used whatever the OS default is. In mono, input 1 is recorded unless you pick another input or "all inputs mixed" (averaged); in stereo, inputs 1 and 2 become left and right. A saved mic that's unplugged falls back to the system default and says so.
 - **Levels**: Podstudio reads the interface's inputs itself instead of Chrome's mono downmix (which read a mic on Input 1 of a two-input interface 6 dB low). Checked with test tones: mic check, recording screen and WAV agree to 0.1 dB.
@@ -54,7 +59,7 @@ Firefox and Safari on the Mac go to `/unsupported`. iOS 16 and earlier (or a Web
 - **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
   - **Export**: the fader, **Preview 30 s** with an Original / Cleaned switch and an attenuation meter ("Background −24 dB"). With it on, the zip has both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
   - **Credits**: Settings → About & credits lists DeepFilterNet3 and everything else Podstudio ships, with licences.
-  - **Session saved**: Listen has an Original / Cleaned switch for the first minute.
+  - **Listen** (Session saved and every card on the Sessions list): a **Noise suppression** switch. It plays a cleaned 12 s from where you are within a few seconds, cleans the whole session in the background, then carries on with it from the same moment. The cleaned copy is kept and shared with Export.
   - **Mic check**: after the test recording, **Hear it cleaned**, with a setting suggested from the room's noise floor (quieter than −60 dBFS: not needed; −60 to −45: 40 %; louder: 70 %). **Use this setting** makes it the export default, also in Settings → Recording.
   - Cost: about 19 MB downloaded once (the 11 MB engine, 2 MB gzipped, and the 8 MB model), then cached. It runs at 2–4× real time on a laptop, so a 30-minute episode takes around 10 minutes to clean, and longer on a phone. Once the server exists, it could run the native `deep-filter` binary instead, which is much faster.
   - `scripts/build-deepfilter.sh` rebuilds the engine from a pinned upstream commit.
@@ -145,7 +150,7 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 
 - **Sessions live in this browser** until the server exists, so the design's "Saved to server" reads "Saved in this browser", and the Offline warning (uploads falling behind) isn't shown. Podstudio asks for persistent storage, but clearing the site's data deletes sessions. Download the ones you want to keep.
 - **Server upload** (5 s segments to `PUT /api/sessions/:id/segments/:n`, approved in the handoff) is waiting for the server.
-- **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
+- **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
 - **Needs the server:** sign-in and 2FA, uploads and opening a session from another device, Whisper transcripts, titles/chapters/soundbites. Those screens show mock data.
 - **Zips** are limited to 4 GB.

@@ -42,6 +42,7 @@ const base = `/episodes/${episode.id}`;
       </div>
       <div class="meta text-muted" data-summary></div>
       <audio controls preload="none" class="h-8 w-full [color-scheme:dark]" data-audio></audio>
+      <div data-ns-slot></div>
       <div class="flex flex-wrap items-center gap-4 text-[13px]">
         <a class="inline-flex h-8 items-center rounded-lg bg-fg px-3 font-medium text-ink hover:bg-white hover:text-ink" data-open>Open &amp; export →</a>
         <button type="button" class="text-fg hover:text-white" data-download>↓ Raw WAV</button>
@@ -57,6 +58,7 @@ const base = `/episodes/${episode.id}`;
   import { offerRecovery } from '@/lib/recovery';
   import { download } from '@/lib/zip';
   import { markerCounts } from '@/lib/markers';
+  import { noiseToggle, noiseToggleHtml } from '@/lib/player';
 
   const root = document.getElementById('sessions')!;
   const episodeId = root.dataset.episode!;
@@ -104,7 +106,13 @@ const base = `/episodes/${episode.id}`;
       if (session) open.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(t.id)}`;
       else open.remove();
       // WAVs are disk-backed Blobs, so a URL per session costs nothing up front.
-      q<HTMLAudioElement>('[data-audio]').src = URL.createObjectURL(await takeWav(t));
+      const audio = q<HTMLAudioElement>('[data-audio]');
+      const originalUrl = URL.createObjectURL(await takeWav(t));
+      audio.src = originalUrl;
+      // Noise suppression on the player (the whole session, cleaned once and kept).
+      const slot = q('[data-ns-slot]');
+      slot.innerHTML = noiseToggleHtml(`ns-${t.id}`);
+      noiseToggle(audio, slot.querySelector<HTMLInputElement>('[data-ns-toggle]')!, slot.querySelector<HTMLElement>('[data-ns-status]')!, t, async () => originalUrl);
       q('[data-download]').addEventListener('click', async () => {
         for (const x of tracks) download(await takeWav(x), takeFileName(x));
       });
