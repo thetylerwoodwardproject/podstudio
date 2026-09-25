@@ -496,11 +496,11 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       if (held.length > 6) held.shift();
       const hold = Math.max(...held);
       $('[data-peak]').textContent = Number.isFinite(hold) ? `Peak ${Math.round(Math.min(0, hold)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Silence';
-      // Same zones as the mic check: green in the sweet spot (-18 to -12 dBFS), amber above,
-      // red above -2 or when clipping.
+      // Same traffic-light zones as the mic check: green below -18 dBFS, amber -18 to -6
+      // (the target zone), red above -6 or when clipping.
       const shown = Math.round(hold);
       $('[data-peak]').style.color =
-        Date.now() - clipAt < 3000 || shown > -2 ? 'var(--color-rec)' : shown > -12 ? 'var(--color-warn)' : shown >= -18 ? 'var(--color-ok)' : '';
+        Date.now() - clipAt < 3000 || shown > -6 ? 'var(--color-rec)' : shown >= -18 ? 'var(--color-warn)' : 'var(--color-ok)';
       windowPeak = -Infinity;
     }, 250);
 

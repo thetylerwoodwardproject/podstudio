@@ -37,7 +37,7 @@ const c = guest
       inputs: ['Shure MV7 (USB)', 'MacBook Pro Microphone'],
       heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
       checks: [
-        ['Level', 'In the sweet spot · peaks around -15', ok],
+        ['Level', 'Right on target · peaks around -11', ok],
         ['Clipping', 'None in the last 30 s', ok],
         ['Noise floor', '-61 dBFS', ok],
         ['Voice follow', 'Matched line 1', ok],
@@ -87,9 +87,9 @@ const LIT = 30;
       </div>
 
       <div class="flex flex-col gap-2">
-        <!-- Where speech should peak: -18 to -12 dBFS (37.5 % to 50 % of the meter) -->
+        <!-- Target zone for dialogue: -18 to -6 dBFS (37.5 % to 75 % of the meter) -->
         <div class="relative h-5 font-mono text-[10px] font-medium tracking-[0.08em]" aria-hidden="true">
-          <span class="absolute inset-y-0 left-[37.5%] flex w-[12.5%] items-start justify-center rounded-t-[4px] border-x border-t border-ok/60 pt-[3px] whitespace-nowrap text-ok">SWEET SPOT</span>
+          <span class="absolute inset-y-0 left-[37.5%] flex w-[37.5%] items-start justify-center rounded-t-[4px] border-x border-t border-warn/60 pt-[3px] whitespace-nowrap text-warn">TARGET · VOICE PEAKS HERE</span>
         </div>
         <div
           class="-mt-2 flex gap-[3px]"
@@ -106,9 +106,9 @@ const LIT = 30;
         <div class="relative h-4 font-mono text-[11px] text-faint">
           <span class="absolute left-0">-60</span>
           <span class="absolute left-1/4 -translate-x-1/2">-24</span>
-          <span class="absolute left-[37.5%] -translate-x-1/2 text-ok">-18</span>
-          <span class="absolute left-1/2 -translate-x-1/2 text-ok">-12</span>
-          <span class="absolute left-3/4 -translate-x-1/2">-6</span>
+          <span class="absolute left-[37.5%] -translate-x-1/2 text-warn">-18</span>
+          <span class="absolute left-1/2 -translate-x-1/2">-12</span>
+          <span class="absolute left-3/4 -translate-x-1/2 text-rec">-6</span>
           <span class="absolute right-0 text-rec">0 dBFS</span>
         </div>
         <!-- One plain-language line: where the level is and what to do about it -->
@@ -254,29 +254,27 @@ const LIT = 30;
       }
       return 1;
     };
-    // Zones: speech should peak in the sweet spot, -18 to -12 dBFS (green). Amber to -2
-    // is hot, red above; below the sweet spot the meter stays neutral.
-    const neutral = 'var(--color-fg)';
-    const levelColor = (db: number) => (db > -2 ? bad : db > -12 ? warn : db >= -18 ? ok : neutral);
-    // Judged on the whole-dB value the screen shows, so a peak shown as -12 or -6 is in.
-    const verdict = (exact: number): [string, string] => {
+    // Standard dBFS traffic-light zones. Green below -18: safe, low level. Amber -18 to -6:
+    // the target zone, where dialogue should peak (ideally around -12 to -10). Red above -6:
+    // the danger zone, where peaks risk clipping.
+    const zone = (db: number) => (db > -6 ? bad : db >= -18 ? warn : ok);
+    const levelColor = zone;
+    // Text, zone colour, and how the Level check rates it. Judged on the whole-dB value
+    // the screen shows, so a peak shown as -18 or -6 is in the target zone.
+    const verdict = (exact: number): [string, string, string] => {
       const db = Math.round(exact);
-      return db > -2
-        ? ['Too hot · turn the gain down', bad]
-        : db > -12
-          ? ['A little hot · turn the gain down a touch', warn]
-          : db >= -18
-            ? ['In the sweet spot', ok]
-            : db >= -24
-              ? ['A little quiet · turn the gain up a touch', warn]
-              : ['Quiet · turn the gain up', warn];
+      if (db > -6) return ['Too hot · turn the gain down', bad, bad];
+      if (db >= -12 && db <= -10) return ['Right on target', warn, ok];
+      if (db >= -18) return ['In the target zone', warn, ok];
+      if (db >= -24) return ['A little low · turn the gain up a touch', ok, warn];
+      return ['Low · turn the gain up', ok, warn];
     };
     // Each segment's colour is its zone: the level at the segment's top edge.
     const zoneOf = (i: number) => {
       const f = (i + 1) / segs.length;
-      return f > toFraction(-2) ? bad : f > toFraction(-12) ? warn : f > toFraction(-18) ? ok : neutral;
+      return f > toFraction(-6) ? bad : f > toFraction(-18) ? warn : ok;
     };
-    const unlit = (i: number) => (zoneOf(i) === neutral ? 'var(--color-line)' : `color-mix(in oklab, ${zoneOf(i)} 22%, var(--color-line))`);
+    const unlit = (i: number) => `color-mix(in oklab, ${zoneOf(i)} 20%, var(--color-line))`;
     segs.forEach((seg, i) => (seg.style.background = unlit(i)));
 
     const capture = new MicCapture();
@@ -355,8 +353,7 @@ const LIT = 30;
       shown = target > shown ? target : Math.max(target, shown - 0.6);
       segs.forEach((s, i) => {
         const lit = i < Math.round(shown);
-        const zone = zoneOf(i);
-        s.style.background = lit ? zone : unlit(i);
+        s.style.background = lit ? zoneOf(i) : unlit(i);
       });
       meter.setAttribute('aria-valuenow', String(Math.round(peak)));
     });
@@ -366,18 +363,18 @@ const LIT = 30;
       const max = Math.min(0, Math.max(...peaks.map((p) => p.db)));
       const since = Math.round((Date.now() - lastClip) / 1000);
       // One verdict for the line under the meter and the Level check.
-      const [text, color] =
+      const [text, color, grade] =
         offInput && Date.now() - offInput.since > 1500
-          ? [`Your voice is on Input ${offInput.i + 1} · pick it above`, warn]
+          ? [`Your voice is on Input ${offInput.i + 1} · pick it above`, warn, warn]
           : lastClip && since < 5
-            ? ['Clipping · turn the gain down', bad]
+            ? ['Clipping · turn the gain down', bad, bad]
             : !Number.isFinite(max) || max < -45
-              ? ['Talk at your normal volume', faint]
+              ? ['Talk at your normal volume', faint, warn]
               : verdict(max);
       $('[data-status]').textContent = text;
       $('[data-status-dot]').style.background = color;
       $('[data-status-peak]').textContent = Number.isFinite(max) && max >= -45 ? `peaks ${Math.round(max) || 0} dBFS` : '';
-      check(0, text === 'Talk at your normal volume' ? 'Waiting for your voice' : text, color === faint ? warn : color);
+      check(0, text === 'Talk at your normal volume' ? 'Waiting for your voice' : text, grade);
 
       if (lastClip && since < 30) check(1, `Clipped ${since} s ago`, bad);
       else check(1, `None in the last ${Math.min(30, Math.round((Date.now() - started) / 1000))} s`, ok);
@@ -490,10 +487,10 @@ const LIT = 30;
       const db = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
       const result = $('[data-test-result]');
       result.hidden = false;
-      const [text, color] = full ? ['Clipped · turn the gain down', bad] : verdict(db);
+      const [text, color, grade] = full ? ['Clipped · turn the gain down', bad, bad] : verdict(db);
       result.style.color = color;
       result.textContent = !t.chunks.length ? 'Nothing was recorded' : `Peak ${dbText(Math.min(0, db))} dBFS · ${full ? `${full} samples clipped` : text.toLowerCase()}`;
-      check(5, full ? 'Clipped · turn the gain down' : `Done · ${text.split(' · ')[0].toLowerCase()}`, color);
+      check(5, full ? 'Clipped · turn the gain down' : `Done · ${text.split(' · ')[0].toLowerCase()}`, grade);
     }
 
     let voice: VoiceFollow | null = null;
