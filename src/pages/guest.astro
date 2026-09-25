@@ -16,7 +16,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
 ---
 
 <Base title="Guest" bodyClass="bg-void!">
-  <div id="guest" class="group/g relative flex min-h-dvh flex-col bg-void text-fg" data-stage="connecting" style="--p-device:1">
+  <div id="guest" class="group/g relative flex h-dvh flex-col overflow-hidden bg-void text-fg" data-stage="connecting" style="--p-device:1">
     <div class="absolute inset-x-0 top-0 z-20 hidden h-[3px] bg-rec group-data-[stage=rec]/g:block" aria-hidden="true"></div>
     <header class="flex h-14 flex-none items-center justify-between gap-4 px-5">
       <Logo />
@@ -34,7 +34,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     </section>
 
     <!-- Green room -->
-    <section class="mx-auto hidden w-full max-w-[980px] flex-1 grid-cols-1 gap-8 px-6 pt-4 pb-10 group-data-[stage=green]/g:grid lg:grid-cols-[1fr_1fr] lg:gap-12 lg:pt-10">
+    <section class="mx-auto hidden min-h-0 w-full max-w-[980px] flex-1 grid-cols-1 content-start gap-8 overflow-auto px-6 pt-4 pb-10 group-data-[stage=green]/g:grid lg:grid-cols-[1fr_1fr] lg:gap-12 lg:pt-10">
       <div class="flex flex-col gap-6">
         <div>
           <h1 class="text-[28px] leading-[1.15] tracking-[-0.02em]"><span data-host-name>The host</span> is recording with you</h1>
@@ -72,7 +72,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     </section>
 
     <!-- Waiting, recording, done -->
-    <section class="mx-auto hidden w-full max-w-[860px] flex-1 flex-col px-6 group-data-[stage=waiting]/g:flex group-data-[stage=rec]/g:flex group-data-[stage=done]/g:flex">
+    <section class="mx-auto hidden min-h-0 w-full max-w-[860px] flex-1 flex-col px-6 group-data-[stage=waiting]/g:flex group-data-[stage=rec]/g:flex group-data-[stage=done]/g:flex">
       <div class="rounded-2xl bg-raised px-4 py-3.5" data-banner>
         <div class="text-[15px]" data-banner-title>You're in</div>
         <p class="mt-0.5 text-[13px] leading-normal text-muted" data-banner-body></p>
@@ -83,12 +83,12 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
       </div>
 
       <!-- Speaker lines: the script, with their lines highlighted -->
-      <div class="relative mt-2 min-h-[240px] flex-1 overflow-hidden" data-viewport hidden>
+      <div class="relative mt-2 min-h-0 flex-1 overflow-hidden" data-viewport hidden>
         <div class="pointer-events-none absolute inset-x-0 top-0 z-[1] h-10 bg-linear-to-b from-void to-transparent"></div>
         <div class="flex flex-col transition-transform duration-500 ease-in-out" data-track></div>
       </div>
       <!-- Talking points -->
-      <ol class="mt-4 flex flex-1 flex-col gap-2" data-points hidden></ol>
+      <ol class="mt-4 flex min-h-0 flex-1 flex-col gap-2 overflow-auto" data-points hidden></ol>
       <!-- Host script or ad-lib: a big light -->
       <div class="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center" data-light hidden>
         <span class="size-5 rounded-full bg-faint group-data-[stage=rec]/g:bg-rec group-data-[stage=rec]/g:shadow-[0_0_40px_var(--color-rec)]"></span>
@@ -292,6 +292,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
         return row;
       }),
     );
+    prompter?.destroy();
     prompter = new Prompter($('[data-viewport]'), track, { line: 0.3 });
     prompter.setWord(state?.word ?? 0);
   }

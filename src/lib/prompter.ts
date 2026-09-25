@@ -35,7 +35,15 @@ export class Prompter {
     this.lines = [...track.querySelectorAll<HTMLElement>('[data-line]')];
     this.lineAt = opts.line ?? 0.34;
     this.mirrored = opts.mirror ?? false;
-    new ResizeObserver(() => this.scroll()).observe(viewport);
+    this.resize = new ResizeObserver(() => this.scroll());
+    this.resize.observe(viewport);
+  }
+
+  private resize: ResizeObserver;
+
+  /** Stop following the viewport's size (before replacing this prompter). */
+  destroy() {
+    this.resize.disconnect();
   }
 
   get length() {

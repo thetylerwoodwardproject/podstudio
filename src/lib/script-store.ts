@@ -65,6 +65,7 @@ export function resetScript(episodeId: string) {
 /** Script lines back to import-format text. */
 export function scriptToText(lines: { who: string; text: string; section: string | null }[]) {
   let section: string | null = null;
+  let prev = '';
   const out: string[] = [];
   for (const l of lines) {
     if (l.section && l.section !== section) {
@@ -72,7 +73,10 @@ export function scriptToText(lines: { who: string; text: string; section: string
       out.push(`## ${l.section}`);
       section = l.section;
     }
-    out.push(l.who ? `${l.who}: ${l.text}` : l.text);
+    // An unnamed line keeps the last speaker when read back, so say HOST again after a guest's.
+    const who = l.who || (prev ? 'HOST' : '');
+    out.push(who ? `${who}: ${l.text}` : l.text);
+    prev = l.who;
   }
   return out.join('\n') + '\n';
 }

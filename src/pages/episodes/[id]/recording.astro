@@ -1466,6 +1466,7 @@ const zones = [
     ({ words, lines, lineStarts: starts, sections } = script);
     const line = Math.min(currentLine, lines.length - 1);
     renderTrack();
+    prompter.destroy();
     prompter = new Prompter(viewport, track, { line: 0.3 });
     renderSectionList();
     currentLine = line;
