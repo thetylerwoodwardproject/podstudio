@@ -10,6 +10,9 @@
  */
 import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
+import PadRail from '@/components/app/PadRail.astro';
+import PadStrip from '@/components/app/PadStrip.astro';
+import MixerLanes from '@/components/app/MixerLanes.astro';
 import { episode, episodePaths, user } from '@/data/mock';
 
 export const getStaticPaths = episodePaths;
@@ -72,6 +75,8 @@ const zones = [
       </div>
     </header>
 
+    <div class="relative flex min-h-0 flex-1">
+    <div class="relative flex min-w-0 flex-1 flex-col">
     <!-- Notices above the script: paused, and the warnings (one at a time) -->
     <div class="flex-none px-4 empty:hidden lg:mx-auto lg:w-full lg:max-w-[820px] lg:px-6" data-notices>
       <div class="mt-2 rounded-2xl bg-raised px-4 py-3.5" data-paused-card hidden>
@@ -101,6 +106,8 @@ const zones = [
         <p class="text-[26px]">Ad-lib</p>
         <p class="text-[14px] text-muted">No script for this show. Just talk; markers work as usual.</p>
       </div>
+      <!-- Ad-lib with a guest: the mixer view (1b) -->
+      <MixerLanes />
     </main>
 
     <!-- Laptop: markers on a thin timeline (amber retakes, grey cuts, blue ad-libs, red gaps) -->
@@ -112,6 +119,8 @@ const zones = [
       <div data-timeline-marks></div>
       <div class="absolute inset-y-0 right-0 w-0.5 bg-rec"></div>
     </div>
+
+    <PadStrip episodeId={episode.id} />
 
     <footer class="relative z-10 flex-none border-t border-line bg-void px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] lg:flex lg:items-center lg:gap-8 lg:px-8 lg:py-4">
       <!-- Undo, for 4 s after a retake, cough or ad-lib -->
@@ -137,7 +146,11 @@ const zones = [
         <dl class="mt-2 flex flex-col font-mono text-[12px]" data-level-rows></dl>
       </div>
 
-      <button type="button" class="flex w-full items-center gap-3 text-left lg:max-w-[640px] lg:min-w-0 lg:flex-1" aria-label="Level details" aria-expanded="false" data-level>
+      <!-- Mixer view: the levels are in the lanes above -->
+      <p class="truncate font-mono text-[11px] text-muted lg:min-w-0 lg:flex-1 lg:text-[12px]" data-mixer-note hidden></p>
+      <div class="flex w-full flex-col gap-2 lg:max-w-[640px] lg:min-w-0 lg:flex-1" data-meter-wrap>
+      <button type="button" class="flex w-full items-center gap-3 text-left" aria-label="Level details" aria-expanded="false" data-level>
+        <span class="w-9 flex-none font-mono text-[10px] tracking-[0.06em] text-subtle" data-mic-tag hidden>MIC</span>
         <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line" data-level-track>
           {zones.map(([left, width, color]) => (
             <span class="absolute inset-y-0" style={{ left, width, background: `color-mix(in oklab, ${color} 18%, transparent)` }} />
@@ -146,6 +159,15 @@ const zones = [
         </span>
         <span class="max-w-[55%] flex-none truncate font-mono text-[11px] text-muted lg:text-[12px]" data-level-text>— dB</span>
       </button>
+      <!-- Hotkey pads: the pads bus, under the mic -->
+      <div class="flex w-full items-center gap-3" data-pads-meter hidden>
+        <span class="w-9 flex-none font-mono text-[10px] tracking-[0.06em] text-subtle">PADS</span>
+        <span class="relative h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+          <span class="absolute inset-y-0 left-0 w-0 rounded-full bg-spk-teal" data-pads-fill></span>
+        </span>
+        <span class="max-w-[55%] flex-none truncate font-mono text-[11px] text-muted lg:text-[12px]" data-pads-text>— dB</span>
+      </div>
+      </div>
 
       <div class="mt-3 grid grid-cols-4 gap-2 lg:mt-0 lg:flex lg:flex-none lg:gap-2.5">
         <button type="button" class:list={[btn, 'col-span-3 hidden flex-row! gap-2.5! bg-rec text-[16px] text-white group-data-[state=ready]/r:flex lg:px-8']} data-start disabled>
@@ -226,6 +248,10 @@ const zones = [
           <div class="flex flex-col" data-sections></div>
         </div>
 
+        <a href={`/settings/pads?episode=${episode.id}`} target="_blank" class="flex items-center justify-between rounded-xl bg-raised px-3.5 py-2.5 text-[15px] hover:bg-surface lg:text-[13px]" data-pads-setup hidden>
+          <span>Hotkey pads</span><span class="text-muted">Set up →</span>
+        </a>
+
         <dl class="flex flex-col text-[14px] lg:text-[13px]">
           <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
             <dt class="flex-none text-muted">Mic</dt>
@@ -286,6 +312,10 @@ const zones = [
       </div>
     </div>
 
+    </div>
+    <PadRail episodeId={episode.id} />
+    </div>
+
     <!-- Resume counts down so you're ready when the pause ends -->
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70" data-countdown hidden>
       <span class="font-mono text-[120px] leading-none font-medium" data-countdown-n>3</span>
@@ -322,6 +352,10 @@ const zones = [
   import { waitingRoom } from '@/lib/waiting-room';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
+  import { PAD_INK, padColor, padsFor } from '@/lib/pads';
+  import { mountPadRail, type PadRail } from '@/lib/pad-rail';
+  import { mountMixer } from '@/lib/mixer-view';
+  import { padLabel } from '@/lib/markers';
 
   type State = 'ready' | 'rec' | 'paused';
 
@@ -351,6 +385,7 @@ const zones = [
   // ── The script ─────────────────────────────────────────────────────────────
   const viewport = $('[data-viewport]');
   const track = $('[data-track]');
+  const cuePads = new Map(padsFor(episodeId).map((p) => [p.key, p]));
   const renderTrack = () => track.replaceChildren(
     ...lines.map((l, n) => {
       const row = document.createElement('div');
@@ -360,6 +395,22 @@ const zones = [
       const body = document.createElement('div');
       body.className =
         '-ml-4 border-l-2 border-transparent pl-3.5 text-[0.74em] leading-[1.32] text-subtle transition-[font-size,color] group-data-[l=now]/l:border-(--rule) group-data-[l=now]/l:text-[1em] group-data-[l=now]/l:text-fg group-data-[l=past]/l:text-ghost';
+      // [pad N] cues from the script: reminder chips in the pad's colour (they never fire).
+      if (l.cues?.length) {
+        const chips = document.createElement('div');
+        chips.className = 'mb-1.5 flex flex-wrap gap-1.5';
+        for (const c of l.cues) {
+          const pad = cuePads.get(c.key);
+          const chip = document.createElement('span');
+          chip.className = 'rounded-[4px] px-1.5 py-0.5 font-mono text-[11px] leading-none font-medium tracking-[0.06em] uppercase';
+          chip.style.background = pad ? padColor(pad.color) : 'var(--color-raised)';
+          chip.style.color = pad ? PAD_INK : 'var(--color-muted)';
+          chip.textContent = `${c.key} · ${pad?.name ?? 'Empty pad'}${c.note ? ` · ${c.note}` : ''}`;
+          chip.dataset.cue = String(c.key);
+          chips.append(chip);
+        }
+        body.append(chips);
+      }
       const text = document.createElement('div');
       for (const w of l.text.split(/\s+/).filter(Boolean)) {
         const span = document.createElement('span');
@@ -527,8 +578,13 @@ const zones = [
           : zone(l.peak);
     }
     if (detailsOpen) renderDetails();
+    mixer?.host(l.peak);
   };
-  capture.addEventListener('level', (e) => onLevel((e as CustomEvent<Level>).detail));
+  capture.addEventListener('level', (e) => {
+    const l = (e as CustomEvent<Level>).detail;
+    onLevel(l);
+    pads?.engine.voice(l.rms);
+  });
   // The number holds the highest peak of the last 1.5 s, so it can be read while talking.
   setInterval(() => {
     held.push(windowPeak);
@@ -592,13 +648,18 @@ const zones = [
         el.title = `${markerName[m.kind]} · ${clock(m.t)} · Line ${m.line + 1}: ${lines[m.line]?.text ?? ''}`;
         el.style.left = pct(m.t);
         if (m.kind === 'retake') el.className = 'absolute inset-y-0 w-0.5 bg-warn';
-        else {
+        else if (m.kind === 'pad') {
+          el.title = `${padLabel(m)} · ${clock(m.t)}`;
+          el.className = 'absolute inset-y-[5px] rounded-[2px]';
+          el.style.background = m.pad ? padColor(m.pad.color as never) : 'var(--color-subtle)';
+          el.style.width = `max(3px, ${(((m.end ?? now()) - m.t) / end) * 100}%)`;
+        } else {
           el.className = {
             cut: 'absolute inset-y-0 bg-edge-strong',
             adlib: 'absolute inset-y-[3px] rounded-[2px] bg-adlib/70',
             pause: 'absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink',
             gap: 'absolute inset-y-0 bg-[repeating-linear-gradient(135deg,var(--color-rec)_0_2px,transparent_2px_5px)]',
-          }[m.kind];
+          }[m.kind as 'cut'];
           el.style.width = `max(3px, ${(((m.end ?? now()) - m.t) / end) * 100}%)`;
         }
         return el;
@@ -933,6 +994,12 @@ const zones = [
     else if (key === 'p') togglePause();
     else if (key === 'u') undo();
     else if (isMoreOpen() && /^[1-9]$/.test(key)) jumpToSection(Number(key) - 1);
+    // Hotkey pads: 1–9 fire while rehearsing or recording (not paused); 0 stops all, Shift+0 fades all.
+    else if (pads && /^Digit[0-9]$/.test(e.code)) {
+      const n = Number(e.code.slice(5));
+      if (n === 0) e.shiftKey ? pads.fadeAll() : pads.stopAll();
+      else if (padsArmed()) pads.press(n);
+    }
     // Page turners send PageDown / PageUp.
     else if ((e.key === 'ArrowRight' || e.key === 'PageDown') && pointsMode) setPoint(point + 1);
     else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && pointsMode) setPoint(point - 1);
@@ -941,7 +1008,10 @@ const zones = [
     else return;
     e.preventDefault();
   });
-  addEventListener('keyup', (e) => e.key.toLowerCase() === 'c' && coughUp());
+  addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() === 'c') coughUp();
+    if (pads && /^Digit[1-9]$/.test(e.code)) pads.release(Number(e.code.slice(5)));
+  });
 
   $('[data-retake]').addEventListener('click', retake);
   adlibBtn.addEventListener('click', toggleAdlib);
@@ -1366,6 +1436,11 @@ const zones = [
     capture.addEventListener('error', (e) => showWarning('Recording problem', (e as CustomEvent<string>).detail));
     writer = w;
     w.meta.voiceLog = voiceLog.slice();
+    if (pads) {
+      const ps = pads.engine.settings;
+      pads.engine.log = { presses: [], volume: [{ t: 0, db: ps.volumeDb }], duck: { attackMs: ps.duckAttackMs, releaseMs: ps.duckReleaseMs, threshold: ps.threshold } };
+      w.meta.pads = pads.engine.log;
+    }
     logVoice('recording started');
     capture.record();
     sessionStart = performance.now();
@@ -1454,8 +1529,23 @@ const zones = [
   if (pointsMode || adlibMode) {
     track.hidden = true;
     $('[data-points-view]').hidden = !pointsMode;
-    $('[data-adlib-view]').hidden = !adlibMode;
     if (pointsMode) renderPoints();
+  }
+
+  // Ad-lib with a guest: a lane per person instead of an empty screen, and the bar's meter goes.
+  const mixerDemo = demo && params.get('state') === 'mixer';
+  let mixer: ReturnType<typeof mountMixer> | null = null;
+  if (adlibMode || mixerDemo) {
+    track.hidden = true;
+    mixer = mountMixer(root, { host: root.dataset.host!, guest: 'Guest' }, () => state === 'rec');
+    mixer.setMeta('guest', 'Guest · not here yet');
+    $('[data-meter-wrap]').hidden = true;
+    const note = $('[data-mixer-note]');
+    note.hidden = false;
+    setInterval(() => {
+      note.textContent = `${micLabel || 'Mic'} · ${formatText()} · levels shown above`;
+      mixer!.setMeta('host', `Host · ${micLabel || 'Mic'}`);
+    }, 1000);
   }
 
   /** A new version of the script from the producer: keep the reader on the same line. */
@@ -1530,6 +1620,7 @@ const zones = [
     sendState();
   }
 
+  let guestLiveAt = 0;
   function onGuest(g: GuestStatus) {
     guest = { ...guest, ...g, at: Date.now() };
     // A guest recorded in this session: export waits for their track.
@@ -1540,6 +1631,15 @@ const zones = [
     $('[data-guest-dot]').style.background = !guestConnected ? '' : guest.clip ? 'var(--color-rec)' : guest.level != null && guest.level > -45 ? zone(guest.level) : 'var(--color-faint)';
     const pending = guest.pending ?? 0;
     $('[data-guest-up]').textContent = guest.recording || guest.uploaded ? `↑${guest.uploaded ?? 0}${pending ? `+${pending}` : ''}` : '';
+    if (mixer) {
+      mixer.setName('guest', guest.name || 'Guest');
+      // Live peaks (four a second) when the guest's page sends them; otherwise the held level.
+      if (g.now != null) {
+        guestLiveAt = Date.now();
+        mixer.guest(g.now);
+      } else if (g.level != null && Date.now() - guestLiveAt > 2000) mixer.guest(g.level);
+      mixer.setMeta('guest', `Guest · ${guest.recording || guest.uploaded ? `↑${guest.uploaded ?? 0} uploaded` : guest.mic ?? 'connected'}`);
+    }
     $<HTMLElement>('[data-guest-up]').style.color = pending > 6 ? 'var(--color-warn)' : '';
     // Speaker lines: on the guest's lines, their voice follow moves the reader.
     if (g.word != null && show.mode === 'lines' && isGuestLine(lines[currentLine]?.who ?? '', guest.name) && state !== 'paused') setWord(g.word);
@@ -1564,6 +1664,7 @@ const zones = [
       if (!p.connected) {
         $('[data-guest-dot]').style.background = '';
         $('[data-guest-up]').textContent = 'left';
+        mixer?.setMeta('guest', 'Guest · left the session');
       }
     });
     room.addEventListener('refused', (e) => showWarning('Couldn’t connect the session', (e as CustomEvent<string>).detail));
@@ -1590,6 +1691,41 @@ const zones = [
     }, 1000);
   }
 
+  // ── Hotkey pads (laptop only) ───────────────────────────────────────────────
+  let pads: PadRail | null = null;
+  const padsArmed = () => state !== 'paused' && !counting;
+  const padMarkers = new Map<object, SessionMarker>();
+  mountPadRail(root, episodeId, padsArmed).then((rail) => {
+    $('[data-pads-setup]').hidden = !!rail;
+    if (!rail) return;
+    pads = rail;
+    rail.engine.clock = () => (writer && state !== 'ready' ? now() : null);
+    rail.engine.onPress = (p) => {
+      const m: SessionMarker = { t: p.t, kind: 'pad', line: currentLine, pad: { key: p.key, id: p.padId, name: p.name, color: p.color } };
+      padMarkers.set(p, m);
+      markers().push(m);
+      renderMore();
+    };
+    rail.engine.onEnd = (p, t) => {
+      const m = padMarkers.get(p);
+      if (m) m.end = t;
+    };
+    // On a laptop the bar's meter gets a PADS row; the phone strip shows its own level when pulled up.
+    if (rail.layout !== 'rail') return;
+    $('[data-mic-tag]').hidden = false;
+    $('[data-pads-meter]').hidden = false;
+    let padShown = 0;
+    setInterval(() => {
+      const db = rail.engine.level();
+      const target = toFraction(db);
+      padShown = target > padShown ? target : Math.max(target, padShown - 0.02);
+      $('[data-pads-fill]').style.width = `${padShown * 100}%`;
+      $('[data-pads-text]').textContent = Number.isFinite(db) && db > -60
+        ? `${String(Math.round(db)).replace('-', '−')} dB${rail.engine.ducking ? ' · ducked under voice' : ''}`
+        : '— dB';
+    }, 50);
+  });
+
   setWord(word);
   if (demo) runDemo();
   else live();
@@ -1610,15 +1746,26 @@ const zones = [
     const s = params.get('state') ?? 'rec';
     micLabel = phone.matches ? 'Phone mic' : 'Shure MV7+';
     micSelect.replaceChildren(new Option(micLabel, ''));
-    const levels: Record<string, number> = { ready: -20, rec: -12, cough: -30, retake: -42, adlib: -14, more: -15, paused: -34 };
+    if (s === 'mixer' && mixer) {
+      mixer.setName('guest', 'Sam');
+      mixer.setMeta('guest', 'Guest · ↑42 uploaded');
+      // Taking turns: the host for 6 s, then the guest for 4 s.
+      setInterval(() => {
+        const turn = (Date.now() / 1000) % 10 < 6;
+        const wobble = Math.sin(Date.now() / 180) * 4;
+        mixer!.guest(turn ? -52 : -12 + wobble);
+      }, 500);
+    }
+    const levels: Record<string, number> = { mixer: -10, ready: -20, rec: -12, cough: -30, retake: -42, adlib: -14, more: -15, paused: -34 };
     const base = levels[s] ?? -12;
     setInterval(() => {
-      const peak = base + Math.sin(Date.now() / 300) * 2;
+      const quiet = s === 'mixer' && (Date.now() / 1000) % 10 >= 6;
+      const peak = quiet ? -55 : base + Math.sin(Date.now() / 300) * (s === 'mixer' ? 5 : 2);
       onLevel({ peak, hot: peak, rms: peak - 9, inputs: [peak] });
     }, 33);
     startBtn.disabled = false;
     if (s === 'ready') return;
-    demoNow = { rec: 271, cough: 302, retake: 340, adlib: 435, more: 482, paused: 530 }[s] ?? 271;
+    demoNow = { mixer: 277, rec: 271, cough: 302, retake: 340, adlib: 435, more: 482, paused: 530 }[s] ?? 271;
     demoMarkers = [
       { t: 30, kind: 'retake', line: 1, attempt: 2 },
       { t: 95, kind: 'cut', line: 3, end: 98 },

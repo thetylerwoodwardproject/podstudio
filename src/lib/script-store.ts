@@ -6,12 +6,12 @@
  */
 
 import { defaultScriptText } from '@/data/script';
-import { parseScript } from './script-parser';
+import { parseScript, type ParsedLine } from './script-parser';
 
 export interface EpisodeScript {
   text: string;
   custom: boolean;
-  lines: { who: string; text: string; section: string | null }[];
+  lines: ParsedLine[];
   sections: { title: string; line: number }[];
   /** Every word, in order; prompters and voice follow use these indexes */
   words: string[];
@@ -63,7 +63,7 @@ export function resetScript(episodeId: string) {
 }
 
 /** Script lines back to import-format text. */
-export function scriptToText(lines: { who: string; text: string; section: string | null }[]) {
+export function scriptToText(lines: ParsedLine[]) {
   let section: string | null = null;
   let prev = '';
   const out: string[] = [];
@@ -74,6 +74,7 @@ export function scriptToText(lines: { who: string; text: string; section: string
       section = l.section;
     }
     // An unnamed line keeps the last speaker when read back, so say HOST again after a guest's.
+    for (const c of l.cues ?? []) out.push(`[pad ${c.key}${c.note ? ` · ${c.note}` : ''}]`);
     const who = l.who || (prev ? 'HOST' : '');
     out.push(who ? `${who}: ${l.text}` : l.text);
     prev = l.who;

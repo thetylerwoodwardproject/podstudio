@@ -1,0 +1,57 @@
+---
+/*
+ * Hotkey pads on a phone or tablet (Hotkey Pads 2a–2b): a swipeable strip of
+ * the nine pads between the script and the control bar, and a panel that
+ * slides up with the full 1–9 grid. Filled in by lib/pad-rail.ts; hidden
+ * until a pad is assigned, and on laptops (they get the rail).
+ */
+interface Props {
+  episodeId: string;
+}
+const { episodeId } = Astro.props;
+---
+
+<div class="relative flex-none border-t border-line bg-void px-4 pt-1.5 pb-2" style="display:none" aria-label="Hotkey pads" data-pad-strip>
+  <button type="button" class="mx-auto block h-4 w-16 touch-none" aria-label="Open all pads" data-pad-strip-handle>
+    <span class="mx-auto block h-1 w-9 rounded-full bg-edge-strong"></span>
+  </button>
+  <div class="mb-2 flex items-center justify-between font-mono text-[11px] font-medium tracking-[0.08em] text-subtle">
+    <span>PADS</span>
+    <span data-pad-strip-status></span>
+  </div>
+  <div class="relative">
+    <div class="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-pad-strip-row></div>
+    <!-- A playing pad scrolled out of view: a dot at that edge -->
+    <span class="pointer-events-none absolute top-1/2 -left-2.5 size-2 -translate-y-1/2 rounded-full" data-pad-edge="left" hidden></span>
+    <span class="pointer-events-none absolute top-1/2 -right-2.5 size-2 -translate-y-1/2 rounded-full" data-pad-edge="right" hidden></span>
+  </div>
+</div>
+
+<!-- Pulled up: all nine pads, laid out 1–9 like the laptop rail -->
+<div class="fixed inset-0 z-30 bg-black/40" data-pad-sheet-scrim hidden></div>
+<div
+  class="fixed inset-x-0 bottom-0 z-40 flex max-h-[76dvh] flex-col rounded-t-[22px] bg-panel px-4 pt-2 pb-[max(14px,env(safe-area-inset-bottom))] transition-transform duration-200"
+  role="dialog"
+  aria-label="Hotkey pads"
+  data-pad-sheet
+  hidden
+>
+  <button type="button" class="mx-auto mb-2 block h-4 w-16 touch-none" aria-label="Close pads" data-pad-sheet-handle>
+    <span class="mx-auto block h-1 w-9 rounded-full bg-edge-strong"></span>
+  </button>
+  <div class="mb-3 flex items-center justify-between touch-none" data-pad-sheet-head>
+    <h2 class="font-mono text-[11px] font-medium tracking-[0.08em] text-subtle" data-pad-sheet-set>PADS · SHOW SET</h2>
+    <a href={`/settings/pads?episode=${episodeId}`} class="text-[13px] text-muted hover:text-fg" data-pad-sheet-edit>Edit</a>
+  </div>
+  <div class="grid min-h-0 grid-cols-3 gap-2 overflow-auto" data-pad-sheet-grid></div>
+  <div class="mt-3 grid grid-cols-2 gap-2">
+    <button type="button" class="h-12 rounded-2xl bg-raised text-[15px]" data-pad-sheet-stop>Stop all</button>
+    <button type="button" class="h-12 rounded-2xl bg-raised text-[15px]" data-pad-sheet-fade>Fade all</button>
+  </div>
+  <div class="mt-4 flex items-center gap-3">
+    <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+      <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-level-fill></span>
+    </span>
+    <span class="flex-none font-mono text-[11px] text-muted"><span data-pad-sheet-db>—</span> · swipe down to close</span>
+  </div>
+</div>

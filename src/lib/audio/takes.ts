@@ -21,6 +21,7 @@
 import { markerChunks, pcmBytes, pcmFloats, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
 import type { LineStart, Range, SessionMarker } from './assemble';
 import { mixTones, toneWindows, type PlacedTone, type ToneSettings } from './tones';
+import type { PadLog } from './pads-render';
 
 export interface TakeMeta {
   id: string;
@@ -60,6 +61,8 @@ export interface TakeMeta {
   guest?: { name: string; sessionId: string };
   /** Voice follow restarts, errors and stalls during the session, for diagnosing */
   voiceLog?: { t: number; at: string; event: string; detail?: string }[];
+  /** Hotkey pads pressed during the session, to rebuild the Pads track at export */
+  pads?: PadLog;
   /** Peak level per half second, 0..1, for waveforms */
   peaks: number[];
 }

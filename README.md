@@ -73,7 +73,7 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
   - **Speaker lines**: each line is the host's or the guest's (tap HOST/GUEST on the script page, or import a script with `NAME:` lines: the first name is the host, anyone else the guest). Each screen highlights its own lines, and on the guest's lines their own voice follow moves the reader.
   - **Host script, guest free**: the guest sees a recording light and their level, no script.
   - **Talking points**: bullets (the script page's Talking points tab). Everyone sees them; the host's ← →, a tap, or the producer moves the current one. No voice follow.
-  - **Ad-lib**: no script; markers work as usual.
+  - **Ad-lib**: no script; markers work as usual. On a laptop the host's screen becomes the **mixer view** (Mixer View 1b): a lane per person with the last 60 s of level coloured by zone, a segmented meter, the level in dB with HOT / IN TARGET / LOW / IDLE, and **talk time** ("Tyler 58% · Sam 42%") counted while recording. The guest's level comes from their page about twice a second. The bar's meter gives way to a line naming your mic, since the levels are in the lanes.
 - **Joining** (`/join`): their name and the code (or a `/join?code=123456` link). Then they wait, like Zoom's waiting room, until **you let them in**: a card on your studio or recording screen says "Sam wants to join as your guest" with **Let in** and **Deny**. Nothing about the show reaches them before that, and a denied code-holder is shut out. A guest can check their mic while they wait.
   - **Guest** (`/guest`), on a laptop or phone (iPhone too): a green room (name, mic, level in the usual zones, "on the call with headphones"), then waiting for the host. When the session starts, their device records their mic losslessly and **uploads 5 s pieces as it goes**, retrying when the network drops. Cough (hold) on their screen marks a cut on both tracks. At the end: "All sent", and **Download my recording** as a backup. Only one guest can be connected at a time.
   - **Producer** (`/producer`), any browser, never asks for a mic: the live script (edit any line and everyone gets it), Start / Pause / End for everyone, Retake, Ad-lib and Cut, ← → and sections, and the guest's level, upload progress and code.
@@ -81,6 +81,22 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 - **Wrapping up** (`/episodes/142/wrap`): after End, it waits for the guest's last pieces, brings their track into this browser, then opens Export. If an upload failed, **Add the guest's file** takes the WAV they downloaded. **Export waits for the guest's track** wherever you open it from: the export page and the Sessions list both send you to the wrap-up until it's in, with "Export without them" as a deliberate, confirmed choice.
 - **Export** has a raw WAV and an edit for each person, lined up: each track records when it started on the server's clock, so the guest's is padded or trimmed to match yours, and both edits get the same cuts. Noise suppression makes cleaned copies of both; marker tones go on your track only.
 - **The server API** is in `docs/server-api.md`. `dev/relay.ts` implements it for testing (sessions in memory, tracks in `.podstudio-dev/`), and the real server replaces it without app changes.
+
+## Hotkey pads
+
+Nine sounds on the number keys: soundbites, clips, music and sound effects (Hotkey Pads 1a–1c, 2a–2b).
+
+- **Set them up** in Settings → **Hotkey pads**, or **Edit** on the pads. There's a **show set** for every episode, and an episode can override single pads (shown with a dot). Drag to swap keys. Each pad has:
+  - a sound: an upload (WAV, MP3, M4A or FLAC, converted to 48 kHz), a **soundbite** from the episode package or a **clip** (any range of a saved session), or anything already in the library;
+  - a Syntax colour, **One-shot / Loop / Hold**, volume (−24 to +6 dB), fades, trim, and **duck under your voice** with its own amount.
+  - The kind sets the defaults: music loops, ducks and fades out over 2 s; a sound effect plays once with no fade and no ducking; soundbites and clips play once with a 150 ms fade.
+  - **Ducking** for every pad is set there too: attack (default 80 ms), release (default 400 ms) and the voice threshold.
+- **On a laptop** (mouse, 1024 px or wider): a rail beside the script with the 3×3 grid, Stop all / Fade all, what's playing and time left, pads volume and ducking. The bar's meter gets a **PADS** row under MIC. **1–9** fire pads while you rehearse or record, not while paused, typing, or with More open (there 1–9 still jump to sections). **0** stops everything; **Shift+0** fades everything over 2 s.
+- **On a phone or tablet**: a swipeable strip above the control bar. Tap a pad to fire it. Pull the strip up (or tap its handle) for all nine pads, laid out 1–9 like the rail. Firing a one-shot there, or swiping down, drops back to the strip.
+- **What a press does**: a one-shot restarts, a loop fades out, a hold plays only while you hold it. Several can play at once. Pads play in your headphones only and never touch the mic. If the output looks like laptop speakers, the rail says so.
+- **Recording**: every press is a marker ("Pad 3 · Four pallets bite") on the timeline, in the pad's colour. The export has a stereo **Pads track** the same length as your mic, rebuilt from the press log so each press lands exactly where it was fired, and ducked the same way you heard it. It also has a **Pads edit**: retake, pause and gap cuts apply to both tracks, but a cough cuts only the mic. **Rough mix** (off by default) sums mic and pads with a limiter at −1 dBFS.
+- **Script cues**: a line of only `[pad 3]` (or `[pad 3 · note]`) shows as a chip in the pad's colour and isn't read aloud. Cues never fire anything.
+- Pads and their sounds are kept in this browser (OPFS `pads/`) until the server exists. Clearing a pad keeps its sound in the library.
 
 ## Keys (laptop)
 
@@ -93,7 +109,8 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 | **P** | Pause / resume (3-2-1) |
 | **U**, ⌘Z | Undo the last retake, cut or ad-lib (within 4 s) |
 | **← →**, PageUp/PageDown | Previous / next line |
-| **1–9** | Jump to a section while More is open |
+| **1–9** | Fire a hotkey pad; jump to a section while More is open |
+| **0**, Shift+**0** | Stop all pads / fade all pads over 2 s |
 | ⌘+ ⌘− | Text size |
 | Esc | Close More |
 
@@ -186,4 +203,5 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 - **Setup wizard:** the Server check, Admin account, OpenAI key and Done steps have no designs yet, so "Verify and continue" goes straight to the Domain step.
 - **OpenDyslexic** is listed as a prompter font, but the font isn't bundled yet, so it falls back to Atkinson Hyperlegible.
 - **Mock values:** model names, versions and the installer URL are placeholders.
+- **Planned next** (designs in hand, not built yet): see `docs/roadmap.md`. It covers the mixer view on a phone (Mixer View 2a–2b) and riding a pad's level by pressing and sliding it (Hotkey Pads 2c).
 - **One guest per session**, by design. Video isn't part of it: the call app carries video if you want it.

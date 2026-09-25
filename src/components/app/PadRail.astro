@@ -1,0 +1,59 @@
+---
+/*
+ * Hotkey pads rail (Hotkey Pads 1a): nine pads on 1–9, Stop all / Fade all,
+ * what's playing, and the pads bus settings. Laptop only: it stays hidden
+ * below 1024 px and on touch screens, and until a pad is assigned.
+ * Filled in by lib/pad-rail.ts.
+ */
+interface Props {
+  episodeId: string;
+}
+const { episodeId } = Astro.props;
+const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono text-[10px] leading-none font-medium opacity-80';
+const row = 'flex items-center justify-between gap-3 border-t border-line py-2.5 text-[13px]';
+---
+
+<aside class="hidden w-[360px] flex-none flex-col gap-3 overflow-auto border-l border-line px-5 py-4 lg:flex" style="display:none" aria-label="Hotkey pads" data-pad-rail>
+  <div class="flex items-center justify-between">
+    <h2 class="font-mono text-[11px] font-medium tracking-[0.08em] text-subtle" data-pad-set>PADS · SHOW SET</h2>
+    <a href={`/settings/pads?episode=${episodeId}`} class="text-[13px] text-muted hover:text-fg" data-pad-edit>Edit</a>
+  </div>
+  <div class="grid grid-cols-3 gap-2" data-pad-grid></div>
+  <div class="grid grid-cols-2 gap-2">
+    <button type="button" class="flex h-10 items-center justify-center gap-2 rounded-xl bg-raised text-[13px] hover:bg-surface" data-pad-stop>Stop all <span class={kbd}>0</span></button>
+    <button type="button" class="flex h-10 items-center justify-center gap-2 rounded-xl bg-raised text-[13px] hover:bg-surface" data-pad-fade>Fade all <span class={kbd}>Shift 0</span></button>
+  </div>
+  <div class="rounded-xl bg-raised px-3.5 py-3 text-[13px] shadow-[inset_0_0_0_1px_var(--color-warn)]" role="alert" data-pad-speakers hidden>
+    <div>Pads are going through your speakers</div>
+    <p class="mt-1 text-[12px] leading-normal text-muted">Use headphones so the mic doesn't record them twice.</p>
+  </div>
+  <div class="rounded-xl bg-raised px-3.5 py-3" data-pad-now hidden>
+    <div class="flex items-center justify-between gap-3 text-[13px]">
+      <span class="flex min-w-0 items-center gap-2"><span class="size-2 flex-none rounded-[2px]" data-pad-now-dot></span><span class="truncate" data-pad-now-name></span></span>
+      <span class="flex-none font-mono text-[11px] text-muted" data-pad-now-meta></span>
+    </div>
+    <div class="mt-2 h-[3px] overflow-hidden rounded-full bg-line"><div class="h-full w-0 rounded-full" data-pad-now-bar></div></div>
+    <div class="mt-2 flex items-center justify-between gap-3 text-[12px] text-muted">
+      <span class="truncate" data-pad-now-hint></span>
+      <span class="flex-none font-mono" data-pad-now-db></span>
+    </div>
+  </div>
+  <p class="font-mono text-[11px] text-subtle" data-pad-latest></p>
+  <div class="mt-auto flex flex-col">
+    <label class={row}>
+      <span class="text-muted">Pads volume</span>
+      <span class="flex items-center gap-2.5">
+        <input type="range" min="-24" max="6" step="1" class="w-24 accent-fg" aria-label="Pads volume" data-pad-volume />
+        <span class="w-12 text-right font-mono text-[12px]" data-pad-volume-text></span>
+      </span>
+    </label>
+    <div class={row}>
+      <span class="text-muted" id="pad-duck-label">Duck under voice</span>
+      <button type="button" role="switch" aria-labelledby="pad-duck-label" class="font-mono text-[12px] hover:text-fg" data-pad-duck></button>
+    </div>
+    <div class={row}>
+      <span class="text-muted">Recorded as</span>
+      <span class="text-[12px]">Pads track · stereo · + markers</span>
+    </div>
+  </div>
+</aside>

@@ -116,3 +116,15 @@ test('two gaps add up', async () => {
   const { audioTime } = await import('./assemble.ts');
   assert.equal(audioTime(50, [[10, 12], [30, 35]]), 43);
 });
+
+test('the Pads track keeps cough cuts; retakes and pauses cut both tracks', () => {
+  const withCough: SessionMarker[] = [
+    ...markers,
+    { t: 52, kind: 'cut', line: 3, end: 54 },
+    { t: 55, kind: 'pad', line: 3, end: 58, pad: { key: 3, id: 'p3', name: 'Bite', color: 'teal' } },
+  ];
+  const mic = assemble(60, withCough, lineLog, 'cut');
+  const pads = assemble(60, withCough, lineLog, 'cut', { track: 'pads' });
+  assert.deepEqual(mic.files, [[[0, 10], [25, 40], [50, 52], [54, 60]]]);
+  assert.deepEqual(pads.files, [[[0, 10], [25, 40], [50, 60]]]);
+});

@@ -7,7 +7,11 @@ export const markerName: Record<SessionMarker['kind'], string> = {
   adlib: 'Ad-lib',
   cut: 'Cough cut',
   gap: 'Mic stopped',
+  pad: 'Pad',
 };
+
+/** "Pad 3 · Four pallets bite" */
+export const padLabel = (m: SessionMarker) => (m.pad ? `Pad ${m.pad.key} · ${m.pad.name}` : 'Pad');
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -21,6 +25,7 @@ export function markerCounts(markers: SessionMarker[]): string {
       [n('adlib'), 'ad-lib'],
       [n('pause'), 'pause'],
       [n('gap'), 'gap'],
+      [n('pad'), 'pad'],
     ] as const
   )
     .filter(([count]) => count)

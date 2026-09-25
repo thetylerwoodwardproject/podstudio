@@ -6,6 +6,8 @@
  * at time t cuts from the most recent time line L started (before t) up to
  * t. Pauses are cut, kept, or used to split the edit into separate files.
  * Cough cuts are always removed. Ad-libs are only marked: they stay in the edit.
+ * Pad presses (hotkey pads) are only marked too. The Pads track gets the same
+ * edit, except that cough cuts apply to the mic track only.
  *
  * Markers are stored on the wall clock, in seconds from the start of the
  * session. When the mic stops (the phone locked, the tab was left), no audio
@@ -15,7 +17,7 @@
 
 export interface SessionMarker {
   t: number;
-  kind: 'retake' | 'pause' | 'adlib' | 'cut' | 'gap';
+  kind: 'retake' | 'pause' | 'adlib' | 'cut' | 'gap' | 'pad';
   /** Zero-based script line */
   line: number;
   /** Retakes: which attempt this starts (2 = first retake) */
@@ -24,6 +26,8 @@ export interface SessionMarker {
   end?: number;
   /** Gaps, after onAudio(): seconds the mic was stopped (the audio has none of them) */
   lost?: number;
+  /** Pad presses: which pad (key 1–9), its name and Syntax colour. `end` is when the sound stopped */
+  pad?: { key: number; id: string; name: string; color: string };
 }
 
 /** Cough cuts reach this far past the button on each side. */
@@ -105,9 +109,16 @@ export function retakeCuts(markers: SessionMarker[], lineLog: LineStart[]): Rang
 
 /**
  * The edit of a recording `duration` seconds long. Takes wall-clock markers
- * (as recorded) and converts them with onAudio() first.
+ * (as recorded) and converts them with onAudio() first. For the Pads track,
+ * cough cuts are left in: a cough cuts the mic only.
  */
-export function assemble(duration: number, wallMarkers: SessionMarker[], wallLineLog: LineStart[], pauses: PauseMode): Assembly {
+export function assemble(
+  duration: number,
+  wallMarkers: SessionMarker[],
+  wallLineLog: LineStart[],
+  pauses: PauseMode,
+  opts: { track?: 'mic' | 'pads' } = {},
+): Assembly {
   const { markers, lineLog } = onAudio(wallMarkers, wallLineLog);
   const clamp = ([a, b]: Range) => [Math.max(0, a), Math.min(duration, b)] as Range;
   const pauseRanges: Range[] = markers
@@ -115,7 +126,7 @@ export function assemble(duration: number, wallMarkers: SessionMarker[], wallLin
     .map((m) => [m.t, Math.min(duration, m.end ?? duration)] as Range);
   const cuts = merge([
     ...retakeCuts(markers, lineLog).map(clamp),
-    ...markers.filter((m) => m.kind === 'cut').map((m) => clamp([m.t, m.end ?? m.t])),
+    ...markers.filter((m) => m.kind === 'cut' && opts.track !== 'pads').map((m) => clamp([m.t, m.end ?? m.t])),
     ...(pauses === 'keep' ? [] : pauseRanges),
   ]);
 

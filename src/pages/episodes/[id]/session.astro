@@ -53,6 +53,16 @@ const greenSwitch =
         </div>
         <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
       </div>
+      <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5" data-pads-row hidden>
+        <div class="flex-1">
+          <div class="text-[14px]">Pads track</div>
+          <div class="mt-1 text-[12px] text-muted">
+            Your hotkey pads as their own stereo WAV, same length and clock as your mic, ducked as you heard them.
+            <span data-pads-count></span> Your mic track has none of it.
+          </div>
+        </div>
+        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
+      </div>
     </section>
 
     <section class="flex flex-col gap-2.5">
@@ -85,6 +95,17 @@ const greenSwitch =
         </span>
       </label>
     </section>
+
+    <label class="-mt-3.5 flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg" data-mix-row hidden>
+      <div class="flex-1">
+        <div class="text-[14px]">Rough mix</div>
+        <div class="mt-1 text-[12px] text-muted">Mic and pads in one file, limited to −1 dBFS, for a quick listen or an episode with no edit.</div>
+      </div>
+      <span class={greenSwitch}>
+        <input type="checkbox" role="switch" name="mix" class="peer sr-only" aria-label="Rough mix" />
+        <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+      </span>
+    </label>
 
     <section class="flex flex-col gap-2.5 transition-opacity group-has-[[name=assembled]:not(:checked)]/s:pointer-events-none group-has-[[name=assembled]:not(:checked)]/s:opacity-40">
       <h2 class="eyebrow text-muted!">Pauses in the assembled edit</h2>
@@ -165,7 +186,8 @@ const greenSwitch =
 
 <script>
   import { assemble, audacityLabels, mapTime, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
-  import { markerCounts, markerName } from '@/lib/markers';
+  import { markerCounts, markerName, padLabel } from '@/lib/markers';
+  import { hasPads, renderPads, renderRoughMix, stereoOf } from '@/lib/audio/pads-export';
   import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, type TakeMeta } from '@/lib/audio/takes';
   import { alignedRanges } from '@/lib/audio/align';
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
@@ -241,10 +263,19 @@ const greenSwitch =
     const { markers } = onAudio(wallMarkers, lineLog);
     $('[data-length]').textContent = clock(duration);
     $('[data-counts]').textContent = markerCounts(markers) || 'No markers';
+    const withPads = hasPads(take);
+    $('[data-pads-row]').hidden = !withPads;
+    $('[data-mix-row]').hidden = !withPads;
+    if (withPads) {
+      const n = take.pads!.presses.length;
+      $('[data-pads-count]').textContent = `${n} press${n === 1 ? '' : 'es'}, each a marker named like “${padLabel(markers.find((m) => m.kind === 'pad')!)}”.`;
+    }
 
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
     const describe = (m: SessionMarker) =>
-      m.kind === 'retake'
+      m.kind === 'pad'
+        ? padLabel(m)
+        : m.kind === 'retake'
         ? `Retake · Line ${m.line + 1} · attempt ${m.attempt ?? 2}`
         : m.kind === 'gap'
           ? `Mic stopped · ${clock(m.lost ?? 0)}`
@@ -259,12 +290,15 @@ const greenSwitch =
             row.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
             const time = Object.assign(document.createElement('span'), { className: 'font-mono text-muted', textContent: mmss(m.t) });
             const kind = Object.assign(document.createElement('span'), {
-              className: { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-rec' }[m.kind],
-              textContent: markerName[m.kind],
+              className: { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-rec', pad: '' }[m.kind],
+              textContent: m.kind === 'pad' ? padLabel(m) : markerName[m.kind],
             });
+            if (m.kind === 'pad' && m.pad) kind.style.color = `var(--color-spk-${m.pad.color})`;
             const text = document.createElement('span');
             const detail =
-              m.kind === 'retake'
+              m.kind === 'pad'
+                ? `${m.end != null ? clock(m.end - m.t) : 'to the end'}`
+                : m.kind === 'retake'
                 ? m.attempt === 2 ? `Line ${m.line + 1} · “${words(m.line)}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
                 : m.kind === 'gap'
                   ? `${clock(m.lost ?? 0)} not recorded · Line ${m.line + 1}`
@@ -349,7 +383,7 @@ const greenSwitch =
     const options = () => {
       const data = new FormData(form);
       const ns = Number(data.get('ns') ?? 0);
-      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns, tones: data.has('tones') && toneKinds.length > 0 };
+      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns, tones: data.has('tones') && toneKinds.length > 0, mix: withPads && data.has('mix') };
     };
     const refresh = () => {
       const o = options();
@@ -359,8 +393,10 @@ const greenSwitch =
       const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0);
       // Noise suppression on: every audio file comes twice, unprocessed and cleaned.
       const copies = o.ns ? 2 : 1;
-      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 2;
-      $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies)}`;
+      const padTracks = withPads ? 1 : 0;
+      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 2 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0);
+      const padBytes = withPads ? duration * take.sampleRate * (take.bitDepth / 8) * 2 * (1 + (o.assembled ? 1 : 0) + (o.mix ? 1 : 0)) : 0;
+      $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes)}`;
     };
     form.addEventListener('change', refresh);
     refresh();
@@ -394,11 +430,29 @@ const greenSwitch =
                     : await takeWav(t),
           });
         }
+        // The Pads track: rebuilt from the press log on your mic's clock, and the optional rough mix.
+        if (withPads) {
+          await renderPads(take, (d) => ($('[data-export-label]').textContent = `Pads track… ${Math.round(d * 100)}%`));
+          const cues = markers.filter((m) => m.kind === 'pad').map((m) => cue(m, take.sampleRate));
+          entries.push({ name: `${label}_Session_Pads.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'pads') });
+          if (o.mix) {
+            await renderRoughMix(take, (d) => ($('[data-export-label]').textContent = `Rough mix… ${Math.round(d * 100)}%`));
+            entries.push({ name: `${label}_Session_RoughMix.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'mix') });
+          }
+          $('[data-export-label]').textContent = 'Preparing…';
+        }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
         const csv = [
-          'time,end,kind,line,attempt,first words',
+          'time,end,kind,line,attempt,first words or pad',
           ...markers.map((m) =>
-            [m.t.toFixed(3), m.end?.toFixed(3) ?? '', m.kind === 'gap' ? `gap ${m.lost?.toFixed(3)}` : m.kind, m.line + 1, m.attempt ?? '', `"${words(m.line).replace(/"/g, '""')}"`].join(','),
+            [
+              m.t.toFixed(3),
+              m.end?.toFixed(3) ?? '',
+              m.kind === 'gap' ? `gap ${m.lost?.toFixed(3)}` : m.kind,
+              m.line + 1,
+              m.attempt ?? '',
+              `"${(m.kind === 'pad' ? padLabel(m) : words(m.line)).replace(/"/g, '""')}"`,
+            ].join(','),
           ),
         ].join('\n');
         entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
@@ -452,6 +506,19 @@ const greenSwitch =
               const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}` : `${name(t)}_edit`;
               entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept) });
               if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant) });
+            }
+          }
+          // The Pads edit: the same retake, pause and gap cuts, but a cough cuts the mic only.
+          if (withPads) {
+            const p = assemble(duration, wallMarkers, lineLog, o.pauses, { track: 'pads' });
+            for (const [i, ranges] of p.files.entries()) {
+              const kept = markers
+                .filter((m) => m.kind === 'pad')
+                .map((m) => ({ m, at: mapTime(m.t, ranges) }))
+                .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
+                .map((x) => cue(x.m, take.sampleRate, x.at));
+              const file = p.files.length > 1 ? `${label}_Session_Pads_edit_part${i + 1}` : `${label}_Session_Pads_edit`;
+              entries.push({ name: `${file}.wav`, data: await rangesWav(stereoOf(take), ranges, kept, 'pads') });
             }
           }
         }

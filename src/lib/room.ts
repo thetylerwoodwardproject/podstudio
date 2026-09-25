@@ -40,6 +40,8 @@ export type Command =
 export interface GuestStatus {
   name: string;
   level?: number;
+  /** Peak of the last 250 ms, dBFS, for the host's mixer */
+  now?: number;
   clip?: boolean;
   recording?: boolean;
   /** Segments uploaded, and waiting to upload */

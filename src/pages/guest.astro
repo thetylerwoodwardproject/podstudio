@@ -188,12 +188,15 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
   const segs = segmentMeter([...root.querySelectorAll<HTMLElement>('[data-seg]')]);
   let peakHold: number[] = [];
   let windowPeak = -Infinity;
+  /** Peak since the last live level sent to the host's mixer */
+  let livePeak = -Infinity;
   let clipAt = 0;
   let shown = 0;
   capture.addEventListener('level', (e) => {
     const l = (e as CustomEvent<Level>).detail;
     segs(l.peak);
     windowPeak = Math.max(windowPeak, l.peak);
+    livePeak = Math.max(livePeak, l.peak);
     if (l.hot > -0.5) clipAt = Date.now();
     const target = toFraction(l.peak);
     shown = target > shown ? target : Math.max(target, shown - 0.015);
@@ -539,6 +542,13 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
       take: t ? { sampleRate: t.sampleRate, bitDepth: t.bitDepth, channels: t.channels ?? 1, startedAtServer: t.startedAtServer ?? null, segments: t.segments } : undefined,
     });
   }, 500);
+
+  // The host's mixer (ad-lib shows) draws this person's level live: four times a second.
+  setInterval(() => {
+    if (!ready) return;
+    room.send({ type: 'guest', name, now: Number.isFinite(livePeak) ? Math.round(livePeak * 10) / 10 : -90 });
+    livePeak = -Infinity;
+  }, 250);
 
   // Cough: hold to mark a cut (on both tracks, so they stay the same length).
   const coughBtn = $('[data-cough]');
