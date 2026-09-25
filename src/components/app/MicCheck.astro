@@ -1,9 +1,11 @@
 ---
-// 7c · Mic check: one screen for hosts and remote guests
+// Green room (after 6a): what to do on the left, a live mic check on the right. The host's
+// green room before a session, and a guest's landing page from their invite link.
 import AppShell from '@/layouts/AppShell.astro';
 import StatusRow from '@/components/ui/StatusRow.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, lineStarts, scriptWords } from '@/data/mock';
+import Checkbox from '@/components/ui/Checkbox.astro';
+import { episode, lineStarts, scriptWords, server } from '@/data/mock';
 import Select from '@/components/ui/Select.astro';
 import LevelMeter from '@/components/audio/LevelMeter.astro';
 
@@ -14,49 +16,60 @@ const { mode } = Astro.props;
 const guest = mode === 'guest';
 const ok = 'var(--color-ok)';
 const base = `/episodes/${episode.id}`;
+const host = 'Tyler';
+const joinUrl = `${server.address}/join`;
 
 const c = guest
   ? {
-      who: 'Guest · Dana · invited by Tyler',
+      eyebrow: 'Guest · Dana',
       title: 'Before you join',
-      sub: 'Your mic is recorded on this computer at full quality and sent to Tyler’s server as you talk.',
-      inputs: ['Rode NT-USB', 'MacBook Pro Microphone'],
+      sub: `Podstudio records your mic on this computer and sends it to ${host}’s server. You’ll talk to ${host} and Sam over your usual call app.`,
+      steps: [
+        ['Join the call', `Use the link ${host} sent for Zoom, Slack, Teams, Discord or whatever you normally use. Keep it running in another window.`],
+        ['Put on headphones', 'Otherwise the call audio comes out of your speakers and gets recorded by your mic.'],
+        ['Pick your mic here', 'Choose the same mic in both apps. Podstudio records it at full quality, separate from the call.'],
+      ],
+      inputs: ['Rode NT-USB'],
       heard: '“And whether the floor could hold it, which nobody checked until I asked.”',
       checks: [
-        ['Level', 'Good', ok],
+        ['Level', 'Right on target', ok],
         ['Clipping', 'None', ok],
         ['Headphones', 'Confirmed', ok],
         ['Call audio in mic', 'Not detected', ok],
+        ['Format', '24-bit · 48 kHz', undefined],
         ['Connection to server', 'Good · 38 ms', ok],
       ],
       next: `${base}/prompter`,
     }
   : {
-      who: 'Host · Tyler',
-      title: 'Check your mic',
-      sub: 'Read a line at your normal volume. Podstudio checks your level and room noise, and makes sure voice follow can hear you.',
-      inputs: ['Shure MV7 (USB)', 'MacBook Pro Microphone'],
+      eyebrow: `Host · ${host}`,
+      title: 'Green room',
+      sub: `Get set for ${episode.fullTitle}. Your guests are getting ready in their own green room.`,
+      steps: [
+        ['Check your mic', 'Talk at your normal volume until the meter sits in the target zone, then make a test recording and play it back.'],
+        ['Open the prompter', 'On your phone or a second screen, open the join page and enter the code. It follows your voice as you read.'],
+        ['Bring in your guests', 'Send them the invite link. They join your usual call app and check their mic in their own green room.'],
+      ],
+      inputs: ['Shure MV7 (USB)'],
       heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
       checks: [
-        ['Level', 'Right on target · peaks around -11', ok],
+        ['Level', 'Right on target', ok],
         ['Clipping', 'None in the last 30 s', ok],
         ['Noise floor', '-61 dBFS', ok],
         ['Voice follow', 'Matched line 1', ok],
         ['Free space', '5.1 GB · about 9 h', 'var(--color-warn)'],
-        ['Test recording', 'Played back · peak -7', ok],
+        ['Test recording', 'Played back · right on target', ok],
       ],
       next: `${base}/recording`,
     };
-
-const SEGMENTS = 40;
-const LIT = 30;
+const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone call'];
 ---
 
-<AppShell title={c.title} avatar={false} crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Mic check' }]}>
-  <span slot="topbar" class="truncate text-[13px] text-muted max-sm:hidden">{c.who}</span>
+<AppShell title={c.title} avatar={false} crumbs={guest ? [{ label: episode.fullTitle }] : [{ label: episode.label, href: `${base}/studio` }, { label: 'Green room' }]}>
+  <span slot="topbar" class="truncate text-[13px] text-muted max-sm:hidden">{guest ? `Invited by ${host}` : c.eyebrow}</span>
 
   <form
-    class="grid gap-11 px-6 py-9 lg:min-h-full lg:grid-cols-[1fr_340px] lg:px-13"
+    class="grid lg:min-h-full lg:grid-cols-[1fr_400px]"
     id="mic-check"
     data-mode={mode}
     data-next={c.next}
@@ -64,79 +77,122 @@ const LIT = 30;
     data-words={JSON.stringify(scriptWords)}
     data-line-starts={JSON.stringify(lineStarts)}
   >
-    <div class="flex flex-col gap-5.5">
+    <!-- What to do -->
+    <section class="flex flex-col gap-6 border-line px-6 py-10 lg:border-r lg:px-14">
       <div>
-        <h1 class="text-[24px] tracking-[-0.02em]">{c.title}</h1>
-        <p class="mt-1.5 max-w-[520px] text-[13px] leading-[1.55] text-muted">{c.sub}</p>
+        <div class="eyebrow">{c.eyebrow}</div>
+        <h1 class="mt-2 text-[28px] tracking-[-0.03em]">{c.title}</h1>
+        <p class="mt-2 max-w-[520px] text-[14px] leading-[1.55] text-muted">{c.sub}</p>
       </div>
 
-      {
-        guest && (
-          <div class="flex gap-3.5 rounded-xl bg-surface px-4 py-3.5 shadow-[inset_2px_0_0_var(--color-muted)]">
-            <span class="eyebrow flex-none pt-0.5 text-muted!">First</span>
-            <span class="text-[13px] leading-[1.55] text-fg-soft">
-              Join the call in Zoom, Slack, Teams, Discord or whatever the host sent, and put on headphones. Podstudio
-              records your mic only, never the call.
-            </span>
+      <ol class="flex flex-col gap-4">
+        {
+          c.steps.map(([title, body], i) => (
+            <li class="grid grid-cols-[28px_1fr] gap-3.5">
+              <span class="flex size-6.5 items-center justify-center rounded-full border border-edge-strong font-mono text-[11px] font-medium text-muted">
+                {i + 1}
+              </span>
+              <div class="min-w-0">
+                <div class="text-[15px]">{title}</div>
+                <p class="mt-1 text-[13px] leading-normal text-muted">{body}</p>
+                {!guest && i === 1 && (
+                  <div class="mt-2.5 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg bg-surface px-3 py-2 font-mono text-[13px]">
+                    <span class="text-fg-soft" data-join-url>{joinUrl}</span>
+                    <span class="text-muted">·</span>
+                    <span class="text-muted">Code</span>
+                    <span class="tracking-[0.1em]">{episode.joinCode}</span>
+                  </div>
+                )}
+                {!guest && i === 2 && (
+                  <div class="mt-2.5 flex max-w-[520px] items-center gap-2 rounded-lg bg-surface py-1.5 pr-1.5 pl-3">
+                    <span class="min-w-0 flex-1 truncate font-mono text-[12px] text-fg-soft" data-invite-link>{server.inviteLink}</span>
+                    <button type="button" class="h-7 flex-none rounded-md border border-edge px-2.5 text-[12px] hover:bg-raised" data-copy-invite>
+                      Copy link
+                    </button>
+                  </div>
+                )}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+
+      {guest && (
+        <ul class="flex flex-wrap gap-1.5" aria-label="Works with any call app">
+          {apps.map((a) => <li class="flex h-6.5 items-center rounded-full bg-surface px-2.5 text-[12px] text-fg-soft">{a}</li>)}
+        </ul>
+      )}
+
+      <div class="rounded-xl bg-surface px-4 py-3 text-[14px] leading-normal">
+        <span class="text-faint">Heard:</span>
+        <span data-heard>{c.heard}</span>
+      </div>
+
+      <div class="mt-auto flex items-center gap-4 rounded-xl bg-panel px-4.5 py-3.5 shadow-[inset_2px_0_0_var(--color-muted)]">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 text-[14px]">
+            <span class="inline-block size-2 flex-none rounded-full bg-muted"></span>Podstudio records. It doesn’t connect calls.
           </div>
-        )
-      }
+          <p class="mt-1 text-[13px] leading-normal text-muted">
+            Talk over Zoom, Slack, Teams, Discord or any call app. Podstudio records each person’s own mic on their own
+            device, never the call audio.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live mic check -->
+    <aside class="flex flex-col gap-4 px-6 py-7">
+      <h2 class="text-[14px] font-medium">Mic check</h2>
 
       <div class="flex flex-col gap-2">
         <label for="mic" class="text-[12px] text-muted">Microphone</label>
         <Select id="mic" name="mic" options={c.inputs} data-mic />
       </div>
 
-      <div class="flex flex-col gap-2">
-        <LevelMeter segments={SEGMENTS} lit={LIT} />
+      <div class="flex flex-col gap-1.5">
+        <LevelMeter segments={28} lit={19} compact />
         <!-- One plain-language line: where the level is and what to do about it -->
-        <div class="mt-1.5 flex items-center gap-2.5" data-live-only>
-          <span class="inline-block size-2.5 flex-none rounded-full bg-faint" data-status-dot></span>
-          <span class="text-[16px]" data-status>Talk at your normal volume</span>
-          <span class="ml-auto font-mono text-[13px] text-muted" data-status-peak></span>
+        <div class="flex items-center gap-2" data-live-only>
+          <span class="inline-block size-2 flex-none rounded-full bg-faint" data-status-dot></span>
+          <span class="text-[13px]" data-status>Talk at your normal volume</span>
+          <span class="ml-auto font-mono text-[12px] text-muted" data-status-peak></span>
         </div>
       </div>
 
-      {
-        (
-          <div class="flex flex-col gap-3 rounded-xl border border-line p-4" data-live-only data-test>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="min-w-0">
-                <div class="text-[14px]">Test recording</div>
-                <div class="mt-0.5 text-[12px] text-subtle" data-test-hint>
-                  Say a few lines at your loudest, then play it back. It’s recorded exactly like a session.
-                </div>
-              </div>
-              <button
-                type="button"
-                class="inline-flex h-9 flex-none items-center gap-2 rounded-lg bg-rec px-3.5 text-[13px] font-medium text-white disabled:opacity-50 data-[running]:bg-raised data-[running]:text-fg"
-                data-test-btn
-              >
-                <span class="size-2 rounded-full bg-current" data-test-icon></span>
-                <span data-test-label>Record 10 s</span>
-              </button>
-            </div>
-            <audio controls class="h-8 w-full [color-scheme:dark]" data-test-audio hidden></audio>
-            <div class="font-mono text-[12px]" data-test-result hidden></div>
-          </div>
-        )
-      }
+      <div class="flex flex-col">
+        {c.checks.map(([k, v, color], i) => <StatusRow label={k!} value={v!} color={color} dense data-check={i} />)}
+      </div>
 
-      <div class="rounded-xl bg-surface px-4 py-3 text-[15px] leading-normal">
-        <span class="text-faint">Heard:</span>
-        <span data-heard>{c.heard}</span>
+      <div class="flex flex-col gap-2.5 rounded-xl border border-line p-3.5" data-live-only data-test>
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-[13px]">Test recording</div>
+            <div class="mt-0.5 text-[12px] leading-snug text-subtle" data-test-hint>Say a few lines at your loudest, then play it back.</div>
+          </div>
+          <button
+            type="button"
+            class="inline-flex h-8 flex-none items-center gap-2 rounded-lg bg-rec px-3 text-[12px] font-medium text-white disabled:opacity-50 data-[running]:bg-raised data-[running]:text-fg"
+            data-test-btn
+          >
+            <span class="size-2 rounded-full bg-current" data-test-icon></span>
+            <span data-test-label>Record 10 s</span>
+          </button>
+        </div>
+        <audio controls class="h-8 w-full [color-scheme:dark]" data-test-audio hidden></audio>
+        <div class="font-mono text-[11px]" data-test-result hidden></div>
       </div>
 
       <!-- The numbers, for comparing with an interface's own meters -->
       <details class="group rounded-xl border border-line" data-live-only>
-        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] text-muted hover:text-fg">
+        <summary class="flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 text-[13px] text-muted hover:text-fg">
           Advanced details
           <span class="text-faint transition-transform group-open:rotate-180">▾</span>
         </summary>
-        <div class="flex flex-col gap-3 border-t border-line px-4 pt-3 pb-4">
-          <div class="flex items-baseline justify-between gap-3 font-mono text-[12px]">
+        <div class="flex flex-col gap-3 border-t border-line px-3.5 pt-3 pb-3.5">
+          <div class="flex flex-col gap-1 font-mono text-[12px]">
             <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
-            <span class="flex items-center gap-3 text-subtle">
+            <span class="flex items-center justify-between gap-3 text-subtle">
               <span data-max>Highest peak —</span>
               <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
             </span>
@@ -148,18 +204,18 @@ const LIT = 30;
             <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
             <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
           </div>
+          <p class="text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
         </div>
       </details>
-    </div>
 
-    <div class="flex flex-col gap-1">
-      <h2 class="eyebrow">Checks</h2>
-      {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
-      <p class="mt-2.5 text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
-      <div class="mt-auto pt-6">
+      <div class="mt-auto flex flex-col gap-3 pt-2">
         {
           guest ? (
-            <Button type="submit" variant="primary" size="lg" class="w-full">Join as Dana</Button>
+            <>
+              <Checkbox name="ready" label="I’m on the call and wearing headphones" />
+              <Button type="submit" variant="primary" size="lg" class="w-full" data-join>Join as Dana</Button>
+              <p class="text-center text-[12px] text-subtle" data-live-only data-join-hint>Tick the box above once you’re on the call.</p>
+            </>
           ) : (
             <Button type="submit" variant="record" size="lg" class="w-full" data-start>
               ●&nbsp; Start session
@@ -167,7 +223,7 @@ const LIT = 30;
           )
         }
       </div>
-    </div>
+    </aside>
   </form>
 </AppShell>
 
@@ -203,7 +259,7 @@ const LIT = 30;
     // doesn't have is skipped.
     const rows: Record<string, number> = host
       ? { level: 0, clip: 1, noise: 2, voice: 3, space: 4, test: 5 }
-      : { level: 0, clip: 1, headphones: 2, bleed: 3, server: 4 };
+      : { level: 0, clip: 1, headphones: 2, bleed: 3, format: 4, server: 5 };
     // Clipping, noise floor and free space only show when they need attention.
     const quiet = new Set(['clip', 'noise', 'space']);
     const check = (key: string, value: string, color?: string) => {
@@ -218,9 +274,36 @@ const LIT = 30;
     ['level', 'clip', 'noise', 'voice'].forEach((k) => check(k, 'Waiting…'));
     check('test', 'Not done yet · record one below', warn);
     // A guest's own checks: headphones are on them, bleed and the server need a session.
-    check('headphones', 'Wear them on the call', warn);
     check('bleed', 'Checked while recording', faint);
     check('server', 'Not connected · needs the Podstudio server', warn);
+    check('format', `${settings.depth}-bit · ${settings.rate} kHz${settings.channels === 2 ? ' · stereo' : ''}`);
+
+    // A guest confirms they're on the call with headphones; that's what lets them join.
+    const ready = form.querySelector<HTMLInputElement>('input[name=ready]');
+    if (ready) {
+      const join = $<HTMLButtonElement>('[data-join]');
+      const sync = () => {
+        join.disabled = !ready.checked;
+        $('[data-join-hint]').hidden = ready.checked;
+        check('headphones', ready.checked ? 'Confirmed' : 'Tick the box below', ready.checked ? ok : warn);
+      };
+      ready.addEventListener('change', sync);
+      sync();
+    }
+
+    // The join page and the guests' invite link, on this server's address.
+    const joinUrl = form.querySelector('[data-join-url]');
+    if (joinUrl) joinUrl.textContent = `${location.host}/join`;
+    const copy = form.querySelector<HTMLButtonElement>('[data-copy-invite]');
+    if (copy) {
+      const link = $('[data-invite-link]');
+      link.textContent = `${location.origin}/invite/8f2k-q7mz`;
+      copy.addEventListener('click', async () => {
+        await navigator.clipboard?.writeText(link.textContent!).catch(() => {});
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy link'), 1500);
+      });
+    }
     $('[data-heard]').textContent = 'Read a line from the script…';
 
     // Carry a starting line (?from=, continuing a recovered session) through to the recording screen.

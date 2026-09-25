@@ -10,7 +10,7 @@ const e = '/episodes/142';
 const live: [string, string][] = [
   ['Script: import or paste your own script (every screen uses it)', `${e}/script`],
   ['Studio: pick format and scrolling, then Start session', `${e}/studio`],
-  ['Mic check: real level meter, clipping, noise floor, voice follow', `${e}/mic-check`],
+  ['Green room (host): steps, join code, invite link, live mic check, test recording', `${e}/mic-check`],
   ['Recording session: script scrolls with you, a track per speaker, R retake, P pause', `${e}/recording`],
   ['Sessions: play, download, delete, open to export', `${e}/sessions`],
   ['Session export: raw WAV with markers, Audacity labels, assembled edit', `${e}/session`],
@@ -18,7 +18,7 @@ const live: [string, string][] = [
   ['Monitor window for a second screen', `${e}/monitor`],
   ['Producer remote for the same browser', `${e}/remote`],
   ['Voice check: why voice follow isn’t hearing words, on-device voice download', '/voice'],
-  ['Guest invite link: how it works, then a live mic check (6a)', '/invite/8f2k-q7mz'],
+  ['Green room (guest, from the invite link): how it works, live mic check, Join (6a)', '/invite/8f2k-q7mz'],
 ];
 
 const groups: { title: string; items: [string, string, string][] }[] = [
@@ -45,9 +45,8 @@ const groups: { title: string; items: [string, string, string][] }[] = [
     items: [
       ['1b', 'Join a session (phone)', '/join'],
       ['1c', 'Studio control', `${e}/studio?demo`],
-      ['7c', 'Mic check · host', `${e}/mic-check?demo`],
-      ['6a', 'Guest joins from an invite link (laptop)', '/invite/8f2k-q7mz?demo'],
-      ['7c', 'Mic check · remote guest', '/invite/8f2k-q7mz/check'],
+      ['6a', 'Green room · host (6a layout, replaces 7c)', `${e}/mic-check?demo`],
+      ['6a', 'Green room · guest from an invite link', '/invite/8f2k-q7mz?demo'],
       ['7d', 'Phone prompter · reading', `${e}/prompter?demo`],
       ['7d', 'Phone prompter · lost place', `${e}/prompter?demo&state=lost`],
       ['7d', 'Phone prompter · reconnecting', `${e}/prompter?demo&state=off`],
