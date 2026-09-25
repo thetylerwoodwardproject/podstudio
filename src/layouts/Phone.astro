@@ -1,21 +1,25 @@
 ---
 /*
  * Phone screens (join, 2FA, prompter, producer remote). Full-bleed on a
- * phone; on a larger screen the column is centered at phone width.
+ * phone; on a larger screen the column is centered at phone width, unless
+ * `wide` (the prompter, which a guest may read on a laptop) fills it.
  */
 import Base from './Base.astro';
 interface Props {
   title: string;
   /** Prompter screens use pure black */
   black?: boolean;
+  /** Fill larger screens instead of staying at phone width */
+  wide?: boolean;
 }
-const { title, black = false } = Astro.props;
+const { title, black = false, wide = false } = Astro.props;
 ---
 
 <Base title={title} bodyClass={black ? 'bg-void!' : ''}>
   <div
     class:list={[
       'mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden pt-[env(safe-area-inset-top)] text-fg',
+      wide && 'md:max-w-none',
       black ? 'bg-void' : 'bg-ink',
     ]}
   >

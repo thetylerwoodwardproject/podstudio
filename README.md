@@ -88,7 +88,7 @@ chats/                  the design conversation
 | 1b | `/join` | Phone |
 | 1c | `/episodes/142/studio` | Pick recorder, format and scrolling mode. The ⋯ menu links to the other episode screens. |
 | 6a | `/episodes/142/mic-check`, `/invite/8f2k-q7mz` | Green rooms for the host and for a guest from their invite link (6a's layout replaces 7c) |
-| 7d | `/episodes/142/prompter` | Phone prompter. `?demo&state=read\|lost\|off\|up` shows the design states. |
+| 7d | `/episodes/142/prompter` | Prompter: a phone column on a phone; on a laptop or desktop (a guest joining from their green room) it fills the screen with a wide reading column and larger text. `?as=DANA` opens it as that speaker. `?demo&state=read\|lost\|off\|up` shows the design states. |
 | 1e | `/episodes/142/monitor` | Mirrored by default; press **M** to toggle |
 | 5i | `/episodes/142/remote` | Producer remote |
 | — | `/episodes/142/sessions` | Recorded sessions |

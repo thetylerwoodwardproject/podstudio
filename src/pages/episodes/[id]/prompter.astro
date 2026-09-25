@@ -1,5 +1,6 @@
 ---
-// 7d · Phone prompter: reading, lost place, reconnecting, guest upload
+// 7d · Prompter: reading, lost place, reconnecting, guest upload. A phone column on a
+// phone; on a laptop (a guest reading along on their computer) it fills the screen.
 import Phone from '@/layouts/Phone.astro';
 import Dot from '@/components/ui/Dot.astro';
 import PreviewStates from '@/components/app/PreviewStates.astro';
@@ -23,10 +24,10 @@ const foot = {
 };
 ---
 
-<Phone title="Prompter" black>
+<Phone title="Prompter" black wide>
   <div
     id="prompter"
-    class="group/p flex min-h-0 flex-1 flex-col bg-(--p-bg,#000) [font-family:var(--p-font,inherit)]"
+    class="group/p flex min-h-0 flex-1 flex-col bg-(--p-bg,#000) [font-family:var(--p-font,inherit)] md:[--p-device:1.4] xl:[--p-device:1.7]"
     data-states={states.map((s) => s.value).join(',')}
     data-state="read"
     data-foot={JSON.stringify(foot)}
@@ -35,7 +36,7 @@ const foot = {
     data-words={JSON.stringify(scriptWords)}
     data-line-starts={JSON.stringify(lineStarts)}
   >
-    <div class="flex items-center justify-between px-5 pt-1.5 pb-3 font-sans">
+    <div class="mx-auto flex w-full max-w-[1000px] items-center justify-between px-5 pt-1.5 pb-3 font-sans md:pt-4">
       <div class="flex items-center gap-2 font-mono text-[13px] font-medium" data-rec>
         <Dot color="var(--color-rec)" size={8} pulse data-rec-dot />
         <span data-clock>12:48</span>
@@ -49,19 +50,19 @@ const foot = {
       </label>
     </div>
 
-    <div data-when="lost" hidden class="mx-3.5 flex flex-col gap-2.5 rounded-2xl bg-raised px-4 py-3.5 font-sans">
+    <div data-when="lost" hidden class="mx-3.5 flex md:mx-auto md:w-full md:max-w-[560px] flex-col gap-2.5 rounded-2xl bg-raised px-4 py-3.5 font-sans">
       <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-warn)" size={8} />Ad-lib · holding your place</div>
       <div class="text-[12px] leading-normal text-muted">Keep talking, or tap where you are:</div>
       <button type="button" data-suggest class="rounded-[10px] bg-void px-3 py-[11px] text-left text-[14px]"></button>
       <button type="button" data-suggest class="rounded-[10px] bg-void px-3 py-[11px] text-left text-[14px]"></button>
     </div>
-    <div data-when="off" hidden class="mx-3.5 flex flex-col gap-1.5 rounded-2xl bg-raised px-4 py-3.5 font-sans">
+    <div data-when="off" hidden class="mx-3.5 flex md:mx-auto md:w-full md:max-w-[560px] flex-col gap-1.5 rounded-2xl bg-raised px-4 py-3.5 font-sans">
       <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-warn)" size={8} />Reconnecting…</div>
       <div class="text-[12px] leading-normal text-muted">
         Your mic is still recording on this phone. Scrolling follows your voice until the connection comes back.
       </div>
     </div>
-    <div data-when="up" hidden class="mx-3.5 flex flex-col gap-2.5 rounded-2xl bg-raised px-4 py-3.5 font-sans">
+    <div data-when="up" hidden class="mx-3.5 flex md:mx-auto md:w-full md:max-w-[560px] flex-col gap-2.5 rounded-2xl bg-raised px-4 py-3.5 font-sans">
       <div class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-warn)" size={8} />Sending your audio to Tyler</div>
       <div class="h-1 rounded-sm bg-edge"><div class="h-1 w-[78%] rounded-sm bg-fg"></div></div>
       <div class="meta flex justify-between text-muted"><span>78% · 22 of 28 MB</span><span>~20 s</span></div>
@@ -74,11 +75,11 @@ const foot = {
     >
       <div
         data-reading-line
-        class="absolute inset-x-0 top-[30%] h-px bg-[linear-gradient(90deg,var(--color-rec)_0_14px,rgb(255_255_255/0.07)_14px)]"
+        class="absolute top-[30%] left-1/2 h-px w-full max-w-[1000px] -translate-x-1/2 bg-[linear-gradient(90deg,var(--color-rec)_0_14px,rgb(255_255_255/0.07)_14px)] md:-ml-4"
         aria-hidden="true"
       >
       </div>
-      <div data-prompter-track class="flex flex-col gap-6 pt-6 transition-transform duration-500 ease-in-out">
+      <div data-prompter-track class="mx-auto flex w-full max-w-[1000px] flex-col gap-6 pt-6 transition-transform duration-500 ease-in-out md:gap-8">
         {
           scriptLines.map((l) => (
             <div
@@ -95,8 +96,8 @@ const foot = {
               </div>
               <div
                 class:list={[
-                  'flex flex-wrap gap-x-[0.25em] text-[calc(26px*var(--p-scale,1))] leading-(--p-lh,1.4) transition-[font-size,color]',
-                  'group-data-[l=now]:text-[calc(30px*var(--p-scale,1))] group-data-[l=past]:text-(--p-past,#3A3B3F) group-data-[l=next]:text-(--p-dim,#6A6C71)',
+                  'flex flex-wrap gap-x-[0.25em] text-[calc(26px*var(--p-scale,1)*var(--p-device,1))] leading-(--p-lh,1.4) transition-[font-size,color]',
+                  'group-data-[l=now]:text-[calc(30px*var(--p-scale,1)*var(--p-device,1))] group-data-[l=past]:text-(--p-past,#3A3B3F) group-data-[l=next]:text-(--p-dim,#6A6C71)',
                   'group-data-[mine]:group-data-[l=next]:text-(--p-soft,#C9CBCF)',
                 ]}
               >
@@ -115,7 +116,7 @@ const foot = {
       </div>
     </div>
 
-    <footer class="flex items-center justify-between border-t border-line-soft px-5 pt-3.5 pb-[max(34px,env(safe-area-inset-bottom))] font-sans text-[12px] text-muted">
+    <footer class="mx-auto flex w-full max-w-[1000px] items-center justify-between border-t border-line-soft px-5 pt-3.5 pb-[max(34px,env(safe-area-inset-bottom))] font-sans text-[12px] text-muted">
       <button type="button" class="flex items-center gap-2 text-left" data-foot>
         <span class="inline-block size-1.5 flex-none rounded-full" data-foot-dot></span><span data-foot-text></span>
       </button>
