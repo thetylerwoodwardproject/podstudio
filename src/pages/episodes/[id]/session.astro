@@ -88,7 +88,8 @@ const greenSwitch =
         </div>
         <p class="mt-2 text-[12px] leading-normal text-muted">
           Adaptive, like Waves NS1: it learns the room as it goes and leaves your voice alone. Higher takes away more of
-          the background. Used for the assembled edit and the cleaned copy; the raw WAV is never changed.
+          the background. With it on, you get both versions: the unprocessed files as always, plus cleaned copies
+          ending in <span class="font-mono">_clean</span>.
         </p>
         <div class="mt-3.5 flex flex-wrap items-center gap-2.5">
           <Button type="button" data-ns-preview>Preview 30 s</Button>
@@ -104,13 +105,11 @@ const greenSwitch =
           <span class="meta text-muted" data-ns-status></span>
         </div>
         <audio data-ns-player hidden></audio>
-        <label class="mt-3.5 flex items-center gap-3 text-[13px] has-disabled:opacity-40">
-          <span class={greenSwitch}>
-            <input type="checkbox" role="switch" name="nsCopy" class="peer sr-only" aria-label="Also a cleaned copy of the whole recording" />
-            <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
-          </span>
-          Also a cleaned copy of the whole recording
-        </label>
+        <p class="mt-3.5 text-[12px] text-subtle" data-ns-files>Off: only the unprocessed files are exported.</p>
+        <p class="mt-1 text-[11px] text-faint">
+          Noise suppression by <a href="https://github.com/Rikorose/DeepFilterNet" target="_blank" rel="noopener" class="underline-offset-2 hover:text-fg hover:underline">DeepFilterNet3</a>
+          · <a href="/settings/about" class="underline-offset-2 hover:text-fg hover:underline">Credits</a>
+        </p>
       </div>
     </section>
 
@@ -237,11 +236,12 @@ const greenSwitch =
     // Noise suppression: one fader, remembered as the default for next time.
     const nsInput = $<HTMLInputElement>('[data-ns-amount]');
     nsInput.value = String(loadSettings().recording.noiseSuppression);
-    const nsCopy = $<HTMLInputElement>('[name=nsCopy]');
     const showNs = () => {
       const v = Number(nsInput.value);
       $('[data-ns-value]').textContent = v ? `${v}%` : 'Off';
-      nsCopy.disabled = !v;
+      $('[data-ns-files]').textContent = v
+        ? 'Both versions: the unprocessed WAV and edit, plus cleaned copies (…_clean.wav, …_edit_clean.wav).'
+        : 'Off: only the unprocessed files are exported.';
       $<HTMLButtonElement>('[data-ns-preview]').disabled = !v;
     };
     showNs();
@@ -293,7 +293,7 @@ const greenSwitch =
     const options = () => {
       const data = new FormData(form);
       const ns = Number(data.get('ns') ?? 0);
-      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns, nsCopy: ns > 0 && data.has('nsCopy') };
+      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns };
     };
     const refresh = () => {
       const o = options();
@@ -301,8 +301,10 @@ const greenSwitch =
       $('[data-removes]').textContent = a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
       const raw = tracks.reduce((n, t) => n + takeBytes(t), 0);
       const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0);
-      const files = tracks.length + 2 + (o.assembled ? a.files.length * tracks.length : 0) + (o.nsCopy ? tracks.length : 0);
-      $('[data-summary]').textContent = `${files} files · ${formatBytes(raw * (o.nsCopy ? 2 : 1) + (o.assembled ? editBytes : 0))}`;
+      // Noise suppression on: every audio file comes twice, unprocessed and cleaned.
+      const copies = o.ns ? 2 : 1;
+      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 2;
+      $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies)}`;
     };
     form.addEventListener('change', refresh);
     refresh();
@@ -335,10 +337,11 @@ const greenSwitch =
         ].join('\n');
         entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
 
-        // Noise suppression makes a cleaned copy of the recording (kept for next time); the edit
-        // and the optional full copy are cut from it, so markers stay where they are.
+        // Noise suppression makes a cleaned copy of the recording (kept for next time). The zip
+        // gets both versions: the unprocessed files, and _clean copies cut the same way from the
+        // cleaned audio, so markers line up in both.
         let variant: string | null = null;
-        if (o.ns && (o.assembled || o.nsCopy)) {
+        if (o.ns) {
           const began = Date.now();
           for (const t of tracks) {
             variant = await denoiseTake(t, o.ns, (done) => {
@@ -349,7 +352,7 @@ const greenSwitch =
           }
           $('[data-export-label]').textContent = 'Preparing…';
         }
-        if (o.nsCopy && variant) {
+        if (variant) {
           for (const t of tracks) {
             const len = t.samples / t.sampleRate;
             entries.push({ name: `${name(t)}_clean.wav`, data: await rangesWav(t, [[0, len]], markers.map((m) => cue(m, t.sampleRate)), variant) });
@@ -366,8 +369,9 @@ const greenSwitch =
                 .map((m) => ({ m, at: mapTime(m.t, ranges) }))
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, t.sampleRate, x.at));
-              const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}.wav` : `${name(t)}_edit.wav`;
-              entries.push({ name: file, data: await rangesWav(t, ranges, kept, variant ?? undefined) });
+              const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}` : `${name(t)}_edit`;
+              entries.push({ name: `${file}.wav`, data: await rangesWav(t, ranges, kept) });
+              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, ranges, kept, variant) });
             }
           }
         }

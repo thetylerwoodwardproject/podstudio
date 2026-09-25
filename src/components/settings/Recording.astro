@@ -38,8 +38,9 @@ import Select from '@/components/ui/Select.astro';
   </div>
   <input id="rec-ns" type="range" min="0" max="100" step="5" value="0" class="w-full accent-fg" data-ns />
   <p class="text-[12px] text-subtle">
-    Where the fader starts on the export screen. Adaptive, like Waves NS1: higher takes away more of the room. Only the
-    edit and a cleaned copy use it; the raw WAV is never changed. The mic check suggests a setting for your room.
+    Where the fader starts on the export screen. Adaptive, like Waves NS1: higher takes away more of the room. Exports
+    then include both versions, unprocessed and cleaned. The mic check suggests a setting for your room. By
+    <a href="/settings/about" class="underline-offset-2 hover:text-fg hover:underline">DeepFilterNet3</a>.
   </p>
 </div>
 <ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />

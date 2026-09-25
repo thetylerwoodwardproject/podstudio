@@ -52,7 +52,8 @@ Firefox and Safari on the Mac go to `/unsupported`. iOS 16 and earlier (or a Web
 - **Your own script**: on the script page, **Import or paste** takes pasted text or a .txt/.md file (`## Heading` lines become sections). Every screen uses it, and lines can be edited in place.
 - **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, always drops cough cuts, and cuts, keeps or splits at pauses.
 - **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
-  - **Export**: the fader, **Preview 30 s** with an Original / Cleaned switch and an attenuation meter ("Background −24 dB"). The assembled edit is cut from the cleaned copy, so markers stay put. There's an optional `_clean.wav` of the whole recording too.
+  - **Export**: the fader, **Preview 30 s** with an Original / Cleaned switch and an attenuation meter ("Background −24 dB"). With it on, the zip has both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
+  - **Credits**: Settings → About & credits lists DeepFilterNet3 and everything else Podstudio ships, with licences.
   - **Session saved**: Listen has an Original / Cleaned switch for the first minute.
   - **Mic check**: after the test recording, **Hear it cleaned**, with a setting suggested from the room's noise floor (quieter than −60 dBFS: not needed; −60 to −45: 40 %; louder: 70 %). **Use this setting** makes it the export default, also in Settings → Recording.
   - Cost: about 19 MB downloaded once (the 11 MB engine, 2 MB gzipped, and the 8 MB model), then cached. It runs at 2–4× real time on a laptop, so a 30-minute episode takes around 10 minutes to clean, and longer on a phone. Once the server exists, it could run the native `deep-filter` binary instead, which is much faster.
@@ -136,7 +137,7 @@ chats/                  the design conversation
 | — | `/episodes/142/recovered` | After a crash |
 | 8b | `/episodes/142/session` | Export |
 | 2d, 2e | `/episodes/142/transcribing`, `/episodes/142/package` | Transcript and episode package (mock data) |
-| 7a | `/settings/<section>` | Eight sections. Domain & HTTPS has `?state=ok\|warn\|local`. |
+| 7a | `/settings/<section>` | Nine sections, including About & credits. Domain & HTTPS has `?state=ok\|warn\|local`. |
 
 In `npm run dev`, screens with several states show a small switcher in the bottom-right corner. It's not included in production builds.
 
