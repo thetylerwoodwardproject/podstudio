@@ -21,33 +21,55 @@ import { inputClass } from '@/lib/ui';
     </aside>
 
     <div class="flex items-center justify-center px-6 py-12">
-      <form class="flex w-full max-w-[340px] flex-col gap-4.5" data-next="/signin/verify">
+      <form class="flex w-full max-w-[340px] flex-col gap-4.5" data-signin>
         <div class="lg:hidden"><Logo size="lg" /></div>
         <h1 class="text-[22px] font-medium tracking-[-0.02em]">Sign in</h1>
         <Field label="Username" for="username">
-          <input id="username" name="username" class={inputClass} value="tyler" autocomplete="username" required />
+          <input id="username" name="username" class={inputClass} autocomplete="username" autofocus required />
         </Field>
         <div class="flex flex-col gap-2">
           <div class="flex justify-between text-[12px] text-muted">
             <label for="password">Password</label>
-            <a href="#" class="text-faint hover:text-fg">Forgot?</a>
+            <button type="button" class="text-faint hover:text-fg" data-forgot>Forgot?</button>
           </div>
           <input
             id="password"
             name="password"
             type="password"
             class:list={[inputClass, 'tracking-[3px]']}
-            value="transmitter"
             autocomplete="current-password"
             required
           />
         </div>
         <Checkbox name="remember" checked size={14} class="text-[12px] text-muted" label="Keep this device signed in" />
+        <p class="text-[13px] text-rec" role="alert" data-error hidden></p>
         <Button type="submit" variant="primary" size="lg" class="w-full">Sign in</Button>
-        <p class="text-center text-[12px] text-faint">
-          No account? <a href="#" class="text-fg">Create one</a>
+        <p class="text-center text-[12px] leading-normal text-faint" data-forgot-note hidden>
+          Reset it on the server: <code class="font-mono text-muted">npm run reset-password -- yourname</code>
         </p>
       </form>
     </div>
   </div>
 </Base>
+
+<script>
+  import { api, nextPath, showError } from '@/lib/api';
+
+  const form = document.querySelector<HTMLFormElement>('[data-signin]')!;
+  document.querySelector('[data-forgot]')!.addEventListener('click', () => (document.querySelector<HTMLElement>('[data-forgot-note]')!.hidden = false));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const btn = form.querySelector<HTMLButtonElement>('[type=submit]')!;
+    btn.disabled = true;
+    showError(form, null);
+    try {
+      const r = await api<{ next: string }>('auth/signin', { body: { username: data.get('username'), password: data.get('password'), remember: data.has('remember') } });
+      const back = nextPath();
+      location.href = r.next === '/signin/verify' ? `/signin/verify${back !== '/' ? `?next=${encodeURIComponent(back)}` : ''}` : r.next === '/' ? back : r.next;
+    } catch (err) {
+      showError(form, (err as Error).message);
+      btn.disabled = false;
+    }
+  });
+</script>

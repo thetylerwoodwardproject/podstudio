@@ -1,0 +1,59 @@
+---
+// First-run setup: the admin account (no design yet; the same layout as the other steps)
+import Setup from '@/layouts/Setup.astro';
+import Field from '@/components/ui/Field.astro';
+import Button from '@/components/ui/Button.astro';
+import { inputClass } from '@/lib/ui';
+import { setupSteps } from '@/data/mock';
+
+const current = 1;
+---
+
+<Setup title="Create your account" current={current}>
+  <form class="flex flex-1 flex-col gap-7" data-account>
+    <div>
+      <div class="eyebrow">Step {current + 1} of {setupSteps.length}</div>
+      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Create your account</h1>
+      <p class="mt-2 max-w-[460px] text-[14px] leading-[1.55] text-muted">
+        This is the admin account for this Podstudio server. Guests and producers don't need one: they join a session
+        with a 6-digit code.
+      </p>
+    </div>
+    <div class="flex max-w-[360px] flex-col gap-4.5">
+      <Field label="Username" for="username">
+        <input id="username" name="username" class={inputClass} autocomplete="username" required pattern="[A-Za-z0-9._\-]{2,32}" />
+      </Field>
+      <Field label="Password" for="password">
+        <input id="password" name="password" type="password" class={inputClass} autocomplete="new-password" minlength="10" required />
+      </Field>
+      <Field label="Password again" for="password2">
+        <input id="password2" name="password2" type="password" class={inputClass} autocomplete="new-password" minlength="10" required />
+      </Field>
+      <p class="text-[12px] text-subtle">At least 10 characters. A few random words works well.</p>
+      <p class="text-[13px] text-rec" role="alert" data-error hidden></p>
+    </div>
+    <div class="mt-auto flex items-center justify-end">
+      <Button type="submit" variant="primary" size="lg">Create account</Button>
+    </div>
+  </form>
+</Setup>
+
+<script>
+  import { api, showError } from '@/lib/api';
+
+  const form = document.querySelector<HTMLFormElement>('[data-account]')!;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    if (data.get('password') !== data.get('password2')) return showError(form, 'The two passwords don’t match');
+    const btn = form.querySelector<HTMLButtonElement>('[type=submit]')!;
+    btn.disabled = true;
+    try {
+      const r = await api<{ next: string }>('auth/setup', { body: { username: data.get('username'), password: data.get('password') } });
+      location.href = r.next;
+    } catch (err) {
+      showError(form, (err as Error).message);
+      btn.disabled = false;
+    }
+  });
+</script>

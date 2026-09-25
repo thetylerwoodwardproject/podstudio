@@ -2,11 +2,11 @@
 
 A free, self-hosted teleprompter and recorder for podcasts, audio only. Record solo, or with **one guest** and an optional **producer**: everyone talks on their usual call (Zoom, Teams…) and Podstudio records each person on their own device, losslessly, with the script kept in step. Voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, coughs, pauses and ad-libs as markers.
 
-Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now.** Guests and producers connect through the Podstudio server (`server/`), one light Node process with SQLite, which `npm run dev` also runs. Sign-in, 2FA and Whisper transcripts still run on mock data.
+Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now.** Guests and producers connect through the Podstudio server (`server/`), one light Node process with SQLite, which `npm run dev` also runs. Sign-in with two-factor is real; Whisper transcripts and the episode package still show mock data.
 
 ## Run it
 
-Needs Node 22.12 or later.
+Needs Node 22.13 or later (Node 24 LTS on a server).
 
 ```sh
 npm install
@@ -15,8 +15,23 @@ npm run dev:phone  # the same, reachable from phones and other computers on your
 npm run build      # type-check, then build the static site into dist/
 npm start          # the production server (after npm run build): http on 127.0.0.1:4321, Caddy in front
 npm run preview    # the production server over https with a self-signed certificate, on the network
-npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, noise suppression, zip writer
+npm test           # unit and server tests (accounts, 2FA, live sessions, audio, exports)
+npm run reset-password -- tyler   # on the server: a new password for an account
+npm run reset-2fa -- tyler        # on the server: turn two-factor off, to set it up again
 ```
+
+The first time you open it, Podstudio asks you to create the admin account and turn on two-factor
+authentication (an authenticator app, plus ten one-time recovery codes). After that:
+
+- **Sign in** with your username and password, then the 6-digit code from the app, or a recovery code.
+  "Keep this device signed in" lasts 30 days (otherwise 12 hours); "Trust this device" skips the code on
+  that browser for 30 days.
+- **Settings → Security**: when two-factor was added, recovery codes left (and new ones), trusted devices
+  (revoke any), and changing the password, which signs out every other browser. Sign out is at the bottom of
+  the settings list.
+- **Guests and producers don't need an account**: they join with a 6-digit code, and you let them in.
+- Passwords are hashed with scrypt; the session cookie is random and only its hash is stored; sign-in and
+  codes are limited to 10 tries per 15 minutes.
 
 Open `/screens` to see every screen, listed by its id from the design file. Links there with `?demo` show the design's example content; the "Try it live" list uses real recording.
 
@@ -132,6 +147,9 @@ server/
   db.ts, migrations.ts      node:sqlite, WAL, numbered migrations
   live.ts, live-store.ts    sessions with a guest and a producer (docs/server-api.md), stored in SQLite
   http.ts                   JSON, size-limited and streamed bodies, cookies, rate limits
+  accounts.ts, auth.ts      setup, sign-in, TOTP 2FA, recovery codes, trusted devices (node:crypto only)
+  guard.ts                  which pages need an account (they're static files, so it runs in front of them)
+  cli.ts                    reset-password, reset-2fa
 dev/server-plugin.ts        mounts server/api.ts in npm run dev
 docs/server-api.md          the API for guests and producers
 src/

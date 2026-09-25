@@ -49,6 +49,7 @@ const View = current.view;
           </a>
         ))
       }
+      <button type="button" class="rounded-lg px-3 py-[9px] text-left text-[14px] whitespace-nowrap text-muted hover:text-fg lg:mt-auto" data-signout>Sign out</button>
     </nav>
     <form class="flex min-w-0 flex-col gap-5.5 overflow-auto px-6 py-8 lg:px-11" data-settings>
       <View />
@@ -57,7 +58,14 @@ const View = current.view;
 </AppShell>
 
 <script>
-  // No server yet: saving just confirms on the button.
+  import { api } from '@/lib/api';
+
+  document.querySelector('[data-signout]')!.addEventListener('click', async () => {
+    const r = await api<{ next: string }>('auth/signout', { body: {} });
+    location.href = r.next;
+  });
+
+  // Not saved to the server yet: saving just confirms on the button.
   const form = document.querySelector<HTMLFormElement>('[data-settings]')!;
   form.addEventListener('submit', (e) => {
     e.preventDefault();

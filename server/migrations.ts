@@ -109,4 +109,18 @@ export const migrations: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // 2 · 2FA: the last code step used (so a code works once), and trusted devices
+  `
+  ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT -1;
+  ALTER TABLE users ADD COLUMN totp_added_at INTEGER;
+  -- "Trust this device for 30 days": skips the code at sign-in on that browser
+  CREATE TABLE trusted_devices (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  `,
 ];

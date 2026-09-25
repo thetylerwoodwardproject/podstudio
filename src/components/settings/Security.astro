@@ -1,50 +1,105 @@
 ---
 import Section from './Section.astro';
 import Button from '@/components/ui/Button.astro';
-import { trustedDevices } from '@/data/mock';
+import { inputClass } from '@/lib/ui';
 ---
 
 <Section title="Security" description="Two-factor authentication is required for every account on this server." />
-<div class="flex items-center justify-between rounded-[10px] border border-line p-4">
-  <div>
-    <div class="flex items-center gap-2 text-[14px]">
-      Authenticator app
-      <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
-    </div>
-    <div class="mt-[3px] text-[12px] text-subtle">Added Sep 24, 2026</div>
-  </div>
-  <a href="/setup/two-factor" class="text-[13px] text-muted hover:text-fg">Reset</a>
-</div>
-<div class="flex items-center justify-between rounded-[10px] border border-line p-4">
-  <div>
-    <div class="text-[14px]">Recovery codes</div>
-    <div class="mt-[3px] text-[12px] text-subtle">8 of 10 unused</div>
-  </div>
-  <div class="text-[13px] text-muted">
-    <button type="button" class="hover:text-fg">View</button> · <button type="button" class="hover:text-fg">Regenerate</button>
-  </div>
-</div>
-<div class="flex flex-col gap-2">
-  <div class="text-[12px] text-muted">Trusted devices</div>
-  {
-    trustedDevices.map((d) => (
-      <div class="flex items-center justify-between border-b border-line py-3 text-[14px]" data-device>
-        <div>
-          {d.name}
-          <div class="mt-[3px] font-mono text-[11px] text-subtle">{d.meta}</div>
+<div data-security>
+  <div class="flex flex-col gap-5.5">
+    <div class="flex items-center justify-between rounded-[10px] border border-line p-4">
+      <div>
+        <div class="flex items-center gap-2 text-[14px]">
+          Authenticator app
+          <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
         </div>
-        <button type="button" class="text-[13px] text-muted hover:text-fg" data-revoke>Revoke</button>
+        <div class="mt-[3px] text-[12px] text-subtle" data-totp-added>—</div>
       </div>
-    ))
-  }
-</div>
-<div class="flex items-center justify-between">
-  <div class="text-[14px]">Change password</div>
-  <Button class="h-9 px-3.5 text-[13px]">Update</Button>
+      <a href="/setup/two-factor" class="text-[13px] text-muted hover:text-fg">Reset</a>
+    </div>
+    <div class="rounded-[10px] border border-line p-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-[14px]">Recovery codes</div>
+          <div class="mt-[3px] text-[12px] text-subtle" data-recovery-count>—</div>
+        </div>
+        <button type="button" class="text-[13px] text-muted hover:text-fg" data-regenerate>Regenerate</button>
+      </div>
+      <div class="mt-3" data-new-codes hidden>
+        <p class="text-[12px] text-muted">New codes. The old ones no longer work. Save these now; they won't be shown again.</p>
+        <ol class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-lg bg-raised p-3 font-mono text-[14px] sm:grid-cols-5" data-code-list></ol>
+      </div>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class="text-[12px] text-muted">Trusted devices <span class="text-subtle">· skip the code at sign-in for 30 days</span></div>
+      <div data-devices><p class="py-3 text-[13px] text-subtle">None</p></div>
+    </div>
+    <details class="group rounded-[10px] border border-line p-4">
+      <summary class="flex cursor-pointer list-none items-center justify-between text-[14px]">
+        Change password <span class="text-[13px] text-muted group-open:hidden">Update</span>
+      </summary>
+      <div class="mt-4 flex max-w-[360px] flex-col gap-3" data-password>
+        <input type="password" name="current" class={inputClass} placeholder="Current password" autocomplete="current-password" aria-label="Current password" />
+        <input type="password" name="new" class={inputClass} placeholder="New password (10+ characters)" autocomplete="new-password" aria-label="New password" />
+        <p class="text-[13px]" role="status" data-password-msg hidden></p>
+        <Button type="button" class="self-start" data-password-save>Save password</Button>
+      </div>
+    </details>
+  </div>
 </div>
 
 <script>
-  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-revoke]')) {
-    btn.addEventListener('click', () => btn.closest<HTMLElement>('[data-device]')!.remove());
+  import { api } from '@/lib/api';
+
+  const root = document.querySelector<HTMLElement>('[data-security]');
+  if (root) security(root);
+
+  async function security(root: HTMLElement) {
+    const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+    type Info = { totpAddedAt: number | null; recovery: { unused: number; total: number }; devices: { id: string; label: string; last_used: number }[] };
+    const date = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const render = (s: Info) => {
+      $('[data-totp-added]').textContent = s.totpAddedAt ? `Added ${date(s.totpAddedAt)}` : '';
+      $('[data-recovery-count]').textContent = `${s.recovery.unused} of ${s.recovery.total} unused`;
+      $('[data-devices]').replaceChildren(
+        ...(s.devices.length
+          ? s.devices.map((d) => {
+              const row = document.createElement('div');
+              row.className = 'flex items-center justify-between border-b border-line py-3 text-[14px]';
+              row.innerHTML = `<div><span></span><div class="mt-[3px] font-mono text-[11px] text-subtle"></div></div><button type="button" class="text-[13px] text-muted hover:text-fg">Revoke</button>`;
+              row.querySelector('span')!.textContent = d.label;
+              row.querySelector('div > div')!.textContent = `Last used ${date(d.last_used)}`;
+              row.querySelector('button')!.addEventListener('click', async () => {
+                await api(`auth/devices/${d.id}`, { method: 'DELETE' });
+                row.remove();
+              });
+              return row;
+            })
+          : [Object.assign(document.createElement('p'), { className: 'py-3 text-[13px] text-subtle', textContent: 'None' })]),
+      );
+    };
+    render(await api<Info>('auth/security'));
+
+    $('[data-regenerate]').addEventListener('click', async () => {
+      if (!confirm('Make new recovery codes? The old ones stop working.')) return;
+      const r = await api<{ recoveryCodes: string[] }>('auth/recovery-codes', { body: {} });
+      $('[data-new-codes]').hidden = false;
+      $('[data-code-list]').replaceChildren(...r.recoveryCodes.map((c) => Object.assign(document.createElement('li'), { textContent: c })));
+      render(await api<Info>('auth/security'));
+    });
+
+    $('[data-password-save]').addEventListener('click', async () => {
+      const msg = $('[data-password-msg]');
+      msg.hidden = false;
+      try {
+        await api('auth/password', { body: { current: $<HTMLInputElement>('[name=current]').value, password: $<HTMLInputElement>('[name=new]').value } });
+        msg.textContent = 'Saved. Every other browser is signed out.';
+        msg.className = 'text-[13px] text-ok';
+        $<HTMLInputElement>('[name=current]').value = $<HTMLInputElement>('[name=new]').value = '';
+      } catch (err) {
+        msg.textContent = (err as Error).message;
+        msg.className = 'text-[13px] text-rec';
+      }
+    });
   }
 </script>
