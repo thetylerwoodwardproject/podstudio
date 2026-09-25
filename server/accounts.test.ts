@@ -46,7 +46,7 @@ async function serve() {
     ctx.db.close();
     rmSync(data, { recursive: true, force: true });
   };
-  return { call, done, setCookie: (c: string) => (cookie = c), getCookie: () => cookie };
+  return { call, done, base, setCookie: (c: string) => (cookie = c), getCookie: () => cookie };
 }
 
 const codeFor = (secret: string, offset = 0) => totpAt(base32Decode(secret), Math.floor(Date.now() / 30000) + offset);
@@ -140,6 +140,19 @@ test('changing the password signs out other browsers', async () => {
     assert.equal((await s.call('/')).status, 200, 'this browser stays in');
     s.setCookie(first);
     assert.equal((await s.call('/')).location, '/signin', 'the other is signed out');
+  } finally {
+    s.done();
+  }
+});
+
+test('changes from another site are refused', async () => {
+  const s = await serve();
+  try {
+    const { status } = await (async () => {
+      const res = await fetch(`${s.base}/api/auth/setup`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example' }, body: '{}' });
+      return { status: res.status };
+    })();
+    assert.equal(status, 403);
   } finally {
     s.done();
   }

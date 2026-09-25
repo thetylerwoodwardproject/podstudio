@@ -6,7 +6,7 @@ Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1aâ€
 
 ## Run it
 
-Needs Node 22.13 or later (Node 24 LTS on a server).
+Needs Node 22.18 or later (Node 24 LTS on a server): the server runs its TypeScript directly and uses the built-in SQLite.
 
 ```sh
 npm install
@@ -47,6 +47,18 @@ browser: **Bring into this browser**, then play or export as usual. Deleting a s
   codes are limited to 10 tries per 15 minutes.
 
 Open `/screens` to see every screen, listed by its id from the design file. Links there with `?demo` show the design's example content; the "Try it live" list uses real recording.
+
+## Deploy
+
+On a VPS with a domain pointing at it (Debian 12 or Ubuntu 22.04+, ports 80 and 443 open):
+
+```sh
+sudo ./deploy/install.sh podcast.example.com
+```
+
+It installs Node 24 and Caddy (HTTPS with automatic certificates), runs Podstudio as a systemd service with
+its data in `/var/lib/podstudio`, and puts Caddy in front. It idles at about 120 MB of RAM. Backups,
+upgrades and getting back in if you're locked out are in [`docs/deploy.md`](docs/deploy.md).
 
 ## Browsers
 

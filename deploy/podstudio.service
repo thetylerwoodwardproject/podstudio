@@ -1,0 +1,35 @@
+# systemd unit for Podstudio: one Node process, data in /var/lib/podstudio.
+# Installed by deploy/install.sh; settings in /etc/podstudio.env.
+[Unit]
+Description=Podstudio
+After=network.target
+
+[Service]
+Type=simple
+User=podstudio
+Group=podstudio
+WorkingDirectory=/opt/podstudio
+EnvironmentFile=/etc/podstudio.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/main.ts
+Restart=on-failure
+RestartSec=2
+# SIGTERM: finish requests, close the database (server/main.ts)
+KillSignal=SIGTERM
+TimeoutStopSec=10
+MemoryMax=512M
+
+# Hardening: it can only write to its data folder.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/podstudio
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

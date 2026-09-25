@@ -1,0 +1,11 @@
+# Podstudio behind Caddy: HTTPS with an automatic Let's Encrypt certificate,
+# renewed on its own. Set DOMAIN (install.sh writes it into /etc/caddy/Caddyfile).
+{$DOMAIN} {
+	encode zstd gzip
+	# Recording pieces are small (5 s, about 1.4 MB), pad sounds up to 200 MB.
+	request_body {
+		max_size 210MB
+	}
+	# WebSockets (the live room at /api/ws) pass straight through.
+	reverse_proxy 127.0.0.1:4321
+}

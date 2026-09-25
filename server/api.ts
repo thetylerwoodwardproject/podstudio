@@ -49,6 +49,15 @@ export function createApi(ctx: Context): Api {
       }
       if (!url.pathname.startsWith('/api/') || url.pathname === '/api/ws') return next();
       const p = url.pathname.split('/').filter(Boolean).slice(1);
+      // Changes only from pages on this server (cookies are SameSite=Lax too).
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin) {
+        let from = '';
+        try {
+          from = new URL(req.headers.origin).host;
+        } catch {}
+        const allowed = [req.headers.host, ctx.config.origin && new URL(ctx.config.origin).host].filter(Boolean);
+        if (!allowed.includes(from)) return json(res, 403, { error: 'Not from this server' });
+      }
       route(req, res, url, p).catch((err) => {
         if (res.headersSent) return res.destroy();
         const status = err instanceof HttpError ? err.status : err instanceof SyntaxError ? 400 : 500;
