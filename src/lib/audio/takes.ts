@@ -12,9 +12,13 @@
  *
  * WAV downloads are assembled from the segment Files, which are disk-backed,
  * so even a long take never has to fit in memory.
+ *
+ * Processed copies (noise suppression) sit beside the original in their own
+ * folder, `takes/<id>/<variant>/seg-*.pcm`, with a `done` file once complete.
+ * The original segments are never changed.
  */
 
-import { markerChunks, pcmBytes, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
+import { markerChunks, pcmBytes, pcmFloats, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
 import type { LineStart, Range, SessionMarker } from './assemble';
 
 export interface TakeMeta {
@@ -112,10 +116,11 @@ const channelsOf = (t: TakeMeta): Channels => t.channels ?? 1;
 const frameBytes = (t: TakeMeta) => (t.bitDepth / 8) * channelsOf(t);
 const formatOf = (t: TakeMeta) => ({ sampleRate: t.sampleRate, bitDepth: t.bitDepth, channels: channelsOf(t) });
 
-async function pcmParts(meta: TakeMeta): Promise<File[]> {
-  const dir = await (await takesDir()).getDirectoryHandle(meta.id);
+async function pcmParts(meta: TakeMeta, variant?: string): Promise<File[]> {
+  let dir = await (await takesDir()).getDirectoryHandle(meta.id);
+  if (variant) dir = await dir.getDirectoryHandle(variant);
   const files: File[] = [];
-  for (let n = 1; n <= meta.segments; n++) {
+  for (let n = 1; variant || n <= meta.segments; n++) {
     try {
       files.push(await (await dir.getFileHandle(segName(n))).getFile());
     } catch {
@@ -129,9 +134,9 @@ async function pcmParts(meta: TakeMeta): Promise<File[]> {
  * WAV made of the given time ranges (seconds) of a take, joined in order.
  * Slices the disk-backed segment files, so nothing large is copied.
  */
-export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = []): Promise<Blob> {
+export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = [], variant?: string): Promise<Blob> {
   const bytesPer = frameBytes(meta);
-  const files = await pcmParts(meta);
+  const files = await pcmParts(meta, variant);
   const offsets: number[] = [];
   let total = 0;
   for (const f of files) {
@@ -159,12 +164,69 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
   });
 }
 
-export async function takeWav(meta: TakeMeta): Promise<Blob> {
-  const parts = await pcmParts(meta);
+export async function takeWav(meta: TakeMeta, variant?: string): Promise<Blob> {
+  const parts = await pcmParts(meta, variant);
   const bytes = parts.reduce((n, p) => n + p.size, 0);
   return new Blob([wavHeader(bytes / frameBytes(meta), formatOf(meta)) as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : [])], {
     type: 'audio/wav',
   });
+}
+
+/** `count` frames from frame `from` onward, as float samples (interleaved when stereo). */
+export async function readFrames(meta: TakeMeta, from: number, count: number, variant?: string): Promise<Float32Array> {
+  const bytesPer = frameBytes(meta);
+  const start = from * bytesPer;
+  const end = (from + count) * bytesPer;
+  const slices: Blob[] = [];
+  let offset = 0;
+  for (const f of await pcmParts(meta, variant)) {
+    const a = Math.max(start, offset);
+    const b = Math.min(end, offset + f.size);
+    if (b > a) slices.push(f.slice(a - offset, b - offset));
+    offset += f.size;
+    if (offset >= end) break;
+  }
+  return pcmFloats(new Uint8Array(await new Blob(slices).arrayBuffer()), meta.bitDepth);
+}
+
+/** Whether a finished processed copy of the take exists. */
+export async function hasVariant(meta: TakeMeta, variant: string): Promise<boolean> {
+  try {
+    const dir = await (await (await takesDir()).getDirectoryHandle(meta.id)).getDirectoryHandle(variant);
+    await dir.getFileHandle('done');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Writes a processed copy of a take, in the take's own format, beside the original. */
+export class VariantWriter {
+  private n = 0;
+  private dir: FileSystemDirectoryHandle;
+  private meta: TakeMeta;
+
+  private constructor(meta: TakeMeta, dir: FileSystemDirectoryHandle) {
+    this.meta = meta;
+    this.dir = dir;
+  }
+
+  static async open(meta: TakeMeta, variant: string) {
+    const take = await (await takesDir()).getDirectoryHandle(meta.id);
+    // Start clean: an interrupted run leaves a partial copy.
+    await take.removeEntry(variant, { recursive: true }).catch(() => {});
+    return new VariantWriter(meta, await take.getDirectoryHandle(variant, { create: true }));
+  }
+
+  async write(samples: Float32Array) {
+    if (!samples.length) return;
+    this.n += 1;
+    await writeFile(this.dir, segName(this.n), pcmBytes(samples, this.meta.bitDepth) as BlobPart);
+  }
+
+  async done() {
+    await writeFile(this.dir, 'done', '');
+  }
 }
 
 export const takeSeconds = (t: TakeMeta) => t.samples / t.sampleRate;

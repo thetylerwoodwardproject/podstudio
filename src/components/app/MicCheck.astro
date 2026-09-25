@@ -116,6 +116,23 @@ const c = {
         </div>
         <audio controls class="h-8 w-full [color-scheme:dark]" data-test-audio hidden></audio>
         <div class="font-mono text-[11px]" data-test-result hidden></div>
+        <!-- Noise suppression on the test recording, with a setting suggested from the room's noise floor -->
+        <div class="flex flex-col gap-2.5 border-t border-line pt-3" data-ns-test hidden>
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[13px]">Noise suppression</div>
+              <div class="mt-0.5 text-[12px] leading-snug text-subtle" data-ns-suggest></div>
+            </div>
+            <button type="button" class="inline-flex h-8 flex-none items-center rounded-lg border border-edge px-3 text-[12px] hover:bg-raised disabled:opacity-50" data-ns-hear>
+              Hear it cleaned
+            </button>
+          </div>
+          <div class="flex items-center gap-3">
+            <input type="range" min="0" max="100" step="5" value="0" class="min-w-0 flex-1 accent-fg" aria-label="Noise suppression" data-ns-test-amount />
+            <span class="w-10 flex-none text-right font-mono text-[12px]" data-ns-test-value>Off</span>
+            <button type="button" class="flex-none text-[12px] text-muted underline-offset-2 hover:text-fg hover:underline" data-ns-use>Use this setting</button>
+          </div>
+        </div>
       </div>
 
       <!-- The numbers, for comparing with an interface's own meters -->
@@ -155,6 +172,7 @@ const c = {
 <script>
   import { MicCapture, type Level } from '@/lib/audio/capture';
   import { encodeWav } from '@/lib/audio/wav';
+  import { denoiseSamples, suggestAmount } from '@/lib/audio/denoise';
   import { segmentMeter, toFraction, verdict, zone } from '@/lib/audio/meter';
   import { availableInput, inputChoices, parseInput, sameInput } from '@/lib/audio/devices';
   import { storageLeft, formatBytes } from '@/lib/audio/takes';
@@ -170,6 +188,8 @@ const c = {
   async function live() {
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
     const settings = loadSettings().recording;
+    // The room's noise floor (dBFS), once the check has measured it.
+    let noiseFloor = -Infinity;
     const episodeId = form.dataset.episode!;
     const script = loadScript(episodeId);
     const words = script.words;
@@ -306,6 +326,7 @@ const c = {
 
       if (floors.length > 60) {
         const floor = [...floors].sort((a, b) => a - b)[Math.floor(floors.length * 0.1)];
+        noiseFloor = floor;
         check('noise', floor <= -90 ? 'Below -90 dBFS' : `${floor.toFixed(0)} dBFS`, floor <= -50 ? ok : floor <= -40 ? warn : bad);
       }
     }, 500);
@@ -383,6 +404,53 @@ const c = {
         if (left <= 0) finishTest();
       }, 200);
     });
+    // Noise suppression on the test recording.
+    let testTake: { samples: Float32Array; rate: number } | null = null;
+    let cleanedUrl: { amount: number; url: string } | null = null;
+    const nsAmount = $<HTMLInputElement>('[data-ns-test-amount]');
+    const nsHear = $<HTMLButtonElement>('[data-ns-hear]');
+    const showNsAmount = () => ($('[data-ns-test-value]').textContent = Number(nsAmount.value) ? `${nsAmount.value}%` : 'Off');
+    nsAmount.addEventListener('input', () => {
+      showNsAmount();
+      nsHear.textContent = 'Hear it cleaned';
+    });
+    $('[data-ns-use]').addEventListener('click', () => {
+      saveSettings('recording', { noiseSuppression: Number(nsAmount.value) });
+      $('[data-ns-use]').textContent = 'Saved for exports';
+      setTimeout(() => ($('[data-ns-use]').textContent = 'Use this setting'), 2000);
+    });
+    let originalUrl = '';
+    nsHear.addEventListener('click', async () => {
+      const audio = $<HTMLAudioElement>('[data-test-audio]');
+      if (!testTake) return;
+      const amount = Number(nsAmount.value);
+      if (nsHear.textContent === 'Hear the original') {
+        audio.src = originalUrl;
+        audio.play();
+        nsHear.textContent = 'Hear it cleaned';
+        return;
+      }
+      if (!amount) return;
+      if (cleanedUrl?.amount !== amount) {
+        nsHear.disabled = true;
+        nsHear.textContent = 'Cleaning…';
+        try {
+          const out = await denoiseSamples(testTake.samples, settings.channels, testTake.rate, amount);
+          if (cleanedUrl) URL.revokeObjectURL(cleanedUrl.url);
+          cleanedUrl = { amount, url: URL.createObjectURL(encodeWav([out], { sampleRate: testTake.rate, bitDepth: settings.depth, channels: settings.channels })) };
+        } catch (err) {
+          $('[data-ns-suggest]').textContent = `Couldn’t clean it: ${(err as Error).message}`;
+          nsHear.disabled = false;
+          nsHear.textContent = 'Hear it cleaned';
+          return;
+        }
+        nsHear.disabled = false;
+      }
+      audio.src = cleanedUrl!.url;
+      audio.play();
+      nsHear.textContent = 'Hear the original';
+    });
+
     async function finishTest() {
       if (!test) return;
       const t = test;
@@ -398,7 +466,27 @@ const c = {
       const audio = $<HTMLAudioElement>('[data-test-audio]');
       if (audio.src) URL.revokeObjectURL(audio.src);
       audio.src = URL.createObjectURL(encodeWav(t.chunks, { sampleRate: t.rate, bitDepth: settings.depth, channels: settings.channels }));
+      originalUrl = audio.src;
       audio.hidden = false;
+      // Offer noise suppression on it, starting from what suits the room.
+      const joined = new Float32Array(t.chunks.reduce((n, c) => n + c.length, 0));
+      let o = 0;
+      for (const c of t.chunks) {
+        joined.set(c, o);
+        o += c.length;
+      }
+      testTake = { samples: joined, rate: t.rate };
+      cleanedUrl = null;
+      const suggested = suggestAmount(noiseFloor);
+      nsAmount.value = String(suggested || loadSettings().recording.noiseSuppression);
+      showNsAmount();
+      nsHear.textContent = 'Hear it cleaned';
+      $('[data-ns-suggest]').textContent = !Number.isFinite(noiseFloor)
+        ? 'Hear how it sounds with the room taken out.'
+        : suggested
+          ? `Room noise ${Math.round(noiseFloor)} dBFS · try ${suggested}%`
+          : `Room noise ${Math.round(noiseFloor)} dBFS · quiet enough without it`;
+      $('[data-ns-test]').hidden = !joined.length;
       // What the file itself measures.
       let peak = 0;
       let full = 0;

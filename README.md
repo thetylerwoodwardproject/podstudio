@@ -13,7 +13,7 @@ npm install
 npm run dev        # http://localhost:4321
 npm run build      # type-check, then build the static site into dist/
 npm run preview
-npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, zip writer
+npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, noise suppression, zip writer
 ```
 
 Open `/screens` to see every screen, listed by its id from the design file. Links there with `?demo` show the design's example content; the "Try it live" list uses real recording.
@@ -51,6 +51,12 @@ Firefox and Safari on the Mac go to `/unsupported`. iOS 16 and earlier (or a Web
 - **Crash recovery**: if the tab closes mid-session, the next visit to the studio, library or sessions page opens the recovered-session screen. At most the last 5 seconds are lost.
 - **Your own script**: on the script page, **Import or paste** takes pasted text or a .txt/.md file (`## Heading` lines become sections). Every screen uses it, and lines can be edited in place.
 - **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, always drops cough cuts, and cuts, keeps or splits at pauses.
+- **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
+  - **Export**: the fader, **Preview 30 s** with an Original / Cleaned switch and an attenuation meter ("Background −24 dB"). The assembled edit is cut from the cleaned copy, so markers stay put. There's an optional `_clean.wav` of the whole recording too.
+  - **Session saved**: Listen has an Original / Cleaned switch for the first minute.
+  - **Mic check**: after the test recording, **Hear it cleaned**, with a setting suggested from the room's noise floor (quieter than −60 dBFS: not needed; −60 to −45: 40 %; louder: 70 %). **Use this setting** makes it the export default, also in Settings → Recording.
+  - Cost: about 19 MB downloaded once (the 11 MB engine, 2 MB gzipped, and the 8 MB model), then cached. It runs at 2–4× real time on a laptop, so a 30-minute episode takes around 10 minutes to clean, and longer on a phone. Once the server exists, it could run the native `deep-filter` binary instead, which is much faster.
+  - `scripts/build-deepfilter.sh` rebuilds the engine from a pinned upstream commit.
 - **Sessions list** (`/episodes/142/sessions`): play, open to export, download or delete.
 - **Settings are saved**: recording format, mic, the mic-check toggle, scrolling mode, and the prompter font.
 
@@ -89,6 +95,7 @@ src/
     audio/devices.ts    input choices: system default, devices, each input of an interface
     audio/wav.ts        16/24-bit WAV encoding, cue markers, tone
     audio/assemble.ts   the assembled edit: retakes, cough cuts, pauses, gaps; Audacity labels
+    audio/denoise*.ts   noise suppression: the fader, framing and resampling around DeepFilterNet3, its worker
     audio/takes.ts      track storage in OPFS (5 s segments, Web Lock crash detection), WAV assembly
     voice/match.ts      fuzzy alignment of heard words against the script
     voice/follow.ts     speech recognition wrapper: word, lost and found events; mute() for coughs

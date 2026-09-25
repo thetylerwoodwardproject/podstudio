@@ -47,6 +47,24 @@ export function pcmBytes(samples: Float32Array, bitDepth: BitDepth): Uint8Array 
   return out;
 }
 
+/** Little-endian PCM bytes back to float samples (the inverse of pcmBytes). */
+export function pcmFloats(bytes: Uint8Array, bitDepth: BitDepth): Float32Array {
+  const b = bitDepth / 8;
+  const n = Math.floor(bytes.length / b);
+  const out = new Float32Array(n);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let i = 0; i < n; i++) {
+    if (bitDepth === 16) {
+      const v = view.getInt16(i * 2, true);
+      out[i] = v < 0 ? v / 0x8000 : v / 0x7fff;
+    } else {
+      const v = (bytes[i * 3] | (bytes[i * 3 + 1] << 8) | ((bytes[i * 3 + 2] << 24) >> 8));
+      out[i] = v < 0 ? v / 0x800000 : v / 0x7fffff;
+    }
+  }
+  return out;
+}
+
 /** cue + LIST/adtl chunks for markers; empty when there are none. */
 export function markerChunks(markers: Marker[]): Uint8Array {
   if (!markers.length) return new Uint8Array(0);

@@ -15,6 +15,8 @@ export interface RecordingSettings {
   deviceId: string;
   /** Beep when a retake is marked */
   retakeTone: boolean;
+  /** Noise suppression fader for exports, 0–100 % (0 = off) */
+  noiseSuppression: number;
 }
 
 export interface PrompterSettings {
@@ -39,7 +41,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0 },
   prompter: {
     mode: 'voice',
     wpm: 150,

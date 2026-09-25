@@ -31,6 +31,17 @@ import Select from '@/components/ui/Select.astro';
 </div>
 <p class="-mt-2 text-[12px] text-subtle">If the mic or interface runs at a different rate, Podstudio records at its rate instead, so nothing is resampled.</p>
 <div class="meta -mt-2 text-subtle"><span data-channels-label>Mono</span> WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
+<div class="flex flex-col gap-2">
+  <div class="flex items-center justify-between">
+    <label for="rec-ns" class="text-[12px] text-muted">Noise suppression for exports</label>
+    <span class="font-mono text-[12px]" data-ns-value>Off</span>
+  </div>
+  <input id="rec-ns" type="range" min="0" max="100" step="5" value="0" class="w-full accent-fg" data-ns />
+  <p class="text-[12px] text-subtle">
+    Where the fader starts on the export screen. Adaptive, like Waves NS1: higher takes away more of the room. Only the
+    edit and a cleaned copy use it; the raw WAV is never changed. The mic check suggests a setting for your room.
+  </p>
+</div>
 <ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
 <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />
 
@@ -38,6 +49,16 @@ import Select from '@/components/ui/Select.astro';
   import { channelsLabel, mbPerMinute } from '@/lib/audio/format';
   import { loadSettings, saveSettings } from '@/lib/settings';
   import { inputChoices, inputFor } from '@/lib/audio/devices';
+
+  // Noise suppression default.
+  const ns = document.querySelector<HTMLInputElement>('[data-ns]');
+  if (ns) {
+    const show = () => (document.querySelector('[data-ns-value]')!.textContent = Number(ns.value) ? `${ns.value}%` : 'Off');
+    ns.value = String(loadSettings().recording.noiseSuppression);
+    show();
+    ns.addEventListener('input', show);
+    ns.addEventListener('change', () => saveSettings('recording', { noiseSuppression: Number(ns.value) }));
+  }
 
   // Microphone: names show once the browser has been allowed to use the mic.
   const micSelect = document.querySelector<HTMLSelectElement>('[data-rec-mic]');

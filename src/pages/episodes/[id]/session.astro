@@ -38,7 +38,7 @@ const greenSwitch =
         <div class="flex-1">
           <div class="text-[14px]">Raw WAV with markers</div>
           <div class="mt-1 text-[12px] text-muted">
-            One WAV per speaker, untouched. Markers are embedded in each file and also saved as Audacity labels and a CSV.
+            The whole recording, untouched. Markers are embedded in the file and also saved as Audacity labels and a CSV.
           </div>
         </div>
         <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
@@ -78,6 +78,42 @@ const greenSwitch =
       <p class="text-[12px] text-subtle">While paused, recording keeps running, so the markers stay lined up with the audio.</p>
     </section>
 
+    <section class="flex flex-col gap-2.5" data-ns>
+      <h2 class="eyebrow text-muted!">Noise suppression</h2>
+      <div class="rounded-[10px] border border-line px-4 py-4">
+        <div class="flex items-center gap-4">
+          <label for="ns-amount" class="flex-none text-[14px]">Suppression</label>
+          <input id="ns-amount" name="ns" type="range" min="0" max="100" step="5" value="0" class="min-w-0 flex-1 accent-fg" data-ns-amount />
+          <span class="w-11 flex-none text-right font-mono text-[13px]" data-ns-value>Off</span>
+        </div>
+        <p class="mt-2 text-[12px] leading-normal text-muted">
+          Adaptive, like Waves NS1: it learns the room as it goes and leaves your voice alone. Higher takes away more of
+          the background. Used for the assembled edit and the cleaned copy; the raw WAV is never changed.
+        </p>
+        <div class="mt-3.5 flex flex-wrap items-center gap-2.5">
+          <Button type="button" data-ns-preview>Preview 30 s</Button>
+          <div class="flex overflow-hidden rounded-[10px] border border-edge text-[13px]" role="group" aria-label="Listen to" data-ns-ab hidden>
+            <button type="button" class="px-3.5 py-2 aria-pressed:bg-fg aria-pressed:text-ink" aria-pressed="false" data-ns-play="before">Original</button>
+            <button type="button" class="px-3.5 py-2 aria-pressed:bg-fg aria-pressed:text-ink" aria-pressed="false" data-ns-play="after">Cleaned</button>
+          </div>
+          <!-- Attenuation meter: how far the background came down -->
+          <span class="flex items-center gap-2.5" data-ns-meter hidden>
+            <span class="relative h-1.5 w-28 overflow-hidden rounded-full bg-line"><span class="absolute inset-y-0 left-0 rounded-full bg-ok" data-ns-meter-fill></span></span>
+            <span class="meta text-muted" data-ns-meter-text></span>
+          </span>
+          <span class="meta text-muted" data-ns-status></span>
+        </div>
+        <audio data-ns-player hidden></audio>
+        <label class="mt-3.5 flex items-center gap-3 text-[13px] has-disabled:opacity-40">
+          <span class={greenSwitch}>
+            <input type="checkbox" role="switch" name="nsCopy" class="peer sr-only" aria-label="Also a cleaned copy of the whole recording" />
+            <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+          </span>
+          Also a cleaned copy of the whole recording
+        </label>
+      </div>
+    </section>
+
     <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
       <span class="meta mr-auto text-muted" data-summary></span>
       <Button data-open-markers>Open markers</Button>
@@ -108,6 +144,8 @@ const greenSwitch =
   import { assemble, audacityLabels, mapTime, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName } from '@/lib/markers';
   import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { denoiseTake, previewTake } from '@/lib/audio/denoise';
+  import { loadSettings, saveSettings } from '@/lib/settings';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadScript } from '@/lib/script-store';
 
@@ -196,9 +234,66 @@ const greenSwitch =
         : [Object.assign(document.createElement('p'), { className: 'py-2.5 text-[13px] text-subtle', textContent: 'No markers in this session.' })]),
     );
 
+    // Noise suppression: one fader, remembered as the default for next time.
+    const nsInput = $<HTMLInputElement>('[data-ns-amount]');
+    nsInput.value = String(loadSettings().recording.noiseSuppression);
+    const nsCopy = $<HTMLInputElement>('[name=nsCopy]');
+    const showNs = () => {
+      const v = Number(nsInput.value);
+      $('[data-ns-value]').textContent = v ? `${v}%` : 'Off';
+      nsCopy.disabled = !v;
+      $<HTMLButtonElement>('[data-ns-preview]').disabled = !v;
+    };
+    showNs();
+    let preview: { amount: number; before: string; after: string } | null = null;
+    const player = $<HTMLAudioElement>('[data-ns-player]');
+    nsInput.addEventListener('input', () => {
+      showNs();
+      if (preview && preview.amount !== Number(nsInput.value)) $('[data-ns-status]').textContent = 'Preview again to hear this setting';
+    });
+    nsInput.addEventListener('change', () => saveSettings('recording', { noiseSuppression: Number(nsInput.value) }));
+    const play = (which: 'before' | 'after') => {
+      if (!preview) return;
+      const at = player.currentTime;
+      player.src = preview[which];
+      player.currentTime = at;
+      player.play();
+      form.querySelectorAll<HTMLElement>('[data-ns-play]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.nsPlay === which)));
+    };
+    form.querySelectorAll<HTMLElement>('[data-ns-play]').forEach((b) =>
+      b.addEventListener('click', () => (b.getAttribute('aria-pressed') === 'true' ? player.pause() : play(b.dataset.nsPlay as 'before' | 'after'))),
+    );
+    player.addEventListener('pause', () => form.querySelectorAll('[data-ns-play]').forEach((b) => b.setAttribute('aria-pressed', 'false')));
+    $('[data-ns-preview]').addEventListener('click', async () => {
+      const amount = Number(nsInput.value);
+      const btn = $<HTMLButtonElement>('[data-ns-preview]');
+      btn.disabled = true;
+      $('[data-ns-status]').textContent = preview ? 'Cleaning…' : 'Loading noise suppression (about 19 MB the first time)…';
+      try {
+        const p = await previewTake(take!, amount, 30);
+        if (preview) {
+          URL.revokeObjectURL(preview.before);
+          URL.revokeObjectURL(preview.after);
+        }
+        preview = { amount, before: URL.createObjectURL(p.before), after: URL.createObjectURL(p.after) };
+        $('[data-ns-ab]').hidden = false;
+        $('[data-ns-meter]').hidden = false;
+        $('[data-ns-meter-fill]').style.width = `${Math.min(100, (p.reduction / 30) * 100)}%`;
+        $('[data-ns-meter-text]').textContent = `Background −${Math.round(p.reduction)} dB`;
+        $('[data-ns-status]').textContent = '';
+        player.currentTime = 0;
+        play('after');
+      } catch (err) {
+        $('[data-ns-status]').textContent = `Couldn’t clean: ${(err as Error).message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     const options = () => {
       const data = new FormData(form);
-      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode };
+      const ns = Number(data.get('ns') ?? 0);
+      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns, nsCopy: ns > 0 && data.has('nsCopy') };
     };
     const refresh = () => {
       const o = options();
@@ -206,8 +301,8 @@ const greenSwitch =
       $('[data-removes]').textContent = a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
       const raw = tracks.reduce((n, t) => n + takeBytes(t), 0);
       const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0);
-      const files = tracks.length + 2 + (o.assembled ? a.files.length * tracks.length : 0);
-      $('[data-summary]').textContent = `${files} files · ${formatBytes(raw + (o.assembled ? editBytes : 0))}`;
+      const files = tracks.length + 2 + (o.assembled ? a.files.length * tracks.length : 0) + (o.nsCopy ? tracks.length : 0);
+      $('[data-summary]').textContent = `${files} files · ${formatBytes(raw * (o.nsCopy ? 2 : 1) + (o.assembled ? editBytes : 0))}`;
     };
     form.addEventListener('change', refresh);
     refresh();
@@ -240,6 +335,27 @@ const greenSwitch =
         ].join('\n');
         entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
 
+        // Noise suppression makes a cleaned copy of the recording (kept for next time); the edit
+        // and the optional full copy are cut from it, so markers stay where they are.
+        let variant: string | null = null;
+        if (o.ns && (o.assembled || o.nsCopy)) {
+          const began = Date.now();
+          for (const t of tracks) {
+            variant = await denoiseTake(t, o.ns, (done) => {
+              const left = done > 0.02 ? ((Date.now() - began) / done) * (1 - done) : 0;
+              $('[data-export-label]').textContent =
+                `Cleaning… ${Math.round(done * 100)}%${left > 60000 ? ` · about ${Math.round(left / 60000)} min left` : ''}`;
+            });
+          }
+          $('[data-export-label]').textContent = 'Preparing…';
+        }
+        if (o.nsCopy && variant) {
+          for (const t of tracks) {
+            const len = t.samples / t.sampleRate;
+            entries.push({ name: `${name(t)}_clean.wav`, data: await rangesWav(t, [[0, len]], markers.map((m) => cue(m, t.sampleRate)), variant) });
+          }
+        }
+
         if (o.assembled) {
           const a = assemble(duration, wallMarkers, lineLog, o.pauses);
           for (const t of tracks) {
@@ -251,7 +367,7 @@ const greenSwitch =
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, t.sampleRate, x.at));
               const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}.wav` : `${name(t)}_edit.wav`;
-              entries.push({ name: file, data: await rangesWav(t, ranges, kept) });
+              entries.push({ name: file, data: await rangesWav(t, ranges, kept, variant ?? undefined) });
             }
           }
         }
