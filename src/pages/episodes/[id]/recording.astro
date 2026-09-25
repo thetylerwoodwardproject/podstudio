@@ -55,6 +55,8 @@ const zones = [
       >
         <span class="size-2 rounded-full bg-faint group-data-[state=rec]/r:bg-rec"></span>
         <span data-rec-label>READY</span>
+        <!-- Voice follow: a ring, so it doesn't read as the REC light -->
+        <span class="ml-1 size-2 rounded-full border-[1.5px] border-faint" role="img" aria-label="Voice follow off" title="Voice follow off" data-voice-dot></span>
       </div>
       <div class="flex min-w-0 items-center justify-end">
         <span class="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-muted" data-saved-wrap>
@@ -232,6 +234,13 @@ const zones = [
           <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
             <dt class="flex-none text-muted">Markers</dt>
             <dd class="min-w-0 truncate" data-counts>None yet</dd>
+          </div>
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
+            <dt class="flex-none text-muted">Voice follow</dt>
+            <dd class="flex min-w-0 items-center gap-3">
+              <span class="truncate" data-voice-state>Off</span>
+              <button type="button" class="flex-none text-[12px] text-muted underline-offset-2 hover:text-fg hover:underline" data-copy-diag>Copy diagnostics</button>
+            </dd>
           </div>
           <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
             <dt class="text-muted" id="retake-tone-label">Retake tone</dt>
@@ -962,6 +971,7 @@ const zones = [
       manualTimer = window.setInterval(() => {
         if (state === 'rec' && !adlib && !cough && word < words.length - 1) setWord(word + 1);
       }, 60000 / prompterSettings.wpm);
+      setVoiceState('manual');
       return;
     }
     // iPhone and iPad: manual scroll unless Siri voice follow is switched on in More.
@@ -979,17 +989,125 @@ const zones = [
     // The words that brought the reader back were script, so end a moment before them.
     voice.addEventListener('found', () => endAdlib(1));
     voice.addEventListener('error', (e) => {
-      console.warn('Voice follow:', voiceErrorText((e as CustomEvent<string>).detail));
+      const code = (e as CustomEvent<string>).detail;
+      logVoice('error', code);
+      voiceReason = voiceErrorText(code);
       if (isIOS()) iosFailure();
     });
-    voice.addEventListener('status', (e) => isIOS() && (e as CustomEvent<string>).detail === 'stopped' && iosFailure());
+    voice.addEventListener('status', (e) => {
+      const st = (e as CustomEvent<string>).detail as 'listening' | 'reconnecting' | 'stopped';
+      logVoice(st);
+      setVoiceState(st);
+      if (isIOS() && st === 'stopped') iosFailure();
+    });
+    voice.addEventListener('diag', (e) => {
+      const d = (e as CustomEvent<string>).detail;
+      // The per-utterance signals are noise in a log; restarts and failures aren't.
+      // (Watchdog and hand restarts are logged where they happen.)
+      if (!['audiostart', 'soundstart', 'speechstart', 'watchdog', 'restart by hand'].includes(d)) logVoice(d);
+    });
     voice.start();
   }
   function stopVoice() {
     const v = voice;
     voice = null;
     v?.stop();
+    setVoiceState(manualTimer ? 'manual' : 'off');
   }
+
+  // ── Voice follow health: visible state, a watchdog, and a log for diagnosing ──
+  type VoiceState = 'off' | 'manual' | 'listening' | 'reconnecting' | 'stopped';
+  let voiceState: VoiceState = 'off';
+  let voiceReason = '';
+  let voiceSince = Date.now();
+  const voiceLog: { t: number; at: string; event: string; detail?: string }[] = [];
+  function logVoice(event: string, detail?: string) {
+    const entry = { t: Math.round(now() * 10) / 10, at: new Date().toISOString(), event, ...(detail ? { detail } : {}) };
+    voiceLog.push(entry);
+    if (voiceLog.length > 200) voiceLog.shift();
+    if (writer) writer.meta.voiceLog = voiceLog.slice();
+  }
+  const voiceDot = $('[data-voice-dot]');
+  function setVoiceState(st: VoiceState) {
+    if (st !== voiceState) voiceSince = Date.now();
+    voiceState = st;
+    const text = {
+      off: 'Off',
+      manual: `Manual · ${prompterSettings.wpm} wpm`,
+      listening: `Listening${voice?.restarts ? ` · ${voice.restarts} restart${voice.restarts === 1 ? '' : 's'}` : ''}`,
+      reconnecting: 'Reconnecting…',
+      stopped: `Stopped${voiceReason ? ` · ${voiceReason}` : ''}`,
+    }[st];
+    $('[data-voice-state]').textContent = text;
+    voiceDot.style.borderColor = { off: '', manual: '', listening: 'var(--color-ok)', reconnecting: 'var(--color-warn)', stopped: 'var(--color-rec)' }[st];
+    voiceDot.setAttribute('aria-label', `Voice follow: ${text}`);
+    voiceDot.title = `Voice follow: ${text}`;
+    if (st === 'listening' || st === 'off' || st === 'manual') warn('voice-follow', null);
+  }
+  // Warn when it stays down; Restart starts a fresh session in place.
+  setInterval(() => {
+    if (!voice) return;
+    setVoiceState(voiceState); // keeps the restart count current
+    const down = voiceState === 'stopped' || (voiceState === 'reconnecting' && Date.now() - voiceSince > 20000);
+    warn(
+      'voice-follow',
+      down
+        ? {
+            level: 1,
+            title: voiceState === 'stopped' ? 'Voice follow stopped' : 'Voice follow can’t reach the speech service',
+            body: `${voiceReason ? voiceReason.replace(/[.!…]?$/, '.') : 'It stopped hearing words.'} The script won’t move on its own until it’s back; tap a line to move it.`,
+            action: ['Restart voice follow', () => {
+              logVoice('restart', 'by hand');
+              voice?.kick('restart by hand');
+              warn('voice-follow', null);
+            }],
+          }
+        : null,
+    );
+  }, 1000);
+  // Watchdog: speech on the meter for a while but no words back from recognition means it
+  // has quietly stalled (Chrome sometimes keeps "listening" and returns nothing).
+  const speaking: number[] = [];
+  capture.addEventListener('level', (e) => {
+    if ((e as CustomEvent<Level>).detail.peak > -40) speaking.push(Date.now());
+  });
+  setInterval(() => {
+    const t = Date.now();
+    while (speaking.length && t - speaking[0] > 10000) speaking.shift();
+    if (!voice || state !== 'rec' || cough || voiceState !== 'listening') return;
+    // About 30 level readings a second: 6 s of speech in the last 10 s.
+    const speechSeconds = speaking.length / 30;
+    if (speechSeconds >= 6 && t - Math.max(voice.lastResultAt, voiceSince) > 10000) {
+      logVoice('watchdog', `${speechSeconds.toFixed(0)} s of speech, no words for ${Math.round((t - voice.lastResultAt) / 1000)} s`);
+      voice.kick('watchdog');
+      voiceSince = t;
+    }
+  }, 1000);
+  $('[data-copy-diag]').addEventListener('click', async (e) => {
+    const report = {
+      page: location.href,
+      browser: navigator.userAgent,
+      recording: MicCapture.pcmRecording ? 'MediaRecorder PCM' : 'AudioWorklet',
+      mic: micLabel,
+      rate: capture.sampleRate,
+      state,
+      clock: Math.round(now()),
+      voice: { state: voiceState, reason: voiceReason, restarts: voice?.restarts ?? 0, lastWordsAgo: voice?.lastResultAt ? Math.round((Date.now() - voice.lastResultAt) / 1000) : null },
+      log: voiceLog,
+    };
+    const text = JSON.stringify(report, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.append(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    (e.target as HTMLElement).textContent = 'Copied';
+    setTimeout(() => ((e.target as HTMLElement).textContent = 'Copy diagnostics'), 1500);
+  });
 
   // iOS: Siri voice follow is an experiment, off by default and saved per device. If it
   // errors or stops more than 3 times in a minute, it turns itself off.
@@ -1224,6 +1342,8 @@ const zones = [
     capture.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
     capture.addEventListener('error', (e) => showWarning('Recording problem', (e as CustomEvent<string>).detail));
     writer = w;
+    w.meta.voiceLog = voiceLog.slice();
+    logVoice('recording started');
     capture.record();
     sessionStart = performance.now();
     startBtn.disabled = false;

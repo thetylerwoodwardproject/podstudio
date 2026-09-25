@@ -1,5 +1,6 @@
 ---
 import '@/styles/global.css';
+import { gateReason, readEnv } from '@/lib/gate';
 
 interface Props {
   title: string;
@@ -9,6 +10,11 @@ interface Props {
 }
 
 const { title, anyBrowser = false, bodyClass = '' } = Astro.props;
+// The gate runs before the page renders, so it's inlined (see lib/gate.ts).
+const gate = `(function () {
+  var r = (${gateReason.toString()})((${readEnv.toString()})());
+  if (r.reason !== null) location.replace('/unsupported?reason=' + r.reason + '&from=' + encodeURIComponent(location.href));
+})();`;
 ---
 
 <!doctype html>
@@ -23,32 +29,7 @@ const { title, anyBrowser = false, bodyClass = '' } = Astro.props;
       // ?demo shows the design's example content instead of live data (see [data-demo-only]).
       if (new URLSearchParams(location.search).has('demo')) document.documentElement.dataset.demo = '';
     </script>
-    {
-      !anyBrowser && (
-        <script is:inline>
-          // Computers and Android: Chromium only (voice follow, MediaRecorder PCM capture).
-          // iPhone and iPad: every browser is WebKit. iOS 17+ with AudioWorklet and OPFS
-          // records like a computer, with manual scroll (see the recording screen).
-          (function () {
-            const go = (reason) =>
-              location.replace('/unsupported?' + (reason ? 'reason=' + reason + '&' : '') + 'from=' + encodeURIComponent(location.href));
-            const brands = navigator.userAgentData && navigator.userAgentData.brands;
-            const chromium = brands ? brands.some((b) => b.brand === 'Chromium') : 'chrome' in window;
-            const ua = navigator.userAgent;
-            const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-            if (!ios) {
-              if (!chromium) go();
-              return;
-            }
-            // iPhone UAs carry "OS 17_4"; iPad desktop mode only has "Version/17.4".
-            const m = ua.match(/OS (\d+)_/) || ua.match(/Version\/(\d+)/);
-            const major = m ? Number(m[1]) : 0;
-            const capable = 'AudioWorkletNode' in window && !!(navigator.storage && navigator.storage.getDirectory);
-            if (major < 17 || !capable) go('ios-old');
-          })();
-        </script>
-      )
-    }
+    {!anyBrowser && <script is:inline set:html={gate} />}
   </head>
   <body class:list={['min-h-dvh', bodyClass]}>
     <slot />

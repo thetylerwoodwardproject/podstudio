@@ -201,7 +201,12 @@ export class VoiceFollow extends EventTarget {
       }
     }
     this.emit('engine', this.local ? 'local' : 'cloud');
-    this.listen(C);
+    try {
+      this.listen(C);
+    } catch (err) {
+      this.emit('diag', `start failed: ${(err as Error).message}`);
+      this.restart(1000);
+    }
   }
 
   /** Listen to a different mic from now on. */
@@ -212,13 +217,61 @@ export class VoiceFollow extends EventTarget {
 
   stop() {
     this.running = false;
+    clearTimeout(this.retryTimer);
     this.announced = false;
     this.rec?.abort();
     this.rec = null;
     this.emit('status', 'stopped');
   }
 
+  /** When recognition last returned words (ms, Date.now) */
+  lastResultAt = 0;
+  /** Recognition sessions restarted after an error, a stall or Chrome ending one */
+  restarts = 0;
+  private C: Ctor | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * Start a fresh recognition session now: after a stall (hearing speech but no
+   * words back), or when the person taps Restart. Keeps the place in the script.
+   */
+  kick(reason = 'kick') {
+    if (!this.C) return;
+    this.running = true;
+    this.emit('diag', reason);
+    clearTimeout(this.retryTimer);
+    const old = this.rec;
+    this.rec = null;
+    try {
+      old?.abort();
+    } catch {}
+    this.restart(0);
+  }
+
+  /** Listen again after `wait` ms, and keep trying if starting fails. */
+  private restart(wait: number) {
+    clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => {
+      if (!this.running || !this.C) return;
+      this.restarts++;
+      try {
+        this.listen(this.C);
+      } catch (err) {
+        this.emit('diag', `start failed: ${(err as Error).message}`);
+        this.networkFailures++;
+        this.emit('status', 'reconnecting');
+        this.restart(this.backoff());
+      }
+    }, wait);
+  }
+
+  /** 1, 2, 4, 8… seconds, at most 30. */
+  private backoff() {
+    return Math.min(30000, 1000 * 2 ** Math.max(0, this.networkFailures - 1));
+  }
+
   private listen(C: Ctor) {
+    this.C = C;
     const rec = new C();
     rec.continuous = true;
     rec.interimResults = true;
@@ -235,7 +288,10 @@ export class VoiceFollow extends EventTarget {
       // Speech detected but no words back: the speech service isn't answering.
       clearTimeout(this.silenceTimer);
       this.silenceTimer = setTimeout(() => {
-        if (this.running && !this.resultsThisSession) this.emit('error', 'no-results');
+        if (this.running && !this.resultsThisSession && this.rec === rec) {
+          this.emit('error', 'no-results');
+          this.kick('stalled');
+        }
       }, 7000);
     };
     this.resultsThisSession = false;
@@ -247,16 +303,18 @@ export class VoiceFollow extends EventTarget {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
       this.emit('error', e.error);
       // These won't fix themselves by restarting.
-      if (['not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported'].includes(e.error)) this.running = false;
-      if (e.error === 'network' && ++this.networkFailures >= 4) this.running = false;
+      if (['not-allowed', 'service-not-allowed', 'language-not-supported'].includes(e.error)) this.running = false;
+      // A network hiccup (or the mic briefly gone): keep trying, waiting longer each time.
+      if (e.error === 'network' || e.error === 'audio-capture') {
+        this.networkFailures++;
+        this.emit('status', 'reconnecting');
+      }
     };
-    // Chrome ends a session after silence or about a minute; keep listening. After a
-    // network error, wait longer each time before trying again.
+    // Chrome ends a session after silence or about a minute; keep listening.
     rec.onend = () => {
-      if (this.running && this.rec === rec) {
-        const wait = this.networkFailures ? 1000 * 2 ** this.networkFailures : 150;
-        setTimeout(() => this.running && this.listen(C), wait);
-      } else this.emit('status', 'stopped');
+      if (this.rec !== rec) return; // replaced by kick()
+      if (this.running) this.restart(this.networkFailures ? this.backoff() : 150);
+      else this.emit('status', 'stopped');
     };
     this.rec = rec;
     const track = this.track?.readyState === 'live' ? this.track : null;
@@ -269,13 +327,17 @@ export class VoiceFollow extends EventTarget {
       rec.start();
       this.emit('diag', 'default-mic');
     }
-    if (!this.announced) this.emit('status', 'listening');
+    if (!this.announced || this.networkFailures) this.emit('status', 'listening');
     this.announced = true;
   }
 
   private onResult(e: RecognitionEvent) {
     this.resultsThisSession = true;
-    this.networkFailures = 0;
+    this.lastResultAt = Date.now();
+    if (this.networkFailures) {
+      this.networkFailures = 0;
+      this.emit('status', 'listening');
+    }
     clearTimeout(this.silenceTimer);
     let text = '';
     for (let i = 0; i < e.results.length; i++) text += ' ' + e.results[i][0].transcript;

@@ -134,3 +134,43 @@ test('a cough is ignored: no move, no ad-lib, and reading carries on after it', 
   assert.equal(words[seen.at(-1)!], 'transmitter');
   assert.equal(lost, false);
 });
+
+const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
+
+test('network errors never stop it for good: it keeps reconnecting', async () => {
+  const { v, rec } = await follow();
+  const states: string[] = [];
+  v.addEventListener('status', (e) => states.push((e as CustomEvent<string>).detail));
+  let r = rec;
+  for (let i = 0; i < 5; i++) {
+    r.onerror?.({ error: 'network' });
+    // Pretend the backoff already passed.
+    (v as unknown as { networkFailures: number }).networkFailures = 1;
+    r.onend?.();
+    await tick(1100);
+    assert.notEqual(current, r, `restarted after error ${i + 1}`);
+    r = current!;
+  }
+  assert.ok(states.includes('reconnecting'));
+  v.stop();
+});
+
+test('kick() starts a fresh session and keeps the place', async () => {
+  const { v, seen, rec } = await follow();
+  rec.say('it was a quiet week in the studio');
+  const at = seen.at(-1);
+  v.kick('stalled');
+  await tick();
+  assert.notEqual(current, rec);
+  current!.say('until the new transmitter');
+  assert.ok(seen.at(-1)! > at!, `${at} → ${seen.at(-1)}`);
+  v.stop();
+});
+
+test('a session that starts but never returns words is restarted', async () => {
+  const { v, rec } = await follow();
+  (rec as unknown as { onspeechstart: () => void }).onspeechstart?.();
+  await tick(7100);
+  assert.notEqual(current, rec);
+  v.stop();
+});

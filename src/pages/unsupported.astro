@@ -1,6 +1,7 @@
 ---
-// 1h · Unsupported browser (Firefox / desktop Safari), and ?reason=ios-old for an
-// iPhone or iPad on iOS 16 or earlier.
+// Unsupported browser (Firefox / desktop Safari), ?reason=insecure for plain http
+// (no mic or storage without https), and ?reason=ios-old for an iPhone or iPad
+// missing what recording needs. Details show which checks failed (lib/gate.ts).
 import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import Button from '@/components/ui/Button.astro';
@@ -23,26 +24,91 @@ import Button from '@/components/ui/Button.astro';
     </div>
 
 
-    <!-- iOS 16 or earlier, or a WebKit without AudioWorklet / OPFS -->
+    <!-- Plain http: browsers only allow the mic and storage on https:// or localhost -->
+    <div class="flex max-w-[420px] flex-col gap-3.5" data-reason="insecure" hidden>
+      <Logo />
+      <h1 class="mt-4 text-[26px] leading-[1.2] tracking-[-0.02em]">Podstudio needs HTTPS</h1>
+      <p class="text-[14px] leading-[1.55] text-muted">
+        Browsers only allow the microphone, recording storage and audio processing on pages opened over
+        <span class="font-mono text-fg">https://</span> (or on this computer as <span class="font-mono text-fg">localhost</span>).
+        This page was opened over plain <span class="font-mono text-fg">http://</span>.
+      </p>
+      <ul class="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-[1.5] text-muted">
+        <li>On your server: turn on HTTPS in Settings → Domain &amp; HTTPS, then open the https:// address.</li>
+        <li>Testing from a phone: run <span class="font-mono text-fg">npm run dev:phone</span> and open the https:// address it prints, accepting the certificate once.</li>
+      </ul>
+      <div class="mt-1.5 flex gap-2.5">
+        <Button variant="primary" data-copy-link>Copy link</Button>
+      </div>
+    </div>
+
+    <!-- A WebKit (iPhone, iPad) without AudioWorklet or OPFS -->
     <div class="flex max-w-[400px] flex-col gap-3.5" data-reason="ios-old" hidden>
       <Logo />
       <h1 class="mt-4 text-[26px] leading-[1.2] tracking-[-0.02em]">Update iOS to use Podstudio</h1>
       <p class="text-[14px] leading-[1.55] text-muted">
         Recording on an iPhone or iPad needs iOS 17 or later. Update in Settings → General → Software Update, then open
-        the link again.
+        the link again. If it's already up to date, the details below say what's missing.
       </p>
       <div class="mt-1.5 flex gap-2.5">
         <Button variant="primary" data-copy-link>Copy link</Button>
       </div>
     </div>
+    <details class="fixed inset-x-4 bottom-4 mx-auto max-w-[420px] rounded-xl border border-line bg-panel text-[12px]" data-details>
+      <summary class="cursor-pointer px-3.5 py-2.5 text-muted hover:text-fg">Details</summary>
+      <dl class="flex flex-col gap-1 px-3.5 pb-3 font-mono text-[11px]" data-details-rows></dl>
+      <button type="button" class="mx-3.5 mb-3 text-muted underline-offset-2 hover:text-fg hover:underline" data-copy-details>Copy details</button>
+    </details>
   </div>
 </Base>
 
 <script>
+  import { gateReason, readEnv } from '@/lib/gate';
+
   const reason = new URL(location.href).searchParams.get('reason') ?? '';
+  /** Copy text; over plain http there's no clipboard API, so fall back to the old way. */
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.append(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+  }
+
+  // What this browser has, to report exactly what's missing.
+  const env = readEnv();
+  const result = gateReason(env);
+  const rows: [string, string][] = [
+    ['Missing', result.failed.join(', ') || 'nothing'],
+    ['Secure (https)', env.secure ? 'yes' : 'no'],
+    ['AudioWorklet', env.worklet ? 'yes' : 'no'],
+    ['File storage', env.opfs ? 'yes' : 'no'],
+    ['Microphone API', env.mic ? 'yes' : 'no'],
+    ['Web Locks', env.locks ? 'yes' : 'no'],
+    ['Address', location.origin],
+    ['Browser', env.ua],
+  ];
+  document.querySelector('[data-details-rows]')!.replaceChildren(
+    ...rows.map(([k, v]) => {
+      const row = document.createElement('div');
+      row.className = 'flex gap-3';
+      row.append(Object.assign(document.createElement('dt'), { className: 'w-28 flex-none text-subtle', textContent: k }));
+      row.append(Object.assign(document.createElement('dd'), { className: 'min-w-0 break-words text-fg-soft', textContent: v }));
+      return row;
+    }),
+  );
+  document.querySelector('[data-copy-details]')!.addEventListener('click', async (e) => {
+    await copy(rows.map(([k, v]) => `${k}: ${v}`).join('\n'));
+    (e.target as HTMLElement).textContent = 'Copied';
+  });
   const panels = document.querySelectorAll<HTMLElement>('[data-reason]');
-  const known = [...panels].some((p) => p.dataset.reason === reason);
-  panels.forEach((p) => (p.hidden = p.dataset.reason !== (known ? reason : '')));
+  const shown = reason === 'browser' ? '' : reason;
+  const known = [...panels].some((p) => p.dataset.reason === shown);
+  panels.forEach((p) => (p.hidden = p.dataset.reason !== (known ? shown : '')));
 
   document.querySelectorAll<HTMLButtonElement>('[data-copy-link]').forEach((btn) => {
     const label = btn.textContent;
@@ -50,7 +116,7 @@ import Button from '@/components/ui/Button.astro';
       // Send people back to the page they tried to open, not this one.
       const from = new URL(location.href).searchParams.get('from');
       const target = from && new URL(from).origin === location.origin ? from : location.origin;
-      await navigator.clipboard.writeText(target);
+      await copy(target);
       btn.textContent = 'Copied';
       setTimeout(() => (btn.textContent = label), 1500);
     });

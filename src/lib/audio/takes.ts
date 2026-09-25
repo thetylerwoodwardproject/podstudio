@@ -51,6 +51,8 @@ export interface TakeMeta {
   markers?: SessionMarker[];
   /** Continuous sessions: when each script line was reached */
   lineLog?: LineStart[];
+  /** Voice follow restarts, errors and stalls during the session, for diagnosing */
+  voiceLog?: { t: number; at: string; event: string; detail?: string }[];
   /** Peak level per half second, 0..1, for waveforms */
   peaks: number[];
 }
@@ -64,10 +66,34 @@ async function takesDir() {
 }
 
 async function writeFile(dir: FileSystemDirectoryHandle, name: string, data: BlobPart) {
+  if (!('createWritable' in FileSystemFileHandle.prototype)) return writeInWorker(dir, name, data);
   const file = await dir.getFileHandle(name, { create: true });
   const w = await file.createWritable();
   await w.write(data as FileSystemWriteChunkType);
   await w.close();
+}
+
+// Safari before 26 has no createWritable(): it can only write from a worker, with a sync handle.
+let writer: Worker | null = null;
+let nextWrite = 1;
+const writes = new Map<number, [() => void, (e: Error) => void]>();
+async function writeInWorker(dir: FileSystemDirectoryHandle, name: string, data: BlobPart) {
+  if (!writer) {
+    writer = new Worker(new URL('./opfs-write.worker.ts', import.meta.url), { type: 'module' });
+    writer.onmessage = (e: MessageEvent<{ id: number; error?: string }>) => {
+      const w = writes.get(e.data.id);
+      writes.delete(e.data.id);
+      if (e.data.error) w?.[1](new Error(e.data.error));
+      else w?.[0]();
+    };
+  }
+  const path = (await (await navigator.storage.getDirectory()).resolve(dir)) ?? [];
+  const bytes = await new Blob([data]).arrayBuffer();
+  const id = nextWrite++;
+  await new Promise<void>((resolve, reject) => {
+    writes.set(id, [resolve, reject]);
+    writer!.postMessage({ id, path, name, data: bytes }, [bytes]);
+  });
 }
 
 const segName = (n: number) => `seg-${String(n).padStart(6, '0')}.pcm`;

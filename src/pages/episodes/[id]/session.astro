@@ -336,6 +336,11 @@ const greenSwitch =
           ),
         ].join('\n');
         entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
+        // What voice follow did during the session, for tracking down a dropout.
+        if (take.voiceLog?.length) {
+          const log = take.voiceLog.map((v) => `${clock(v.t)}\t${v.at}\t${v.event}${v.detail ? `\t${v.detail}` : ''}`).join('\n');
+          entries.push({ name: `${label}_Session_voice-log.txt`, data: `session time\twall clock\tevent\tdetail\n${log}\n` });
+        }
 
         // Noise suppression makes a cleaned copy of the recording (kept for next time). The zip
         // gets both versions: the unprocessed files, and _clean copies cut the same way from the
