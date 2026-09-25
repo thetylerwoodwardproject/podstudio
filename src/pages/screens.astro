@@ -18,6 +18,7 @@ const live: [string, string][] = [
   ['Monitor window for a second screen', `${e}/monitor`],
   ['Producer remote for the same browser', `${e}/remote`],
   ['Voice check: why voice follow isn’t hearing words, on-device voice download', '/voice'],
+  ['Guest invite link: how it works, then a live mic check (6a)', '/invite/8f2k-q7mz'],
 ];
 
 const groups: { title: string; items: [string, string, string][] }[] = [
@@ -45,7 +46,8 @@ const groups: { title: string; items: [string, string, string][] }[] = [
       ['1b', 'Join a session (phone)', '/join'],
       ['1c', 'Studio control', `${e}/studio?demo`],
       ['7c', 'Mic check · host', `${e}/mic-check?demo`],
-      ['7c', 'Mic check · remote guest', '/invite/8f2k-q7mz'],
+      ['6a', 'Guest joins from an invite link (laptop)', '/invite/8f2k-q7mz?demo'],
+      ['7c', 'Mic check · remote guest', '/invite/8f2k-q7mz/check'],
       ['7d', 'Phone prompter · reading', `${e}/prompter?demo`],
       ['7d', 'Phone prompter · lost place', `${e}/prompter?demo&state=lost`],
       ['7d', 'Phone prompter · reconnecting', `${e}/prompter?demo&state=off`],

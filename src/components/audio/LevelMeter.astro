@@ -1,0 +1,34 @@
+---
+/*
+ * Level meter with the target zone marked (-18 to -6 dBFS) and its scale.
+ * Segments are data-seg; drive them with segmentMeter() from lib/audio/meter.
+ */
+interface Props {
+  segments?: number;
+  /** Segments lit in the static design (demo) */
+  lit?: number;
+  compact?: boolean;
+}
+const { segments = 40, lit = 0, compact = false } = Astro.props;
+---
+
+<div class="flex flex-col gap-2">
+  <!-- Target zone for dialogue: -18 to -6 dBFS (37.5 % to 75 % of the meter) -->
+  <div class="relative h-5 font-mono text-[10px] font-medium tracking-[0.08em]" aria-hidden="true">
+    <span class="absolute inset-y-0 left-[37.5%] flex w-[37.5%] items-start justify-center rounded-t-[4px] border-x border-t border-warn/60 pt-[3px] whitespace-nowrap text-warn">
+      {compact ? 'TARGET' : 'TARGET · VOICE PEAKS HERE'}
+    </span>
+  </div>
+  <div class="-mt-2 flex gap-[3px]" role="meter" aria-label="Input level" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-11" data-meter>
+    {Array.from({ length: segments }, (_, i) => <span class:list={[compact ? 'h-5.5' : 'h-6.5', 'flex-1 rounded-[2px]', i < lit ? 'bg-fg' : 'bg-line']} data-seg />)}
+  </div>
+  <!-- Labels sit where their level is on the meter -->
+  <div class="relative h-4 font-mono text-[11px] text-faint">
+    <span class="absolute left-0">-60</span>
+    <span class="absolute left-1/4 -translate-x-1/2">-24</span>
+    <span class="absolute left-[37.5%] -translate-x-1/2 text-warn">-18</span>
+    <span class="absolute left-1/2 -translate-x-1/2">-12</span>
+    <span class="absolute left-3/4 -translate-x-1/2 text-rec">-6</span>
+    <span class="absolute right-0 text-rec">{compact ? '0' : '0 dBFS'}</span>
+  </div>
+</div>

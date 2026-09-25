@@ -5,6 +5,7 @@ import StatusRow from '@/components/ui/StatusRow.astro';
 import Button from '@/components/ui/Button.astro';
 import { episode, lineStarts, scriptWords } from '@/data/mock';
 import Select from '@/components/ui/Select.astro';
+import LevelMeter from '@/components/audio/LevelMeter.astro';
 
 interface Props {
   mode: 'host' | 'guest';
@@ -55,7 +56,7 @@ const LIT = 30;
   <span slot="topbar" class="truncate text-[13px] text-muted max-sm:hidden">{c.who}</span>
 
   <form
-    class="mx-auto flex w-full max-w-[880px] flex-col px-6 py-9"
+    class="grid gap-11 px-6 py-9 lg:min-h-full lg:grid-cols-[1fr_340px] lg:px-13"
     id="mic-check"
     data-mode={mode}
     data-next={c.next}
@@ -87,30 +88,7 @@ const LIT = 30;
       </div>
 
       <div class="flex flex-col gap-2">
-        <!-- Target zone for dialogue: -18 to -6 dBFS (37.5 % to 75 % of the meter) -->
-        <div class="relative h-5 font-mono text-[10px] font-medium tracking-[0.08em]" aria-hidden="true">
-          <span class="absolute inset-y-0 left-[37.5%] flex w-[37.5%] items-start justify-center rounded-t-[4px] border-x border-t border-warn/60 pt-[3px] whitespace-nowrap text-warn">TARGET · VOICE PEAKS HERE</span>
-        </div>
-        <div
-          class="-mt-2 flex gap-[3px]"
-          role="meter"
-          aria-label="Input level"
-          aria-valuemin="-60"
-          aria-valuemax="0"
-          aria-valuenow="-8"
-          data-meter
-        >
-          {Array.from({ length: SEGMENTS }, (_, i) => <span class:list={['h-6.5 flex-1 rounded-[2px]', i < LIT ? 'bg-fg' : 'bg-line']} data-seg />)}
-        </div>
-        <!-- Labels sit where their level is on the meter -->
-        <div class="relative h-4 font-mono text-[11px] text-faint">
-          <span class="absolute left-0">-60</span>
-          <span class="absolute left-1/4 -translate-x-1/2">-24</span>
-          <span class="absolute left-[37.5%] -translate-x-1/2 text-warn">-18</span>
-          <span class="absolute left-1/2 -translate-x-1/2">-12</span>
-          <span class="absolute left-3/4 -translate-x-1/2 text-rec">-6</span>
-          <span class="absolute right-0 text-rec">0 dBFS</span>
-        </div>
+        <LevelMeter segments={SEGMENTS} lit={LIT} />
         <!-- One plain-language line: where the level is and what to do about it -->
         <div class="mt-1.5 flex items-center gap-2.5" data-live-only>
           <span class="inline-block size-2.5 flex-none rounded-full bg-faint" data-status-dot></span>
@@ -120,7 +98,7 @@ const LIT = 30;
       </div>
 
       {
-        !guest && (
+        (
           <div class="flex flex-col gap-3 rounded-xl border border-line p-4" data-live-only data-test>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="min-w-0">
@@ -149,7 +127,36 @@ const LIT = 30;
         <span data-heard>{c.heard}</span>
       </div>
 
-      <div class="flex flex-col gap-2.5">
+      <!-- The numbers, for comparing with an interface's own meters -->
+      <details class="group rounded-xl border border-line" data-live-only>
+        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] text-muted hover:text-fg">
+          Advanced details
+          <span class="text-faint transition-transform group-open:rotate-180">▾</span>
+        </summary>
+        <div class="flex flex-col gap-3 border-t border-line px-4 pt-3 pb-4">
+          <div class="flex items-baseline justify-between gap-3 font-mono text-[12px]">
+            <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
+            <span class="flex items-center gap-3 text-subtle">
+              <span data-max>Highest peak —</span>
+              <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
+            </span>
+          </div>
+          <!-- One meter per input of an interface, to compare with its own meters -->
+          <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
+          <div class="flex flex-col">
+            <StatusRow label="Device" value="…" dense data-opened="device" />
+            <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
+            <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <h2 class="eyebrow">Checks</h2>
+      {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
+      <p class="mt-2.5 text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
+      <div class="mt-auto pt-6">
         {
           guest ? (
             <Button type="submit" variant="primary" size="lg" class="w-full">Join as Dana</Button>
@@ -160,36 +167,6 @@ const LIT = 30;
           )
         }
       </div>
-
-      <!-- Everything else, for when it's needed: the checks, the numbers, what the browser opened -->
-      <details class="group rounded-xl border border-line">
-        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] text-muted hover:text-fg">
-          Advanced details
-          <span class="text-faint transition-transform group-open:rotate-180">▾</span>
-        </summary>
-        <div class="flex flex-col gap-4 border-t border-line px-4 pt-3 pb-4">
-          <div class="flex flex-col">
-            {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
-          </div>
-          <div class="flex flex-col gap-3" data-live-only>
-            <div class="flex items-baseline justify-between gap-3 font-mono text-[12px]">
-              <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
-              <span class="flex items-center gap-3 text-subtle">
-                <span data-max>Highest peak —</span>
-                <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
-              </span>
-            </div>
-            <!-- One meter per input of an interface, to compare with its own meters -->
-            <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
-            <div class="flex flex-col">
-              <StatusRow label="Device" value="…" dense data-opened="device" />
-              <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
-              <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
-            </div>
-          </div>
-          <p class="text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
-        </div>
-      </details>
     </div>
   </form>
 </AppShell>
@@ -197,6 +174,7 @@ const LIT = 30;
 <script>
   import { MicCapture, type Level } from '@/lib/audio/capture';
   import { encodeWav } from '@/lib/audio/wav';
+  import { segmentMeter, toFraction, verdict, zone } from '@/lib/audio/meter';
   import { availableInput, inputChoices, parseInput, sameInput } from '@/lib/audio/devices';
   import { storageLeft, formatBytes } from '@/lib/audio/takes';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
@@ -206,7 +184,7 @@ const LIT = 30;
 
   const form = document.getElementById('mic-check') as HTMLFormElement;
   const demo = new URL(location.href).searchParams.has('demo');
-  if (form.dataset.mode === 'host' && !demo) live();
+  if (!demo) live();
 
   async function live() {
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
@@ -219,68 +197,63 @@ const LIT = 30;
     const warn = 'var(--color-warn)';
     const bad = 'var(--color-rec)';
     const faint = 'var(--color-faint)';
+    const host = form.dataset.mode === 'host';
 
+    // The Checks rows, by name: the host's and a guest's lists differ. A check a list
+    // doesn't have is skipped.
+    const rows: Record<string, number> = host
+      ? { level: 0, clip: 1, noise: 2, voice: 3, space: 4, test: 5 }
+      : { level: 0, clip: 1, headphones: 2, bleed: 3, server: 4 };
     // Clipping, noise floor and free space only show when they need attention.
-    const quiet = new Set([1, 2, 4]);
-    const check = (i: number, value: string, color?: string) => {
-      const row = form.querySelector<HTMLElement>(`[data-check="${i}"]`)!;
-      if (quiet.has(i)) row.hidden = color !== warn && color !== bad;
+    const quiet = new Set(['clip', 'noise', 'space']);
+    const check = (key: string, value: string, color?: string) => {
+      if (!(key in rows)) return;
+      const row = form.querySelector<HTMLElement>(`[data-check="${rows[key]}"]`)!;
+      if (quiet.has(key)) row.hidden = color !== warn && color !== bad;
       row.querySelector('[data-value]')!.textContent = value;
       const dot = row.querySelector<HTMLElement>('[data-dot]')!;
       dot.hidden = !color;
       if (color) dot.style.background = color;
     };
-    [0, 1, 2, 3].forEach((i) => check(i, 'Waiting…'));
-    check(5, 'Not done yet · record one below', warn);
+    ['level', 'clip', 'noise', 'voice'].forEach((k) => check(k, 'Waiting…'));
+    check('test', 'Not done yet · record one below', warn);
+    // A guest's own checks: headphones are on them, bleed and the server need a session.
+    check('headphones', 'Wear them on the call', warn);
+    check('bleed', 'Checked while recording', faint);
+    check('server', 'Not connected · needs the Podstudio server', warn);
     $('[data-heard]').textContent = 'Read a line from the script…';
 
     // Carry a starting line (?from=, continuing a recovered session) through to the recording screen.
     const params = new URL(location.href).search;
-    form.dataset.next = `/episodes/${episodeId}/recording${params}`;
+    if (host) form.dataset.next = `/episodes/${episodeId}/recording${params}`;
+
+    // A guest's mic choice is theirs: kept apart from the host's settings on a shared computer.
+    const GUEST_MIC = 'podstudio:guest-mic';
+    if (!host) {
+      try {
+        settings.deviceId = localStorage.getItem(GUEST_MIC) ?? '';
+      } catch {}
+    }
+    const saveMic = (deviceId: string) => {
+      if (host) saveSettings('recording', { deviceId });
+      else
+        try {
+          localStorage.setItem(GUEST_MIC, deviceId);
+        } catch {}
+    };
 
     const { free, hours } = await storageLeft(hz(settings.rate), settings.depth, settings.channels);
-    check(4, `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`, hours < 2 ? warn : ok);
+    check('space', `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`, hours < 2 ? warn : ok);
 
-    // Level meter: segments follow the scale under it (-60, -24, -12, -6, 0 dBFS evenly spaced).
+    // Level meter in the standard dBFS zones (see lib/audio/meter).
     const segs = [...form.querySelectorAll<HTMLElement>('[data-seg]')];
     const meter = $('[data-meter]');
-    const scale: [number, number][] = [[-60, 0], [-24, 0.25], [-12, 0.5], [-6, 0.75], [0, 1]];
-    const toFraction = (db: number) => {
-      if (!Number.isFinite(db) || db <= -60) return 0;
-      for (let i = 1; i < scale.length; i++) {
-        const [d1, f1] = scale[i];
-        const [d0, f0] = scale[i - 1];
-        if (db <= d1) return f0 + ((db - d0) / (d1 - d0)) * (f1 - f0);
-      }
-      return 1;
-    };
-    // Standard dBFS traffic-light zones. Green below -18: safe, low level. Amber -18 to -6:
-    // the target zone, where dialogue should peak (ideally around -12 to -10). Red above -6:
-    // the danger zone, where peaks risk clipping.
-    const zone = (db: number) => (db > -6 ? bad : db >= -18 ? warn : ok);
+    const showLevel = segmentMeter(segs);
     const levelColor = zone;
-    // Text, zone colour, and how the Level check rates it. Judged on the whole-dB value
-    // the screen shows, so a peak shown as -18 or -6 is in the target zone.
-    const verdict = (exact: number): [string, string, string] => {
-      const db = Math.round(exact);
-      if (db > -6) return ['Too hot · turn the gain down', bad, bad];
-      if (db >= -12 && db <= -10) return ['Right on target', warn, ok];
-      if (db >= -18) return ['In the target zone', warn, ok];
-      if (db >= -24) return ['A little low · turn the gain up a touch', ok, warn];
-      return ['Low · turn the gain up', ok, warn];
-    };
-    // Each segment's colour is its zone: the level at the segment's top edge.
-    const zoneOf = (i: number) => {
-      const f = (i + 1) / segs.length;
-      return f > toFraction(-6) ? bad : f > toFraction(-18) ? warn : ok;
-    };
-    const unlit = (i: number) => `color-mix(in oklab, ${zoneOf(i)} 20%, var(--color-line))`;
-    segs.forEach((seg, i) => (seg.style.background = unlit(i)));
 
     const capture = new MicCapture();
     const peaks: { t: number; db: number }[] = [];
     const floors: number[] = [];
-    let shown = 0;
     let lastClip = 0;
     let started = Date.now();
 
@@ -348,13 +321,7 @@ const LIT = 30;
       floors.push(Number.isFinite(rms) ? rms : -120);
       if (floors.length > 300) floors.shift();
       if (hot > -0.5) lastClip = now;
-      // Fast attack, slow release, like a hardware meter.
-      const target = toFraction(peak) * segs.length;
-      shown = target > shown ? target : Math.max(target, shown - 0.6);
-      segs.forEach((s, i) => {
-        const lit = i < Math.round(shown);
-        s.style.background = lit ? zoneOf(i) : unlit(i);
-      });
+      showLevel(peak);
       meter.setAttribute('aria-valuenow', String(Math.round(peak)));
     });
 
@@ -374,14 +341,14 @@ const LIT = 30;
       $('[data-status]').textContent = text;
       $('[data-status-dot]').style.background = color;
       $('[data-status-peak]').textContent = Number.isFinite(max) && max >= -45 ? `peaks ${Math.round(max) || 0} dBFS` : '';
-      check(0, text === 'Talk at your normal volume' ? 'Waiting for your voice' : text, grade);
+      check('level', text === 'Talk at your normal volume' ? 'Waiting for your voice' : text, grade);
 
-      if (lastClip && since < 30) check(1, `Clipped ${since} s ago`, bad);
-      else check(1, `None in the last ${Math.min(30, Math.round((Date.now() - started) / 1000))} s`, ok);
+      if (lastClip && since < 30) check('clip', `Clipped ${since} s ago`, bad);
+      else check('clip', `None in the last ${Math.min(30, Math.round((Date.now() - started) / 1000))} s`, ok);
 
       if (floors.length > 60) {
         const floor = [...floors].sort((a, b) => a - b)[Math.floor(floors.length * 0.1)];
-        check(2, floor <= -90 ? 'Below -90 dBFS' : `${floor.toFixed(0)} dBFS`, floor <= -50 ? ok : floor <= -40 ? warn : bad);
+        check('noise', floor <= -90 ? 'Below -90 dBFS' : `${floor.toFixed(0)} dBFS`, floor <= -50 ? ok : floor <= -40 ? warn : bad);
       }
     }, 500);
 
@@ -390,7 +357,7 @@ const LIT = 30;
         await capture.open({ deviceId, sampleRate: hz(settings.rate), channels: settings.channels });
       } catch (err) {
         const denied = (err as Error).name === 'NotAllowedError';
-        check(0, denied ? 'Microphone blocked' : 'No microphone', bad);
+        check('level', denied ? 'Microphone blocked' : 'No microphone', bad);
         $('[data-heard]').textContent = denied
           ? 'Allow microphone access in the address bar, then reload this page.'
           : `Couldn’t open the microphone: ${(err as Error).message}`;
@@ -490,13 +457,13 @@ const LIT = 30;
       const [text, color, grade] = full ? ['Clipped · turn the gain down', bad, bad] : verdict(db);
       result.style.color = color;
       result.textContent = !t.chunks.length ? 'Nothing was recorded' : `Peak ${dbText(Math.min(0, db))} dBFS · ${full ? `${full} samples clipped` : text.toLowerCase()}`;
-      check(5, full ? 'Clipped · turn the gain down' : `Done · ${text.split(' · ')[0].toLowerCase()}`, grade);
+      check('test', full ? 'Clipped · turn the gain down' : `Done · ${text.split(' · ')[0].toLowerCase()}`, grade);
     }
 
     let voice: VoiceFollow | null = null;
     $<HTMLSelectElement>('[data-mic]').addEventListener('change', (e) => {
       const deviceId = (e.target as HTMLSelectElement).value;
-      saveSettings('recording', { deviceId });
+      saveMic(deviceId);
       settings.deviceId = deviceId;
       // Rebuild the per-input meters for the new device.
       inputMeters.replaceChildren();
@@ -507,7 +474,7 @@ const LIT = 30;
 
     // Voice follow check: can Chrome hear you, and does it match the script?
     if (!voiceFollowSupported()) {
-      check(3, 'Needs Chrome speech recognition', warn);
+      check('voice', 'Needs Chrome speech recognition', warn);
       return;
     }
     const tokens = words.flatMap((w) => normalize(w));
@@ -531,19 +498,19 @@ const LIT = 30;
       const text = (e as CustomEvent<string>).detail;
       $('[data-heard]').textContent = `“${text}”`;
       const hit = locate(tokens, normalize(text).slice(-8), 0, { behind: 0, ahead: tokens.length });
-      if (hit) check(3, `Matched line ${tokenLine[hit.index] + 1}`, ok);
-      else check(3, 'Listening · no script match yet', warn);
+      if (hit) check('voice', `Matched line ${tokenLine[hit.index] + 1}`, ok);
+      else check('voice', 'Listening · no script match yet', warn);
     });
     v.addEventListener('error', (e) => {
       const err = (e as CustomEvent<string>).detail;
-      check(3, voiceErrorText(err), warn);
+      check('voice', voiceErrorText(err), warn);
       voiceProblem(`Voice follow: ${voiceErrorText(err)}`);
     });
-    v.addEventListener('status', (e) => (e as CustomEvent<string>).detail === 'listening' && check(3, 'Listening…', warn));
+    v.addEventListener('status', (e) => (e as CustomEvent<string>).detail === 'listening' && check('voice', 'Listening…', warn));
     v.addEventListener('diag', (e) => {
       // This Chrome can't point voice follow at the chosen mic; it opened the default one
       // with its own auto gain, which can change that mic's level.
-      if ((e as CustomEvent<string>).detail === 'default-mic') check(3, 'Using the default mic · update Chrome', warn);
+      if ((e as CustomEvent<string>).detail === 'default-mic') check('voice', 'Using the default mic · update Chrome', warn);
     });
     v.start();
 
