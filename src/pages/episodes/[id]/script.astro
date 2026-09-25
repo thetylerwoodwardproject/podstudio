@@ -23,9 +23,9 @@ export const getStaticPaths = episodePaths;
   <div class="flex lg:h-full">
     <section class="flex min-h-0 flex-1 flex-col">
       <div class="flex items-center justify-between border-b border-line px-7 py-3.5 text-[13px] text-muted">
-        <div class="flex gap-4.5">
-          <span class="text-fg">Script</span>
-          <span>Notes</span>
+        <div class="flex gap-4.5" role="tablist">
+          <button type="button" role="tab" aria-selected="true" class="text-muted aria-selected:text-fg" data-tab="script">Script</button>
+          <button type="button" role="tab" aria-selected="false" class="text-muted aria-selected:text-fg" data-tab="points">Talking points</button>
         </div>
         <div class="flex items-center gap-4">
           <span class="meta max-sm:hidden">## Heading starts a section</span>
@@ -36,6 +36,17 @@ export const getStaticPaths = episodePaths;
       <p class="border-b border-line px-7 py-2.5 text-[12px] text-subtle" data-live-only data-script-note>
         This is the example episode. Import or paste your own script to rehearse with it; every screen uses it.
       </p>
+      <p class="border-b border-line px-7 py-2.5 text-[12px] text-muted" data-mode-note hidden></p>
+      <!-- Talking points: bullets instead of a word-for-word script -->
+      <div class="mx-auto flex min-h-0 w-full max-w-[860px] flex-1 flex-col gap-3 overflow-auto px-6 py-8 sm:px-14" data-points hidden>
+        <label for="points" class="text-[13px] text-muted">One talking point per line. Everyone in the session sees them; tap one to mark it current.</label>
+        <textarea
+          id="points"
+          rows="14"
+          class="w-full flex-1 rounded-xl border border-edge bg-surface p-4 text-[17px] leading-[1.7] focus:border-fg focus:outline-none"
+          placeholder={'The crate arrives\nPower and cooling\nFirst key-up'}
+          data-points-text></textarea>
+      </div>
       <div class="mx-auto flex min-h-0 w-full max-w-[860px] flex-1 flex-col gap-5.5 overflow-auto px-6 py-8 sm:px-14" data-script-lines data-episode={episode.id}>
         {
           scriptLines.map((l) => (
@@ -55,10 +66,39 @@ export const getStaticPaths = episodePaths;
 
 <script>
   import { loadScript, resetScript, saveScriptText, scriptToText } from '@/lib/script-store';
+  import { GUEST, loadShow, modeInfo, saveShow } from '@/lib/show';
 
   // Live: show and edit this episode's script (saved in this browser).
   const list = document.querySelector<HTMLElement>('[data-script-lines]')!;
   const episodeId = list.dataset.episode!;
+  // Script or talking points, and what the show's mode means for the script.
+  const show = loadShow(episodeId);
+  const tabs = [...document.querySelectorAll<HTMLElement>('[data-tab]')];
+  const showTab = (name: string) => {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+    list.hidden = name !== 'script';
+    document.querySelector<HTMLElement>('[data-points]')!.hidden = name !== 'points';
+  };
+  tabs.forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab!)));
+  const pointsText = document.querySelector<HTMLTextAreaElement>('[data-points-text]')!;
+  pointsText.value = show.points.join('\n');
+  pointsText.addEventListener('input', () => saveShow(episodeId, { points: pointsText.value.split('\n').map((p) => p.trim()).filter(Boolean) }));
+  const withGuest = show.format === 'guest';
+  const speakerLines = withGuest && show.mode === 'lines';
+  if (withGuest) {
+    const modeNote = document.querySelector<HTMLElement>('[data-mode-note]')!;
+    modeNote.hidden = false;
+    modeNote.textContent = `With a guest · ${modeInfo[show.mode].label}: ${
+      {
+        lines: 'tap Host or Guest on a line to say who reads it.',
+        host: 'the script is yours; the guest just talks.',
+        points: 'the talking points are what everyone sees.',
+        adlib: 'no script is shown. You can still keep one here.',
+      }[show.mode]
+    }`;
+    if (show.mode === 'points') showTab('points');
+  }
+
   if (!new URL(location.href).searchParams.has('demo')) {
     const script = loadScript(episodeId);
     const lines = script.lines.map((l) => ({ ...l }));
@@ -101,7 +141,31 @@ export const getStaticPaths = episodePaths;
         lines[i].text = text.textContent!.trim();
         save();
       });
-      nodes.push(text);
+      if (!speakerLines) {
+        nodes.push(text);
+        return;
+      }
+      // Speaker lines: who reads this one.
+      const row = document.createElement('div');
+      row.className = 'grid grid-cols-[64px_1fr] items-start gap-4';
+      const who = document.createElement('button');
+      who.type = 'button';
+      who.className = 'mt-1.5 rounded-md border px-2 py-1 font-mono text-[11px] font-medium tracking-[0.06em]';
+      const paint = () => {
+        const guest = lines[i].who === GUEST;
+        who.textContent = guest ? 'GUEST' : 'HOST';
+        who.style.color = guest ? 'var(--spk-sam)' : 'var(--spk-tyler)';
+        who.style.borderColor = 'currentColor';
+        who.setAttribute('aria-label', `Read by the ${guest ? 'guest' : 'host'}; tap to change`);
+      };
+      paint();
+      who.addEventListener('click', () => {
+        lines[i].who = lines[i].who === GUEST ? '' : GUEST;
+        paint();
+        save();
+      });
+      row.append(who, text);
+      nodes.push(row);
     });
     list.replaceChildren(...nodes);
   }

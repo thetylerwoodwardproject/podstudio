@@ -78,6 +78,7 @@ import { inputClass } from '@/lib/ui';
 </template>
 
 <script>
+  import { loadShow } from '@/lib/show';
   import { parseScript } from '@/lib/script-parser';
   import { saveScriptText, scriptToText } from '@/lib/script-store';
 
@@ -110,8 +111,13 @@ import { inputClass } from '@/lib/ui';
 
   function show(name: string, text: string) {
     const parsed = parseScript(text);
-    // One host reads everything: a "NAME:" at the start of a line is dropped.
-    pending = parsed.lines.length ? scriptToText(parsed.lines.map((l) => ({ ...l, who: '' }))) : null;
+    // The first speaker named is the host; anyone else is the guest. A solo show
+    // (or a script without names) is all the host's.
+    const first = [...parsed.speakers.keys()][0];
+    const withGuest = loadShow(dialog.dataset.episode!).format === 'guest';
+    pending = parsed.lines.length
+      ? scriptToText(parsed.lines.map((l) => ({ ...l, who: withGuest && l.who && l.who !== first ? 'GUEST' : '' })))
+      : null;
     dialog.querySelector('[data-file-name]')!.textContent = name;
     dialog.querySelector('[data-file-meta]')!.textContent =
       `${parsed.words.toLocaleString()} words · ${parsed.lines.length} lines · ${parsed.sections.length} sections`;

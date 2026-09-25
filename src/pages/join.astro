@@ -1,0 +1,71 @@
+---
+// Join a session with the 6-digit code from the host: as the guest (records on this
+// device) or the producer (runs the session, never records).
+import Phone from '@/layouts/Phone.astro';
+import Logo from '@/components/ui/Logo.astro';
+import Button from '@/components/ui/Button.astro';
+import OtpInput from '@/components/ui/OtpInput.astro';
+---
+
+<Phone title="Join a session" anyBrowser>
+  <div class="flex flex-1 flex-col gap-7 overflow-auto px-6 py-6 md:mx-auto md:w-full md:max-w-[440px] md:justify-center">
+    <Logo />
+    <div>
+      <h1 class="text-[26px] font-medium tracking-[-0.02em]">Join a recording</h1>
+      <p class="mt-1.5 text-[14px] leading-normal text-muted">Enter the 6-digit code from your host.</p>
+    </div>
+    <form class="flex flex-col gap-4" data-join novalidate>
+      <OtpInput name="code" label="Invite code" size="lg" />
+      <p class="text-[13px] text-rec" role="alert" data-error hidden></p>
+      <Button type="submit" variant="primary" size="xl" class="w-full" data-join-btn>Join</Button>
+    </form>
+    <p class="text-[13px] leading-normal text-subtle">
+      You'll talk on your usual call (Zoom, Teams, whatever the host uses). Podstudio records you here, on this device,
+      and sends the recording to the host. Have your headphones on.
+    </p>
+  </div>
+</Phone>
+
+<script>
+  import { joinWithCode, saveJoined } from '@/lib/room';
+
+  const form = document.querySelector<HTMLFormElement>('[data-join]')!;
+  const boxes = [...form.querySelectorAll<HTMLInputElement>('[data-otp] input')];
+  const error = form.querySelector<HTMLElement>('[data-error]')!;
+  const btn = form.querySelector<HTMLButtonElement>('[data-join-btn]')!;
+  const code = () => boxes.map((b) => b.value).join('');
+
+  async function join() {
+    if (!/^\d{6}$/.test(code())) {
+      error.textContent = 'The code is six digits.';
+      error.hidden = false;
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+    error.hidden = true;
+    try {
+      const m = await joinWithCode(code());
+      saveJoined(m);
+      location.href = m.role === 'guest' ? '/guest' : '/producer';
+    } catch (err) {
+      const msg = (err as Error).message;
+      error.textContent = /fetch|network|JSON/i.test(msg) ? 'Couldn’t reach the Podstudio server. Check the address with your host.' : msg;
+      error.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Join';
+    }
+  }
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    join();
+  });
+  // Filling the last box joins straight away.
+  boxes.at(-1)!.addEventListener('input', () => code().length === 6 && join());
+  // A link with ?code=123456 fills it in.
+  const given = (new URL(location.href).searchParams.get('code') ?? '').replace(/\D/g, '');
+  if (given.length === 6) {
+    given.split('').forEach((c, i) => (boxes[i].value = c));
+    join();
+  }
+</script>

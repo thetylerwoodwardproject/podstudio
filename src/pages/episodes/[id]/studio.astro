@@ -5,8 +5,10 @@ import Segmented from '@/components/ui/Segmented.astro';
 import Button from '@/components/ui/Button.astro';
 import { episode, episodePaths, studioScript } from '@/data/mock';
 import { mbPerMinute } from '@/lib/audio/format';
+import { modeInfo } from '@/lib/show';
 
 export const getStaticPaths = episodePaths;
+const inviteRow = 'flex flex-col gap-1.5';
 
 const base = `/episodes/${episode.id}`;
 const modeHelp = {
@@ -54,6 +56,64 @@ const menu = [
     </section>
 
     <aside class="flex flex-col lg:overflow-auto">
+      <!-- The show: solo, or one guest (each records on their own device) and maybe a producer -->
+      <div class="flex flex-col gap-4 border-b border-line p-5" data-show>
+        <h2 class="text-[13px] font-medium">Show</h2>
+        <Segmented name="format" label="Format" value="solo" options={[{ value: 'solo', label: 'Solo' }, { value: 'guest', label: 'With a guest' }]} />
+        <div class="flex flex-col gap-4" data-guest-only hidden>
+          <p class="text-[12px] leading-normal text-muted">
+            Talk over Zoom, Teams or any call. Podstudio records each of you on your own device and keeps the script in step.
+          </p>
+          <div class="flex flex-col gap-[7px]">
+            <div class="text-[12px] text-muted">Script</div>
+            <div class="flex flex-col gap-1.5" role="radiogroup" aria-label="Script">
+              {
+                (Object.entries(modeInfo) as [string, (typeof modeInfo)['lines']][]).map(([value, m]) => (
+                  <label class="flex cursor-pointer flex-col gap-0.5 rounded-[10px] border border-line px-3 py-2.5 hover:border-edge has-checked:border-fg has-focus-visible:outline-2 has-focus-visible:outline-fg">
+                    <input type="radio" name="showMode" value={value} class="sr-only" />
+                    <span class="text-[13px]">{m.label}</span>
+                    <span class="text-[12px] leading-snug text-muted">{m.short}</span>
+                  </label>
+                ))
+              }
+            </div>
+            <p class="text-[12px] text-subtle">The guest sees: <span class="text-fg-soft" data-guest-sees></span></p>
+          </div>
+          <label class="flex items-center justify-between gap-4 text-[13px]">
+            <span>Producer<span class="block text-[12px] text-muted">Follows and edits the script, marks retakes, runs the session. Never records.</span></span>
+            <input type="checkbox" name="producer" class="size-4 flex-none accent-fg" />
+          </label>
+
+          <!-- Invite codes: six digits, entered at /join -->
+          <div class="flex flex-col gap-4 rounded-xl border border-line p-4" data-invite>
+            <p class="text-[12px] leading-normal text-warn" data-invite-offline hidden>
+              Guests and producers connect through the Podstudio server, which isn't running here. For testing, run
+              <span class="font-mono">npm run dev</span> or <span class="font-mono">npm run preview</span>.
+            </p>
+            {
+              [
+                ['guest', 'Guest code'],
+                ['producer', 'Producer code'],
+              ].map(([role, label]) => (
+                <div class={inviteRow} data-code-row={role} hidden={role === 'producer'}>
+                  <div class="flex items-baseline justify-between gap-3">
+                    <span class="text-[12px] text-muted">{label}</span>
+                    <span class="text-[12px] text-subtle" data-code-status>Not joined</span>
+                  </div>
+                  <div class="font-mono text-[28px] leading-none tracking-[0.08em]" data-code>— — —</div>
+                  <div class="flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
+                    <button type="button" class="text-fg underline-offset-2 hover:underline" data-copy-code>Copy link</button>
+                    <button type="button" class="text-muted underline-offset-2 hover:text-fg hover:underline" data-new-code>New code</button>
+                    <button type="button" class="text-muted underline-offset-2 hover:text-rec hover:underline" data-revoke-code>Revoke</button>
+                  </div>
+                </div>
+              ))
+            }
+            <p class="text-[12px] text-subtle">They open <span class="font-mono text-fg-soft" data-join-url>/join</span> and type the code.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="flex flex-col gap-4 border-b border-line p-5">
         <h2 class="text-[13px] font-medium">Recording</h2>
         <div class="flex flex-col gap-[7px]">
@@ -117,6 +177,18 @@ const menu = [
   import { sessionUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { loadSettings, saveSettings } from '@/lib/settings';
+  import { formatCode, loadShow, modeInfo, saveShow } from '@/lib/show';
+  import {
+    createSession,
+    hostMembership,
+    newCode,
+    revokeCode,
+    saveHostMembership,
+    serverAvailable,
+    sessionInfo,
+    type Codes,
+    type ScriptMode,
+  } from '@/lib/room';
 
   const form = document.querySelector<HTMLFormElement>('[data-studio]')!;
   const help = JSON.parse(form.dataset.modeHelp!) as Record<string, string>;
@@ -164,6 +236,120 @@ const menu = [
     };
     showInput();
     form.dataset.next = sessionUrl(episodeId);
+    showSetup();
+  }
+
+  // ── Show setup and invite codes ─────────────────────────────────────────────
+  function showSetup() {
+    const show = loadShow(episodeId);
+    const setRadio = (name: string, value: string) => {
+      const input = form.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`);
+      if (input) input.checked = true;
+    };
+    setRadio('format', show.format);
+    setRadio('showMode', show.mode);
+    q<HTMLInputElement>('[name=producer]').checked = show.producer;
+    q('[data-join-url]').textContent = `${location.host}/join`;
+
+    let codes: Codes = { guest: null, producer: null };
+    let polling: number | undefined;
+    const render = (connected: string[] = []) => {
+      const s = loadShow(episodeId);
+      const guest = s.format === 'guest';
+      q('[data-guest-only]').hidden = !guest;
+      q('[data-guest-sees]').textContent = modeInfo[s.mode].guestSees;
+      form.querySelectorAll<HTMLElement>('[data-code-row]').forEach((row) => {
+        const role = row.dataset.codeRow as 'guest' | 'producer';
+        row.hidden = role === 'producer' && !s.producer;
+        row.querySelector('[data-code]')!.textContent = formatCode(codes[role]);
+        const on = connected.includes(role);
+        const status = row.querySelector<HTMLElement>('[data-code-status]')!;
+        status.textContent = on ? 'Connected' : codes[role] ? 'Not joined' : 'Revoked';
+        status.style.color = on ? 'var(--color-ok)' : '';
+      });
+    };
+
+    const session = async () => {
+      if (!(await serverAvailable())) {
+        q('[data-invite-offline]').hidden = false;
+        form.querySelectorAll<HTMLElement>('[data-code-row]').forEach((r) => (r.hidden = true));
+        return null;
+      }
+      let m = hostMembership(episodeId);
+      if (m) {
+        try {
+          const info = await sessionInfo(m);
+          if (!info.ended) {
+            codes = info.codes ?? m.codes;
+            render(info.connected);
+            return m;
+          }
+        } catch {
+          // The server restarted or forgot the session: make a new one.
+        }
+      }
+      const s = await createSession(episodeId);
+      m = { sessionId: s.sessionId, token: s.hostToken, role: 'host', episodeId, codes: s.codes };
+      saveHostMembership(episodeId, m);
+      codes = s.codes;
+      render();
+      return m;
+    };
+
+    const start = async () => {
+      render();
+      if (loadShow(episodeId).format !== 'guest') return clearInterval(polling);
+      const m = await session();
+      if (!m) return;
+      clearInterval(polling);
+      polling = window.setInterval(async () => {
+        try {
+          const info = await sessionInfo(m);
+          codes = info.codes ?? codes;
+          render(info.connected);
+        } catch {}
+      }, 3000);
+    };
+
+    form.addEventListener('change', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.name === 'format') saveShow(episodeId, { format: t.value as 'solo' | 'guest' });
+      else if (t.name === 'showMode') saveShow(episodeId, { mode: t.value as ScriptMode });
+      else if (t.name === 'producer') saveShow(episodeId, { producer: t.checked });
+      else return;
+      start();
+    });
+
+    form.querySelectorAll<HTMLElement>('[data-code-row]').forEach((row) => {
+      const role = row.dataset.codeRow as 'guest' | 'producer';
+      const copyBtn = row.querySelector<HTMLButtonElement>('[data-copy-code]')!;
+      copyBtn.addEventListener('click', async () => {
+        if (!codes[role]) return;
+        const link = `${location.origin}/join?code=${codes[role]}`;
+        try {
+          await navigator.clipboard.writeText(link);
+          copyBtn.textContent = 'Copied';
+        } catch {
+          prompt('Copy this link', link);
+        }
+        setTimeout(() => (copyBtn.textContent = 'Copy link'), 1500);
+      });
+      row.querySelector('[data-new-code]')!.addEventListener('click', async () => {
+        const m = hostMembership(episodeId);
+        if (!m) return;
+        codes = (await newCode(m, role)).codes;
+        saveHostMembership(episodeId, { ...m, codes });
+        render();
+      });
+      row.querySelector('[data-revoke-code]')!.addEventListener('click', async () => {
+        const m = hostMembership(episodeId);
+        if (!m || !confirm(`Revoke the ${role} code? Anyone who joined with it is signed out.`)) return;
+        codes = (await revokeCode(m, role)).codes;
+        saveHostMembership(episodeId, { ...m, codes });
+        render();
+      });
+    });
+    start();
   }
   form.addEventListener('change', update);
 </script>
