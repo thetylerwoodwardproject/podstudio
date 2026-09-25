@@ -1,9 +1,10 @@
 # Podstudio server API (sessions with a guest and a producer)
 
-What the Podstudio server needs to provide for guests and producers. The app
-already speaks it; `dev/relay.ts` is a stand-in that implements it for testing
-(`npm run dev`, `npm run preview`), keeping sessions in memory and tracks in
-`.podstudio-dev/`. The real server replaces the stand-in with no app changes.
+What the Podstudio server provides for guests and producers. It's implemented
+in `server/live.ts` (HTTP and the live room) on `server/live-store.ts`
+(sessions, codes and tokens in SQLite, so a restart keeps them; tokens are
+stored hashed). Guest tracks are kept in `<data>/live/<session>/<role>/`.
+`npm run dev` runs the same code with its data in `.podstudio-dev/`.
 
 Everything is same-origin, under `/api/`, over HTTPS (browsers only allow the mic
 and storage on https). JSON bodies unless noted. Errors are `{ "error": "..." }`

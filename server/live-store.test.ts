@@ -1,6 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Presence, Registry } from './relay-core.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { migrate } from './db.ts';
+import { LiveStore as Store, Presence } from './live-store.ts';
+
+const fresh = () => {
+  const db = new DatabaseSync(':memory:');
+  migrate(db);
+  return db;
+};
+class Registry extends Store {
+  constructor(code?: () => string) {
+    super(fresh(), code);
+  }
+}
 
 test('a session gets 6-digit guest and producer codes', () => {
   const r = new Registry();
@@ -109,4 +122,23 @@ test('names are trimmed and given a fallback', () => {
   const { session } = r.create('142');
   assert.equal(r.join(session.codes.producer!, '  ')!.member.name, 'Producer');
   assert.equal(r.join(session.codes.guest!, 'x'.repeat(80))!.member.name.length, 40);
+});
+
+test('a restart keeps sessions, codes and tokens', () => {
+  const db = fresh();
+  const a = new Store(db);
+  const { session, hostToken } = a.create('142');
+  const j = a.join(session.codes.guest!, 'Sam')!;
+  a.admit(session.id, j.member.id);
+  const b = new Store(db);
+  assert.equal(b.auth(session.id, hostToken), 'host');
+  assert.equal(b.auth(session.id, j.token), 'guest');
+  assert.deepEqual(b.session(session.id)!.codes, session.codes);
+});
+
+test('tokens are stored hashed', () => {
+  const db = fresh();
+  const { hostToken } = new Store(db).create('142');
+  const rows = db.prepare('SELECT token_hash FROM members').all() as { token_hash: string }[];
+  assert.ok(rows.every((r) => r.token_hash !== hostToken && r.token_hash.length === 64));
 });

@@ -2,17 +2,20 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
-import { relay } from './dev/relay.ts';
+import node from '@astrojs/node';
+import { podstudioServer } from './dev/server-plugin.ts';
 
-// Always https, with a self-signed certificate until Caddy or Nginx + Certbot is set up:
-// browsers only allow the mic and recording storage on https (or localhost). The relay is
-// the dev stand-in for the Podstudio server (guests, producer, uploads).
+// Pages are built ahead of time where they can be; the Node adapter serves the rest, and
+// server/main.ts puts the API and live room in front (Caddy adds HTTPS in production).
+// `npm run dev` is always https, with a self-signed certificate: browsers only allow the
+// mic and recording storage on https (or localhost).
 
 export default defineConfig({
   // Keep newline whitespace between inline elements ("speakers. ## Heading").
   compressHTML: false,
+  adapter: node({ mode: 'standalone' }),
   server: { port: 4321, host: true },
   vite: {
-    plugins: [tailwindcss(), basicSsl(), relay()],
+    plugins: [tailwindcss(), basicSsl(), podstudioServer()],
   },
 });

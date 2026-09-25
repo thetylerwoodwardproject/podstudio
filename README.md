@@ -2,7 +2,7 @@
 
 A free, self-hosted teleprompter and recorder for podcasts, audio only. Record solo, or with **one guest** and an optional **producer**: everyone talks on their usual call (Zoom, Teams…) and Podstudio records each person on their own device, losslessly, with the script kept in step. Voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, coughs, pauses and ad-libs as markers.
 
-Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now.** Guests and producers connect through the Podstudio server; until it exists, `npm run dev` and `npm run preview` include a stand-in that speaks its API (`docs/server-api.md`). Sign-in, 2FA and Whisper transcripts still run on mock data.
+Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now.** Guests and producers connect through the Podstudio server (`server/`), one light Node process with SQLite, which `npm run dev` also runs. Sign-in, 2FA and Whisper transcripts still run on mock data.
 
 ## Run it
 
@@ -10,10 +10,11 @@ Needs Node 22.12 or later.
 
 ```sh
 npm install
-npm run dev        # https://localhost:4321 (self-signed certificate), with the dev relay for guests
+npm run dev        # https://localhost:4321 (self-signed certificate), with the server's API and live room
 npm run dev:phone  # the same, reachable from phones and other computers on your network
 npm run build      # type-check, then build the static site into dist/
-npm run preview    # serves dist/ over https with the dev relay
+npm start          # the production server (after npm run build): http on 127.0.0.1:4321, Caddy in front
+npm run preview    # the production server over https with a self-signed certificate, on the network
 npm test           # unit tests: WAV encoder, assembled edit, voice-follow matcher, noise suppression, zip writer
 ```
 
@@ -81,7 +82,7 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 - **The host's recording screen** is in charge: it records your track, shares the session state, and applies the producer's and guest's actions. A chip in the header shows the guest's level and uploads, with a warning if they stop recording or drop off.
 - **Wrapping up** (`/episodes/142/wrap`): after End, it waits for the guest's last pieces, brings their track into this browser, then opens Export. If an upload failed, **Add the guest's file** takes the WAV they downloaded. **Export waits for the guest's track** wherever you open it from: the export page and the Sessions list both send you to the wrap-up until it's in, with "Export without them" as a deliberate, confirmed choice.
 - **Export** has a raw WAV and an edit for each person, lined up: each track records when it started on the server's clock, so the guest's is padded or trimmed to match yours, and both edits get the same cuts, so they're the same length. Each person's coughs are muted in their own edit only. Noise suppression makes cleaned copies of both; marker tones go on your track only.
-- **The server API** is in `docs/server-api.md`. `dev/relay.ts` implements it for testing (sessions in memory, tracks in `.podstudio-dev/`), and the real server replaces it without app changes.
+- **The server API** is in `docs/server-api.md`, implemented by `server/live.ts`. Sessions, codes and tokens are in SQLite, so restarting the server keeps them. Joining is limited to 20 tries per address per 10 minutes, so codes can't be guessed.
 
 ## Hotkey pads
 
@@ -117,17 +118,22 @@ Nine sounds on the number keys: soundbites, clips, music and sound effects (Hotk
 
 ## Stack
 
-- **Astro 7**, static output. Interactive parts are small vanilla TypeScript `<script>` modules, not framework islands.
+- **Astro 7** with the Node adapter: pages are built ahead of time, and `server/main.ts` serves them with the API. **node:sqlite** (built into Node 22.13+) for the database, **ws** for the live room: the only runtime dependencies besides Astro and Tailwind. Interactive parts are small vanilla TypeScript `<script>` modules, not framework islands.
 - **Tailwind CSS 4** via `@tailwindcss/vite`. The design tokens are in `src/styles/global.css`.
 - **Fonts** (Geist, Geist Mono, Atkinson Hyperlegible) are self-hosted from `@fontsource`, so nothing loads from Google.
 
 ## Layout
 
 ```
-dev/
-  relay.ts, relay-core.ts   stand-in for the Podstudio server (docs/server-api.md), in npm run dev / preview
-  serve.ts                  npm run preview: dist/ over https, with the relay
-docs/server-api.md          what the server needs to provide for guests and producers
+server/
+  main.ts                   npm start: the API and live room in front of Astro's pages (one Node process)
+  api.ts                    the /api/ router; the same handler runs under npm run dev
+  context.ts, config.ts     config from the environment, the database and live rooms, shared with Astro
+  db.ts, migrations.ts      node:sqlite, WAL, numbered migrations
+  live.ts, live-store.ts    sessions with a guest and a producer (docs/server-api.md), stored in SQLite
+  http.ts                   JSON, size-limited and streamed bodies, cookies, rate limits
+dev/server-plugin.ts        mounts server/api.ts in npm run dev
+docs/server-api.md          the API for guests and producers
 src/
   styles/global.css     design tokens (@theme), base styles, the eyebrow/meta utilities
   data/mock.ts          all mock content: episode, script, transcript, package, settings
@@ -199,7 +205,7 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 - **Server upload** (5 s segments to `PUT /api/sessions/:id/segments/:n`, approved in the handoff) is waiting for the server.
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
-- **Needs the server:** sign-in and 2FA, Whisper transcripts, titles/chapters/soundbites (those screens show mock data), and a real home for guest sessions: the dev relay keeps sessions in memory, so restarting it forgets codes (the studio makes a new session).
+- **Needs the server:** sign-in and 2FA, Whisper transcripts, titles/chapters/soundbites (those screens show mock data), and episodes and scripts on the server (still in this browser).
 - **Host tracks don't upload yet**: yours is saved in this browser. The same segment upload will send it to the server once it exists.
 - **Zips** are limited to 4 GB.
 - **Setup wizard:** the Server check, Admin account, OpenAI key and Done steps have no designs yet, so "Verify and continue" goes straight to the Domain step.
