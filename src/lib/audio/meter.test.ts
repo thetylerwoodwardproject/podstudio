@@ -25,3 +25,23 @@ test('what the person is told', () => {
   // In the target zone is good; low and hot are flagged.
   assert.deepEqual([verdict(-11)[2], verdict(-30)[2], verdict(-4)[2]], [OK, WARN, BAD]);
 });
+
+test('peak meter falls 12 dB a second, however often levels arrive', async () => {
+  const { PeakMeter } = await import('./meter.ts');
+  for (const perSecond of [30, 300]) {
+    const m = new PeakMeter();
+    m.update(-6, 0);
+    let last;
+    for (let i = 1; i <= perSecond; i++) last = m.update(-60, (i * 1000) / perSecond);
+    assert.ok(Math.abs(last.db - -18) < 1e-9, `${perSecond}/s: ${last.db}`);
+  }
+});
+
+test('the hold is the highest peak of the last 1.5 s', async () => {
+  const { PeakMeter } = await import('./meter.ts');
+  const m = new PeakMeter();
+  m.update(-12, 0);
+  assert.equal(m.update(-40, 1000).holdDb, -12);
+  assert.equal(m.update(-40, 1000).holdFraction, 0.5, '-12 dBFS is mid-amber');
+  assert.equal(m.update(-40, 1600).holdDb, -40, 'gone after 1.5 s');
+});

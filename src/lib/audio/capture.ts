@@ -11,10 +11,14 @@
  * worklet as before.
  *
  * Events: "level" { peak, rms } in dBFS, "chunk" Float32Array while recording
- * (interleaved L R when stereo).
+ * (interleaved L R when stereo), "mic-state" when the mic is paused by the
+ * system (the audio engine suspended or interrupted, the track muted or
+ * ended) or comes back, and "silent-input" when the recorded input is
+ * digitally silent while another input of the device has signal.
  */
 
 import { parseInput } from './devices';
+import { isIOS } from '../platform';
 import type { Channels } from './wav';
 import { WebmPcmReader, pickChannels } from './webm-pcm';
 
@@ -90,6 +94,63 @@ export class MicCapture extends EventTarget {
 
   /** Input channel being recorded in mono, or null when all inputs are averaged */
   channel: number | null = null;
+  /** Whether the recorder is running */
+  recording = false;
+  /** Since when the recorded input has been silent while another one has signal */
+  private silentSince = 0;
+  private silentTold = false;
+
+  /** The mic as the system has it: running, or paused by it (and why). */
+  micState(): 'ok' | 'suspended' | 'interrupted' | 'muted' | 'ended' {
+    const track = this.stream?.getAudioTracks()[0];
+    if (track?.readyState === 'ended') return 'ended';
+    if (track?.muted) return 'muted';
+    const st = this.ctx?.state as string | undefined;
+    if (st === 'suspended' || st === 'interrupted') return st;
+    return 'ok';
+  }
+
+  /** Record another input of the same device, before recording starts (the file can't change mid-way). */
+  useInput(channel: number) {
+    if (this.recording || this.channels === 2) return false;
+    this.channel = channel;
+    this.node?.port.postMessage({ channel });
+    this.silentSince = 0;
+    this.silentTold = false;
+    return true;
+  }
+
+  /** Everything about the open mic, for diagnostics. */
+  diagnostics() {
+    const track = this.stream?.getAudioTracks()[0];
+    return {
+      label: track?.label,
+      settings: track?.getSettings(),
+      muted: track?.muted,
+      readyState: track?.readyState,
+      contextState: this.ctx?.state,
+      contextRate: this.ctx?.sampleRate,
+      channel: this.channel,
+      channels: this.channels,
+      recording: this.recording,
+    };
+  }
+
+  /** Input 1 (or the chosen one) silent while another input has signal, for 2 s: say which one does. */
+  private checkInputs(inputs: number[]) {
+    if (this.channels === 2 || this.channel === null || inputs.length < 2) return;
+    const own = inputs[this.channel] ?? -Infinity;
+    const loud = inputs.reduce((best, db, i) => (i !== this.channel && db > (inputs[best] ?? -Infinity) ? i : best), this.channel === 0 ? 1 : 0);
+    if (!(own < -100 && inputs[loud] > -60)) {
+      this.silentSince = 0;
+      return;
+    }
+    const now = performance.now();
+    this.silentSince ||= now;
+    if (now - this.silentSince < 2000 || this.silentTold) return;
+    this.silentTold = true;
+    this.dispatchEvent(new CustomEvent('silent-input', { detail: { silent: this.channel, live: loud, recording: this.recording } }));
+  }
   /** 1 for mono, 2 for stereo (inputs 1 and 2 as left and right) */
   channels: Channels = 1;
 
@@ -109,7 +170,9 @@ export class MicCapture extends EventTarget {
         // The device's own inputs, mixed here if at all. Chrome's mono downmix averages
         // them, so a mic on input 1 of a two-input interface would meter and record
         // 6 dB low and clip at -6 dBFS.
-        channelCount: { ideal: Math.max(2, (this.channel ?? 0) + 1) },
+        // On an iPhone or iPad the mic is mono: asking for two channels can give a
+        // second, silent one (and input 1 is what's recorded), so ask for one.
+        channelCount: { ideal: isIOS() && this.channel === 0 ? 1 : Math.max(2, (this.channel ?? 0) + 1) },
         sampleRate,
         echoCancellation: false,
         noiseSuppression: false,
@@ -135,11 +198,21 @@ export class MicCapture extends EventTarget {
     source.connect(this.node).connect(mute).connect(this.ctx.destination);
     this.node.port.onmessage = (e) => {
       const d = e.data;
-      if (d.type === 'level')
-        this.dispatchEvent(new CustomEvent<Level>('level', { detail: { peak: toDb(d.peak), hot: toDb(d.hot ?? d.peak), rms: toDb(d.rms), inputs: (d.inputs ?? []).map(toDb) } }));
+      if (d.type === 'level') {
+        const inputs = (d.inputs ?? []).map(toDb);
+        this.dispatchEvent(new CustomEvent<Level>('level', { detail: { peak: toDb(d.peak), hot: toDb(d.hot ?? d.peak), rms: toDb(d.rms), inputs } }));
+        this.checkInputs(inputs);
+      }
       if (d.type === 'chunk') this.dispatchEvent(new CustomEvent<Float32Array>('chunk', { detail: d.samples }));
       if (d.type === 'stopped') this.dispatchEvent(new Event('stopped'));
     };
+    // The system can pause the mic (a call, Siri, another app, the page leaving the screen).
+    const tell = () => this.dispatchEvent(new CustomEvent('mic-state', { detail: this.micState() }));
+    const track = this.stream.getAudioTracks()[0];
+    for (const ev of ['mute', 'unmute', 'ended']) track?.addEventListener(ev, tell);
+    this.ctx.addEventListener('statechange', tell);
+    this.silentSince = 0;
+    this.silentTold = false;
     // Without a click on this page, Chrome keeps audio suspended; don't wait on it.
     if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
   }
@@ -168,6 +241,7 @@ export class MicCapture extends EventTarget {
 
   record() {
     this.startedAt = performance.now();
+    this.recording = true;
     if (!MicCapture.pcmRecording || !this.stream) {
       this.node?.port.postMessage('record');
       return;
@@ -200,6 +274,7 @@ export class MicCapture extends EventTarget {
 
   /** Stop recording; resolves after the last partial chunk has been delivered. */
   stop(): Promise<void> {
+    this.recording = false;
     if (this.recorder) {
       const done = this.recorded;
       if (this.recorder.state !== 'inactive') this.recorder.stop();

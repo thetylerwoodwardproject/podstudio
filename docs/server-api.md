@@ -58,7 +58,7 @@ them in, so a leaked code can't bring in strangers or bots.
 | DELETE | `/api/sessions/:id/codes/:role` | host, producer | Revoke → `{ codes }` |
 | POST | `/api/join` `{ code, name }` | anyone | → `{ sessionId, episodeId, role, token, name, admitted: false }`; 404 for an unknown code. The token waits for the host (see Waiting room). |
 | POST | `/api/sessions/:id/end` | host | Ends the session |
-| PUT | `/api/sessions/:id/tracks/:role/segments/:n` | that role | Raw PCM for segment `n` (1-based, `application/octet-stream`); 204. Also sends `upload` to the room. |
+| PUT | `/api/sessions/:id/tracks/:role/segments/:n` | that role | Raw PCM for segment `n` (1-based, `application/octet-stream`); 204. Also sends `upload` to the room. An empty body is refused (400): a segment is never empty, so the client retries. |
 | PUT | `/api/sessions/:id/tracks/:role/meta` | that role | The track's format and timing (below); 204 |
 | GET | `/api/sessions/:id/tracks/:role` | any member | → `{ meta, segments }` (how many segments are stored) |
 | GET | `/api/sessions/:id/tracks/:role/segments/:n` | any member | The segment's bytes |

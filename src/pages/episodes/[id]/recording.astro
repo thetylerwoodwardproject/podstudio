@@ -340,7 +340,7 @@ const zones = [
   import { CUT_PADDING, type SessionMarker } from '@/lib/audio/assemble';
   import { MicCapture, type Level } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
-  import { toFraction, zone } from '@/lib/audio/meter';
+  import { PeakMeter, toFraction, zone } from '@/lib/audio/meter';
   import { TakeWriter, formatBytes, storageLeft, takeBytes } from '@/lib/audio/takes';
   import { markerCounts, markerName } from '@/lib/markers';
   import { isIOS } from '@/lib/platform';
@@ -561,13 +561,23 @@ const zones = [
   let clipAt = 0;
   const held: number[] = [];
   let last: Level | null = null;
+  // Snaps up, falls 12 dB a second; a tick holds the peak of the last 1.5 s (the number shown).
+  const peakMeter = new PeakMeter();
+  const ticks = fills.map((f) => {
+    const t = document.createElement('span');
+    t.className = 'absolute inset-y-0 w-0.5 rounded-full';
+    t.dataset.levelHold = '';
+    t.style.left = '0';
+    t.hidden = true;
+    f.parentElement!.append(t);
+    return t;
+  });
   const onLevel = (l: Level) => {
     last = l;
     windowPeak = Math.max(windowPeak, l.peak);
     if (l.hot > -0.5) clipAt = Date.now();
-    // Fast attack, slow release, like a hardware meter.
-    const target = toFraction(l.peak);
-    shown = target > shown ? target : Math.max(target, shown - 0.015);
+    const m = peakMeter.update(l.peak, performance.now());
+    shown = m.fraction;
     const clipping = Date.now() - clipAt < 1500;
     for (const f of fills) {
       f.style.width = `${shown * 100}%`;
@@ -575,7 +585,12 @@ const zones = [
         ? 'repeating-linear-gradient(90deg,var(--color-subtle) 0 3px,transparent 3px 5px)'
         : clipping
           ? 'var(--color-rec)'
-          : zone(l.peak);
+          : zone(m.db);
+    }
+    for (const t of ticks) {
+      t.hidden = !m.holdFraction || !!cough;
+      t.style.left = `calc(${m.holdFraction * 100}% - 2px)`;
+      t.style.background = clipping ? 'var(--color-rec)' : zone(m.holdDb);
     }
     if (detailsOpen) renderDetails();
     mixer?.host(l.peak);
@@ -608,8 +623,12 @@ const zones = [
       ['Peak', last ? dbText(last.peak) : '—'],
       ['RMS', last ? dbText(last.rms) : '—'],
       ...((last?.inputs.length ?? 0) > 1 ? last!.inputs.map((v, i): [string, string] => [`Input ${i + 1}`, dbText(v)]) : []),
+      ...((last?.inputs.length ?? 0) > 1
+        ? [['Inputs', `${last!.inputs.length}${last!.inputs.map((v, i) => (v < -100 ? ` · input ${i + 1} silent` : '')).join('')}`] as [string, string]]
+        : []),
       ['Clipping', Date.now() - clipAt < 3000 ? 'Yes' : clipAt ? 'Earlier' : 'None'],
-      ['Mic', micLabel || '—'],
+      ['Mic', capture.micState() === 'ok' ? 'On' : `Paused (${capture.micState()})`],
+      ['Device', micLabel || '—'],
       ['Format', formatText()],
     ];
     $('[data-level-rows]').replaceChildren(
@@ -1182,6 +1201,12 @@ const zones = [
       browser: navigator.userAgent,
       recording: MicCapture.pcmRecording ? 'MediaRecorder PCM' : 'AudioWorklet',
       mic: micLabel,
+      chosenInput: settings.deviceId || '(system default)',
+      inputs: await inputChoices(settings.channels).then((c) => c.map((x) => x.label)).catch(() => []),
+      devices: await navigator.mediaDevices.enumerateDevices().then((d) => d.filter((x) => x.kind === 'audioinput').map((x) => ({ label: x.label, default: x.deviceId === 'default' }))).catch(() => []),
+      capture: capture.diagnostics(),
+      micState: capture.micState(),
+      lastLevel: last,
       rate: capture.sampleRate,
       state,
       clock: Math.round(now()),
@@ -1383,10 +1408,58 @@ const zones = [
       action: ['Resume recording', resumeMic],
     });
   }, 500);
+  // The system paused the mic (iOS does for calls, Siri, other apps; browsers keep audio off
+  // until a tap). Checked twice a second; it has to last 1.5 s before it's shown.
+  let micPausedAt = 0;
+  setInterval(() => {
+    if (demo || !capture.ctx) return;
+    const st = capture.micState();
+    if (st === 'ok') {
+      micPausedAt = 0;
+      return warn('mic-paused', null);
+    }
+    micPausedAt ||= Date.now();
+    if (Date.now() - micPausedAt < 1500) return;
+    const waiting = st === 'suspended' && state === 'ready';
+    warn('mic-paused', {
+      level: 2,
+      title: waiting ? 'Tap to turn the mic on' : isIOS() ? 'Mic paused by iOS' : 'Mic paused',
+      body:
+        st === 'muted'
+          ? 'Another app, a call or Siri has the mic. Close it, then tap below.'
+          : st === 'ended'
+            ? 'The mic was closed. Tap below to open it again.'
+            : waiting
+              ? 'The browser keeps audio off until you tap the page. The meter starts when you do.'
+              : 'The audio engine stopped. Tap below to start it again.',
+      action: [waiting ? 'Turn on the mic' : 'Tap to turn the mic back on', resumeMic],
+    });
+  }, 500);
+
+  // The recorded input is silent but another input of the mic has signal (an iPhone's
+  // default route can arrive as two channels): switch before recording, warn during it.
+  capture.addEventListener('silent-input', (e) => {
+    const d = (e as CustomEvent<{ silent: number; live: number; recording: boolean }>).detail;
+    if (!d.recording && capture.useInput(d.live)) {
+      warn('input', { level: 1, title: `Input ${d.silent + 1} was silent`, body: `So Podstudio is using input ${d.live + 1}, where your mic is.` });
+      setTimeout(() => warn('input', null), 8000);
+    } else {
+      warn('input', {
+        level: 2,
+        title: `Input ${d.silent + 1} is silent`,
+        body: `Your mic is on input ${d.live + 1}. End the session and choose it under More → Mic.`,
+      });
+    }
+  });
+
   async function resumeMic() {
     try {
       const live = capture.stream?.getAudioTracks()[0]?.readyState === 'live';
       if (live && capture.ctx) await capture.ctx.resume();
+      else if (!writer) {
+        openedInput = null;
+        await openListening();
+      }
       else {
         // The mic was closed: open it again and carry on into the same file.
         await capture.open({ deviceId: wantedInput, sampleRate: hz(settings.rate), channels: settings.channels });

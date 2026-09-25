@@ -109,6 +109,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
       <div class="mx-auto flex max-w-[860px] items-center gap-3">
         <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
           <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-level-fill></span>
+          <span class="absolute inset-y-0 w-0.5 rounded-full" data-level-hold hidden></span>
         </span>
         <span class="flex-none font-mono text-[11px] text-muted" data-level-text>— dB</span>
         <button
@@ -128,7 +129,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
 <script>
   import { MicCapture, type Level } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
-  import { segmentMeter, toFraction, verdict, zone } from '@/lib/audio/meter';
+  import { PeakMeter, segmentMeter, verdict, zone } from '@/lib/audio/meter';
   import { TakeWriter, segmentFile, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { Prompter } from '@/lib/prompter';
   import { Room, joined, uploadSegment, uploadTrackMeta, type ScriptMode, type SessionState } from '@/lib/room';
@@ -191,18 +192,23 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
   /** Peak since the last live level sent to the host's mixer */
   let livePeak = -Infinity;
   let clipAt = 0;
-  let shown = 0;
+  const peakMeter = new PeakMeter();
   capture.addEventListener('level', (e) => {
     const l = (e as CustomEvent<Level>).detail;
     segs(l.peak);
     windowPeak = Math.max(windowPeak, l.peak);
     livePeak = Math.max(livePeak, l.peak);
     if (l.hot > -0.5) clipAt = Date.now();
-    const target = toFraction(l.peak);
-    shown = target > shown ? target : Math.max(target, shown - 0.015);
+    // Snaps up, falls 12 dB a second; the tick holds the peak of the last 1.5 s (the number shown).
+    const m = peakMeter.update(l.peak, performance.now());
+    const clipping = Date.now() - clipAt < 1500;
     const fill = $('[data-level-fill]');
-    fill.style.width = `${shown * 100}%`;
-    fill.style.background = Date.now() - clipAt < 1500 ? 'var(--color-rec)' : zone(l.peak);
+    fill.style.width = `${m.fraction * 100}%`;
+    fill.style.background = clipping ? 'var(--color-rec)' : zone(m.db);
+    const tick = $('[data-level-hold]');
+    tick.hidden = !m.holdFraction;
+    tick.style.left = `calc(${m.holdFraction * 100}% - 2px)`;
+    tick.style.background = clipping ? 'var(--color-rec)' : zone(m.holdDb);
   });
   setInterval(() => {
     peakHold = [...peakHold.slice(-5), windowPeak];
@@ -431,6 +437,34 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     $('[data-warn-body]').textContent = body;
   }
 
+  // The system paused the mic (iOS does for calls, Siri, other apps): say so, and a tap anywhere resumes it.
+  let micPausedAt = 0;
+  let micWarned = false;
+  setInterval(() => {
+    if (!capture.ctx) return;
+    const st = capture.micState();
+    if (st === 'ok') {
+      micPausedAt = 0;
+      if (micWarned) warn(null);
+      micWarned = false;
+      return;
+    }
+    micPausedAt ||= Date.now();
+    if (Date.now() - micPausedAt < 1500) return;
+    micWarned = true;
+    warn(
+      isIOS() ? 'Mic paused by iOS' : 'Mic paused',
+      st === 'muted' ? 'Another app, a call or Siri has the mic. Close it, then tap anywhere on this page.' : 'Tap anywhere on this page to turn it back on.',
+    );
+  }, 500);
+  addEventListener('pointerdown', () => capture.micState() !== 'ok' && capture.ctx?.resume().catch(() => {}));
+  // The recorded input is silent but another input of the mic has signal: switch before recording.
+  capture.addEventListener('silent-input', (e) => {
+    const d = (e as CustomEvent<{ silent: number; live: number; recording: boolean }>).detail;
+    if (!d.recording && capture.useInput(d.live)) return;
+    warn(`Input ${d.silent + 1} is silent`, `Your mic is on input ${d.live + 1}. Tell the host; your recording carries on.`);
+  });
+
   // Voice follow on the guest's own lines (speaker-lines mode, not on an iPhone).
   function startVoice() {
     if (voice || mode !== 'lines' || !script || isIOS() || !voiceFollowSupported()) return;
@@ -475,7 +509,12 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     w.meta.startedAtServer = Math.round(room.serverNow());
     uploader = new Uploader(
       () => w.meta.segments,
-      async (n) => uploadSegment(m!, 'guest', n, await segmentFile(w.meta, n)),
+      async (n) => {
+        const file = await segmentFile(w.meta, n);
+        // A piece is never empty; if it reads empty it isn't committed yet, so try again.
+        if (!file.size) throw new Error('Piece not saved yet');
+        await uploadSegment(m!, 'guest', n, file);
+      },
     );
     uploadTrackMeta(m!, 'guest', trackMeta(w.meta, false)).catch(() => {});
     (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<unknown> } }).wakeLock?.request('screen').catch(() => {});

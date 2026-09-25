@@ -482,8 +482,10 @@ export class TakeWriter {
         joined.set(c, o);
         o += c.length;
       }
-      this.meta.segments += 1;
-      await writeFile(this.dir, segName(this.meta.segments), pcmBytes(joined, this.meta.bitDepth) as BlobPart);
+      // Counted once it's on disk: an uploader reading `segments` must never see a file still being written.
+      const n = this.meta.segments + 1;
+      await writeFile(this.dir, segName(n), pcmBytes(joined, this.meta.bitDepth) as BlobPart);
+      this.meta.segments = n;
       this.meta.samples += count;
       this.meta.updatedAt = Date.now();
       await writeFile(this.dir, 'meta.json', JSON.stringify(this.meta));

@@ -39,9 +39,35 @@ export function verdict(exact: number): [text: string, color: string, grade: str
   return ['Low · turn the gain up', OK, WARN];
 }
 
+/** How fast a peak meter falls, dB per second (about a broadcast PPM: 20 dB in 1.7 s). */
+export const FALL_DB_PER_S = 12;
+/** How long the peak-hold (and the number beside a meter) keeps the highest peak. */
+export const HOLD_MS = 1500;
+
+/**
+ * Peak-meter ballistics: snaps up to each peak and falls by time, in dB, so it
+ * moves the same however often levels arrive. The hold is the highest peak of
+ * the last HOLD_MS, the number shown beside the meter.
+ */
+export class PeakMeter {
+  private shownDb = -Infinity;
+  private at = 0;
+  private peaks: { db: number; at: number }[] = [];
+
+  update(peakDb: number, now: number) {
+    const fallen = Number.isFinite(this.shownDb) ? this.shownDb - (FALL_DB_PER_S * Math.max(0, now - this.at)) / 1000 : -Infinity;
+    this.shownDb = Math.max(peakDb, fallen);
+    this.at = now;
+    this.peaks.push({ db: peakDb, at: now });
+    while (this.peaks.length && now - this.peaks[0].at > HOLD_MS) this.peaks.shift();
+    const holdDb = Math.max(...this.peaks.map((p) => p.db));
+    return { db: this.shownDb, fraction: toFraction(this.shownDb), holdDb, holdFraction: toFraction(holdDb) };
+  }
+}
+
 /**
  * Drive a row of meter segments from peak levels: coloured by zone, with a fast
- * attack and a slow release like a hardware meter.
+ * attack and a timed release like a hardware meter, and the held peak's segment lit.
  */
 export function segmentMeter(segs: HTMLElement[]) {
   // Each segment's zone is the level at its top edge.
@@ -51,10 +77,11 @@ export function segmentMeter(segs: HTMLElement[]) {
   });
   const unlit = zones.map((z) => `color-mix(in oklab, ${z} 20%, var(--color-line))`);
   segs.forEach((s, i) => (s.style.background = unlit[i]));
-  let shown = 0;
+  const meter = new PeakMeter();
   return (peakDb: number) => {
-    const target = toFraction(peakDb) * segs.length;
-    shown = target > shown ? target : Math.max(target, shown - 0.6);
-    segs.forEach((s, i) => (s.style.background = i < Math.round(shown) ? zones[i] : unlit[i]));
+    const m = meter.update(peakDb, performance.now());
+    const lit = Math.round(m.fraction * segs.length);
+    const hold = Math.ceil(m.holdFraction * segs.length) - 1;
+    segs.forEach((s, i) => (s.style.background = i < lit || (i === hold && m.holdFraction > 0) ? zones[i] : unlit[i]));
   };
 }

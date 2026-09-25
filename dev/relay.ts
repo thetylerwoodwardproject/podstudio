@@ -114,8 +114,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, next: () => voi
         if (!Number.isInteger(n) || n < 1) return json(res, 400, { error: 'Bad segment number' });
         if (req.method === 'PUT') {
           if (!own) return json(res, 403, { error: 'You can only upload your own track' });
+          const data = await body(req);
+          // A piece is never empty: refuse it, so the client sends it again once it's saved.
+          if (!data.length) return json(res, 400, { error: 'Empty segment' });
           await mkdir(dir, { recursive: true });
-          await writeFile(join(dir, segName(n)), await body(req));
+          await writeFile(join(dir, segName(n)), data);
           broadcast(sessionId, { type: 'upload', role: p[3], segments: n });
           return json(res, 204);
         }
