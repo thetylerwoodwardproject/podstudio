@@ -132,13 +132,15 @@ export const trustedDevices = [
 ];
 
 export const shortcuts = [
-  { action: 'Pause / resume', keys: 'Space' },
-  { action: 'Faster / slower (manual mode)', keys: '↑ ↓' },
+  { action: 'Cough (hold)', keys: 'C' },
+  { action: 'Retake the line', keys: 'R' },
+  { action: 'Ad-lib', keys: 'A' },
+  { action: 'More', keys: 'M' },
+  { action: 'Pause / resume', keys: 'P' },
+  { action: 'Undo the last marker', keys: 'U' },
   { action: 'Previous / next line', keys: '← →' },
-  { action: 'Jump to last voice match', keys: 'J' },
-  { action: 'Record from current line', keys: 'R' },
-  { action: 'Mirror this screen', keys: 'M' },
-  { action: 'Text size', keys: '+ −' },
+  { action: 'Jump to section (More open)', keys: '1–9' },
+  { action: 'Text size', keys: '⌘+ ⌘−' },
 ];
 
 export const server = {

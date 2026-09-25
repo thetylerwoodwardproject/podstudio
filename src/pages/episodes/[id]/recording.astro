@@ -905,8 +905,9 @@ const zones = [
     else if (key === 'p') togglePause();
     else if (key === 'u') undo();
     else if (isMoreOpen() && /^[1-9]$/.test(key)) jumpToSection(Number(key) - 1);
-    else if (e.key === 'ArrowRight' && !cough) setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
-    else if (e.key === 'ArrowLeft' && !cough) setWord(starts[Math.max(currentLine - 1, 0)]);
+    // Page turners send PageDown / PageUp.
+    else if ((e.key === 'ArrowRight' || e.key === 'PageDown') && !cough) setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
+    else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && !cough) setWord(starts[Math.max(currentLine - 1, 0)]);
     else return;
     e.preventDefault();
   });
@@ -955,6 +956,7 @@ const zones = [
 
   let manualTimer: number | undefined;
   function startVoice() {
+    if (voice || manualTimer) return;
     // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
     if (prompterSettings.mode === 'manual') {
       manualTimer = window.setInterval(() => {
@@ -962,6 +964,8 @@ const zones = [
       }, 60000 / prompterSettings.wpm);
       return;
     }
+    // iPhone and iPad: manual scroll unless Siri voice follow is switched on in More.
+    if (isIOS() && !iosVoiceOn()) return;
     if (!voiceFollowSupported()) return;
     voice = new VoiceFollow(words);
     voice.engine = prompterSettings.voiceEngine;
@@ -974,8 +978,56 @@ const zones = [
     voice.addEventListener('lost', (e) => startAdlib((e as CustomEvent<{ since: number }>).detail.since));
     // The words that brought the reader back were script, so end a moment before them.
     voice.addEventListener('found', () => endAdlib(1));
-    voice.addEventListener('error', (e) => console.warn('Voice follow:', voiceErrorText((e as CustomEvent<string>).detail)));
+    voice.addEventListener('error', (e) => {
+      console.warn('Voice follow:', voiceErrorText((e as CustomEvent<string>).detail));
+      if (isIOS()) iosFailure();
+    });
+    voice.addEventListener('status', (e) => isIOS() && (e as CustomEvent<string>).detail === 'stopped' && iosFailure());
     voice.start();
+  }
+  function stopVoice() {
+    const v = voice;
+    voice = null;
+    v?.stop();
+  }
+
+  // iOS: Siri voice follow is an experiment, off by default and saved per device. If it
+  // errors or stops more than 3 times in a minute, it turns itself off.
+  const IOS_VOICE_KEY = 'podstudio:ios-voice';
+  const iosVoiceOn = () => {
+    try {
+      return localStorage.getItem(IOS_VOICE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const iosSwitch = $<HTMLInputElement>('[data-ios-voice]');
+  const setIosVoice = (on: boolean) => {
+    try {
+      localStorage.setItem(IOS_VOICE_KEY, on ? '1' : '0');
+    } catch {}
+    iosSwitch.checked = on;
+  };
+  let iosFailures: number[] = [];
+  function iosFailure() {
+    if (!voice) return;
+    const t = Date.now();
+    iosFailures = [...iosFailures.filter((x) => t - x < 60000), t];
+    if (iosFailures.length <= 3) return;
+    iosFailures = [];
+    stopVoice();
+    setIosVoice(false);
+    warn('voice', { level: 1, title: 'Voice follow turned off', body: 'Siri kept stopping, so the script is back to manual scroll. Drag it, or tap a line.' });
+    setTimeout(() => warn('voice', null), 8000);
+  }
+  if (isIOS()) {
+    $('[data-ios-voice-row]').hidden = false;
+    iosSwitch.checked = iosVoiceOn();
+    iosSwitch.addEventListener('change', () => {
+      setIosVoice(iosSwitch.checked);
+      if (iosSwitch.checked) startVoice();
+      else stopVoice();
+    });
   }
 
   // ── Warnings (1h): one at a time, the most serious, then the newest ────────
