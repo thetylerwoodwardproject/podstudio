@@ -6,15 +6,17 @@ import { episode, importPreview } from '@/data/mock';
 interface Props {
   /** Episode the imported script goes to */
   episodeId?: string;
+  /** Its label, "Ep. 142" */
+  label?: string;
 }
-const { episodeId = episode.id } = Astro.props;
+const { episodeId = episode.id, label = `Ep. ${episodeId}` } = Astro.props;
 import { inputClass } from '@/lib/ui';
 ---
 
 <dialog
   id="import-dialog"
   data-episode={episodeId}
-  data-target={`Ep. ${episodeId}`}
+  data-target={label}
   aria-labelledby="import-title"
   class="m-auto w-[min(900px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-edge bg-panel p-0 text-fg backdrop:bg-black/60 md:h-[600px]"
 >

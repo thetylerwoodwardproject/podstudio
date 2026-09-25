@@ -1,10 +1,15 @@
 ---
 // 2e · Transcript + episode package (titles, description, social, chapters, soundbites)
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths, limits, pkg, transcript } from '@/data/mock';
+import { episode as mockEpisode, limits, pkg, transcript } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 
 const base = `/episodes/${episode.id}`;
 const tabs = [
@@ -20,6 +25,7 @@ const counter = 'meta text-right text-subtle data-[over]:text-rec';
 ---
 
 <AppShell title="Episode package" avatar={false} crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}>
+  <EpisodeData data={data} />
   <Fragment slot="topbar">
     <Button class:list={[topBtn, 'max-lg:hidden']}>↓ WAV</Button>
     <Button class:list={[topBtn, 'max-lg:hidden']}>↓ Transcript (.txt · .srt · .vtt)</Button>

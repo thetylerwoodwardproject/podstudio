@@ -138,9 +138,15 @@ function write(key: string, value: unknown) {
 }
 
 export const loadShowPads = (): PadSet => read<PadSet>(SHOW_KEY, []);
-export const saveShowPads = (set: PadSet) => write(SHOW_KEY, set);
+export const saveShowPads = (set: PadSet) => {
+  write(SHOW_KEY, set);
+  import('./sync').then((s) => s.pushPads(null));
+};
 export const loadEpisodePads = (episodeId: string): PadSet => read<PadSet>(epKey(episodeId), []);
-export const saveEpisodePads = (episodeId: string, set: PadSet) => write(epKey(episodeId), set);
+export const saveEpisodePads = (episodeId: string, set: PadSet) => {
+  write(epKey(episodeId), set);
+  import('./sync').then((s) => s.pushPads(episodeId));
+};
 export const loadPadSettings = (): PadSettings => ({ ...defaultPadSettings, ...read<Partial<PadSettings>>(SETTINGS_KEY, {}) });
 export const savePadSettings = (patch: Partial<PadSettings>) => write(SETTINGS_KEY, { ...loadPadSettings(), ...patch });
 export const padsFor = (episodeId: string) => effectivePads(loadShowPads(), loadEpisodePads(episodeId));
@@ -175,15 +181,29 @@ export async function saveLibraryFile(stereo: Float32Array, info: { name: string
   const id = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const file: LibraryFile = { id, name: info.name, source: info.source, seconds: stereo.length / 2 / LIBRARY_RATE, addedAt: Date.now() };
   const dir = await libraryDir();
-  await put(dir, `${id}.wav`, encodeWav([stereo], { sampleRate: LIBRARY_RATE, bitDepth: 16, channels: 2 }));
+  const wav = encodeWav([stereo], { sampleRate: LIBRARY_RATE, bitDepth: 16, channels: 2 });
+  await put(dir, `${id}.wav`, wav);
   await put(dir, `${id}.json`, JSON.stringify(file));
+  // To the server's library too, so other browsers (and the Pads track at export) have it.
+  const q = new URLSearchParams({ name: file.name, seconds: String(file.seconds), ...(file.source ? { source: file.source } : {}) });
+  await fetch(`/api/media/${id}?${q}`, { method: 'PUT', body: wav, credentials: 'same-origin' }).catch(() => {});
   return file;
 }
 
 /** A library file's audio: interleaved stereo floats at 48 kHz. */
 export async function readLibraryFile(id: string): Promise<Float32Array> {
   const { parseWav, wavFloats } = await import('./audio/wav-read');
-  const bytes = await (await (await (await libraryDir()).getFileHandle(`${id}.wav`)).getFile()).arrayBuffer();
+  const dir = await libraryDir();
+  let bytes: ArrayBuffer;
+  try {
+    bytes = await (await (await dir.getFileHandle(`${id}.wav`)).getFile()).arrayBuffer();
+  } catch {
+    // Not in this browser yet: from the server's library, kept here for next time.
+    const res = await fetch(`/api/media/${id}`, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Sound not found');
+    bytes = await res.arrayBuffer();
+    await put(dir, `${id}.wav`, bytes);
+  }
   const info = parseWav(new DataView(bytes));
   if (!info) throw new Error('Not a WAV file');
   return wavFloats(bytes.slice(info.dataOffset, info.dataOffset + info.dataBytes), info);
@@ -191,11 +211,17 @@ export async function readLibraryFile(id: string): Promise<Float32Array> {
 
 export async function listLibrary(): Promise<LibraryFile[]> {
   const out: LibraryFile[] = [];
+  // The server's library first (every sound uploaded from any browser), then anything only here.
+  try {
+    const res = await fetch('/api/media', { credentials: 'same-origin' });
+    if (res.ok) out.push(...((await res.json()) as { media: LibraryFile[] }).media);
+  } catch {}
   const dir = await libraryDir();
   for await (const [name, handle] of dir as unknown as AsyncIterable<[string, FileSystemFileHandle]>) {
     if (!name.endsWith('.json')) continue;
     try {
-      out.push(JSON.parse(await (await handle.getFile()).text()));
+      const f = JSON.parse(await (await handle.getFile()).text()) as LibraryFile;
+      if (!out.some((x) => x.id === f.id)) out.push(f);
     } catch {}
   }
   return out.sort((a, b) => b.addedAt - a.addedAt);

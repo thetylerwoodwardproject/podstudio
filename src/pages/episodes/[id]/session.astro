@@ -1,10 +1,15 @@
 ---
 // 8b · After a continuous session: export options
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths, scriptLines } from '@/data/mock';
+import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 
 const pauseModes = [
   { value: 'cut', title: 'Cut', body: 'Remove the paused stretch.' },
@@ -16,6 +21,7 @@ const greenSwitch =
 ---
 
 <AppShell title="Session export" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Export' }]}>
+  <EpisodeData data={data} />
   <form
     class="group/s flex min-h-full flex-col gap-6 px-6 py-8 lg:px-11"
     id="session"

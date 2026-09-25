@@ -30,6 +30,13 @@ authentication (an authenticator app, plus ten one-time recovery codes). After t
   (revoke any), and changing the password, which signs out every other browser. Sign out is at the bottom of
   the settings list.
 - **Guests and producers don't need an account**: they join with a 6-digit code, and you let them in.
+
+**What's on the server:** episodes (the home page lists them; **+ New episode** takes the next number), each
+episode's script, show setup (solo or with a guest, script mode, talking points) and hotkey pads, and the pad
+sound library. Pages are rendered with the server's copy and it's kept in this browser too, so the recording
+screen works offline; a change made offline goes up on the next page load. Scripts carry a version, so a tab
+with an old copy can't overwrite a newer one (it takes the newer copy instead). Recordings are still made and
+kept in this browser; they upload in the next step.
 - Passwords are hashed with scrypt; the session cookie is random and only its hash is stored; sign-in and
   codes are limited to 10 tries per 15 minutes.
 
@@ -150,12 +157,15 @@ server/
   accounts.ts, auth.ts      setup, sign-in, TOTP 2FA, recovery codes, trusted devices (node:crypto only)
   guard.ts                  which pages need an account (they're static files, so it runs in front of them)
   cli.ts                    reset-password, reset-2fa
+  library.ts                episodes, scripts (versioned), show setup, pads, the sound library (media/)
 dev/server-plugin.ts        mounts server/api.ts in npm run dev
 docs/server-api.md          the API for guests and producers
 src/
   styles/global.css     design tokens (@theme), base styles, the eyebrow/meta utilities
   data/mock.ts          all mock content: episode, script, transcript, package, settings
   data/waveforms.ts     waveform bar heights taken from the design
+  lib/api.ts, sync.ts   calls to the server; saves go to this browser first, then the server (unsent ones retried)
+  lib/episode-page.ts   episode pages read their data from the server as they render (EpisodeData)
   lib/
     audio/capture.ts    mic capture: MediaRecorder PCM, or the AudioWorklet (public/worklets/recorder.js) on iOS; levels
     audio/webm-pcm.ts   reads the samples out of Chrome's PCM WebM as it arrives

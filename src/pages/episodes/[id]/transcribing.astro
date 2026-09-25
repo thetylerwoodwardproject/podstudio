@@ -1,12 +1,18 @@
 ---
 // 2d · Episode wrapped → transcribing with Whisper
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import Base from '@/layouts/Base.astro';
-import { episode, episodePaths, transcribeSteps } from '@/data/mock';
+import { episode as mockEpisode, transcribeSteps } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 ---
 
 <Base title="Transcribing">
+  <EpisodeData data={data} />
   <div class="flex min-h-dvh items-center justify-center p-4">
     <div
       class="flex w-full max-w-[720px] flex-col gap-7 rounded-[10px] bg-ink p-8 sm:min-h-[520px] sm:p-11"

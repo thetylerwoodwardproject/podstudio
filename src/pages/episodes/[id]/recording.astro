@@ -8,14 +8,19 @@
  * ?demo&state=ready|rec|cough|retake|adlib|more|paused|mic shows the design's
  * example states without a mic.
  */
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import PadRail from '@/components/app/PadRail.astro';
 import PadStrip from '@/components/app/PadStrip.astro';
 import MixerLanes from '@/components/app/MixerLanes.astro';
-import { episode, episodePaths, user } from '@/data/mock';
+import { episode as mockEpisode, user } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 
 // Phone: a 4-column grid of 52 px buttons with a mono sub-label. Laptop: pills with a key badge.
 const btn =
@@ -31,6 +36,7 @@ const zones = [
 ---
 
 <Base title="Recording" bodyClass="bg-void!">
+  <EpisodeData data={data} />
   <div
     id="recording"
     class="group/r relative flex h-dvh flex-col overflow-hidden bg-void text-fg"

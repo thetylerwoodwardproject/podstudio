@@ -1,13 +1,18 @@
 ---
 // 1c · Studio: the script, the recording format and how it scrolls, then Start.
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths, studioScript } from '@/data/mock';
+import { episode as mockEpisode, studioScript } from '@/data/mock';
 import { mbPerMinute } from '@/lib/audio/format';
 import { modeInfo } from '@/lib/show';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 const inviteRow = 'flex flex-col gap-1.5';
 
 const base = `/episodes/${episode.id}`;
@@ -22,6 +27,7 @@ const menu = [
 ---
 
 <AppShell title="Studio" crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}>
+  <EpisodeData data={data} />
   <form
     class="grid lg:h-full lg:grid-cols-[1fr_380px]"
     data-studio

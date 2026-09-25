@@ -1,11 +1,16 @@
 ---
 // 3a · Script editor: one host reading, in sections.
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
 import ImportDialog from '@/components/app/ImportDialog.astro';
-import { episode, episodePaths, scriptLines } from '@/data/mock';
+import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 ---
 
 <AppShell
@@ -13,6 +18,7 @@ export const getStaticPaths = episodePaths;
   avatar={false}
   crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}
 >
+  <EpisodeData data={data} />
   <Fragment slot="topbar">
     <Button href={`/episodes/${episode.id}/studio`} variant="record" size="md" class="gap-2.5 px-5">
       <span class="size-2 rounded-full bg-white"></span>
@@ -60,7 +66,7 @@ export const getStaticPaths = episodePaths;
       </div>
     </section>
   </div>
-  <ImportDialog episodeId={episode.id} />
+  <ImportDialog episodeId={episode.id} label={episode.label} />
   <template id="script-section"><div class="eyebrow pt-2"></div></template>
 </AppShell>
 

@@ -56,6 +56,7 @@ export function saveShow(episodeId: string, patch: Partial<ShowSetup>): ShowSetu
   try {
     localStorage.setItem(key(episodeId), JSON.stringify(next));
   } catch {}
+  import('./sync').then((s) => s.pushShow(episodeId));
   return next;
 }
 

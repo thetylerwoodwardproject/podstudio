@@ -29,6 +29,7 @@ export function createApi(ctx: Context): Api {
     // Guests and producers use their session token, not an account.
     if (await live.handle(req, res, url, p)) return;
     if (!accounts.allowed(req)) throw new HttpError(401, 'Sign in first');
+    if (await ctx.library.handle(req, res, url, p)) return;
     throw new HttpError(404, 'Not found');
   };
 

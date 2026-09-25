@@ -54,12 +54,14 @@ export function saveScriptText(episodeId: string, text: string) {
   } catch {
     // Storage blocked: the change lasts for this page only.
   }
+  import('./sync').then((s) => s.pushScript(episodeId));
 }
 
 export function resetScript(episodeId: string) {
   try {
     localStorage.removeItem(key(episodeId));
   } catch {}
+  import('./sync').then((s) => s.pushScript(episodeId));
 }
 
 /** Script lines back to import-format text. */

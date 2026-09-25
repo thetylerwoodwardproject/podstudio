@@ -5,7 +5,33 @@ import Button from '@/components/ui/Button.astro';
 import Callout from '@/components/ui/Callout.astro';
 import Dot from '@/components/ui/Dot.astro';
 import ImportDialog from '@/components/app/ImportDialog.astro';
-import { library, statusColor, storage } from '@/data/mock';
+import { statusColor } from '@/data/mock';
+import { statfsSync } from 'node:fs';
+import { context } from '../../server/context.ts';
+
+export const prerender = false;
+const ctx = context();
+const day = (t: number) => {
+  const d = new Date(t);
+  return d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+const library = ctx.library.list().map((e) => ({
+  title: e.fullTitle,
+  status: (e.sessions ? 'Recorded' : 'Draft') as keyof typeof statusColor,
+  words: e.words != null ? `${e.words.toLocaleString('en-US')} words` : e.id === '142' ? 'Example' : '—',
+  sessions: e.sessions ? `${e.sessions} session${e.sessions === 1 ? '' : 's'}` : '—',
+  length: '—',
+  updated: day(e.updatedAt),
+  href: `/episodes/${e.id}/script`,
+}));
+// The data folder's disk: warn when it's getting full (24-bit / 48 kHz mono is about 518 MB an hour).
+let storage: { usedGb: number; totalGb: number; pct: number; hoursLeft: number } | null = null;
+try {
+  const fs = statfsSync(ctx.config.data);
+  const total = fs.blocks * fs.bsize;
+  const free = fs.bavail * fs.bsize;
+  storage = { usedGb: Math.round((total - free) / 1e9), totalGb: Math.round(total / 1e9), pct: Math.round(((total - free) / total) * 100), hoursLeft: Math.floor(free / (48000 * 3 * 3600)) };
+} catch {}
 
 const filters = ['All', 'Drafts', 'Recorded', 'Published'];
 const filterOf: Record<string, string> = { Draft: 'Drafts', Recorded: 'Recorded', Transcribed: 'Recorded', Published: 'Published' };
@@ -14,11 +40,15 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
 
 <AppShell title="Episodes" crumbs={[{ label: 'Episodes' }]}>
   <div class="flex flex-col gap-5.5 px-9 py-7 lg:h-full lg:overflow-auto">
-    <Callout title={`Server storage is ${storage.pct}% full`} color="var(--color-warn)">
-      {storage.usedGb} GB of {storage.totalGb} GB used. That leaves about {storage.hoursLeft} hours of 24-bit / 48 kHz audio.
-      Download and delete old sessions, or add space.
-      <Button slot="action" href="/settings/server">Manage storage</Button>
-    </Callout>
+    {
+      storage && storage.pct >= 80 && (
+        <Callout title={`Server storage is ${storage.pct}% full`} color="var(--color-warn)">
+          {storage.usedGb} GB of {storage.totalGb} GB used. That leaves about {storage.hoursLeft} hours of 24-bit / 48 kHz audio.
+          Download and delete old sessions, or add space.
+          <Button slot="action" href="/settings/server">Manage storage</Button>
+        </Callout>
+      )
+    }
 
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex gap-5.5 text-[14px]" role="radiogroup" aria-label="Filter episodes">
@@ -40,7 +70,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
           class="h-10 w-65 rounded-lg border border-edge bg-transparent px-3 text-[13px] placeholder:text-faint focus:border-fg focus:outline-none"
         />
         <Button data-open-import>Import script</Button>
-        <Button variant="primary">+ New episode</Button>
+        <Button variant="primary" data-new-episode>+ New episode</Button>
       </div>
     </div>
 
@@ -80,6 +110,15 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
 </AppShell>
 
 <script>
+  import { api } from '@/lib/api';
+
+  document.querySelector('[data-new-episode]')!.addEventListener('click', async () => {
+    const title = prompt('Episode title', '');
+    if (title == null) return;
+    const r = await api<{ episode: { id: string } }>('episodes', { body: { title } });
+    location.href = `/episodes/${r.episode.id}/script`;
+  });
+
   const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')];
   const search = document.querySelector<HTMLInputElement>('[data-search]')!;
   const update = () => {

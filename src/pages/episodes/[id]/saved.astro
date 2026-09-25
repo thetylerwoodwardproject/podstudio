@@ -1,14 +1,20 @@
 ---
 // 1i · Session ended: what was saved, then transcribe, listen or record another
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import Base from '@/layouts/Base.astro';
-import { episode, episodePaths } from '@/data/mock';
+import { episode as mockEpisode } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 
 const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5';
 ---
 
 <Base title="Session saved">
+  <EpisodeData data={data} />
   <div class="mx-auto flex min-h-dvh max-w-[480px] flex-col px-6 pt-14 pb-[max(24px,env(safe-area-inset-bottom))]" id="saved" data-episode={episode.id}>
     <div class="flex size-10 items-center justify-center rounded-full bg-ok text-[20px] text-ink" aria-hidden="true">✓</div>
     <h1 class="mt-5 text-[26px] tracking-[-0.02em]">Session saved</h1>

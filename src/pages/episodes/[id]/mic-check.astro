@@ -1,8 +1,11 @@
 ---
+import { episodePage } from '@/lib/episode-page';
 import MicCheck from '@/components/app/MicCheck.astro';
-import { episodePaths } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = data.episode;
 ---
 
-<MicCheck />
+<MicCheck episode={episode} data={data} />

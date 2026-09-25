@@ -3,7 +3,15 @@
 import AppShell from '@/layouts/AppShell.astro';
 import StatusRow from '@/components/ui/StatusRow.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, lineStarts, scriptWords } from '@/data/mock';
+import { episode as mockEpisode, lineStarts, scriptWords } from '@/data/mock';
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import type { EpisodeData as Data } from '@/lib/episode-page';
+
+interface Props {
+  episode?: { id: string; label: string; fullTitle: string };
+  data?: Data;
+}
+const { episode = mockEpisode, data } = Astro.props;
 import Select from '@/components/ui/Select.astro';
 import LevelMeter from '@/components/audio/LevelMeter.astro';
 
@@ -34,6 +42,7 @@ const c = {
 ---
 
 <AppShell title={c.title} avatar={false} crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Green room' }]}>
+  {data && <EpisodeData data={data} />}
 
   <form
     class="grid lg:min-h-full lg:grid-cols-[1fr_400px]"

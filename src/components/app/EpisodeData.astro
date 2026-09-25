@@ -1,0 +1,40 @@
+---
+/*
+ * The server's copy of an episode's script, show setup and pads, written to
+ * this browser's storage before the page's own scripts run (lib/sync.ts sends
+ * changes back). A copy changed here but not yet sent (offline) is kept.
+ */
+import type { EpisodeData } from '@/lib/episode-page';
+
+interface Props {
+  data: EpisodeData;
+}
+const { data } = Astro.props;
+const payload = { id: data.episode.id, script: data.script, setup: data.setup, pads: data.pads };
+---
+
+<script is:inline define:vars={{ payload }}>
+  try {
+    const ls = localStorage;
+    const put = (key, value) => {
+      // A local change that hasn't reached the server yet wins; it's sent on this page load.
+      if (ls.getItem(key + ':dirty')) return;
+      if (value == null) ls.removeItem(key);
+      else ls.setItem(key, value);
+    };
+    const id = payload.id;
+    put('podstudio:script:' + id, payload.script ? payload.script.text : null);
+    if (!ls.getItem('podstudio:script:' + id + ':dirty')) ls.setItem('podstudio:script:' + id + ':v', String(payload.script ? payload.script.version : 0));
+    put('podstudio:show:' + id, payload.setup ? JSON.stringify(payload.setup) : null);
+    put('podstudio:pads:show', JSON.stringify(payload.pads.show));
+    put('podstudio:pads:ep:' + id, JSON.stringify(payload.pads.episode));
+  } catch (e) {}
+</script>
+
+<span hidden data-episode-sync={data.episode.id}></span>
+<script>
+  import { flushPending } from '@/lib/sync';
+
+  const el = document.querySelector<HTMLElement>('[data-episode-sync]');
+  if (el) flushPending(el.dataset.episodeSync!);
+</script>

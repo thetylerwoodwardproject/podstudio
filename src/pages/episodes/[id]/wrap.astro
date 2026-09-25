@@ -1,15 +1,21 @@
 ---
 // After a session with a guest: your track is saved; wait for the guest's to finish
 // uploading, bring it into this browser, then export both.
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths } from '@/data/mock';
+import { episode as mockEpisode } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 const row = 'flex items-center gap-4 border-b border-line py-4';
 ---
 
 <AppShell title="Wrapping up" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Wrapping up' }]}>
+  <EpisodeData data={data} />
   <div class="mx-auto flex w-full max-w-[640px] flex-col gap-6 px-6 py-10" id="wrap" data-episode={episode.id}>
     <div>
       <h1 class="text-[24px] tracking-[-0.02em]">Wrapping up</h1>

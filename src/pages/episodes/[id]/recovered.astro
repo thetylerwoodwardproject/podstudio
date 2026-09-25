@@ -1,11 +1,16 @@
 ---
 // 5f · Recovered session after a crash
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import Base from '@/layouts/Base.astro';
 import Dot from '@/components/ui/Dot.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths } from '@/data/mock';
+import { episode as mockEpisode } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 
 const base = `/episodes/${episode.id}`;
 const rows = [
@@ -17,6 +22,7 @@ const rows = [
 ---
 
 <Base title="We saved your session">
+  <EpisodeData data={data} />
   <dialog
     open
     aria-labelledby="recovered-title"

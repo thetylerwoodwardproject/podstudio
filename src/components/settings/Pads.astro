@@ -180,8 +180,11 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
     type PadSettings,
   } from '@/lib/pads';
 
+  import { pullEpisode } from '@/lib/sync';
+
   const root = document.querySelector<HTMLElement>('[data-pads-editor]');
-  if (root) editor(root);
+  // The server's pads first (this page is the same for every episode, so it isn't rendered with them).
+  if (root) pullEpisode(new URL(location.href).searchParams.get('episode') || root.dataset.episode!).then(() => editor(root));
 
   function editor(root: HTMLElement) {
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;

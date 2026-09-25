@@ -1,15 +1,21 @@
 ---
 // This episode's recorded sessions: play, open to export, download, delete
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
-import { episode, episodePaths } from '@/data/mock';
+import { episode as mockEpisode } from '@/data/mock';
 
-export const getStaticPaths = episodePaths;
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
 
 const base = `/episodes/${episode.id}`;
 ---
 
 <AppShell title="Sessions" crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Sessions' }]}>
+  <EpisodeData data={data} />
   <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-8" id="sessions" data-episode={episode.id}>
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
