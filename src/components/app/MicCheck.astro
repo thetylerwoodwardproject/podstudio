@@ -37,7 +37,7 @@ const c = guest
       inputs: ['Shure MV7 (USB)', 'MacBook Pro Microphone'],
       heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
       checks: [
-        ['Level', 'Good · peaks around -8', ok],
+        ['Level', 'In the sweet spot · peaks around -8', ok],
         ['Clipping', 'None in the last 30 s', ok],
         ['Noise floor', '-61 dBFS', ok],
         ['Voice follow', 'Matched line 1', ok],
@@ -87,12 +87,12 @@ const LIT = 30;
       </div>
 
       <div class="flex flex-col gap-2">
-        <div class="flex items-baseline justify-between gap-3 text-[12px]" data-live-only>
-          <span class="text-muted">Recorded level</span>
-          <span class="font-mono text-fg-soft" data-readout>Peak — · RMS —</span>
+        <!-- Where speech should peak: -12 to -6 dBFS (half to three quarters of the meter) -->
+        <div class="relative h-5 font-mono text-[10px] font-medium tracking-[0.08em]" aria-hidden="true">
+          <span class="absolute inset-y-0 left-1/2 flex w-1/4 items-start justify-center rounded-t-[4px] border-x border-t border-ok/60 pt-[3px] text-ok">SWEET SPOT</span>
         </div>
         <div
-          class="flex gap-[3px]"
+          class="-mt-2 flex gap-[3px]"
           role="meter"
           aria-label="Input level"
           aria-valuemin="-60"
@@ -105,12 +105,12 @@ const LIT = 30;
         <div class="flex justify-between font-mono text-[11px] text-faint">
           <span>-60</span><span>-24</span><span>-12</span><span>-6</span><span class="text-rec">0 dBFS</span>
         </div>
-        <div class="flex items-center justify-between gap-3 text-[12px] text-subtle" data-live-only>
-          <span data-max>Highest peak —</span>
-          <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
+        <!-- One plain-language line: where the level is and what to do about it -->
+        <div class="mt-1.5 flex items-center gap-2.5" data-live-only>
+          <span class="inline-block size-2.5 flex-none rounded-full bg-faint" data-status-dot></span>
+          <span class="text-[16px]" data-status>Talk at your normal volume</span>
+          <span class="ml-auto font-mono text-[13px] text-muted" data-status-peak></span>
         </div>
-        <!-- One meter per input of an interface, to compare with its own meters -->
-        <div class="mt-1 flex flex-col gap-1.5" data-live-only data-input-meters hidden></div>
       </div>
 
       {
@@ -120,8 +120,7 @@ const LIT = 30;
               <div class="min-w-0">
                 <div class="text-[14px]">Test recording</div>
                 <div class="mt-0.5 text-[12px] text-subtle" data-test-hint>
-                  Record 10 seconds at your loudest, then play it back. It goes through the same path as a session, so
-                  what you hear is what you’ll get.
+                  Say a few lines at your loudest, then play it back. It’s recorded exactly like a session.
                 </div>
               </div>
               <button
@@ -139,22 +138,40 @@ const LIT = 30;
         )
       }
 
-      <div class="rounded-xl bg-surface px-4 py-3.5 text-[17px] leading-normal">
+      <div class="rounded-xl bg-surface px-4 py-3 text-[15px] leading-normal">
         <span class="text-faint">Heard:</span>
         <span data-heard>{c.heard}</span>
       </div>
+
+      <!-- The numbers, for comparing with an interface's own meters -->
+      <details class="group rounded-xl border border-line" data-live-only>
+        <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] text-muted hover:text-fg">
+          Details
+          <span class="text-faint transition-transform group-open:rotate-180">▾</span>
+        </summary>
+        <div class="flex flex-col gap-3 border-t border-line px-4 pt-3 pb-4">
+          <div class="flex items-baseline justify-between gap-3 font-mono text-[12px]">
+            <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
+            <span class="flex items-center gap-3 text-subtle">
+              <span data-max>Highest peak —</span>
+              <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
+            </span>
+          </div>
+          <!-- One meter per input of an interface, to compare with its own meters -->
+          <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
+          <div class="flex flex-col">
+            <StatusRow label="Device" value="…" dense data-opened="device" />
+            <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
+            <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="flex flex-col gap-1">
       <h2 class="eyebrow">Checks</h2>
       {c.checks.map(([k, v, color], i) => <StatusRow label={k} value={v} color={color} dense data-check={i} />)}
       <p class="mt-2.5 text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
-      <div class="mt-5 flex flex-col" data-live-only>
-        <h2 class="eyebrow mb-1">Browser input</h2>
-        <StatusRow label="Device" value="…" dense data-opened="device" />
-        <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
-        <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
-      </div>
       <div class="mt-auto pt-6">
         {
           guest ? (
@@ -194,9 +211,13 @@ const LIT = 30;
     const ok = 'var(--color-ok)';
     const warn = 'var(--color-warn)';
     const bad = 'var(--color-rec)';
+    const faint = 'var(--color-faint)';
 
+    // Clipping, noise floor and free space only show when they need attention.
+    const quiet = new Set([1, 2, 4]);
     const check = (i: number, value: string, color?: string) => {
       const row = form.querySelector<HTMLElement>(`[data-check="${i}"]`)!;
+      if (quiet.has(i)) row.hidden = color !== warn && color !== bad;
       row.querySelector('[data-value]')!.textContent = value;
       const dot = row.querySelector<HTMLElement>('[data-dot]')!;
       dot.hidden = !color;
@@ -226,15 +247,30 @@ const LIT = 30;
       }
       return 1;
     };
-    // Zones, as on a hardware meter: green up to -6 dBFS (where peaks should stay),
-    // amber to -2 (hot), red above.
-    const levelColor = (db: number) => (db > -2 ? bad : db > -6 ? warn : ok);
+    // Zones: speech should peak in the sweet spot, -12 to -6 dBFS (green). Amber to -2
+    // is hot, red above; below the sweet spot the meter stays neutral.
+    const neutral = 'var(--color-fg)';
+    const levelColor = (db: number) => (db > -2 ? bad : db > -6 ? warn : db >= -12 ? ok : neutral);
+    // Judged on the whole-dB value the screen shows, so a peak shown as -12 or -6 is in.
+    const verdict = (exact: number): [string, string] => {
+      const db = Math.round(exact);
+      return db > -2
+        ? ['Too hot · turn the gain down', bad]
+        : db > -6
+          ? ['A little hot · turn the gain down a touch', warn]
+          : db >= -12
+            ? ['In the sweet spot', ok]
+            : db >= -18
+              ? ['A little quiet · turn the gain up a touch', warn]
+              : ['Quiet · turn the gain up', warn];
+    };
     // Each segment's colour is its zone: the level at the segment's top edge.
     const zoneOf = (i: number) => {
       const f = (i + 1) / segs.length;
-      return f > toFraction(-2) ? bad : f > toFraction(-6) ? warn : ok;
+      return f > toFraction(-2) ? bad : f > toFraction(-6) ? warn : f > toFraction(-12) ? ok : neutral;
     };
-    segs.forEach((seg, i) => (seg.style.background = `color-mix(in oklab, ${zoneOf(i)} 16%, var(--color-line))`));
+    const unlit = (i: number) => (zoneOf(i) === neutral ? 'var(--color-line)' : `color-mix(in oklab, ${zoneOf(i)} 22%, var(--color-line))`);
+    segs.forEach((seg, i) => (seg.style.background = unlit(i)));
 
     const capture = new MicCapture();
     const peaks: { t: number; db: number }[] = [];
@@ -313,7 +349,7 @@ const LIT = 30;
       segs.forEach((s, i) => {
         const lit = i < Math.round(shown);
         const zone = zoneOf(i);
-        s.style.background = lit ? zone : `color-mix(in oklab, ${zone} 16%, var(--color-line))`;
+        s.style.background = lit ? zone : unlit(i);
       });
       meter.setAttribute('aria-valuenow', String(Math.round(peak)));
     });
@@ -321,13 +357,21 @@ const LIT = 30;
     setInterval(() => {
       if (!capture.ctx) return;
       const max = Math.min(0, Math.max(...peaks.map((p) => p.db)));
-      if (offInput && Date.now() - offInput.since > 1500) check(0, `Your voice is on Input ${offInput.i + 1} · pick it above`, warn);
-      else if (!Number.isFinite(max) || max < -45) check(0, 'Waiting for your voice', warn);
-      else if (max > -6) check(0, `Hot · peaks around ${Math.round(max) || 0} · aim for -6 or lower`, warn);
-      else if (max < -30) check(0, `Quiet · peaks around ${Math.round(max) || 0}`, warn);
-      else check(0, `Good · peaks around ${Math.round(max) || 0}`, ok);
-
       const since = Math.round((Date.now() - lastClip) / 1000);
+      // One verdict for the line under the meter and the Level check.
+      const [text, color] =
+        offInput && Date.now() - offInput.since > 1500
+          ? [`Your voice is on Input ${offInput.i + 1} · pick it above`, warn]
+          : lastClip && since < 5
+            ? ['Clipping · turn the gain down', bad]
+            : !Number.isFinite(max) || max < -45
+              ? ['Talk at your normal volume', faint]
+              : verdict(max);
+      $('[data-status]').textContent = text;
+      $('[data-status-dot]').style.background = color;
+      $('[data-status-peak]').textContent = Number.isFinite(max) && max >= -45 ? `peaks ${Math.round(max) || 0} dBFS` : '';
+      check(0, text === 'Talk at your normal volume' ? 'Waiting for your voice' : text, color === faint ? warn : color);
+
       if (lastClip && since < 30) check(1, `Clipped ${since} s ago`, bad);
       else check(1, `None in the last ${Math.min(30, Math.round((Date.now() - started) / 1000))} s`, ok);
 
@@ -439,11 +483,10 @@ const LIT = 30;
       const db = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
       const result = $('[data-test-result]');
       result.hidden = false;
-      result.style.color = levelColor(db);
-      result.textContent = !t.chunks.length
-        ? 'Nothing was recorded'
-        : `File peak ${dbText(Math.min(0, db))} dBFS · ${full ? `${full} samples at full scale: turn the gain down` : db > -6 ? 'hot: aim for -6 or lower' : db < -30 ? 'quiet: turn the gain up' : 'no clipping'}`;
-      check(5, full ? 'Clipped · turn the gain down' : `Done · peak ${Math.round(db)}`, full ? bad : db > -6 ? warn : ok);
+      const [text, color] = full ? ['Clipped · turn the gain down', bad] : verdict(db);
+      result.style.color = color;
+      result.textContent = !t.chunks.length ? 'Nothing was recorded' : `Peak ${dbText(Math.min(0, db))} dBFS · ${full ? `${full} samples clipped` : text.toLowerCase()}`;
+      check(5, full ? 'Clipped · turn the gain down' : `Done · ${text.split(' · ')[0].toLowerCase()}`, color);
     }
 
     let voice: VoiceFollow | null = null;
