@@ -1,6 +1,6 @@
 /*
  * Marker tones mixed into an exported recording: a short beep at each retake
- * (and, if chosen, cough cuts, ad-libs, pauses and gaps), so the places to edit
+ * (and, if chosen, coughs, ad-libs, pauses and gaps), so the places to edit
  * can be heard. The tones sit under the voice: while someone is talking they're
  * ducked, with an attack (how fast they drop when speech starts) and a release
  * (how fast they come back when it stops), like a sidechain ducker.

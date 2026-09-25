@@ -185,7 +185,7 @@ const greenSwitch =
 </AppShell>
 
 <script>
-  import { assemble, audacityLabels, mapTime, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
+  import { assemble, audacityLabels, mapTime, mutes, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName, padLabel } from '@/lib/markers';
   import { hasPads, renderPads, renderRoughMix, stereoOf } from '@/lib/audio/pads-export';
   import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, type TakeMeta } from '@/lib/audio/takes';
@@ -271,6 +271,11 @@ const greenSwitch =
       $('[data-pads-count]').textContent = `${n} press${n === 1 ? '' : 'es'}, each a marker named like “${padLabel(markers.find((m) => m.kind === 'pad')!)}”.`;
     }
 
+    const guestTrack = tracks.find((t) => t !== take);
+    const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
+    const whoName = (m: SessionMarker) => (m.who === 'guest' ? (guestTrack ? cap(guestTrack.speaker) : take.guest?.name ?? 'Guest') : cap(take.speaker));
+    /** Each person's coughs, muted in their own edit (seconds of their own track). */
+    const mutedFor = (t: TakeMeta) => aligned(t, mutes(wallMarkers, t === take ? 'host' : 'guest', duration));
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
     const describe = (m: SessionMarker) =>
       m.kind === 'pad'
@@ -279,7 +284,7 @@ const greenSwitch =
         ? `Retake · Line ${m.line + 1} · attempt ${m.attempt ?? 2}`
         : m.kind === 'gap'
           ? `Mic stopped · ${clock(m.lost ?? 0)}`
-          : `${markerName[m.kind]} · Line ${m.line + 1}${m.end != null ? ` · ${clock(m.end - m.t)}` : ''}`;
+          : `${markerName[m.kind]}${m.kind === 'cut' ? ` · ${whoName(m)}` : ''} · Line ${m.line + 1}${m.end != null ? ` · ${clock(m.end - m.t)}` : ''}`;
 
     // Markers dialog, newest first.
     const dialogRows = dialog.querySelector<HTMLElement>('[data-marker-rows]')!;
@@ -302,7 +307,7 @@ const greenSwitch =
                 ? m.attempt === 2 ? `Line ${m.line + 1} · “${words(m.line)}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
                 : m.kind === 'gap'
                   ? `${clock(m.lost ?? 0)} not recorded · Line ${m.line + 1}`
-                  : `${m.end != null ? clock(m.end - m.t) : 'to the end'} · Line ${m.line + 1}`;
+                  : `${m.kind === 'cut' ? `${whoName(m)} · ` : ''}${m.end != null ? clock(m.end - m.t) : 'to the end'} · Line ${m.line + 1}`;
             text.append(kind, ` · ${detail}`);
             row.append(time, text);
             return row;
@@ -373,12 +378,12 @@ const greenSwitch =
     const toneSwitch = $<HTMLInputElement>('[name=tones]');
     toneSwitch.checked = toneSettings.inExports && toneKinds.length > 0;
     toneSwitch.disabled = !toneKinds.length;
-    const kindNames: Record<ToneKind, string> = { retake: 'retake', cut: 'cough cut', adlib: 'ad-lib', pause: 'pause', gap: 'mic stop' };
+    const kindNames: Record<ToneKind, string> = { retake: 'retake', cut: 'cough', adlib: 'ad-lib', pause: 'pause', gap: 'mic stop' };
     $('[data-tone-kinds]').textContent = toneKinds.length
       ? toneKinds.map((k) => kindNames[k]).join(', ').replace(/, ([^,]*)$/, ' and $1')
       : 'marker (none are chosen in Settings)';
     const placed = (t: TakeMeta): PlacedTone[] =>
-      markers.filter((m) => toneKinds.includes(m.kind as ToneKind)).map((m) => ({ at: Math.round(m.t * t.sampleRate), kind: m.kind as ToneKind }));
+      markers.filter((m) => toneKinds.includes(m.kind as ToneKind) && !(m.kind === 'cut' && m.who === 'guest')).map((m) => ({ at: Math.round(m.t * t.sampleRate), kind: m.kind as ToneKind }));
 
     const options = () => {
       const data = new FormData(form);
@@ -407,7 +412,7 @@ const greenSwitch =
       $('[data-export-label]').textContent = 'Preparing…';
       try {
         const name = (t: TakeMeta) => `${label}_Session_${t.speaker.charAt(0)}${t.speaker.slice(1).toLowerCase()}`;
-        const endLabel: Partial<Record<SessionMarker['kind'], string>> = { adlib: 'Script resumes', cut: 'Cut ends' };
+        const endLabel: Partial<Record<SessionMarker['kind'], string>> = { adlib: 'Script resumes', cut: 'Cough ends' };
         const cue = (m: SessionMarker, rate: number, at = m.t) => ({ at: Math.round(at * rate), label: describe(m) });
         const entries: ZipEntry[] = [];
         // Raw: untouched, with a cue at every retake and gap, and at both ends of each pause, cut and ad-lib.
@@ -451,7 +456,7 @@ const greenSwitch =
               m.kind === 'gap' ? `gap ${m.lost?.toFixed(3)}` : m.kind,
               m.line + 1,
               m.attempt ?? '',
-              `"${(m.kind === 'pad' ? padLabel(m) : words(m.line)).replace(/"/g, '""')}"`,
+              `"${(m.kind === 'pad' ? padLabel(m) : m.kind === 'cut' ? `Cough (muted) · ${whoName(m)}` : words(m.line)).replace(/"/g, '""')}"`,
             ].join(','),
           ),
         ].join('\n');
@@ -499,25 +504,25 @@ const greenSwitch =
             for (const [i, ranges] of a.files.entries()) {
               // Ad-libs stay in the edit, so their cues do too (and kept pauses').
               const kept = markers
-                .filter((m) => m.kind === 'adlib' || (m.kind === 'pause' && o.pauses === 'keep'))
+                .filter((m) => m.kind === 'adlib' || m.kind === 'cut' || m.kind === 'pad' || (m.kind === 'pause' && o.pauses === 'keep'))
                 .map((m) => ({ m, at: mapTime(m.t, ranges) }))
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, t.sampleRate, x.at));
               const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}` : `${name(t)}_edit`;
-              entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept) });
-              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant) });
+              // Their own coughs are muted; nothing is cut for a cough, so every edit keeps the same length.
+              entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept, undefined, mutedFor(t)) });
+              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant, mutedFor(t)) });
             }
           }
-          // The Pads edit: the same retake, pause and gap cuts, but a cough cuts the mic only.
+          // The Pads edit: the same cuts as the mic edit; a cough never mutes the pads.
           if (withPads) {
-            const p = assemble(duration, wallMarkers, lineLog, o.pauses, { track: 'pads' });
-            for (const [i, ranges] of p.files.entries()) {
+            for (const [i, ranges] of a.files.entries()) {
               const kept = markers
                 .filter((m) => m.kind === 'pad')
                 .map((m) => ({ m, at: mapTime(m.t, ranges) }))
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, take.sampleRate, x.at));
-              const file = p.files.length > 1 ? `${label}_Session_Pads_edit_part${i + 1}` : `${label}_Session_Pads_edit`;
+              const file = a.files.length > 1 ? `${label}_Session_Pads_edit_part${i + 1}` : `${label}_Session_Pads_edit`;
               entries.push({ name: `${file}.wav`, data: await rangesWav(stereoOf(take), ranges, kept, 'pads') });
             }
           }

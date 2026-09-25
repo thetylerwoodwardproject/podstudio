@@ -5,9 +5,9 @@
  * The assembled edit keeps the last attempt of each line: a retake on line L
  * at time t cuts from the most recent time line L started (before t) up to
  * t. Pauses are cut, kept, or used to split the edit into separate files.
- * Cough cuts are always removed. Ad-libs are only marked: they stay in the edit.
- * Pad presses (hotkey pads) are only marked too. The Pads track gets the same
- * edit, except that cough cuts apply to the mic track only.
+ * A cough doesn't cut: it mutes that stretch of the cougher's own track in the
+ * edit (see mutes()), so every track keeps the same length and stays in sync.
+ * Ad-libs and pad presses (hotkey pads) are only marked: they stay in the edit.
  *
  * Markers are stored on the wall clock, in seconds from the start of the
  * session. When the mic stops (the phone locked, the tab was left), no audio
@@ -26,11 +26,13 @@ export interface SessionMarker {
   end?: number;
   /** Gaps, after onAudio(): seconds the mic was stopped (the audio has none of them) */
   lost?: number;
+  /** Coughs: whose track it mutes (none = the host's) */
+  who?: 'host' | 'guest';
   /** Pad presses: which pad (key 1–9), its name and Syntax colour. `end` is when the sound stopped */
   pad?: { key: number; id: string; name: string; color: string };
 }
 
-/** Cough cuts reach this far past the button on each side. */
+/** A cough's mute reaches this far past the button on each side. */
 export const CUT_PADDING = 0.15;
 
 /** Wall-clock stretches the mic was stopped, in order. */
@@ -109,16 +111,10 @@ export function retakeCuts(markers: SessionMarker[], lineLog: LineStart[]): Rang
 
 /**
  * The edit of a recording `duration` seconds long. Takes wall-clock markers
- * (as recorded) and converts them with onAudio() first. For the Pads track,
- * cough cuts are left in: a cough cuts the mic only.
+ * (as recorded) and converts them with onAudio() first. The same cuts apply
+ * to every track (mic, guest, pads); coughs are muted instead, per track.
  */
-export function assemble(
-  duration: number,
-  wallMarkers: SessionMarker[],
-  wallLineLog: LineStart[],
-  pauses: PauseMode,
-  opts: { track?: 'mic' | 'pads' } = {},
-): Assembly {
+export function assemble(duration: number, wallMarkers: SessionMarker[], wallLineLog: LineStart[], pauses: PauseMode): Assembly {
   const { markers, lineLog } = onAudio(wallMarkers, wallLineLog);
   const clamp = ([a, b]: Range) => [Math.max(0, a), Math.min(duration, b)] as Range;
   const pauseRanges: Range[] = markers
@@ -126,7 +122,6 @@ export function assemble(
     .map((m) => [m.t, Math.min(duration, m.end ?? duration)] as Range);
   const cuts = merge([
     ...retakeCuts(markers, lineLog).map(clamp),
-    ...markers.filter((m) => m.kind === 'cut' && opts.track !== 'pads').map((m) => clamp([m.t, m.end ?? m.t])),
     ...(pauses === 'keep' ? [] : pauseRanges),
   ]);
 
@@ -159,6 +154,38 @@ export function assemble(
 
   const removed = cuts.reduce((n, [a, b]) => n + (b - a), 0);
   return { files: files.filter((f) => f.length), cuts, removed };
+}
+
+/**
+ * Stretches of one person's track to silence in the edit: their coughs, on the
+ * audio clock (wall-clock markers are converted), merged. Times are in the
+ * recording, before any cuts.
+ */
+export function mutes(wallMarkers: SessionMarker[], who: 'host' | 'guest', duration = Infinity): Range[] {
+  const { markers } = onAudio(wallMarkers, []);
+  return merge(
+    markers
+      .filter((m) => m.kind === 'cut' && (m.who ?? 'host') === who)
+      .map((m) => [Math.max(0, m.t), Math.min(duration, m.end ?? m.t)] as Range),
+  );
+}
+
+/**
+ * Where the mutes land in an edit made of `ranges` (joined in order): output
+ * seconds, for silencing the joined file.
+ */
+export function mutesInEdit(ranges: Range[], muted: Range[]): Range[] {
+  const out: Range[] = [];
+  let offset = 0;
+  for (const [a, b] of ranges) {
+    for (const [ma, mb] of muted) {
+      const s = Math.max(a, ma);
+      const e = Math.min(b, mb);
+      if (e > s) out.push([offset + s - a, offset + e - a]);
+    }
+    offset += b - a;
+  }
+  return merge(out);
 }
 
 /** Audacity label track: start, end, label per line (point labels have start = end). */

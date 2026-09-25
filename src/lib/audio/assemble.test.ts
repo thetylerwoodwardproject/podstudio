@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assemble, audacityLabels, merge, type LineStart, type SessionMarker } from './assemble.ts';
+import { assemble, audacityLabels, merge, mutes, mutesInEdit, type LineStart, type SessionMarker } from './assemble.ts';
 
 // Line 0 at 0 s, line 1 at 10 s, retake of line 1 at 18 s (restarts at 18),
 // second retake at 25 s, line 2 at 32 s, a pause 40–50 s, line 3 at 50 s.
@@ -69,31 +69,22 @@ test('ad-libs are marked, not cut', () => {
   assert.deepEqual(a.files, [[[0, 60]]]);
 });
 
-test('a cough cut inside a kept stretch is removed, whatever the pause mode', () => {
+test('a cough removes nothing, whatever the pause mode', () => {
   const cut: SessionMarker = { t: 12, kind: 'cut', line: 1, end: 14 };
   for (const mode of ['cut', 'keep', 'split'] as const) {
     const a = assemble(60, [cut], [{ t: 0, line: 0 }], mode);
-    assert.deepEqual(a.files, [[[0, 12], [14, 60]]], mode);
-    assert.equal(a.removed, 2);
+    assert.deepEqual(a.files, [[[0, 60]]], mode);
+    assert.equal(a.removed, 0);
   }
 });
 
-test('a cough cut overlapping a retake merges with it', () => {
-  // Line 1 starts at 10, retake at 18 cuts 10–18; the cough runs 17–20.
-  const a = assemble(
-    60,
-    [{ t: 18, kind: 'retake', line: 1, attempt: 2 }, { t: 17, kind: 'cut', line: 1, end: 20 }],
-    [{ t: 0, line: 0 }, { t: 10, line: 1 }],
-    'cut',
-  );
-  assert.deepEqual(a.cuts, [[10, 20]]);
-  assert.equal(a.removed, 10);
+test('a cough running past the end is muted up to the end', () => {
+  assert.deepEqual(mutes([{ t: 28, kind: 'cut', line: 3, end: 31 }], 'host', 30), [[28, 30]]);
 });
 
-test('a cough cut running past the end stops at the end', () => {
-  const a = assemble(30, [{ t: 28, kind: 'cut', line: 3, end: 31 }], [{ t: 0, line: 0 }], 'cut');
-  assert.deepEqual(a.files, [[[0, 28]]]);
-  assert.equal(a.removed, 2);
+test('a cough after a gap is muted where it is in the audio', () => {
+  const m: SessionMarker[] = [{ t: 20, kind: 'gap', line: 1, end: 26 }, { t: 30, kind: 'cut', line: 1, end: 32 }];
+  assert.deepEqual(mutes(m, 'host'), [[24, 26]]);
 });
 
 test('markers after a gap move earlier by its length', async () => {
@@ -117,14 +108,24 @@ test('two gaps add up', async () => {
   assert.equal(audioTime(50, [[10, 12], [30, 35]]), 43);
 });
 
-test('the Pads track keeps cough cuts; retakes and pauses cut both tracks', () => {
+test('a cough mutes, it never cuts', () => {
   const withCough: SessionMarker[] = [
     ...markers,
     { t: 52, kind: 'cut', line: 3, end: 54 },
-    { t: 55, kind: 'pad', line: 3, end: 58, pad: { key: 3, id: 'p3', name: 'Bite', color: 'teal' } },
+    { t: 56, kind: 'cut', line: 3, end: 57, who: 'guest' },
   ];
-  const mic = assemble(60, withCough, lineLog, 'cut');
-  const pads = assemble(60, withCough, lineLog, 'cut', { track: 'pads' });
-  assert.deepEqual(mic.files, [[[0, 10], [25, 40], [50, 52], [54, 60]]]);
-  assert.deepEqual(pads.files, [[[0, 10], [25, 40], [50, 60]]]);
+  const a = assemble(60, withCough, lineLog, 'cut');
+  assert.deepEqual(a.files, [[[0, 10], [25, 40], [50, 60]]]);
+  assert.equal(a.removed, 25);
+  assert.deepEqual(mutes(withCough, 'host'), [[52, 54]]);
+  assert.deepEqual(mutes(withCough, 'guest'), [[56, 57]]);
+});
+
+test('mutes land at their place in the joined edit', () => {
+  // Edit keeps 0–10 and 25–60; a cough at 30–32 is 15–17 s into the edit.
+  assert.deepEqual(mutesInEdit([[0, 10], [25, 60]], [[30, 32]]), [[15, 17]]);
+  // A cough inside a cut stretch is gone with it.
+  assert.deepEqual(mutesInEdit([[0, 10], [25, 60]], [[12, 14]]), []);
+  // Straddling a join: both pieces, merged.
+  assert.deepEqual(mutesInEdit([[0, 10], [25, 60]], [[9, 26]]), [[9, 11]]);
 });

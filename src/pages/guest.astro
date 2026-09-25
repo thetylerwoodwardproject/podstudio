@@ -550,7 +550,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     livePeak = -Infinity;
   }, 250);
 
-  // Cough: hold to mark a cut (on both tracks, so they stay the same length).
+  // Cough: hold to mute your track in the edit for that moment (nothing is cut, so tracks stay in sync).
   const coughBtn = $('[data-cough]');
   const cough = (down: boolean) => {
     if (!writer) return;

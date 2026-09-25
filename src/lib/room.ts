@@ -24,13 +24,13 @@ export interface SessionState {
   scriptVersion: number;
   mode: ScriptMode;
   hostName: string;
-  /** An ad-lib or cough cut is running (for the producer's buttons) */
+  /** An ad-lib is running, or the host is coughing (shown on the producer's screen) */
   adlib: boolean;
   cut: boolean;
 }
 
 export type Command =
-  | { action: 'start' | 'pause' | 'resume' | 'stop' | 'retake' | 'adlib' | 'cut' | 'next' | 'prev' }
+  | { action: 'start' | 'pause' | 'resume' | 'stop' | 'retake' | 'adlib' | 'next' | 'prev' }
   | { action: 'goto'; word: number }
   | { action: 'section'; index: number }
   | { action: 'point'; index: number }

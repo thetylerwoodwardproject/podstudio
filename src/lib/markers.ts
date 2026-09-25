@@ -5,7 +5,7 @@ export const markerName: Record<SessionMarker['kind'], string> = {
   retake: 'Retake',
   pause: 'Pause',
   adlib: 'Ad-lib',
-  cut: 'Cough cut',
+  cut: 'Cough (muted)',
   gap: 'Mic stopped',
   pad: 'Pad',
 };
@@ -21,7 +21,7 @@ export function markerCounts(markers: SessionMarker[]): string {
   return (
     [
       [n('retake'), 'retake'],
-      [n('cut'), 'cut'],
+      [n('cut'), 'cough'],
       [n('adlib'), 'ad-lib'],
       [n('pause'), 'pause'],
       [n('gap'), 'gap'],

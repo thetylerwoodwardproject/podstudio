@@ -2,7 +2,7 @@
 /*
  * The producer, after joining with a code. Never records and never asks for
  * the mic. Sees the script with the live reading position and can edit it,
- * runs the session (start, pause, end), marks retakes, ad-libs and cuts, moves
+ * runs the session (start, pause, end), marks retakes and ad-libs, moves
  * the reader, and keeps an eye on the guest (level, uploads, their code).
  */
 import AppShell from '@/layouts/AppShell.astro';
@@ -41,12 +41,13 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
 
       <div class="flex flex-col gap-2.5">
         <h2 class="eyebrow">Markers</h2>
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-2 gap-2">
           <button type="button" class:list={[btn, 'bg-warn px-2 font-semibold text-ink']} data-cmd="retake">Retake <span class={kbd}>R</span></button>
           <button type="button" class:list={[btn, 'bg-raised px-2 text-fg aria-pressed:bg-adlib aria-pressed:text-ink']} aria-pressed="false" data-cmd="adlib">Ad-lib <span class={kbd}>A</span></button>
-          <button type="button" class:list={[btn, 'bg-raised px-2 text-fg aria-pressed:bg-fg aria-pressed:text-ink']} aria-pressed="false" data-cmd="cut">Cut <span class={kbd}>C</span></button>
         </div>
-        <p class="text-[12px] text-subtle">Cut starts on the first press and ends on the second. <span data-counts></span></p>
+        <p class="text-[12px] text-subtle">
+          <span data-coughing hidden>The host is coughing: their track is muted in the edit. </span>A cough mutes only the track of whoever coughs, from their own device. <span data-counts></span>
+        </p>
       </div>
 
       <div class="flex flex-col gap-2.5">
@@ -210,9 +211,9 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     show('pause', recording && !s!.paused);
     show('resume', recording && !!s!.paused);
     show('stop', recording);
-    for (const c of ['retake', 'adlib', 'cut']) $<HTMLButtonElement>(`[data-cmd="${c}"]`).disabled = !recording || !!s?.paused;
+    for (const c of ['retake', 'adlib']) $<HTMLButtonElement>(`[data-cmd="${c}"]`).disabled = !recording || !!s?.paused;
     $('[data-cmd="adlib"]').setAttribute('aria-pressed', String(!!s?.adlib));
-    $('[data-cmd="cut"]').setAttribute('aria-pressed', String(!!s?.cut));
+    $('[data-coughing]').hidden = !s?.cut;
     $('[data-counts]').textContent = s ? markerCounts(s.markers.filter((x) => x.kind !== 'pause')) : '';
     if (s) $('[data-mode-label]').textContent = modeInfo[s.mode].label;
     $('[data-session-note]').textContent = s?.ended
@@ -316,7 +317,6 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     const rec = !!state?.recording;
     if (key === 'r' && rec) send({ action: 'retake' });
     else if (key === 'a' && rec) send({ action: 'adlib' });
-    else if (key === 'c' && rec) send({ action: 'cut' });
     else if (key === 'p' && rec) send({ action: state!.paused ? 'resume' : 'pause' });
     else if (e.key === 'ArrowRight' || e.key === 'PageDown') send({ action: 'next' });
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp') send({ action: 'prev' });

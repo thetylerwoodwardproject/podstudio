@@ -1,6 +1,6 @@
 # Podstudio
 
-A free, self-hosted teleprompter and recorder for podcasts, audio only. Record solo, or with **one guest** and an optional **producer**: everyone talks on their usual call (Zoom, Teams…) and Podstudio records each person on their own device, losslessly, with the script kept in step. Voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, cough cuts, pauses and ad-libs as markers.
+A free, self-hosted teleprompter and recorder for podcasts, audio only. Record solo, or with **one guest** and an optional **producer**: everyone talks on their usual call (Zoom, Teams…) and Podstudio records each person on their own device, losslessly, with the script kept in step. Voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, coughs, pauses and ad-libs as markers.
 
 Every screen from the Claude Design handoff (`Single Host.dc.html`, screens 1a–1i, 2a–2b and 3a) is built with Astro and Tailwind. **Recording, voice follow and exports work in the browser now.** Guests and producers connect through the Podstudio server; until it exists, `npm run dev` and `npm run preview` include a stand-in that speaks its API (`docs/server-api.md`). Sign-in, 2FA and Whisper transcripts still run on mock data.
 
@@ -35,27 +35,27 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 
 - **Recording** (`/episodes/142/recording`, 1a–1g and 2a–2b): the script gets the whole width, and one control bar works the same on a phone and a laptop.
   - **Level meter**, always on, even before you start, so the ready screen doubles as a mic check. Same zones and numbers as the mic check: green below −18 dBFS (low), amber −18 to −6 (the target), red above −6 or when clipping. Click it for peak, RMS and each input.
-  - **Cough** (hold the button, or hold **C**): marks a cut padded 150 ms each side. Recording keeps going, the script doesn't move, voice follow ignores what it hears, and the other buttons dim. Holding it for 2 s leaves a 2.3 s cut in the edit; the raw WAV stays whole.
+  - **Cough** (hold the button, or hold **C**): mutes your track in the edit for that moment, padded 150 ms each side, with a 10 ms fade in and out. Nothing is cut, so the edit keeps its length and every other track (a guest's, the pads) stays in sync and isn't touched. Recording keeps going, the script doesn't move, voice follow ignores what it hears, and the other buttons dim. The raw WAV stays whole.
   - **Retake** (button, **R**, or double-tap/double-click the script): a tone you hear but isn't recorded, a marker, and back to the start of the line.
   - **Ad-lib** (button or **A**): off-script talk that stays in the edit. Voice follow also marks one after about six words that aren't in the script, and ends it when it hears the script again. The script holds your place meanwhile.
-  - **Undo** (**U** or ⌘Z) for 4 s after a retake, cough cut or ad-lib.
+  - **Undo** (**U** or ⌘Z) for 4 s after a retake, cough or ad-lib.
   - **More** (`···` or **M**): a bottom sheet on a phone, a popover on a laptop, with Pause (**P**; Resume counts down 3-2-1), text size 80–160 % (⌘+ ⌘−, saved per device), jump to section (**1–9** while it's open), the mic (changeable before you start), how much is saved, marker counts, the retake tone, and End session.
   - Tap or click a line to move there, drag or scroll to look around, **← →** or a page turner's PageUp/PageDown change lines.
-  - The laptop shows markers on a thin timeline above the bar: amber retakes, grey cuts, blue ad-libs, red gaps.
+  - The laptop shows markers on a thin timeline above the bar: amber retakes, grey coughs, blue ad-libs, red gaps, and pad presses in their colours.
 - **Warnings** (1h), one at a time, the most serious first. None stop the recording.
   - **Mic stopped**: audio stops arriving while the clock runs on (an iPhone leaving the screen, the mic taken away). The gap is marked, not filled with silence: its length is measured from the samples that did arrive, and markers after it are moved back by that much when they're mapped onto the audio. **Resume recording** restarts the mic into the same file.
   - Clipping, a Bluetooth mic (call quality; tap to switch to the built-in mic before you start), battery at 20 % and 10 % (where the browser reports it), and less than 30 minutes of space left.
   - The screen stays awake while recording.
 - **Session saved** (1i, `/episodes/142/saved`): length, markers, size and format, how long the assembled edit is, then Transcribe, Listen or Record another. Export is linked from there.
 - **Voice follow keeps going**: after a network error it keeps reconnecting (waiting up to 30 s between tries), a failed start is retried, and a watchdog restarts recognition when the meter hears you talking but no words come back for 10 s (Chrome sometimes stalls silently). A ring next to REC shows its state (green listening, amber reconnecting, red stopped), More shows it with the restart count, and a warning with **Restart voice follow** appears if it stays down. Every restart, error and stall goes into the session's voice log: **Copy diagnostics** in More, and `…_voice-log.txt` in the export.
-- **Marker tones** (export switch, set up in Settings → Recording): a short beep mixed into the full recording at each retake, and optionally cough cuts, ad-libs, pauses and mic stops, each at its own pitch. The tones are ducked under your voice (default 12 dB) with an adjustable attack (how fast they drop when you start talking, default 10 ms) and release (how fast they come back, default 150 ms). The edit stays clean, and only the moments around the tones are re-encoded.
+- **Marker tones** (export switch, set up in Settings → Recording): a short beep mixed into the full recording at each retake, and optionally coughs (yours only), ad-libs, pauses and mic stops, each at its own pitch. The tones are ducked under your voice (default 12 dB) with an adjustable attack (how fast they drop when you start talking, default 10 ms) and release (how fast they come back, default 150 ms). The edit stays clean, and only the moments around the tones are re-encoded.
 - **Lossless audio**: mono or stereo WAV at 16 or 24-bit, recorded through MediaRecorder PCM on the mic's own clock and at its own rate (nothing is resampled). Web Audio only drives the meters, because it runs on the output device's clock, and with an interface in and other speakers out Chrome dropped or repeated samples. Browser echo cancellation, noise suppression and auto gain are off. Audio is saved to the browser's private file system every 5 seconds.
 - **Microphone choice** (Settings → Recording, the mic check, or More before you start): "System default" follows the computer's sound settings; anything else is used whatever the OS default is. In mono, input 1 is recorded unless you pick another input or "all inputs mixed" (averaged); in stereo, inputs 1 and 2 become left and right. A saved mic that's unplugged falls back to the system default and says so.
 - **Levels**: Podstudio reads the interface's inputs itself instead of Chrome's mono downmix (which read a mic on Input 1 of a two-input interface 6 dB low). Checked with test tones: mic check, recording screen and WAV agree to 0.1 dB.
 - **Mic check** (`/episodes/142/mic-check`): one meter in the traffic-light zones, a plain-language line saying what to turn, a 10-second test recording to play back, a line to read for voice follow, and the numbers under Advanced details. It can be switched off in Settings → Recording.
 - **Crash recovery**: if the tab closes mid-session, the next visit to the studio, library or sessions page opens the recovered-session screen. At most the last 5 seconds are lost.
 - **Your own script**: on the script page, **Import or paste** takes pasted text or a .txt/.md file (`## Heading` lines become sections). Every screen uses it, and lines can be edited in place.
-- **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, always drops cough cuts, and cuts, keeps or splits at pauses.
+- **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, mutes coughs on the cougher's track, and cuts, keeps or splits at pauses.
 - **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
   - **Export**: the fader, **Preview 30 s** with an Original / Cleaned switch and an attenuation meter ("Background −24 dB"). With it on, the zip has both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
   - **Credits**: Settings → About & credits lists DeepFilterNet3 and everything else Podstudio ships, with licences.
@@ -75,11 +75,11 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
   - **Talking points**: bullets (the script page's Talking points tab). Everyone sees them; the host's ← →, a tap, or the producer moves the current one. No voice follow.
   - **Ad-lib**: no script; markers work as usual. On a laptop the host's screen becomes the **mixer view** (Mixer View 1b): a lane per person with the last 60 s of level coloured by zone, a segmented meter, the level in dB with HOT / IN TARGET / LOW / IDLE, and **talk time** ("Tyler 58% · Sam 42%") counted while recording. The guest's level comes from their page about twice a second. The bar's meter gives way to a line naming your mic, since the levels are in the lanes.
 - **Joining** (`/join`): their name and the code (or a `/join?code=123456` link). Then they wait, like Zoom's waiting room, until **you let them in**: a card on your studio or recording screen says "Sam wants to join as your guest" with **Let in** and **Deny**. Nothing about the show reaches them before that, and a denied code-holder is shut out. A guest can check their mic while they wait.
-  - **Guest** (`/guest`), on a laptop or phone (iPhone too): a green room (name, mic, level in the usual zones, "on the call with headphones"), then waiting for the host. When the session starts, their device records their mic losslessly and **uploads 5 s pieces as it goes**, retrying when the network drops. Cough (hold) on their screen marks a cut on both tracks. At the end: "All sent", and **Download my recording** as a backup. Only one guest can be connected at a time.
-  - **Producer** (`/producer`), any browser, never asks for a mic: the live script (edit any line and everyone gets it), Start / Pause / End for everyone, Retake, Ad-lib and Cut, ← → and sections, and the guest's level, upload progress and code.
+  - **Guest** (`/guest`), on a laptop or phone (iPhone too): a green room (name, mic, level in the usual zones, "on the call with headphones"), then waiting for the host. When the session starts, their device records their mic losslessly and **uploads 5 s pieces as it goes**, retrying when the network drops. Cough (hold) on their screen mutes their own track in the edit for that moment; yours isn't touched. At the end: "All sent", and **Download my recording** as a backup. Only one guest can be connected at a time.
+  - **Producer** (`/producer`), any browser, never asks for a mic: the live script (edit any line and everyone gets it), Start / Pause / End for everyone, Retake and Ad-lib, ← → and sections (no cough button: a cough is marked by whoever coughs), and the guest's level, upload progress and code.
 - **The host's recording screen** is in charge: it records your track, shares the session state, and applies the producer's and guest's actions. A chip in the header shows the guest's level and uploads, with a warning if they stop recording or drop off.
 - **Wrapping up** (`/episodes/142/wrap`): after End, it waits for the guest's last pieces, brings their track into this browser, then opens Export. If an upload failed, **Add the guest's file** takes the WAV they downloaded. **Export waits for the guest's track** wherever you open it from: the export page and the Sessions list both send you to the wrap-up until it's in, with "Export without them" as a deliberate, confirmed choice.
-- **Export** has a raw WAV and an edit for each person, lined up: each track records when it started on the server's clock, so the guest's is padded or trimmed to match yours, and both edits get the same cuts. Noise suppression makes cleaned copies of both; marker tones go on your track only.
+- **Export** has a raw WAV and an edit for each person, lined up: each track records when it started on the server's clock, so the guest's is padded or trimmed to match yours, and both edits get the same cuts, so they're the same length. Each person's coughs are muted in their own edit only. Noise suppression makes cleaned copies of both; marker tones go on your track only.
 - **The server API** is in `docs/server-api.md`. `dev/relay.ts` implements it for testing (sessions in memory, tracks in `.podstudio-dev/`), and the real server replaces it without app changes.
 
 ## Hotkey pads
@@ -94,7 +94,7 @@ Nine sounds on the number keys: soundbites, clips, music and sound effects (Hotk
 - **On a laptop** (mouse, 1024 px or wider): a rail beside the script with the 3×3 grid, Stop all / Fade all, what's playing and time left, pads volume and ducking. The bar's meter gets a **PADS** row under MIC. **1–9** fire pads while you rehearse or record, not while paused, typing, or with More open (there 1–9 still jump to sections). **0** stops everything; **Shift+0** fades everything over 2 s.
 - **On a phone or tablet**: a swipeable strip above the control bar. Tap a pad to fire it. Pull the strip up (or tap its handle) for all nine pads, laid out 1–9 like the rail. Firing a one-shot there, or swiping down, drops back to the strip.
 - **What a press does**: a one-shot restarts, a loop fades out, a hold plays only while you hold it. Several can play at once. Pads play in your headphones only and never touch the mic. If the output looks like laptop speakers, the rail says so.
-- **Recording**: every press is a marker ("Pad 3 · Four pallets bite") on the timeline, in the pad's colour. The export has a stereo **Pads track** the same length as your mic, rebuilt from the press log so each press lands exactly where it was fired, and ducked the same way you heard it. It also has a **Pads edit**: retake, pause and gap cuts apply to both tracks, but a cough cuts only the mic. **Rough mix** (off by default) sums mic and pads with a limiter at −1 dBFS.
+- **Recording**: every press is a marker ("Pad 3 · Four pallets bite") on the timeline, in the pad's colour. The export has a stereo **Pads track** the same length as your mic, rebuilt from the press log so each press lands exactly where it was fired, and ducked the same way you heard it. It also has a **Pads edit** with the same cuts as your mic edit. A cough mutes only the mic of whoever coughed; the Pads track is never muted. **Rough mix** (off by default) sums mic and pads with a limiter at −1 dBFS.
 - **Script cues**: a line of only `[pad 3]` (or `[pad 3 · note]`) shows as a chip in the pad's colour and isn't read aloud. Cues never fire anything.
 - Pads and their sounds are kept in this browser (OPFS `pads/`) until the server exists. Clearing a pad keeps its sound in the library.
 
@@ -102,12 +102,12 @@ Nine sounds on the number keys: soundbites, clips, music and sound effects (Hotk
 
 | Key | What it does |
 |---|---|
-| hold **C** | Cough cut |
+| hold **C** | Cough: mutes your mic in the edit while held |
 | **R** | Retake the line |
 | **A** | Start or end an ad-lib |
 | **M** | More |
 | **P** | Pause / resume (3-2-1) |
-| **U**, ⌘Z | Undo the last retake, cut or ad-lib (within 4 s) |
+| **U**, ⌘Z | Undo the last retake, cough or ad-lib (within 4 s) |
 | **← →**, PageUp/PageDown | Previous / next line |
 | **1–9** | Fire a hotkey pad; jump to a section while More is open |
 | **0**, Shift+**0** | Stop all pads / fade all pads over 2 s |
@@ -137,7 +137,8 @@ src/
     audio/meter.ts      meter scale, dBFS zones and what to tell the person at the mic
     audio/devices.ts    input choices: system default, devices, each input of an interface
     audio/wav.ts        16/24-bit WAV encoding, cue markers, tone
-    audio/assemble.ts   the assembled edit: retakes, cough cuts, pauses, gaps; Audacity labels
+    audio/assemble.ts   the assembled edit: retakes, pauses, gaps, cough mutes; Audacity labels
+    audio/mute.ts       silencing a cough in the edit, with a 10 ms fade each side
     audio/denoise*.ts   noise suppression: the fader, framing and resampling around DeepFilterNet3, its worker
     audio/takes.ts      track storage in OPFS (5 s segments, Web Lock crash detection), WAV assembly
     voice/match.ts      fuzzy alignment of heard words against the script
@@ -146,7 +147,7 @@ src/
     settings.ts         saved settings and prompter themes
     zip.ts              stored zip writer for multi-file downloads
     script-parser.ts    "## Heading" sections for script import
-    markers.ts          marker names and counts ("3 retakes · 2 cuts · 1 ad-lib")
+    markers.ts          marker names and counts ("3 retakes · 2 coughs · 1 ad-lib")
     room.ts             guests and producer: server API calls, the live room, the server-clock offset
     show.ts             per-episode show setup: solo or with a guest, script mode, producer
     upload.ts           sends a recording's 5 s segments to the server in order, with retries

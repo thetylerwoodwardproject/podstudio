@@ -542,7 +542,7 @@ const zones = [
       $('[data-saved-dot]').style.background = ago > 30 && !first ? 'var(--color-warn)' : '';
     }
     // Cough and ad-lib show a live pill in place of "Saved".
-    const pillText = cough ? `CUT · ${clock(t - cough.t)}` : adlib ? `AD-LIB · ${clock(t - adlib.t)}` : '';
+    const pillText = cough ? `COUGH · ${clock(t - cough.t)}` : adlib ? `AD-LIB · ${clock(t - adlib.t)}` : '';
     pill.hidden = !pillText;
     pill.textContent = pillText;
     pill.style.background = cough ? 'var(--color-fg)' : 'var(--color-adlib)';
@@ -593,7 +593,7 @@ const zones = [
     const hold = Math.max(...held);
     const db = Number.isFinite(hold) ? `${String(Math.round(Math.min(0, hold)) || 0).replace('-', '−')} dB` : '— dB';
     const clipping = Date.now() - clipAt < 3000;
-    levelText.textContent = cough ? 'Cut · still recording' : clipping ? `Clipping · ${micLabel}` : `${db}${micLabel ? ` · ${micLabel}` : ''}`;
+    levelText.textContent = cough ? 'Cough · muted in the edit' : clipping ? `Clipping · ${micLabel}` : `${db}${micLabel ? ` · ${micLabel}` : ''}`;
     levelText.style.color = clipping && !cough ? 'var(--color-rec)' : '';
     levelDb.textContent = db;
   }, 250);
@@ -645,7 +645,7 @@ const zones = [
     marks.replaceChildren(
       ...markers().map((m) => {
         const el = document.createElement('div');
-        el.title = `${markerName[m.kind]} · ${clock(m.t)} · Line ${m.line + 1}: ${lines[m.line]?.text ?? ''}`;
+        el.title = `${markerName[m.kind]}${m.kind === 'cut' && m.who === 'guest' ? ` · ${guest?.name || 'Guest'}` : ''} · ${clock(m.t)} · Line ${m.line + 1}: ${lines[m.line]?.text ?? ''}`;
         el.style.left = pct(m.t);
         if (m.kind === 'retake') el.className = 'absolute inset-y-0 w-0.5 bg-warn';
         else if (m.kind === 'pad') {
@@ -755,7 +755,7 @@ const zones = [
   function coughUp() {
     if (!cough) return;
     const end = now();
-    const marker: SessionMarker = { t: Math.max(0, cough.t - CUT_PADDING), kind: 'cut', line: currentLine, end: end + CUT_PADDING };
+    const marker: SessionMarker = { t: Math.max(0, cough.t - CUT_PADDING), kind: 'cut', who: 'host', line: currentLine, end: end + CUT_PADDING };
     const held = end - cough.t;
     cough = null;
     delete root.dataset.coughing;
@@ -763,7 +763,7 @@ const zones = [
     $('[data-cough-sub]').textContent = 'HOLD';
     voice?.mute(false);
     markers().push(marker);
-    offerUndo(`Cough cut · ${clock(held + 2 * CUT_PADDING)}`, marker);
+    offerUndo(`Cough · muted in the edit · ${clock(held + 2 * CUT_PADDING)}`, marker);
     tick();
     renderMore();
   }
@@ -1457,6 +1457,7 @@ const zones = [
   async function stop() {
     if (!writer) return;
     coughUp();
+    guestCoughed(false);
     endAdlib();
     if (paused) paused.end = now();
     clearInterval(manualTimer);
@@ -1571,7 +1572,20 @@ const zones = [
     renderSections();
   }
 
-  function handleCommand(c: Command) {
+  // The guest's cough: marks their track muted for that stretch; nothing changes here.
+  let guestCough: { t: number } | null = null;
+  function guestCoughed(down: boolean) {
+    if (down) {
+      if (state === 'rec' && !guestCough) guestCough = { t: now() };
+      return;
+    }
+    if (!guestCough) return;
+    markers().push({ t: Math.max(0, guestCough.t - CUT_PADDING), kind: 'cut', who: 'guest', line: currentLine, end: now() + CUT_PADDING });
+    guestCough = null;
+    renderMore();
+  }
+
+  function handleCommand(c: Command, from?: string) {
     switch (c.action) {
       case 'start':
         if (state === 'ready') start();
@@ -1591,13 +1605,9 @@ const zones = [
       case 'adlib':
         toggleAdlib();
         break;
-      case 'cut':
-        if (cough) coughUp();
-        else coughDown();
-        break;
       case 'cough':
-        if (c.down) coughDown();
-        else coughUp();
+        // Only the guest sends this: it mutes their track, not yours.
+        if (from === 'guest') guestCoughed(c.down);
         break;
       case 'next':
         if (pointsMode) setPoint(point + 1);
@@ -1655,7 +1665,7 @@ const zones = [
       room.send({ type: 'script', version: scriptVersion, text: script.text });
       sendState();
     });
-    room.on('command', (c) => handleCommand(c));
+    room.on('command', (c) => handleCommand(c, (c as { from?: string }).from));
     room.on('guest', (g) => onGuest(g));
     room.on('script', (msg) => msg.from !== 'host' && applyScript(msg.text, msg.version));
     room.on('presence', (p) => {

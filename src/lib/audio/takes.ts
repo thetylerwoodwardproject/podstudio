@@ -22,6 +22,7 @@ import { markerChunks, pcmBytes, pcmFloats, wavHeader, type BitDepth, type Chann
 import type { LineStart, Range, SessionMarker } from './assemble';
 import { mixTones, toneWindows, type PlacedTone, type ToneSettings } from './tones';
 import type { PadLog } from './pads-render';
+import { MUTE_FADE, applyMute, splitByMutes } from './mute';
 
 export interface TakeMeta {
   id: string;
@@ -168,10 +169,13 @@ async function pcmParts(meta: TakeMeta, variant?: string): Promise<File[]> {
 
 /**
  * WAV made of the given time ranges (seconds) of a take, joined in order.
- * Slices the disk-backed segment files, so nothing large is copied.
+ * Slices the disk-backed segment files, so nothing large is copied. Stretches
+ * in `muted` (seconds of the take, e.g. coughs) come out silent, with a short
+ * fade at each edge; only those are decoded and re-encoded.
  */
-export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = [], variant?: string): Promise<Blob> {
+export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = [], variant?: string, muted: Range[] = []): Promise<Blob> {
   const bytesPer = frameBytes(meta);
+  const channels = channelsOf(meta);
   const files = await pcmParts(meta, variant);
   const offsets: number[] = [];
   let total = 0;
@@ -179,6 +183,7 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
     offsets.push(total);
     total += f.size;
   }
+  const totalFrames = total / bytesPer;
   const parts: BlobPart[] = [];
   let bytes = 0;
   // Stretches before the take starts or after it ends come out as silence, so a track
@@ -188,9 +193,7 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
     parts.push(new Uint8Array(n));
     bytes += n;
   };
-  for (const [a, b] of ranges) {
-    const fa = Math.round(a * meta.sampleRate) * bytesPer;
-    const fb = Math.round(b * meta.sampleRate) * bytesPer;
+  const slice = (fa: number, fb: number) => {
     silence(Math.min(fb, 0) - fa);
     const from = Math.min(total, Math.max(0, fa));
     const to = Math.min(total, Math.max(0, fb));
@@ -203,6 +206,31 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
       }
     });
     silence(fb - Math.max(total, fa));
+  };
+  const rate = meta.sampleRate;
+  const fade = Math.round(MUTE_FADE * rate);
+  const mutedFrames = muted.map(([a, b]) => [Math.round(a * rate), Math.round(b * rate)] as [number, number]);
+  for (const [a, b] of ranges) {
+    const ra = Math.round(a * rate);
+    const rb = Math.round(b * rate);
+    for (const piece of splitByMutes(ra, rb, mutedFrames)) {
+      if (!piece.muted) {
+        slice(piece.a * bytesPer, piece.b * bytesPer);
+        continue;
+      }
+      // Muted: the audio that exists is decoded, faded out and in, and re-encoded.
+      const from = Math.max(0, piece.a);
+      const to = Math.min(totalFrames, piece.b);
+      silence((Math.min(piece.b, 0) - piece.a) * bytesPer);
+      if (to > from) {
+        const [ma, mb] = mutedFrames.find(([x, y]) => x <= piece.a && y >= piece.b) ?? [piece.a, piece.b];
+        const x = applyMute(await readFrames(meta, from, to - from, variant), channels, from, ma, mb, fade);
+        const pcm = pcmBytes(x, meta.bitDepth);
+        parts.push(pcm as BlobPart);
+        bytes += pcm.length;
+      }
+      silence((piece.b - Math.max(totalFrames, piece.a)) * bytesPer);
+    }
   }
   const tail = markerChunks(markers);
   const header = wavHeader(bytes / bytesPer, formatOf(meta), tail.length);
