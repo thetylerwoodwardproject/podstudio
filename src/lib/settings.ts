@@ -13,7 +13,6 @@ export interface RecordingSettings {
   channels: Channels;
   micCheck: boolean;
   deviceId: string;
-  recorder: string;
   /** Beep when a retake is marked */
   retakeTone: boolean;
 }
@@ -40,7 +39,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', recorder: 'mac', retakeTone: true },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true },
   prompter: {
     mode: 'voice',
     wpm: 150,

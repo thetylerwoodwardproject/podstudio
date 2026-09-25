@@ -117,3 +117,20 @@ test('an ad-lib marked by hand holds until released', async () => {
   v.release();
   assert.deepEqual(events, [{ type: 'lost', manual: true }, { type: 'found' }]);
 });
+
+test('a cough is ignored: no move, no ad-lib, and reading carries on after it', async () => {
+  const { v, seen, rec } = await follow();
+  let lost = false;
+  v.addEventListener('lost', () => (lost = true));
+  rec.say('it was a quiet week in the studio');
+  const at = seen.at(-1);
+  assert.equal(words[at!], 'studio,');
+  v.mute(true);
+  rec.say('it was a quiet week in the studio ahem sorry cough excuse me one second it was');
+  assert.equal(seen.at(-1), at);
+  assert.equal(lost, false);
+  v.mute(false);
+  rec.say('it was a quiet week in the studio ahem sorry cough excuse me one second it was until the new transmitter');
+  assert.equal(words[seen.at(-1)!], 'transmitter');
+  assert.equal(lost, false);
+});

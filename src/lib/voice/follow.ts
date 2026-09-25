@@ -165,6 +165,17 @@ export class VoiceFollow extends EventTarget {
     this.emit('lost', { since: Date.now(), manual: true });
   }
 
+  /**
+   * Cough: ignore everything heard until mute(false), so it can't move the
+   * reader or start an ad-lib.
+   */
+  mute(on: boolean) {
+    this.muted = on;
+    this.baseline = this.heardCount;
+    this.offScript = 0;
+  }
+  private muted = false;
+
   /** End an ad-lib by hand (the script may not have resumed yet). */
   release() {
     if (!this.lost) return;
@@ -276,6 +287,10 @@ export class VoiceFollow extends EventTarget {
     const fresh = Math.max(0, words.length - this.heardCount);
     this.heardCount = words.length;
     this.emit('heard', text.trim());
+    if (this.muted) {
+      this.baseline = this.heardCount;
+      return;
+    }
 
     const usable = words.slice(Math.min(this.baseline, words.length));
     if (!usable.length) return;

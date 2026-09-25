@@ -1,898 +1,1276 @@
 ---
-// 8a · Recording: one continuous session, retakes and pauses as markers
-import AppShell from '@/layouts/AppShell.astro';
-import Dot from '@/components/ui/Dot.astro';
-import { devices, episode, episodePaths, lineStarts, scriptLines, scriptWords, spk } from '@/data/mock';
+/*
+ * 1a–1g, 2a–2b · Recording: one person, one track, on a laptop or a phone.
+ * The script gets the whole width. The control bar is the same everywhere: a
+ * level meter that's always on, then Cough (hold), Retake, Ad-lib and More.
+ * Pause, text size, sections, mic and End session live under More.
+ *
+ * ?demo&state=ready|rec|cough|retake|adlib|more|paused|mic shows the design's
+ * example states without a mic.
+ */
+import Base from '@/layouts/Base.astro';
+import Logo from '@/components/ui/Logo.astro';
+import { episode, episodePaths, user } from '@/data/mock';
 
 export const getStaticPaths = episodePaths;
 
-/** The speaker on this computer's mic (the host, per the script editor's Screens list). */
-const local = 'TYLER';
-const BARS = 90;
-const lines = scriptLines.map((l) => ({ who: l.who, text: l.text }));
-
-// 8a example content (shown with ?demo&mode=continuous).
-const demoMarkers = [
-  { t: '24:02', kind: 'Retake', text: 'Line 3 · “Four. I counted.”' },
-  { t: '15:21', kind: 'Retake', text: 'Line 41 · attempt 3' },
-  { t: '14:48', kind: 'Retake', text: 'Line 41 · attempt 2' },
-  { t: '09:14', kind: 'Pause', text: '1:26 · before Line 28' },
-  { t: '03:10', kind: 'Retake', text: 'Line 9' },
+// Phone: a 4-column grid of 52 px buttons with a mono sub-label. Laptop: pills with a key badge.
+const btn =
+  'flex h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[14px] text-[15px] font-medium transition-[opacity,background-color] select-none disabled:opacity-35 lg:h-12 lg:flex-row lg:gap-2.5 lg:rounded-xl lg:px-5';
+const sub = 'font-mono text-[10px] font-medium tracking-[0.06em] opacity-75 lg:hidden';
+const kbd = 'hidden rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono text-[10px] leading-none font-medium opacity-80 lg:inline';
+const dim = 'group-data-[coughing]/r:opacity-35 group-data-[coughing]/r:pointer-events-none';
+const zones = [
+  ['0', '37.5%', 'var(--color-ok)'],
+  ['37.5%', '37.5%', 'var(--color-warn)'],
+  ['75%', '25%', 'var(--color-rec)'],
 ];
-const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
 ---
 
-<AppShell title="Recording" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Recording' }]}>
-  <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium" data-rec>
-    <Dot color="var(--color-rec)" size={8} pulse data-rec-dot />
-    <span data-rec-label>REC <span data-clock>24:10</span></span>
-  </div>
-
+<Base title="Recording" bodyClass="bg-void!">
   <div
-    class="lg:h-full"
     id="recording"
+    class="group/r relative flex h-dvh flex-col overflow-hidden bg-void text-fg"
+    style="--p-device:1;--rule:var(--color-edge-strong)"
     data-episode={episode.id}
-    data-local={local}
-    data-words={JSON.stringify(scriptWords)}
-    data-lines={JSON.stringify(lines)}
-    data-line-starts={JSON.stringify(lineStarts)}
-    data-devices={JSON.stringify(Object.fromEntries(devices.map((d) => [d.id, d.name])))}
+    data-label={episode.label}
+    data-host={user.name}
+    data-state="ready"
   >
-  <!-- One file per track, retakes and pauses as markers -->
-  <div class="grid lg:h-full lg:grid-cols-[1fr_360px] lg:grid-rows-[minmax(0,1fr)]">
-    <section class="flex min-h-0 min-w-0 flex-col gap-3 border-line px-6 py-6 max-lg:h-[80dvh] lg:border-r lg:px-12">
-      <div class="flex flex-col gap-3" data-demo-only>
-        <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3 opacity-45" data-c-line="prev">
-          <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
-          <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Four pallets? I heard it was five, and one of them was just foam.</span>
-        </div>
-        <div class="grid grid-cols-[90px_1fr] gap-4.5 rounded-[10px] bg-surface px-3.5 py-3 shadow-[inset_0_0_0_1px_var(--color-edge)]" data-c-line="cur">
-          <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('TYLER') }} data-who>TYLER</span>
-          <div class="flex flex-col gap-2.5">
-            <span class="text-[22px] leading-[1.55]" data-text>Four. I counted. So this episode is about what happens after the crate is open.</span>
-            <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-warn" data-attempt>ATTEMPT 2 · RETAKE MARKED AT 24:02</span>
+    <!-- Red edge while recording, grey while paused -->
+    <div class="absolute inset-x-0 top-0 z-20 h-[3px] bg-rec group-data-[state=paused]/r:bg-edge-strong group-data-[state=ready]/r:hidden" aria-hidden="true"></div>
+
+    <header class="relative flex h-12 flex-none items-center justify-between gap-4 px-5 lg:h-14 lg:border-b lg:border-line">
+      <div class="flex min-w-0 items-center gap-5 max-lg:hidden">
+        <Logo />
+        <nav aria-label="Breadcrumb" class="truncate text-[14px] whitespace-nowrap text-muted">
+          <a href={`/episodes/${episode.id}/studio`} class="hover:text-fg">{episode.label}</a>
+          <span class="mx-1.5 text-edge-strong">/</span>
+          <span class="text-fg" aria-current="page">Recording</span>
+        </nav>
+      </div>
+      <div
+        class="flex flex-none items-center gap-2 font-mono text-[13px] font-medium tracking-[0.04em] text-muted group-data-[state=rec]/r:text-fg lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:rounded-full lg:px-4 lg:py-1.5 lg:group-data-[state=rec]/r:bg-rec/15 lg:group-data-[state=rec]/r:text-rec"
+        role="status"
+      >
+        <span class="size-2 rounded-full bg-faint group-data-[state=rec]/r:bg-rec"></span>
+        <span data-rec-label>READY</span>
+      </div>
+      <div class="flex min-w-0 items-center justify-end">
+        <span class="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-muted" data-saved-wrap>
+          <span class="size-1.5 flex-none rounded-full bg-ok group-data-[state=ready]/r:hidden" data-saved-dot></span>
+          <span class="truncate" data-saved></span>
+        </span>
+        <span class="flex-none rounded-full px-3 py-1 font-mono text-[12px] font-medium tracking-[0.06em] text-ink" data-pill hidden></span>
+      </div>
+    </header>
+
+    <!-- Notices above the script: paused, and the warnings (one at a time) -->
+    <div class="flex-none px-4 empty:hidden lg:mx-auto lg:w-full lg:max-w-[820px] lg:px-6" data-notices>
+      <div class="mt-2 rounded-2xl bg-raised px-4 py-3.5" data-paused-card hidden>
+        <div class="text-[15px]">Paused · still recording</div>
+        <p class="mt-1 text-[13px] leading-normal text-muted">This stretch is marked as a pause and left out of the edit. Have a drink.</p>
+      </div>
+      <div class="mt-2 rounded-2xl bg-raised px-4 py-3.5 data-[strong]:shadow-[inset_0_0_0_1px_var(--color-warn)]" role="alert" data-warning hidden>
+        <div class="flex items-start gap-3">
+          <span class="mt-[7px] size-2 flex-none rounded-full" data-warning-dot></span>
+          <div class="min-w-0 flex-1">
+            <div class="text-[15px]" data-warning-title></div>
+            <p class="mt-0.5 text-[13px] leading-normal text-muted" data-warning-body></p>
           </div>
         </div>
-        <div class="grid grid-cols-[90px_1fr] gap-4.5 px-3.5 py-3" data-c-line="next">
-          <span class="pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }} data-who>SAM</span>
-          <span class="text-[18px] leading-[1.6] text-fg-soft" data-text>Which is when the real trouble starts.</span>
-        </div>
+        <button type="button" class="mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-rec text-[15px] font-medium text-white lg:h-10 lg:text-[14px]" data-warning-action hidden></button>
       </div>
+    </div>
 
-      <!-- Live: the whole script, scrolling with the reader -->
-      <div class="relative -mx-3.5 min-h-[200px] flex-1 overflow-hidden" data-live-only data-c-viewport>
-        <div class="pointer-events-none absolute inset-x-0 top-0 z-[1] h-12 bg-linear-to-b from-ink to-transparent" aria-hidden="true"></div>
-        <div class="flex flex-col gap-2 pt-4 transition-transform duration-500 ease-in-out" data-c-track></div>
-      </div>
-      <div class="flex flex-col gap-2" data-live-only>
-        <div class="flex h-10 w-full items-center gap-0.5" aria-hidden="true" data-live-wave data-solo-wave>
-          {Array.from({ length: BARS }, () => <span class="h-[4%] flex-1 rounded-[1px] opacity-25" style={{ background: spk(local) }} />)}
-        </div>
-        <!-- Multi-speaker: one continuously recorded track per speaker -->
-        <div class="flex flex-col border-t border-line" data-c-tracks hidden></div>
-        <div class="flex items-center justify-between gap-4 font-mono text-[11px] text-subtle">
-          <span class="min-w-0 truncate" data-heard>Heard: —</span>
-          <span class="flex flex-none items-center gap-1.5"><span class="inline-block size-1.5 rounded-full bg-faint" data-c-voice-dot></span><span data-c-voice>Starting voice follow…</span><a href="/voice" target="_blank" class="ml-1 text-fg underline-offset-2 hover:underline" data-voice-help hidden>Voice check →</a></span>
-        </div>
-      </div>
+    <!-- The script, scrolling with the reader. Tap a line to jump; double-tap to retake. -->
+    <main class="relative min-h-0 flex-1 overflow-hidden" style={`font-family:var(--p-font, var(--font-sans))`} data-viewport>
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-16 bg-linear-to-t from-void to-transparent" aria-hidden="true"></div>
+      <div class="pointer-events-none absolute inset-x-0 top-0 z-[1] h-10 bg-linear-to-b from-void to-transparent" aria-hidden="true"></div>
+      <div class="mx-auto flex max-w-[820px] flex-col px-6 transition-transform duration-500 ease-in-out lg:px-10" data-track></div>
+    </main>
 
-      <div class="flex flex-col gap-2.5 pt-2 [html[data-demo]_&]:mt-auto">
-        <div class="flex justify-between font-mono text-[11px] text-subtle">
-          <span>00:00</span><span data-c-files>One file · Tyler, Sam</span><span data-c-length>24:18</span>
-        </div>
-        <div class="relative h-11 overflow-hidden rounded-lg bg-surface" data-timeline aria-hidden="true">
-          <div class="absolute inset-0 bg-[repeating-linear-gradient(90deg,var(--color-edge)_0_2px,transparent_2px_5px)] opacity-70"></div>
-          <div data-demo-only>
-            {demoTimeline.pauses.map(([left, width]) => (
-              <div class="absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink" style={{ left: `${left}%`, width: `${width}%` }} />
-            ))}
-            {demoTimeline.retakes.map((left) => <div class="absolute inset-y-0 w-0.5 bg-warn" style={{ left: `${left}%` }} />)}
-          </div>
-          <div data-live-only data-timeline-live></div>
-          <div class="absolute inset-y-0 right-0 w-0.5 bg-rec"></div>
-        </div>
-        <div class="flex gap-4.5 text-[12px] text-muted">
-          <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] bg-warn"></span>Retake</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] border border-dashed border-subtle"></span>Pause</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-[2px] bg-adlib"></span>Ad-lib</span>
-        </div>
-      </div>
-    </section>
+    <!-- Laptop: markers on a thin timeline (amber retakes, grey cuts, blue ad-libs, red gaps) -->
+    <div
+      class="relative mx-8 mb-3 hidden h-[18px] flex-none overflow-hidden rounded-[4px] bg-[repeating-linear-gradient(90deg,var(--color-edge)_0_2px,transparent_2px_5px)] group-data-[state=ready]/r:invisible lg:block"
+      data-timeline
+      aria-hidden="true"
+    >
+      <div data-timeline-marks></div>
+      <div class="absolute inset-y-0 right-0 w-0.5 bg-rec"></div>
+    </div>
 
-    <aside class="flex min-h-0 flex-col gap-3.5 p-6">
-      <div class="grid grid-cols-2 gap-2.5">
-        <button
-          type="button"
-          class="flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl bg-warn text-ink disabled:opacity-40"
-          data-retake
-        >
-          <span class="text-[15px] font-semibold">Retake line</span>
-          <span class="font-mono text-[11px] font-medium">R</span>
-        </button>
-        <button
-          type="button"
-          class="flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl bg-raised aria-pressed:bg-fg aria-pressed:text-ink disabled:opacity-40"
-          aria-pressed="false"
-          data-pause
-        >
-          <span class="text-[15px] font-medium" data-pause-label>Pause</span>
-          <span class="font-mono text-[11px] font-medium text-muted" data-pause-key>P</span>
-        </button>
-        <button
-          type="button"
-          class="col-span-2 flex h-11 items-center justify-center gap-3 rounded-xl border border-edge text-[14px] hover:bg-raised aria-pressed:border-transparent aria-pressed:bg-adlib aria-pressed:text-ink disabled:opacity-40"
-          aria-pressed="false"
-          data-adlib
-          disabled
-        >
-          <span data-adlib-label>Ad-lib</span>
-          <span class="font-mono text-[11px] font-medium opacity-60">A</span>
+    <footer class="relative z-10 flex-none border-t border-line bg-void px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] lg:flex lg:items-center lg:gap-8 lg:px-8 lg:py-4">
+      <!-- Undo, for 4 s after a retake, cough or ad-lib -->
+      <div
+        class="absolute inset-x-4 bottom-full mb-2 flex items-center justify-between gap-4 rounded-xl bg-raised px-4 py-3 text-[14px] shadow-[0_0_0_1px_var(--color-edge)] lg:inset-x-auto lg:left-1/2 lg:w-[440px] lg:-translate-x-1/2"
+        role="status"
+        data-toast
+        hidden
+      >
+        <span class="min-w-0 truncate" data-toast-text></span>
+        <button type="button" class="flex flex-none items-center gap-2 text-muted hover:text-fg" data-undo>
+          Undo <span class={kbd}>U</span>
         </button>
       </div>
-      <p class="text-[12px] leading-normal text-subtle">
-        Retake keeps recording, plays a short tone, drops a marker and rolls the prompter back to the start of the line.
-        Ad-libs are spotted on their own: the prompter holds your place and they’re marked, not cut.
-      </p>
-      <h2 class="mt-1.5 text-[13px] font-medium">Markers</h2>
-      <div class="flex min-h-0 flex-col overflow-auto" data-demo-only>
-        {demoMarkers.map((m) => (
-          <div class="grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]">
-            <span class="font-mono text-muted">{m.t}</span>
-            <span><span class={m.kind === 'Retake' ? 'text-warn' : 'text-fg-soft'}>{m.kind}</span> · {m.text}</span>
-          </div>
-        ))}
+
+      <!-- Level details (click the meter): the mic check's numbers -->
+      <div
+        class="absolute bottom-full left-4 mb-2 w-[min(320px,calc(100vw-32px))] rounded-2xl border border-edge bg-panel p-4 text-[13px] lg:left-8"
+        data-level-details
+        hidden
+      >
+        <h2 class="eyebrow text-muted!">Level</h2>
+        <dl class="mt-2 flex flex-col font-mono text-[12px]" data-level-rows></dl>
       </div>
-      <div class="flex min-h-0 flex-col overflow-auto" data-live-only data-marker-list>
-        <p class="py-2.5 text-[13px] text-subtle" data-marker-empty>No markers yet. Press R to retake a line, P to pause, A to mark an ad-lib.</p>
-      </div>
-      <div class="mt-auto flex flex-col gap-2.5 pt-4">
-        <dl class="flex flex-col text-[12px]" data-live-only>
-          {[
-            ['Input', 'device', 'This computer'],
-            ['Format', 'format', ''],
-            ['Level', 'peak', 'Peak —'],
-            ['Saved in this browser', 'saved', '—'],
-            ['Free space', 'free', '—'],
-          ].map(([label, key, value]) => (
-            <div class="flex items-center justify-between gap-4 border-b border-line py-2">
-              <dt class="flex-none text-muted">{label}</dt>
-              <dd class="meta min-w-0 truncate text-right" {...{ [`data-${key}`]: '' }}>{value}</dd>
-            </div>
+
+      <button type="button" class="flex w-full items-center gap-3 text-left lg:max-w-[640px] lg:min-w-0 lg:flex-1" aria-label="Level details" aria-expanded="false" data-level>
+        <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line" data-level-track>
+          {zones.map(([left, width, color]) => (
+            <span class="absolute inset-y-0" style={{ left, width, background: `color-mix(in oklab, ${color} 18%, transparent)` }} />
           ))}
-        </dl>
-        <div class="flex items-center justify-between text-[13px]">
-          <span class="text-muted" id="retake-tone-label">Retake tone</span>
-          <label class="relative inline-flex h-5 w-[34px] flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
-            <input type="checkbox" role="switch" checked class="peer sr-only" aria-labelledby="retake-tone-label" data-retake-tone />
-            <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
-          </label>
-        </div>
-        <button type="button" class="flex h-11 items-center justify-center rounded-[10px] border border-edge text-[14px] hover:bg-raised" data-demo-only>
-          Stop session
+          <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-level-fill></span>
+        </span>
+        <span class="max-w-[55%] flex-none truncate font-mono text-[11px] text-muted lg:text-[12px]" data-level-text>— dB</span>
+      </button>
+
+      <div class="mt-3 grid grid-cols-4 gap-2 lg:mt-0 lg:flex lg:flex-none lg:gap-2.5">
+        <button type="button" class:list={[btn, 'col-span-3 hidden flex-row! gap-2.5! bg-rec text-[16px] text-white group-data-[state=ready]/r:flex lg:px-8']} data-start disabled>
+          <span class="size-2 rounded-full bg-white"></span>Start recording
+        </button>
+        <button type="button" class:list={[btn, 'col-span-3 hidden flex-row! gap-3! bg-fg text-[16px] text-ink group-data-[state=paused]/r:flex lg:px-8']} data-resume>
+          <svg viewBox="0 0 12 14" class="size-3.5 fill-current" aria-hidden="true"><path d="M0 0l12 7-12 7z" /></svg>Resume · 3-2-1
+          <span class={kbd}>P</span>
         </button>
         <button
           type="button"
-          class="flex h-11 items-center justify-center gap-2 rounded-[10px] bg-rec text-[14px] font-medium text-white disabled:opacity-50 data-[running]:border data-[running]:border-edge data-[running]:bg-transparent data-[running]:font-normal data-[running]:text-fg"
-          data-live-only
-          data-session-toggle
-          disabled
+          class:list={[btn, 'hidden bg-raised group-data-[state=rec]/r:flex data-[holding]:bg-fg data-[holding]:text-ink']}
+          style="touch-action:none;-webkit-touch-callout:none"
+          data-cough
         >
-          <span class="size-2 rounded-full bg-white" data-session-icon></span>
-          <span data-session-label>Start session</span>
+          Cough <span class={sub} data-cough-sub>HOLD</span><span class={kbd}>HOLD C</span>
         </button>
-        <p class="text-center text-[12px] text-subtle" data-live-only data-session-hint>
-          One file for the whole session, saved to this browser every 5 seconds.
-        </p>
+        <button type="button" class:list={[btn, dim, 'hidden bg-warn font-semibold text-ink group-data-[state=rec]/r:flex']} data-retake>
+          Retake <span class={sub}>DOUBLE-TAP</span><span class={kbd}>R</span>
+        </button>
+        <button
+          type="button"
+          class:list={[btn, dim, 'hidden bg-raised group-data-[state=rec]/r:flex aria-pressed:bg-adlib aria-pressed:font-semibold aria-pressed:text-ink']}
+          aria-pressed="false"
+          data-adlib-btn
+        >
+          <span data-adlib-label>Ad-lib</span><span class={sub} data-adlib-sub>AUTO</span><span class={kbd}>A</span>
+        </button>
+        <button
+          type="button"
+          class:list={[btn, dim, 'bg-raised text-[20px] tracking-[0.1em] aria-expanded:bg-fg aria-expanded:text-ink']}
+          aria-expanded="false"
+          aria-label="More"
+          data-more-btn
+        >
+          ··· <span class={kbd}>M</span>
+        </button>
       </div>
-    </aside>
+      <p class="mt-2.5 hidden text-center font-mono text-[11px] leading-normal text-subtle group-data-[state=ready]/r:block lg:hidden!" data-format-line></p>
+    </footer>
+
+    <!-- More: a bottom sheet on a phone (1f), a popover above the bar on a laptop (2b) -->
+    <div class="fixed inset-0 z-30 bg-black/55 lg:hidden" data-more-scrim hidden></div>
+    <div
+      class="fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-auto overscroll-contain rounded-t-[22px] bg-panel px-4 pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:right-8 lg:bottom-[84px] lg:max-h-[calc(100dvh-150px)] lg:w-[372px] lg:rounded-2xl lg:border lg:border-edge lg:p-3"
+      role="dialog"
+      aria-label="More"
+      data-more
+      hidden
+    >
+      <div class="mx-auto mb-3 h-1 w-9 cursor-grab rounded-full bg-edge-strong lg:hidden" data-more-handle></div>
+      <div class="mb-3 flex items-center gap-3 lg:hidden">
+        <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+          <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-level-fill></span>
+        </span>
+        <span class="flex-none font-mono text-[11px] text-muted" data-level-db>—</span>
+      </div>
+      <div class="flex flex-col gap-2.5 lg:gap-2">
+        <button
+          type="button"
+          class="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-fg text-[17px] text-ink group-data-[state=ready]/r:hidden lg:h-11 lg:justify-between lg:rounded-xl lg:px-3.5 lg:text-[14px]"
+          data-more-pause
+        >
+          <span class="flex items-center gap-3"><span class="font-semibold tracking-[-0.1em]" aria-hidden="true" data-pause-icon>❚❚</span><span data-pause-text>Pause</span></span>
+          <span class={kbd}>P</span>
+        </button>
+
+        <div class="rounded-xl bg-raised px-3.5 py-3 lg:py-2.5">
+          <div class="flex items-center justify-between text-[15px] lg:text-[13px]">
+            <label for="text-size">Text size</label>
+            <span class="font-mono text-[13px] text-muted lg:text-[12px]"><span data-size-value>100%</span><span class="max-lg:hidden"> · ⌘+ ⌘−</span></span>
+          </div>
+          <input id="text-size" type="range" min="80" max="160" step="10" value="100" class="mt-3 w-full accent-fg lg:mt-2" data-size />
+        </div>
+
+        <div class="rounded-xl bg-raised py-1.5" data-sections-wrap>
+          <h2 class="px-3.5 pt-1.5 pb-1 font-mono text-[11px] font-medium tracking-[0.08em] text-subtle">JUMP TO SECTION</h2>
+          <div class="flex flex-col" data-sections></div>
+        </div>
+
+        <dl class="flex flex-col text-[14px] lg:text-[13px]">
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
+            <dt class="flex-none text-muted">Mic</dt>
+            <dd class="min-w-0 text-right">
+              <select
+                class="max-w-full truncate rounded-md border border-edge bg-surface px-2 py-1 text-[13px] focus:border-fg focus:outline-none disabled:border-transparent disabled:bg-transparent disabled:px-0 disabled:text-fg disabled:opacity-100 disabled:appearance-none"
+                aria-label="Microphone"
+                data-mic
+              ></select>
+              <span class="block text-[12px] text-subtle" data-mic-note hidden>Can’t change while recording</span>
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
+            <dt class="flex-none text-muted">Saved</dt>
+            <dd class="flex min-w-0 items-center gap-2 truncate"><span class="size-2 flex-none rounded-full bg-ok" data-store-dot></span><span data-store>In this browser</span></dd>
+          </div>
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
+            <dt class="flex-none text-muted">Markers</dt>
+            <dd class="min-w-0 truncate" data-counts>None yet</dd>
+          </div>
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
+            <dt class="text-muted" id="retake-tone-label">Retake tone</dt>
+            <dd>
+              <label class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
+                <input type="checkbox" role="switch" class="peer sr-only" aria-labelledby="retake-tone-label" data-retake-tone />
+                <span class="absolute top-0.5 left-0.5 size-5 rounded-full bg-subtle transition-all peer-checked:left-[18px] peer-checked:bg-white"></span>
+              </label>
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2" data-ios-voice-row hidden>
+            <dt class="min-w-0">
+              <span id="ios-voice-label">Voice follow (experimental)</span>
+              <span class="block text-[12px] text-subtle" data-ios-voice-note>Needs Siri turned on in iOS Settings</span>
+            </dt>
+            <dd>
+              <label class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
+                <input type="checkbox" role="switch" class="peer sr-only" aria-labelledby="ios-voice-label" data-ios-voice />
+                <span class="absolute top-0.5 left-0.5 size-5 rounded-full bg-subtle transition-all peer-checked:left-[18px] peer-checked:bg-white"></span>
+              </label>
+            </dd>
+          </div>
+        </dl>
+
+        <button
+          type="button"
+          class="mt-1 flex h-13 w-full items-center justify-center rounded-2xl border border-rec text-[15px] text-rec hover:bg-rec/10 group-data-[state=ready]/r:hidden lg:h-11 lg:rounded-xl lg:text-[14px]"
+          data-end
+        >
+          End session
+        </button>
+      </div>
+    </div>
+
+    <!-- Resume counts down so you're ready when the pause ends -->
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70" data-countdown hidden>
+      <span class="font-mono text-[120px] leading-none font-medium" data-countdown-n>3</span>
+    </div>
+
+    <dialog
+      class="m-auto w-[min(360px,calc(100vw-32px))] rounded-2xl border border-edge bg-panel p-5 text-fg backdrop:bg-black/60"
+      aria-labelledby="end-title"
+      data-end-dialog
+    >
+      <h2 id="end-title" class="text-[18px]">End the session?</h2>
+      <p class="mt-2 text-[14px] leading-normal text-muted">Recording stops and the session is saved. You can export it next.</p>
+      <form method="dialog" class="mt-5 flex justify-end gap-2.5">
+        <button value="cancel" class="h-10 rounded-[10px] border border-edge px-4 text-[14px] hover:bg-raised">Keep recording</button>
+        <button value="end" class="h-10 rounded-[10px] bg-rec px-4 text-[14px] font-medium text-white">End session</button>
+      </form>
+    </dialog>
   </div>
-  </div>
-</AppShell>
+</Base>
 
 <script>
-  import { markerName } from '@/lib/markers';
+  import { CUT_PADDING, type SessionMarker } from '@/lib/audio/assemble';
   import { MicCapture, type Level } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
-  import { TakeWriter, formatBytes, storageLeft, type RosterEntry } from '@/lib/audio/takes';
-  import { startClock } from '@/lib/prompter';
-  import { offerRecovery } from '@/lib/recovery';
-  import { Session } from '@/lib/session';
-  import { hz, loadSettings, saveSettings } from '@/lib/settings';
-  import type { SessionMarker } from '@/lib/audio/assemble';
+  import { toFraction, zone } from '@/lib/audio/meter';
+  import { TakeWriter, formatBytes, storageLeft, takeBytes } from '@/lib/audio/takes';
+  import { markerCounts, markerName } from '@/lib/markers';
+  import { isIOS } from '@/lib/platform';
   import { Prompter, enableHandScroll } from '@/lib/prompter';
-  import { loadScript, speakerColor, speakerName } from '@/lib/script-store';
+  import { offerRecovery } from '@/lib/recovery';
+  import { loadScript } from '@/lib/script-store';
+  import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
+  type State = 'ready' | 'rec' | 'paused';
+
   const root = document.getElementById('recording')!;
-  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
-  const demo = new URL(location.href).searchParams.has('demo');
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const $$ = <T extends HTMLElement = HTMLElement>(s: string) => [...root.querySelectorAll<T>(s)];
+  const params = new URL(location.href).searchParams;
+  const demo = params.has('demo');
+  const episodeId = root.dataset.episode!;
+  const script = loadScript(episodeId);
+  const { words, lines, lineStarts: starts, sections } = script;
+  const settings = loadSettings().recording;
+  const prompterSettings = loadSettings().prompter;
+  root.style.setProperty('--p-font', prompterSettings.font);
+  const fromLine = Math.max(0, Math.min(lines.length - 1, Number(params.get('from') ?? 0) || 0));
+  const lineOf = (i: number) => starts.reduce((line, s, n) => (i >= s ? n : line), 0);
+  /** 4:31, or 1:04:31 past an hour */
+  const clock = (sec: number) => {
+    const t = Math.max(0, Math.floor(sec));
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    const s = String(t % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+  };
+  const recClock = (sec: number) => clock(sec).padStart(5, '0');
 
-  if (demo) {
-    startClock([...document.querySelectorAll<HTMLElement>('[data-clock]')], 24 * 60 + 18);
-  } else {
-    live();
-  }
+  // ── The script ─────────────────────────────────────────────────────────────
+  const viewport = $('[data-viewport]');
+  const track = $('[data-track]');
+  track.replaceChildren(
+    ...lines.map((l, n) => {
+      const row = document.createElement('div');
+      row.dataset.line = String(n);
+      row.className =
+        'group/l cursor-pointer py-[0.42em] text-[length:calc(26px*var(--p-device))] lg:text-[length:calc(34px*var(--p-device))]';
+      const body = document.createElement('div');
+      body.className =
+        '-ml-4 border-l-2 border-transparent pl-3.5 text-[0.74em] leading-[1.32] text-subtle transition-[font-size,color] group-data-[l=now]/l:border-(--rule) group-data-[l=now]/l:text-[1em] group-data-[l=now]/l:text-fg group-data-[l=past]/l:text-ghost';
+      const text = document.createElement('div');
+      for (const w of l.text.split(/\s+/).filter(Boolean)) {
+        const span = document.createElement('span');
+        span.dataset.word = '';
+        span.className =
+          'decoration-rec decoration-2 underline-offset-[0.2em] group-data-[l=now]/l:data-[w=past]:text-muted group-data-[l=now]/l:data-[w=now]:underline group-data-[adlib]/r:decoration-adlib group-data-[state=ready]/r:no-underline!';
+        span.textContent = w;
+        text.append(span, ' ');
+      }
+      body.append(text);
+      row.append(body);
+      return row;
+    }),
+  );
+  // One label under the current line: the retake attempt, or "holding your place" during an ad-lib.
+  const tag = document.createElement('div');
+  tag.className = 'mt-2 font-mono text-[11px] font-medium tracking-[0.08em] text-(--rule) uppercase';
+  tag.hidden = true;
+  const prompter = new Prompter(viewport, track, { line: 0.3 });
+  enableHandScroll(prompter, viewport);
 
-  async function live() {
-    const episodeId = root.dataset.episode!;
-    // The episode's script: the user's own if they pasted or imported one, else the example.
-    const script = loadScript(episodeId);
-    const words = script.words;
-    const lines = script.lines;
-    const starts = script.lineStarts;
-    const prompterSettings = loadSettings().prompter;
-    // Solo reads have one track and no speakers to show. With several speakers, every
-    // speaker records their own track for the whole session, on one shared clock.
-    const solo = script.speakers.length <= 1;
-    // An iPhone records a single-host show; several speakers on one device need Chrome on a computer.
-    const host = script.speakers.includes(root.dataset.local!) ? root.dataset.local! : (script.speakers[0] ?? root.dataset.local!);
-    const trackSpeakers = solo ? [host] : script.speakers;
-    const INPUTS_KEY = 'podstudio:track-inputs';
-    // Per speaker: a mic on this computer ('default' = the Recording settings mic), 'remote', or 'off'.
-    let inputs: Record<string, string> = {};
+  // ── Text size, on this device only (80–160 %) ──────────────────────────────
+  const SIZE_KEY = 'podstudio:text-size';
+  const sizeInput = $<HTMLInputElement>('[data-size]');
+  let textSize = 100;
+  try {
+    textSize = Number(localStorage.getItem(SIZE_KEY)) || 100;
+  } catch {}
+  const setSize = (pct: number) => {
+    textSize = Math.max(80, Math.min(160, Math.round(pct / 10) * 10));
+    root.style.setProperty('--p-device', String(textSize / 100));
+    sizeInput.value = String(textSize);
+    $('[data-size-value]').textContent = `${textSize}%`;
     try {
-      inputs = JSON.parse(localStorage.getItem(INPUTS_KEY) || '{}');
+      localStorage.setItem(SIZE_KEY, String(textSize));
     } catch {}
-    for (const k of trackSpeakers) inputs[k] ??= k === host ? 'default' : 'remote';
-    const saveInputs = () => {
-      try {
-        localStorage.setItem(INPUTS_KEY, JSON.stringify(inputs));
-      } catch {}
-    };
-    const settings = loadSettings().recording;
-    const params = new URL(location.href).searchParams;
-    const fromLine = Math.max(0, Math.min(lines.length - 1, Number(params.get('from') ?? 0) || 0));
+    // Line heights changed: keep the current word on the reading line.
+    requestAnimationFrame(() => prompter.setWord(prompter.index));
+  };
+  setSize(textSize);
+  sizeInput.addEventListener('input', () => setSize(Number(sizeInput.value)));
 
-    await offerRecovery(episodeId);
+  // ── State ──────────────────────────────────────────────────────────────────
+  let state: State = 'ready';
+  let word = starts[fromLine];
+  let currentLine = lineOf(word);
+  const capture = new MicCapture();
+  let writer: TakeWriter | null = null;
+  let voice: VoiceFollow | null = null;
+  const markers = (): SessionMarker[] => writer?.meta.markers ?? demoMarkers;
+  let demoMarkers: SessionMarker[] = [];
+  // The session's wall clock: markers and line starts use it. If the mic stops, the audio
+  // falls behind it, and a gap marker says by how much (see onAudio() in assemble.ts).
+  let sessionStart = 0;
+  const now = () => (demo ? demoNow : sessionStart ? (performance.now() - sessionStart) / 1000 : 0);
+  let demoNow = 0;
+  let paused: SessionMarker | null = null;
+  let adlib: SessionMarker | null = null;
+  let cough: { t: number } | null = null;
+  /** Retake attempt shown on the current line, until the reader moves on */
+  let attemptShown: { line: number; n: number } | null = null;
+  const attempts = new Map<number, number>();
 
-    const sessionToggle = $<HTMLButtonElement>('[data-session-toggle]');
-    const recLabel = $('[data-rec-label]');
-    const recDot = $('[data-rec-dot]');
-    const setRecIndicator = (on: boolean, text: string) => {
-      recLabel.textContent = text;
-      recDot.style.background = on ? '' : 'var(--color-faint)';
-      recDot.style.animation = on ? '' : 'none';
-    };
-    setRecIndicator(false, 'READY');
+  const setRule = () => {
+    const rule = adlib
+      ? 'var(--color-adlib)'
+      : attemptShown?.line === currentLine
+        ? 'var(--color-warn)'
+        : state === 'rec'
+          ? 'var(--color-rec)'
+          : 'var(--color-edge-strong)';
+    root.style.setProperty('--rule', rule);
+    const row = track.querySelector<HTMLElement>(`[data-line="${currentLine}"] > div`);
+    const text = adlib
+      ? 'Holding your place · picks up when you’re back'
+      : attemptShown?.line === currentLine
+        ? `Attempt ${attemptShown.n} · from the top of the line`
+        : '';
+    tag.textContent = text;
+    tag.hidden = !text;
+    if (row && tag.parentElement !== row) row.append(tag);
+  };
 
-    $('[data-format]').textContent = `${settings.depth}-bit · ${settings.rate} kHz · ${settings.channels === 2 ? 'stereo' : 'mono'}`;
-    sessionToggle.disabled = false;
+  const setState = (s: State) => {
+    state = s;
+    root.dataset.state = s;
+    $('[data-paused-card]').hidden = s !== 'paused';
+    setRule();
+    tick();
+    renderMore();
+  };
 
-    const free = async () => {
-      const { free, hours } = await storageLeft(hz(settings.rate), settings.depth, settings.channels);
-      $('[data-free]').textContent = `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`;
-    };
-    free();
+  /** Move to a script word; while recording, log when a new line starts. */
+  const setWord = (i: number) => {
+    word = Math.max(0, Math.min(i, words.length - 1));
+    const line = lineOf(word);
+    if (line !== currentLine) {
+      if (writer) writer.meta.lineLog?.push({ t: now(), line });
+      if (attemptShown && attemptShown.line !== line) attemptShown = null;
+    }
+    currentLine = line;
+    prompter.setWord(word);
+    voice?.setWord(word);
+    // Saved with the next segment, so a recovered session knows where it stopped.
+    if (writer) writer.meta.lastLine = line;
+    setRule();
+    renderSections();
+  };
 
-    const lineOf = (i: number) => starts.reduce((line, s, n) => (i >= s ? n : line), 0);
-    const fmt = (sec: number) => {
-      const t = Math.floor(sec);
-      return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-    };
-    // Retake attempts per line, and when the last retake was marked.
-    const attempts = new Map<number, { n: number; at: number }>();
-    const fillLine = (slot: string, n: number) => {
-      const el = root.querySelector<HTMLElement>(`[data-c-line="${slot}"]`)!;
-      el.style.visibility = lines[n] ? '' : 'hidden';
-      if (!lines[n]) return;
-      const who = el.querySelector<HTMLElement>('[data-who]')!;
-      who.textContent = lines[n].who;
-      who.style.color = speakerColor(lines[n].who);
-      el.querySelector('[data-text]')!.textContent = lines[n].text;
-    };
-    // Continuous view: the whole script as a prompter that scrolls with the reader.
-    const track = $('[data-c-track]');
-    track.replaceChildren(
-      ...lines.map((l, n) => {
+  // ── Header: REC clock, saved, and the ad-lib / cut pill ─────────────────────
+  const recLabel = $('[data-rec-label]');
+  const saved = $('[data-saved]');
+  const savedWrap = $('[data-saved-wrap]');
+  const pill = $('[data-pill]');
+  const sectionOf = (line: number) => [...sections].reverse().find((s) => s.line <= line);
+  const phone = matchMedia('(max-width: 1023px)');
+  function tick() {
+    const t = now();
+    recLabel.textContent =
+      state === 'ready' ? 'READY' : state === 'paused' ? `PAUSED ${clock(t - (paused?.t ?? t))}` : `REC ${recClock(t)}`;
+    if (state === 'ready') {
+      saved.textContent = `${root.dataset.label}${sectionOf(currentLine) ? ` · ${sectionOf(currentLine)!.title}` : ''}`;
+    } else if (writer || demo) {
+      const ago = writer ? Math.round((Date.now() - writer.meta.updatedAt) / 1000) : 3;
+      const first = writer && !writer.meta.segments;
+      saved.textContent = first ? 'First save at 5 s' : phone.matches ? `Saved ${ago} s ago` : `Saved in this browser ${ago} s ago`;
+      $('[data-saved-dot]').style.background = ago > 30 && !first ? 'var(--color-warn)' : '';
+    }
+    // Cough and ad-lib show a live pill in place of "Saved".
+    const pillText = cough ? `CUT · ${clock(t - cough.t)}` : adlib ? `AD-LIB · ${clock(t - adlib.t)}` : '';
+    pill.hidden = !pillText;
+    pill.textContent = pillText;
+    pill.style.background = cough ? 'var(--color-fg)' : 'var(--color-adlib)';
+    savedWrap.hidden = !!pillText;
+    if (writer || demo) renderTimeline();
+  }
+  setInterval(tick, 250);
+
+  // ── Level meter: always on, same zones and numbers as the mic check ────────
+  const fills = $$('[data-level-fill]');
+  const levelText = $('[data-level-text]');
+  const levelDb = $('[data-level-db]');
+  let micLabel = '';
+  let shown = 0;
+  let windowPeak = -Infinity;
+  let clipAt = 0;
+  const held: number[] = [];
+  let last: Level | null = null;
+  const onLevel = (l: Level) => {
+    last = l;
+    windowPeak = Math.max(windowPeak, l.peak);
+    if (l.hot > -0.5) clipAt = Date.now();
+    // Fast attack, slow release, like a hardware meter.
+    const target = toFraction(l.peak);
+    shown = target > shown ? target : Math.max(target, shown - 0.015);
+    const clipping = Date.now() - clipAt < 1500;
+    for (const f of fills) {
+      f.style.width = `${shown * 100}%`;
+      f.style.background = cough
+        ? 'repeating-linear-gradient(90deg,var(--color-subtle) 0 3px,transparent 3px 5px)'
+        : clipping
+          ? 'var(--color-rec)'
+          : zone(l.peak);
+    }
+    if (detailsOpen) renderDetails();
+  };
+  capture.addEventListener('level', (e) => onLevel((e as CustomEvent<Level>).detail));
+  // The number holds the highest peak of the last 1.5 s, so it can be read while talking.
+  setInterval(() => {
+    held.push(windowPeak);
+    if (held.length > 6) held.shift();
+    windowPeak = -Infinity;
+    const hold = Math.max(...held);
+    const db = Number.isFinite(hold) ? `${String(Math.round(Math.min(0, hold)) || 0).replace('-', '−')} dB` : '— dB';
+    const clipping = Date.now() - clipAt < 3000;
+    levelText.textContent = cough ? 'Cut · still recording' : clipping ? `Clipping · ${micLabel}` : `${db}${micLabel ? ` · ${micLabel}` : ''}`;
+    levelText.style.color = clipping && !cough ? 'var(--color-rec)' : '';
+    levelDb.textContent = db;
+  }, 250);
+
+  // Click the meter: peak, RMS and each input, as on the mic check.
+  const details = $('[data-level-details]');
+  const levelBtn = $('[data-level]');
+  let detailsOpen = false;
+  const dbText = (v: number) => (Number.isFinite(v) ? `${v.toFixed(1).replace('-', '−')} dBFS` : '—');
+  function renderDetails() {
+    const rows: [string, string][] = [
+      ['Peak', last ? dbText(last.peak) : '—'],
+      ['RMS', last ? dbText(last.rms) : '—'],
+      ...((last?.inputs.length ?? 0) > 1 ? last!.inputs.map((v, i): [string, string] => [`Input ${i + 1}`, dbText(v)]) : []),
+      ['Clipping', Date.now() - clipAt < 3000 ? 'Yes' : clipAt ? 'Earlier' : 'None'],
+      ['Mic', micLabel || '—'],
+      ['Format', formatText()],
+    ];
+    $('[data-level-rows]').replaceChildren(
+      ...rows.map(([k, v]) => {
         const row = document.createElement('div');
-        row.dataset.line = String(n);
-        row.dataset.who = l.who;
-        row.className = `group grid cursor-pointer ${solo ? 'grid-cols-1' : 'grid-cols-[90px_1fr]'} gap-4.5 rounded-[10px] px-3.5 py-3 transition-[opacity,background-color] hover:bg-surface/60 data-[l=now]:bg-surface data-[l=now]:shadow-[inset_0_0_0_1px_var(--color-edge)] data-[l=past]:opacity-45 data-[theirs]:data-[l=next]:opacity-50`;
-        const who = document.createElement('span');
-        who.className = 'pt-1.5 font-mono text-[11px] font-medium tracking-[0.06em] uppercase';
-        who.style.color = speakerColor(l.who);
-        who.textContent = l.who || '—';
-        who.hidden = solo;
-        const body = document.createElement('div');
-        body.className = 'flex flex-col gap-2.5';
-        const text = document.createElement('div');
-        text.className =
-          'flex flex-wrap gap-x-[0.25em] text-[18px] leading-[1.6] text-fg-soft transition-[font-size] group-data-[l=now]:text-[22px] group-data-[l=now]:leading-[1.55] group-data-[l=now]:text-fg';
-        for (const w of l.text.split(/\s+/).filter(Boolean)) {
-          const span = document.createElement('span');
-          span.dataset.word = '';
-          span.className =
-            'group-data-[l=now]:data-[w=past]:text-muted group-data-[l=now]:data-[w=now]:shadow-[inset_0_-3px_0_var(--color-rec)]';
-          span.textContent = w;
-          // A real space keeps copy and screen readers right; flex layout ignores it.
-          text.append(span, ' ');
-        }
-        const attempt = document.createElement('span');
-        attempt.className = 'font-mono text-[11px] font-medium tracking-[0.06em] text-warn';
-        attempt.dataset.lineAttempt = '';
-        attempt.hidden = true;
-        body.append(text, attempt);
-        row.append(who, body);
-        // Click a line to put the reader there (handy when voice follow can't hear you).
-        row.addEventListener('click', () => setWord(starts[n]));
+        row.className = 'flex justify-between gap-4 border-b border-line py-1.5 last:border-0';
+        const dt = Object.assign(document.createElement('dt'), { className: 'text-muted', textContent: k });
+        const dd = Object.assign(document.createElement('dd'), { className: 'truncate text-right', textContent: v });
+        row.append(dt, dd);
         return row;
       }),
     );
-    const cPrompter = new Prompter($('[data-c-viewport]'), track, { line: 0.3 });
-    // Scroll to any line (wheel, trackpad or drag) and click it to put the reader there.
-    enableHandScroll(cPrompter, $('[data-c-viewport]'));
+  }
+  const toggleDetails = (open = !detailsOpen) => {
+    detailsOpen = open;
+    details.hidden = !open;
+    levelBtn.setAttribute('aria-expanded', String(open));
+    if (open) renderDetails();
+  };
+  levelBtn.addEventListener('click', () => toggleDetails());
 
-    // Tracks (multi-speaker continuous sessions): one row per speaker.
-    const tracksEl = $('[data-c-tracks]');
-    const rowFor = new Map<string, HTMLElement>();
-    const barsFor = new Map<string, HTMLElement[]>();
-    if (!solo) {
-      $('[data-solo-wave]').hidden = true;
-      tracksEl.hidden = false;
-      for (const k of trackSpeakers) {
-        const row = document.createElement('div');
-        row.className =
-          'grid grid-cols-[120px_minmax(0,1fr)_170px] items-center gap-4 border-b border-line py-2 data-[talking]:bg-surface data-[talking]:shadow-[inset_2px_0_0_var(--c)]';
-        row.style.setProperty('--c', speakerColor(k));
-        row.innerHTML = `
-          <div class="flex min-w-0 flex-col gap-0.5 pl-2">
-            <span class="flex items-center gap-2 text-[14px]"><span class="inline-block size-2 flex-none rounded-full" style="background:var(--c)"></span><span data-name></span></span>
-            <span class="font-mono text-[10px] tracking-[0.06em] text-(--c)" data-talking-label hidden>TALKING NOW</span>
-          </div>
-          <div class="flex h-8 w-full items-center gap-0.5" aria-hidden="true" data-bars></div>
-          <div class="min-w-0 pr-2">
-            <select class="w-full truncate rounded-md border border-edge bg-surface px-2 py-1 text-[12px] focus:border-fg focus:outline-none" aria-label="Input for this speaker" data-input></select>
-            <span class="block truncate font-mono text-[11px] text-muted" data-status hidden></span>
-          </div>`;
-        row.querySelector('[data-name]')!.textContent = speakerName(k);
-        const bars = row.querySelector<HTMLElement>('[data-bars]')!;
-        const list: HTMLElement[] = [];
-        for (let i = 0; i < 60; i++) {
-          const b = document.createElement('span');
-          b.className = 'h-[6%] flex-1 rounded-[1px] opacity-25';
-          b.style.background = 'var(--c)';
-          bars.append(b);
-          list.push(b);
+  const formatText = () => {
+    const rate = (capture.sampleRate || hz(settings.rate)) / 1000;
+    return `${rate} kHz · ${settings.depth}-bit${settings.channels === 2 ? ' · stereo' : ''}`;
+  };
+  $('[data-format-line]').textContent = `${formatText()} · saved in this browser as you go`;
+
+  // ── Timeline (laptop) ───────────────────────────────────────────────────────
+  const marks = $('[data-timeline-marks]');
+  function renderTimeline() {
+    const end = Math.max(now(), 1);
+    const pct = (t: number) => `${Math.min(99.6, (t / end) * 100)}%`;
+    marks.replaceChildren(
+      ...markers().map((m) => {
+        const el = document.createElement('div');
+        el.title = `${markerName[m.kind]} · ${clock(m.t)} · Line ${m.line + 1}: ${lines[m.line]?.text ?? ''}`;
+        el.style.left = pct(m.t);
+        if (m.kind === 'retake') el.className = 'absolute inset-y-0 w-0.5 bg-warn';
+        else {
+          el.className = {
+            cut: 'absolute inset-y-0 bg-edge-strong',
+            adlib: 'absolute inset-y-[3px] rounded-[2px] bg-adlib/70',
+            pause: 'absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink',
+            gap: 'absolute inset-y-0 bg-[repeating-linear-gradient(135deg,var(--color-rec)_0_2px,transparent_2px_5px)]',
+          }[m.kind];
+          el.style.width = `max(3px, ${(((m.end ?? now()) - m.t) / end) * 100}%)`;
         }
-        barsFor.set(k, list);
-        const select = row.querySelector<HTMLSelectElement>('[data-input]')!;
-        select.addEventListener('change', () => {
-          inputs[k] = select.value;
-          saveInputs();
-        });
-        rowFor.set(k, row);
-        tracksEl.append(row);
-      }
-      // Mic names are available once microphone access has been granted.
-      // Every input on this computer, including each input of a multi-input interface.
-      // Stereo lists each device once (inputs 1 + 2 as L / R).
-      inputChoices(settings.channels).then((choices) => {
-        for (const [k, row] of rowFor) {
-          const select = row.querySelector<HTMLSelectElement>('[data-input]')!;
-          select.replaceChildren(
-            new Option(`Recording mic (${choices.find((c) => c.value === inputFor(settings.deviceId, settings.channels))?.label ?? choices[0].label})`, 'default'),
-            ...choices.map((c) => new Option(c.label, c.value || 'system')),
-            new Option('Remote · own device', 'remote'),
-            new Option('Not recorded', 'off'),
-          );
-          const saved = ['default', 'system', 'remote', 'off'].includes(inputs[k]) ? inputs[k] : inputFor(inputs[k], settings.channels);
-          select.value = [...select.options].some((o) => o.value === saved) ? saved : 'remote';
-          select.addEventListener('change', () => k === trackSpeakers.find((x) => inputs[x] !== 'remote' && inputs[x] !== 'off') && listenOn());
-        }
-      });
-    }
-    // The stored input for a speaker's track: their own pick, or the Recording settings mic.
-    const deviceOf = (k: string) =>
-      inputFor(inputs[k] === 'default' ? settings.deviceId : inputs[k] === 'system' ? '' : inputs[k], settings.channels);
-    const filesLabel = () =>
-      solo ? 'One file' : `${trackSpeakers.length} tracks · ${trackSpeakers.map(speakerName).join(', ')} · one clock`;
+        return el;
+      }),
+    );
+  }
 
-    const showLine = (n: number) => {
-      fillLine('prev', n - 1);
-      fillLine('cur', n);
-      fillLine('next', n + 1);
-      const a = attempts.get(n);
-      const label = $('[data-attempt]');
-      label.hidden = !a;
-      if (a) label.textContent = `ATTEMPT ${a.n} · RETAKE MARKED AT ${fmt(a.at)}`;
-      // Same label on the live prompter's line.
-      const live = track.querySelector<HTMLElement>(`[data-line="${n}"] [data-line-attempt]`);
-      if (live) {
-        live.hidden = !a;
-        if (a) live.textContent = `ATTEMPT ${a.n} · RETAKE MARKED AT ${fmt(a.at)}`;
-      }
-      // Whose turn it is: their track is the one talking.
-      for (const [k, row] of rowFor) {
-        const on = k === lines[n].who;
-        row.toggleAttribute('data-talking', on);
-        row.querySelector<HTMLElement>('[data-talking-label]')!.hidden = !on;
-      }
-    };
+  // ── Undo toast (Retake, Cough, Ad-lib) ─────────────────────────────────────
+  const toast = $('[data-toast]');
+  let undoable: { marker: SessionMarker; undo: () => void } | null = null;
+  let toastTimer: number | undefined;
+  function offerUndo(text: string, marker: SessionMarker, undo: () => void = () => {}) {
+    undoable = { marker, undo };
+    $('[data-toast-text]').textContent = text;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => {
+      toast.hidden = true;
+      undoable = null;
+    }, 4000);
+  }
+  function undo() {
+    if (!undoable) return;
+    const list = markers();
+    const i = list.indexOf(undoable.marker);
+    if (i >= 0) list.splice(i, 1);
+    undoable.undo();
+    undoable = null;
+    toast.hidden = true;
+    clearTimeout(toastTimer);
+    renderMore();
+    tick();
+  }
+  $('[data-undo]').addEventListener('click', undo);
 
-    const session = new Session(episodeId);
-    const capture = new MicCapture();
-    let writer: TakeWriter | null = null;
-    let voice: VoiceFollow | null = null;
-    let startedAt = 0;
-    // ?from=<line> starts the reader on that line (continuing a recovered session).
-    let word = starts[fromLine];
-    let currentLine = lineOf(word);
-    showLine(currentLine);
-    $('[data-c-length]').textContent = '00:00';
-    $('[data-c-files]').textContent = filesLabel();
-    if (!solo) $('[data-session-hint]').textContent = 'Every speaker’s track records the whole session, saved to this browser every 5 seconds.';
-    let paused: SessionMarker | null = null;
-    cPrompter.setWord(word);
+  // ── Retake ─────────────────────────────────────────────────────────────────
+  const toneSwitch = $<HTMLInputElement>('[data-retake-tone]');
+  toneSwitch.checked = settings.retakeTone;
+  toneSwitch.addEventListener('change', () => saveSettings('recording', { retakeTone: toneSwitch.checked }));
+  // A short beep for the reader; it is not written into the recording.
+  const beep = () => {
+    const ctx = capture.ctx;
+    if (!toneSwitch.checked || !ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 1000;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.22);
+  };
 
-    /** Move to a script word; while recording, log when a new line starts. */
-    const setWord = (i: number, broadcast = true) => {
-      word = i;
-      const line = lineOf(i);
-      if (line !== currentLine && writer) writer.meta.lineLog?.push({ t: capture.elapsed(), line });
-      currentLine = line;
-      showLine(line);
-      cPrompter.setWord(i);
-      voice?.setWord(i);
-      // Saved with the next segment, so a recovered session knows where it stopped.
-      if (writer) writer.meta.lastLine = line;
-      if (broadcast) session.send({ type: 'word', index: i, device: device() });
-    };
-    let clock: number | undefined;
-    // Other screens show "Following <this computer>"; the mic's own name goes on the track.
-    const computer = (JSON.parse(root.dataset.devices!) as Record<string, string>)[settings.recorder] ?? 'This computer';
-    const device = () => computer;
-    const recMsg = () => ({ type: 'rec' as const, recording: !!writer, startedAt, device: device(), take: writer?.meta.id });
-
-    session.on('hello', () => writer && session.send(recMsg()));
-    session.on('control', (m) => {
-      if (m.action === 'goto' && m.word != null) setWord(m.word, false);
-      if (m.action === 'next') setWord(starts[Math.min(currentLine + 1, starts.length - 1)], false);
-      if (m.action === 'prev') setWord(starts[Math.max(currentLine - 1, 0)], false);
-      // The producer's pause becomes a pause marker.
-      if (writer && ((m.action === 'pause' && !paused) || (m.action === 'resume' && paused))) togglePause(false);
+  function retake() {
+    if (state !== 'rec' || cough) return;
+    endAdlib();
+    const t = now();
+    const line = currentLine;
+    const before = { word, shown: attemptShown, n: attempts.get(line) };
+    const n = (attempts.get(line) ?? 1) + 1;
+    attempts.set(line, n);
+    const marker: SessionMarker = { t, kind: 'retake', line, attempt: n };
+    const logEntry = { t, line };
+    markers().push(marker);
+    writer?.meta.lineLog?.push(logEntry);
+    beep();
+    attemptShown = { line, n };
+    setWord(starts[line]);
+    offerUndo(`Retake marked · Line ${line + 1}`, marker, () => {
+      const log = writer?.meta.lineLog;
+      if (log && log.includes(logEntry)) log.splice(log.indexOf(logEntry), 1);
+      if (before.n == null) attempts.delete(line);
+      else attempts.set(line, before.n);
+      attemptShown = before.shown;
+      setWord(before.word);
     });
+    renderMore();
+  }
 
-    // Live waveform: one bar per quarter second, newest on the right.
-    const waves = [...document.querySelectorAll<HTMLElement>('[data-live-wave]')].map((w) => [...w.querySelectorAll<HTMLElement>('span')]);
-    const heights: number[] = waves[0].map(() => 0);
-    let windowPeak = 0;
-    const held: number[] = [];
-    let clipAt = 0;
-    capture.addEventListener('level', (e) => {
-      const { peak, hot } = (e as CustomEvent<Level>).detail;
-      windowPeak = Math.max(windowPeak, peak);
-      if (hot > -0.5) clipAt = Date.now();
-    });
-    // Multi-speaker rows: the level of each speaker's mic, newest bar on the right.
-    const rowPeaks = new Map<string, number>();
-    const rowHeights = new Map<string, number[]>([...barsFor.keys()].map((k) => [k, Array(60).fill(0)]));
-    setInterval(() => {
-      if (!writer || solo) return;
-      for (const [k, bars] of barsFor) {
-        const peak = rowPeaks.get(k) ?? -Infinity;
-        const h = rowHeights.get(k)!;
-        h.push(Number.isFinite(peak) ? Math.max(6, Math.min(100, ((peak + 60) / 60) * 100)) : 0);
-        h.shift();
-        bars.forEach((b, i) => {
-          b.style.height = `${h[i] || 6}%`;
-          b.style.opacity = h[i] ? '0.85' : '0.25';
-        });
-        if (rowPeaks.has(k)) rowPeaks.set(k, -Infinity);
-      }
-    }, 250);
+  // ── Cough: hold to mark a cut; recording carries on ────────────────────────
+  const coughBtn = $('[data-cough]');
+  function coughDown() {
+    if (state !== 'rec' || cough) return;
+    cough = { t: now() };
+    root.dataset.coughing = '';
+    coughBtn.dataset.holding = '';
+    $('[data-cough-sub]').textContent = 'RELEASE';
+    voice?.mute(true);
+    navigator.vibrate?.(15);
+    tick();
+  }
+  function coughUp() {
+    if (!cough) return;
+    const end = now();
+    const marker: SessionMarker = { t: Math.max(0, cough.t - CUT_PADDING), kind: 'cut', line: currentLine, end: end + CUT_PADDING };
+    const held = end - cough.t;
+    cough = null;
+    delete root.dataset.coughing;
+    delete coughBtn.dataset.holding;
+    $('[data-cough-sub]').textContent = 'HOLD';
+    voice?.mute(false);
+    markers().push(marker);
+    offerUndo(`Cough cut · ${clock(held + 2 * CUT_PADDING)}`, marker);
+    tick();
+    renderMore();
+  }
+  coughBtn.addEventListener('pointerdown', (e) => {
+    coughBtn.setPointerCapture(e.pointerId);
+    coughDown();
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) coughBtn.addEventListener(ev, coughUp);
+  coughBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+  addEventListener('blur', coughUp);
 
-    setInterval(() => {
-      if (!writer) return;
-      // -60..0 dBFS → 4..100 %
-      const pct = Number.isFinite(windowPeak) ? Math.max(4, Math.min(100, ((windowPeak + 60) / 60) * 100)) : 4;
-      heights.push(pct);
-      heights.shift();
-      for (const bars of waves) {
-        bars.forEach((b, i) => {
-          b.style.height = `${heights[i] || 4}%`;
-          b.style.opacity = heights[i] ? '0.85' : '0.25';
-        });
-      }
-      // The readout holds the highest peak of the last 1.5 s, so it can be read while talking.
-      held.push(windowPeak);
-      if (held.length > 6) held.shift();
-      const hold = Math.max(...held);
-      $('[data-peak]').textContent = Number.isFinite(hold) ? `Peak ${Math.round(Math.min(0, hold)) || 0} dBFS${Date.now() - clipAt < 3000 ? ' · CLIP' : ''}` : 'Silence';
-      // Same traffic-light zones as the mic check: green below -18 dBFS, amber -18 to -6
-      // (the target zone), red above -6 or when clipping.
-      const shown = Math.round(hold);
-      $('[data-peak]').style.color =
-        Date.now() - clipAt < 3000 || shown > -6 ? 'var(--color-rec)' : shown >= -18 ? 'var(--color-warn)' : 'var(--color-ok)';
-      windowPeak = -Infinity;
-    }, 250);
-
-    // Saved-state line, refreshed every second.
-    setInterval(() => {
-      if (!writer) return;
-      const ago = Math.round((Date.now() - writer.meta.updatedAt) / 1000);
-      $('[data-saved]').textContent = writer.meta.segments ? `${ago} s ago` : 'first save at 5 s';
-    }, 1000);
-
-    let manualTimer: number | undefined;
-    let engineLabel = '';
-    let inputLabel = '';
-    let openedInput: string | null = null;
-    // The mic open in progress, so starting a session right away waits for it instead of racing it.
-    let opening: Promise<void> = Promise.resolve();
-
-    /** Open the input the first local track records, and point voice follow at it. */
-    function listenOn() {
-      opening = opening.then(openListening);
-      return opening;
-    }
-    async function openListening() {
-      if (writer) return;
-      const first = solo ? host : trackSpeakers.find((k) => inputs[k] !== 'remote' && inputs[k] !== 'off');
-      const wanted = await availableInput(first ? deviceOf(first) : settings.deviceId, settings.channels);
-      const saved = inputFor(first ? deviceOf(first) : settings.deviceId, settings.channels);
-      try {
-        if (openedInput !== wanted || !capture.ctx) {
-          await capture.open({ deviceId: wanted, sampleRate: hz(settings.rate), channels: settings.channels });
-          openedInput = wanted;
-        }
-        const { label } = await describeInput(wanted, settings.channels);
-        inputLabel = label;
-        // Recorded at the device's own rate (no resampling), which may differ from the setting.
-        const rate = capture.sampleRate / 1000;
-        $('[data-format]').textContent =
-          `${settings.depth}-bit · ${rate} kHz${rate !== settings.rate ? ' (the mic’s rate)' : ''} · ${settings.channels === 2 ? 'stereo' : 'mono'}`;
-        $('[data-device]').textContent = label;
-        if (saved && saved !== wanted) $('[data-c-voice]').textContent = `Saved mic not found · using ${label}`;
-      } catch (err) {
-        inputLabel = '';
-        $('[data-session-hint]').textContent =
-          (err as Error).name === 'NotAllowedError'
-            ? 'Podstudio needs microphone access. Allow it in the address bar, then reload.'
-            : `Couldn’t open the microphone: ${(err as Error).message}`;
-      }
-      voice?.setTrack(capture.voiceTrack());
-    }
-    const startVoice = () => {
-      // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
-      if (prompterSettings.mode === 'manual') {
-        const text = `Manual · ${prompterSettings.wpm} wpm`;
-        $('[data-c-voice]').textContent = `${text} · P pauses`;
-        manualTimer = window.setInterval(() => {
-          if (writer && !paused && word < words.length - 1) setWord(word + 1);
-        }, 60000 / prompterSettings.wpm);
-        return;
-      }
-      if (!voiceFollowSupported()) {
-        $('[data-c-voice]').textContent = 'Voice follow needs Chrome';
-        return;
-      }
-      voice = new VoiceFollow(words);
-      voice.engine = prompterSettings.voiceEngine;
-      voice.track = capture.voiceTrack();
-      voice.setWord(word);
-      voice.addEventListener('engine', (e) => (engineLabel = (e as CustomEvent<string>).detail === 'local' ? ' · on-device' : ''));
-      voice.addEventListener('word', (e) => {
-        // Talk during a pause isn't part of the script.
-        if (!paused) setWord((e as CustomEvent<number>).detail);
-      });
-      voice.addEventListener('lost', (e) => {
-        session.send({ type: 'follow', state: 'lost' });
-        startAdlib((e as CustomEvent<{ since: number }>).detail.since);
-      });
-      voice.addEventListener('found', () => {
-        session.send({ type: 'follow', state: 'read' });
-        // The words that brought the reader back were script, so end a moment before them.
-        endAdlib(1);
-      });
-      const voiceState = (text: string, color: string) => {
-        $('[data-c-voice]').textContent = text === 'Listening' ? `Voice follow listening${engineLabel}${inputLabel ? ` · ${inputLabel}` : ''}` : text;
-        $('[data-c-voice-dot]').style.background = color;
-        // Anything but listening: point to the voice check.
-        $('[data-voice-help]').hidden = text === 'Listening';
-      };
-      voice.addEventListener('status', (e) => {
-        const on = (e as CustomEvent<string>).detail === 'listening';
-        voiceState(on ? 'Listening' : 'Off', on ? 'var(--color-ok)' : 'var(--color-faint)');
-      });
-      voice.addEventListener('error', (e) => voiceState(voiceErrorText((e as CustomEvent<string>).detail), 'var(--color-warn)'));
-      voice.addEventListener('heard', (e) => ($('[data-heard]').textContent = `Heard: “${(e as CustomEvent<string>).detail.split(/\s+/).slice(-12).join(' ')}”`));
-      voice.addEventListener('lost', () => ($('[data-c-voice]').textContent = 'Ad-lib · holding your place until the script resumes'));
-      voice.addEventListener('found', () => ($('[data-c-voice]').textContent = 'Voice follow listening'));
-      voice.start();
-    };
-
-    // Extra mics (same-room sessions) and every speaker's writer, besides the main ones.
-    const extraCaptures: MicCapture[] = [];
-    const trackWriters: TakeWriter[] = [];
-
-    async function start() {
-      sessionToggle.disabled = true;
-      // Which mic each locally recorded speaker uses; a mic shared by two speakers records once.
-      const localSpeakers = !solo ? trackSpeakers.filter((k) => inputs[k] !== 'remote' && inputs[k] !== 'off') : [host];
-      if (!localSpeakers.length) {
-        sessionToggle.disabled = false;
-        $('[data-session-hint]').textContent = 'Pick a mic on this computer for at least one speaker.';
-        return;
-      }
-      await opening;
-      const firstDevice = await availableInput(deviceOf(localSpeakers[0]), settings.channels);
-      try {
-        // Usually already open (voice follow listens to it); reopen only if the input changed.
-        if (!capture.ctx || openedInput !== firstDevice) {
-          await capture.open({ deviceId: firstDevice, sampleRate: hz(settings.rate), channels: settings.channels });
-          openedInput = firstDevice;
-          voice?.setTrack(capture.voiceTrack());
-        }
-        await capture.ctx!.resume();
-      } catch (err) {
-        sessionToggle.disabled = false;
-        $('[data-session-hint]').textContent =
-          (err as Error).name === 'NotAllowedError'
-            ? 'Podstudio needs microphone access. Allow it in the address bar, then try again.'
-            : `Couldn’t open the microphone: ${(err as Error).message}`;
-        return;
-      }
-      // Tracks in one session share the same marker list and line log.
-      const shared = { markers: [] as SessionMarker[], lineLog: [{ t: 0, line: currentLine }], group: `${episodeId}-g${Date.now().toString(36)}` };
-      const byDevice = new Map<string, { cap: MicCapture; speaker: string }>([[firstDevice, { cap: capture, speaker: localSpeakers[0] }]]);
-      // Who is on which track, so the wrap-up knows whose files to wait for.
-      const roster: RosterEntry[] = trackSpeakers.map((k) => ({
-        speaker: k,
-        source: localSpeakers.includes(k) ? 'local' : inputs[k] === 'off' ? 'off' : 'remote',
-      }));
-      const entry = (k: string) => roster.find((r) => r.speaker === k)!;
-      for (const k of localSpeakers.slice(1)) {
-        const dev = deviceOf(k);
-        const status = rowFor.get(k)?.querySelector<HTMLElement>('[data-status]');
-        if (byDevice.has(dev)) {
-          if (status) status.textContent = `Same mic as ${speakerName(byDevice.get(dev)!.speaker)}`;
-          Object.assign(entry(k), { source: 'shared', with: byDevice.get(dev)!.speaker });
-          continue;
-        }
-        const cap = new MicCapture();
-        try {
-          await cap.open({ deviceId: dev, sampleRate: hz(settings.rate), channels: settings.channels });
-        } catch {
-          if (status) status.textContent = 'Mic unavailable';
-          entry(k).source = 'failed';
-          continue;
-        }
-        extraCaptures.push(cap);
-        byDevice.set(dev, { cap, speaker: k });
-      }
-      for (const { cap, speaker } of byDevice.values()) {
-        const w = await TakeWriter.start({
-          episodeId,
-          kind: 'session',
-          ...shared,
-          roster,
-          startLine: fromLine,
-          startText: lines[fromLine].text,
-          speaker,
-          device: cap.label || computer,
-          sampleRate: cap.sampleRate,
-          bitDepth: settings.depth,
-          channels: cap.channels,
-        });
-        trackWriters.push(w);
-        cap.addEventListener('chunk', (e) => w.push((e as CustomEvent<Float32Array>).detail));
-        // The recording's own rate, if the device reported a different one up front.
-        cap.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
-        cap.addEventListener('error', (e) => ($('[data-session-hint]').textContent = `Recording problem: ${(e as CustomEvent<string>).detail}`));
-        cap.addEventListener('level', (e) => rowPeaks.set(speaker, Math.max(rowPeaks.get(speaker) ?? -Infinity, (e as CustomEvent<{ peak: number }>).detail.peak)));
-        const status = rowFor.get(speaker)?.querySelector<HTMLElement>('[data-status]');
-        if (status) status.textContent = `● ${cap.label || 'This computer'}`;
-      }
-      writer = trackWriters[0];
-      // Start every track together so they line up.
-      for (const { cap } of byDevice.values()) cap.record();
-      for (const [k, row] of rowFor) {
-        row.querySelector<HTMLElement>('[data-input]')!.hidden = true;
-        const status = row.querySelector<HTMLElement>('[data-status]')!;
-        status.hidden = false;
-        if (inputs[k] === 'remote') status.textContent = 'Remote · needs the server';
-        else if (inputs[k] === 'off') status.textContent = 'Not recorded';
-      }
-      startedAt = Date.now();
-      session.send(recMsg());
-      session.send({ type: 'word', index: word, device: device() });
-
-      const tick = () => {
-        const s = Math.floor((Date.now() - startedAt) / 1000);
-        setRecIndicator(true, `REC ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`);
-      };
-      tick();
-      clock = window.setInterval(tick, 1000);
-      sessionToggle.dataset.running = '';
-      $('[data-session-icon]').hidden = true;
-      $('[data-session-label]').textContent = 'Stop session';
-      sessionToggle.disabled = false;
-      retakeBtn.disabled = pauseBtn.disabled = adlibBtn.disabled = false;
-    }
-
-    // Retake and pause (8a).
-    const retakeBtn = $<HTMLButtonElement>('[data-retake]');
-    const pauseBtn = $<HTMLButtonElement>('[data-pause]');
-    retakeBtn.disabled = pauseBtn.disabled = true;
-    const toneSwitch = $<HTMLInputElement>('[data-retake-tone]');
-    toneSwitch.checked = settings.retakeTone;
-    toneSwitch.addEventListener('change', () => saveSettings('recording', { retakeTone: toneSwitch.checked }));
-
-    // A short beep for the reader; it is not written into the recording.
-    const beep = () => {
-      const ctx = capture.ctx;
-      if (!toneSwitch.checked || !ctx) return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = 1000;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.22);
-    };
-
-    function retake() {
-      if (!writer) return;
-      const t = capture.elapsed();
-      const n = (attempts.get(currentLine)?.n ?? 1) + 1;
-      attempts.set(currentLine, { n, at: t });
-      writer.meta.markers!.push({ t, kind: 'retake', line: currentLine, attempt: n });
-      writer.meta.lineLog!.push({ t, line: currentLine });
-      beep();
-      setWord(starts[currentLine]);
-      renderSession();
-    }
-
-    function togglePause(broadcast = true) {
-      if (!writer) return;
-      const t = capture.elapsed();
+  // ── Ad-lib: marked, not cut; the script holds your place ───────────────────
+  const adlibBtn = $('[data-adlib-btn]');
+  function startAdlib(since = Date.now()) {
+    if (state !== 'rec' || adlib) return;
+    // Backdate to the first off-script word voice follow heard.
+    const t = Math.max(0, now() - (Date.now() - since) / 1000);
+    adlib = { t, kind: 'adlib', line: currentLine };
+    markers().push(adlib);
+    root.dataset.adlib = '';
+    adlibBtn.setAttribute('aria-pressed', 'true');
+    $('[data-adlib-sub]').textContent = 'TAP TO END';
+    $('[data-adlib-label]').textContent = phone.matches ? 'Ad-lib' : 'Ad-lib · end';
+    setRule();
+    tick();
+  }
+  /** `lead`: seconds of script already heard when voice follow noticed it resumed. */
+  function endAdlib(lead = 0) {
+    if (!adlib) return;
+    const m = adlib;
+    m.end = Math.max(m.t, now() - lead);
+    adlib = null;
+    delete root.dataset.adlib;
+    adlibBtn.setAttribute('aria-pressed', 'false');
+    $('[data-adlib-sub]').textContent = 'AUTO';
+    $('[data-adlib-label]').textContent = 'Ad-lib';
+    offerUndo(`Ad-lib · ${clock(m.end - m.t)}`, m);
+    setRule();
+    tick();
+    renderMore();
+  }
+  function toggleAdlib() {
+    if (state !== 'rec' || cough) return;
+    if (adlib) {
       endAdlib();
-      if (paused) {
-        paused.end = t;
-        paused = null;
-        if (broadcast) session.send({ type: 'control', action: 'resume' });
-      } else {
-        paused = { t, kind: 'pause', line: currentLine };
-        writer.meta.markers!.push(paused);
-        if (broadcast) session.send({ type: 'control', action: 'pause' });
-      }
-      pauseBtn.setAttribute('aria-pressed', String(!!paused));
-      $('[data-pause-label]').textContent = paused ? 'Resume' : 'Pause';
-      renderSession();
-    }
+      voice?.release();
+    } else if (voice) voice.holdAdlib();
+    else startAdlib();
+  }
 
-    // Ad-libs: talk that isn't in the script, by anyone. Voice follow holds the reader's place
-    // and spots them itself; A (or the button) marks one by hand. They stay in the edit.
-    const adlibBtn = $<HTMLButtonElement>('[data-adlib]');
-    adlibBtn.disabled = true;
-    let adlib: SessionMarker | null = null;
-    function startAdlib(since = Date.now()) {
-      if (!writer || paused || adlib) return;
-      // Backdate to the first off-script word voice follow heard.
-      const t = Math.max(0, capture.elapsed() - (Date.now() - since) / 1000);
-      adlib = { t, kind: 'adlib', line: currentLine };
-      writer.meta.markers!.push(adlib);
-      adlibBtn.setAttribute('aria-pressed', 'true');
-      $('[data-adlib-label]').textContent = 'Ad-lib · back to script';
-      renderSession();
+  // ── Pause and Resume (3-2-1) ───────────────────────────────────────────────
+  let counting = false;
+  function pause() {
+    if (state !== 'rec') return;
+    coughUp();
+    endAdlib();
+    paused = { t: now(), kind: 'pause', line: currentLine };
+    markers().push(paused);
+    setState('paused');
+  }
+  async function resume() {
+    if (state !== 'paused' || counting) return;
+    counting = true;
+    closeMore();
+    const overlay = $('[data-countdown]');
+    overlay.hidden = false;
+    for (const n of [3, 2, 1]) {
+      $('[data-countdown-n]').textContent = String(n);
+      await new Promise((r) => setTimeout(r, 1000));
     }
-    /** `lead`: seconds of script already heard when voice follow noticed it resumed. */
-    function endAdlib(lead = 0) {
-      if (!adlib || !writer) return;
-      adlib.end = Math.max(adlib.t, capture.elapsed() - lead);
-      adlib = null;
-      adlibBtn.setAttribute('aria-pressed', 'false');
-      $('[data-adlib-label]').textContent = 'Ad-lib';
-      renderSession();
+    overlay.hidden = true;
+    counting = false;
+    if (paused) paused.end = now();
+    paused = null;
+    setState('rec');
+  }
+  const togglePause = () => (state === 'rec' ? pause() : resume());
+
+  // ── More ────────────────────────────────────────────────────────────────────
+  const more = $('[data-more]');
+  const moreBtn = $('[data-more-btn]');
+  const scrim = $('[data-more-scrim]');
+  const isMoreOpen = () => !more.hidden;
+  function openMore() {
+    toggleDetails(false);
+    more.hidden = false;
+    scrim.hidden = false;
+    moreBtn.setAttribute('aria-expanded', 'true');
+    renderMore();
+  }
+  function closeMore() {
+    more.hidden = true;
+    scrim.hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+  }
+  moreBtn.addEventListener('click', () => (isMoreOpen() ? closeMore() : openMore()));
+  scrim.addEventListener('click', closeMore);
+  // Swipe the sheet down to close it.
+  {
+    let startY: number | null = null;
+    more.addEventListener('pointerdown', (e) => {
+      if (more.scrollTop <= 0 && (e.target as HTMLElement).closest('[data-more-handle], h2') !== null) startY = e.clientY;
+    });
+    more.addEventListener('pointermove', (e) => {
+      if (startY != null && e.clientY - startY > 60) {
+        startY = null;
+        closeMore();
+      }
+    });
+    more.addEventListener('pointerup', () => (startY = null));
+  }
+  $('[data-more-pause]').addEventListener('click', () => {
+    if (state === 'rec') closeMore();
+    togglePause();
+  });
+  function renderMore() {
+    $('[data-pause-text]').textContent = state === 'paused' ? 'Resume · 3-2-1' : 'Pause';
+    $('[data-pause-icon]').textContent = state === 'paused' ? '▶' : '❚❚';
+    $('[data-counts]').textContent = markerCounts(markers().filter((m) => m.kind !== 'pause')) || 'None yet';
+    const recording = state !== 'ready';
+    $<HTMLSelectElement>('[data-mic]').disabled = recording;
+    $('[data-mic-note]').hidden = !recording;
+    if (writer) {
+      const behind = Math.round((Date.now() - writer.meta.updatedAt) / 1000);
+      $('[data-store]').textContent = `In this browser · ${formatBytes(takeBytes(writer.meta))}${behind > 30 ? ` · ${behind} s behind` : ''}`;
+      $('[data-store-dot]').style.background = behind > 30 ? 'var(--color-warn)' : '';
     }
-    function toggleAdlib() {
-      if (!writer || paused) return;
-      if (adlib) {
+    renderSections();
+  }
+  setInterval(() => isMoreOpen() && renderMore(), 1000);
+
+  const sectionList = $('[data-sections]');
+  $('[data-sections-wrap]').hidden = !sections.length;
+  sectionList.replaceChildren(
+    ...sections.map((s, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.section = String(i);
+      b.className =
+        'flex items-center justify-between gap-3 px-3.5 py-2.5 text-left text-[15px] hover:bg-surface aria-current:bg-fg aria-current:text-ink lg:py-1.5 lg:text-[13px]';
+      const title = Object.assign(document.createElement('span'), { className: 'truncate', textContent: s.title });
+      const hint = document.createElement('span');
+      hint.className = 'flex-none font-mono text-[12px] opacity-50';
+      hint.textContent = phone.matches || i > 8 ? `Line ${s.line + 1}` : String(i + 1);
+      b.append(title, hint);
+      b.addEventListener('click', () => jumpToSection(i));
+      return b;
+    }),
+  );
+  function renderSections() {
+    const current = sectionOf(currentLine);
+    sectionList.querySelectorAll<HTMLElement>('[data-section]').forEach((b) => {
+      const s = sections[Number(b.dataset.section)];
+      if (s === current) b.setAttribute('aria-current', 'true');
+      else b.removeAttribute('aria-current');
+    });
+  }
+  function jumpToSection(i: number) {
+    const s = sections[i];
+    if (!s || cough) return;
+    endAdlib();
+    setWord(starts[s.line]);
+    renderSections();
+  }
+
+  // Mic: choose before you roll; read-only while recording.
+  const micSelect = $<HTMLSelectElement>('[data-mic]');
+  let wantedInput = '';
+  micSelect.addEventListener('change', async () => {
+    saveSettings('recording', { deviceId: micSelect.value });
+    settings.deviceId = micSelect.value;
+    await listenOn();
+  });
+
+  // ── Tap a line to jump; double-tap (or double-click) the script to retake ──
+  // enableHandScroll sets touch-action: none, so dblclick isn't reliable on a phone:
+  // two clicks within 300 ms are a double-tap, and the first click's jump waits for it.
+  let tapTimer: number | undefined;
+  viewport.addEventListener('click', (e) => {
+    if (isMoreOpen()) return closeMore();
+    toggleDetails(false);
+    if (tapTimer) {
+      clearTimeout(tapTimer);
+      tapTimer = undefined;
+      retake();
+      return;
+    }
+    const line = (e.target as HTMLElement).closest<HTMLElement>('[data-line]');
+    tapTimer = window.setTimeout(() => {
+      tapTimer = undefined;
+      if (!line || cough) return;
+      const n = Number(line.dataset.line);
+      if (n !== currentLine) {
         endAdlib();
         voice?.release();
-      } else if (voice) voice.holdAdlib();
-      else startAdlib();
-    }
-
-    retakeBtn.addEventListener('click', retake);
-    pauseBtn.addEventListener('click', () => togglePause());
-    adlibBtn.addEventListener('click', toggleAdlib);
-
-    // Timeline and marker list, newest marker first.
-    const markerTpl = document.createElement('div');
-    markerTpl.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
-    function renderSession() {
-      if (!writer?.meta.markers) return;
-      const now = capture.elapsed();
-      const markers = writer.meta.markers;
-      $('[data-c-length]').textContent = fmt(now);
-      const timeline = $('[data-timeline-live]');
-      timeline.replaceChildren(
-        ...markers.map((m) => {
-          const el = document.createElement('div');
-          const left = (m.t / Math.max(now, 1)) * 100;
-          if (m.kind === 'pause' || m.kind === 'adlib') {
-            const width = (((m.end ?? now) - m.t) / Math.max(now, 1)) * 100;
-            el.className =
-              m.kind === 'pause' ? 'absolute inset-y-0 border-x border-dashed border-edge-strong bg-ink' : 'absolute inset-y-1.5 rounded-sm bg-adlib/60';
-            el.style.cssText = `left:${left}%;width:${Math.max(width, 0.4)}%`;
-          } else {
-            el.className = 'absolute inset-y-0 w-0.5 bg-warn';
-            el.style.left = `${Math.min(left, 99.6)}%`;
-          }
-          return el;
-        }),
-      );
-      const list = $('[data-marker-list]');
-      $('[data-marker-empty]').hidden = markers.length > 0;
-      list.querySelectorAll('[data-marker]').forEach((el) => el.remove());
-      for (const m of [...markers].reverse()) {
-        const row = markerTpl.cloneNode() as HTMLElement;
-        row.dataset.marker = '';
-        const time = document.createElement('span');
-        time.className = 'font-mono text-muted';
-        time.textContent = fmt(m.t);
-        const text = document.createElement('span');
-        const kind = document.createElement('span');
-        kind.className = { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-bad' }[m.kind];
-        kind.textContent = markerName[m.kind];
-        const words = lines[m.line].text.split(/\s+/).slice(0, 3).join(' ');
-        const detail =
-          m.kind === 'retake'
-            ? m.attempt === 2 ? `Line ${m.line + 1} · “${words}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
-            : m.kind === 'adlib'
-              ? m.end == null ? `running · after Line ${m.line + 1}` : `${fmt(m.end - m.t).replace(/^0/, '')} · during Line ${m.line + 1}`
-            : m.end == null
-              ? `running · Line ${m.line + 1}`
-              : `${fmt(m.end - m.t).replace(/^0/, '')} · before Line ${(writer.meta.lineLog?.find((l) => l.t >= m.end!)?.line ?? currentLine) + 1}`;
-        text.append(kind, ` · ${detail}`);
-        row.append(time, text);
-        list.append(row);
       }
+      setWord(starts[n]);
+    }, 300);
+  });
+
+  // ── Keys ────────────────────────────────────────────────────────────────────
+  addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement).matches('input:not([type=range]), textarea, select, [contenteditable]')) return;
+    const key = e.key.toLowerCase();
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && (key === '=' || key === '+')) {
+      e.preventDefault();
+      return setSize(textSize + 10);
     }
-    setInterval(() => writer && renderSession(), 1000);
-
-    addEventListener('keydown', (e) => {
-      if (!writer || e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement).matches('input, textarea, select, [contenteditable]')) return;
-      const key = e.key.toLowerCase();
-      if (key === 'r') retake();
-      else if (key === 'p') togglePause();
-      else if (key === 'a') toggleAdlib();
-      else if (e.key === 'ArrowRight') setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
-      else if (e.key === 'ArrowLeft') setWord(starts[Math.max(currentLine - 1, 0)]);
-    });
-
-    async function stop() {
-      if (!writer) return;
-      sessionToggle.disabled = true;
-      $('[data-session-label]').textContent = 'Saving…';
-      if (paused) paused.end = capture.elapsed();
-      clearInterval(clock);
-      clearInterval(manualTimer);
-      voice?.stop();
-      await Promise.all([capture, ...extraCaptures].map((c) => c.stop()));
-      const metas = await Promise.all(trackWriters.map((w) => w.finish()));
-      const meta = metas[0];
-      writer = null;
-      await Promise.all([capture, ...extraCaptures].map((c) => c.close()));
-      session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
-      // Wrap up: wait for every speaker's track before exporting.
-      location.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`;
+    if (mod && key === '-') {
+      e.preventDefault();
+      return setSize(textSize - 10);
     }
+    if (mod && key === 'z') {
+      e.preventDefault();
+      return undo();
+    }
+    if (mod || e.altKey) return;
+    if (key === 'escape') return (closeMore(), toggleDetails(false));
+    if (e.repeat) return;
+    if (key === 'c') coughDown();
+    else if (key === 'r') retake();
+    else if (key === 'a') toggleAdlib();
+    else if (key === 'm') isMoreOpen() ? closeMore() : openMore();
+    else if (key === 'p') togglePause();
+    else if (key === 'u') undo();
+    else if (isMoreOpen() && /^[1-9]$/.test(key)) jumpToSection(Number(key) - 1);
+    else if (e.key === 'ArrowRight' && !cough) setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
+    else if (e.key === 'ArrowLeft' && !cough) setWord(starts[Math.max(currentLine - 1, 0)]);
+    else return;
+    e.preventDefault();
+  });
+  addEventListener('keyup', (e) => e.key.toLowerCase() === 'c' && coughUp());
 
-    // Ready for Start before the mic is open; start() waits for it.
-    sessionToggle.addEventListener('click', () => (writer ? stop() : start()));
-    addEventListener('beforeunload', (e) => {
-      if (writer) e.preventDefault();
+  $('[data-retake]').addEventListener('click', retake);
+  adlibBtn.addEventListener('click', toggleAdlib);
+  $('[data-resume]').addEventListener('click', resume);
+
+  const endDialog = $<HTMLDialogElement>('[data-end-dialog]');
+  $('[data-end]').addEventListener('click', () => endDialog.showModal());
+  endDialog.addEventListener('close', () => endDialog.returnValue === 'end' && stop());
+
+  // ── The mic, voice follow, and the recording itself ────────────────────────
+  let openedInput: string | null = null;
+  // The mic open in progress, so Start waits for it instead of racing it.
+  let opening: Promise<void> = Promise.resolve();
+  const listenOn = () => (opening = opening.then(openListening));
+  async function openListening() {
+    if (writer) return;
+    const wanted = await availableInput(settings.deviceId, settings.channels);
+    wantedInput = wanted;
+    try {
+      if (openedInput !== wanted || !capture.ctx) {
+        await capture.open({ deviceId: wanted, sampleRate: hz(settings.rate), channels: settings.channels });
+        openedInput = wanted;
+      }
+      micLabel = (await describeInput(wanted, settings.channels)).label;
+      warn('error', null);
+      checkBluetooth();
+      $('[data-format-line]').textContent = `${formatText()} · saved in this browser as you go`;
+      capture.ctx?.resume().catch(() => {});
+    } catch (err) {
+      micLabel = '';
+      showWarning(
+        (err as Error).name === 'NotAllowedError' ? 'Microphone blocked' : 'Couldn’t open the microphone',
+        (err as Error).name === 'NotAllowedError' ? 'Allow the microphone for this site, then reload.' : (err as Error).message,
+      );
+    }
+    voice?.setTrack(capture.voiceTrack());
+    const choices = await inputChoices(settings.channels);
+    micSelect.replaceChildren(...choices.map((c) => new Option(c.label, c.value)));
+    micSelect.value = inputFor(wantedInput, settings.channels);
+    if (micSelect.selectedIndex < 0) micSelect.selectedIndex = 0;
+  }
+
+  let manualTimer: number | undefined;
+  function startVoice() {
+    // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
+    if (prompterSettings.mode === 'manual') {
+      manualTimer = window.setInterval(() => {
+        if (state === 'rec' && !adlib && !cough && word < words.length - 1) setWord(word + 1);
+      }, 60000 / prompterSettings.wpm);
+      return;
+    }
+    if (!voiceFollowSupported()) return;
+    voice = new VoiceFollow(words);
+    voice.engine = prompterSettings.voiceEngine;
+    voice.track = capture.voiceTrack();
+    voice.setWord(word);
+    voice.addEventListener('word', (e) => {
+      // Talk during a pause isn't part of the script.
+      if (state !== 'paused') setWord((e as CustomEvent<number>).detail);
     });
-    // Chrome keeps audio paused until the first click or key press on the page.
-    for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => capture.ctx?.resume(), { once: true });
+    voice.addEventListener('lost', (e) => startAdlib((e as CustomEvent<{ since: number }>).detail.since));
+    // The words that brought the reader back were script, so end a moment before them.
+    voice.addEventListener('found', () => endAdlib(1));
+    voice.addEventListener('error', (e) => console.warn('Voice follow:', voiceErrorText((e as CustomEvent<string>).detail)));
+    voice.start();
+  }
 
-    // Open the chosen mic now: voice follow listens to exactly the input that will be recorded
-    // (not the system default mic), and the script follows you while you rehearse.
-    await listenOn();
+  // ── Warnings (1h): one at a time, the most serious, then the newest ────────
+  interface Warning {
+    level: 1 | 2;
+    title: string;
+    body: string;
+    action?: [label: string, run: () => void];
+    at: number;
+  }
+  const warnings = new Map<string, Warning>();
+  function warn(key: string, w: Omit<Warning, 'at'> | null) {
+    if (!w) warnings.delete(key);
+    else warnings.set(key, { ...w, at: warnings.get(key)?.at ?? Date.now() });
+    renderWarning();
+  }
+  const warningEl = $('[data-warning]');
+  const warningAction = $<HTMLButtonElement>('[data-warning-action]');
+  let runAction: (() => void) | null = null;
+  warningAction.addEventListener('click', () => runAction?.());
+  function renderWarning() {
+    const top = [...warnings.values()].sort((a, b) => b.level - a.level || b.at - a.at)[0];
+    warningEl.hidden = !top;
+    if (!top) return;
+    $('[data-warning-dot]').style.background = top.level === 2 ? 'var(--color-rec)' : 'var(--color-warn)';
+    warningEl.toggleAttribute('data-strong', !!top.action && top.level === 2);
+    $('[data-warning-title]').textContent = top.title;
+    $('[data-warning-body]').textContent = top.body;
+    warningAction.hidden = !top.action;
+    warningAction.textContent = top.action?.[0] ?? '';
+    runAction = top.action?.[1] ?? null;
+  }
+  const showWarning = (title: string, body: string) => warn('error', { level: 2, title, body });
+
+  // Clipping, from the meter.
+  setInterval(() => {
+    const clipping = state !== 'ready' && Date.now() - clipAt < 3000;
+    warn(
+      'clip',
+      clipping
+        ? { level: 2, title: 'Too loud · clipping', body: phone.matches ? 'Move the phone a little further from your mouth.' : 'Turn the gain down or move back from the mic.' }
+        : null,
+    );
+  }, 500);
+
+  // A Bluetooth mic records at call quality.
+  const BLUETOOTH = /bluetooth|airpods|buds|hands-?free|headset/i;
+  async function checkBluetooth() {
+    if (!BLUETOOTH.test(micLabel)) return warn('bluetooth', null);
+    const builtIn = (await inputChoices(settings.channels)).find((c) => !BLUETOOTH.test(c.label));
+    const name = phone.matches ? 'the phone mic' : 'the built-in mic';
+    warn('bluetooth', {
+      level: 1,
+      title: 'Bluetooth mic · call quality',
+      body: state === 'ready' && builtIn ? `${micLabel} is the mic. Tap to use ${name} instead.` : `${micLabel} is the mic. Recording carries on at call quality.`,
+      action:
+        state === 'ready' && builtIn
+          ? [`Use ${name}`, () => {
+              saveSettings('recording', { deviceId: builtIn.value });
+              settings.deviceId = builtIn.value;
+              listenOn();
+            }]
+          : undefined,
+    });
+  }
+
+  // Battery (Android and other Chromium browsers that report it).
+  type Battery = EventTarget & { level: number; charging: boolean; dischargingTime: number };
+  (navigator as Navigator & { getBattery?: () => Promise<Battery> }).getBattery?.().then((b) => {
+    const check = () => {
+      const pct = Math.round(b.level * 100);
+      const mins = Number.isFinite(b.dischargingTime) ? Math.round(b.dischargingTime / 60) : null;
+      warn(
+        'battery',
+        !b.charging && pct <= 20
+          ? { level: pct <= 10 ? 2 : 1, title: `Battery ${pct}%${mins ? ` · about ${mins} min` : ''}`, body: 'Plug in if you can. Recording carries on.' }
+          : null,
+      );
+    };
+    check();
+    b.addEventListener('levelchange', check);
+    b.addEventListener('chargingchange', check);
+  });
+
+  // Space in this browser, checked every 30 s.
+  async function checkSpace() {
+    if (demo) return;
+    const { hours } = await storageLeft(capture.sampleRate || hz(settings.rate), settings.depth, settings.channels);
+    const mins = Math.floor(hours * 60);
+    warn(
+      'space',
+      mins < 30
+        ? { level: mins < 5 ? 2 : 1, title: `Space for about ${mins} min`, body: 'Free up space on this device, or export and delete older sessions.' }
+        : null,
+    );
+  }
+  setInterval(checkSpace, 30000);
+
+  // Keep the screen awake while recording.
+  let wakeLock: { release(): Promise<void> } | null = null;
+  const keepAwake = async () => {
+    try {
+      wakeLock = (await (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen')) ?? null;
+    } catch {}
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && writer) keepAwake();
+  });
+
+  // Mic stopped: audio stops arriving while the clock runs on (the page left the screen on an
+  // iPhone, the mic was taken away). The gap is marked, not filled: the audio falls behind the
+  // clock by exactly the missing stretch, measured from the samples that did arrive.
+  let received = 0;
+  let lastChunk = 0;
+  let baseLag = Infinity;
+  function onAudioChunk(frames: number, rate: number) {
+    const t = now();
+    received += frames;
+    const lag = t - received / rate;
+    if (lag - baseLag > 1 && writer) {
+      // Samples went missing since the last chunk.
+      const lost = lag - baseLag;
+      const gap: SessionMarker = { t: lastChunk, kind: 'gap', line: currentLine, end: lastChunk + lost };
+      writer.meta.markers!.push(gap);
+      baseLag = lag;
+      renderMore();
+    } else baseLag = Math.min(baseLag, lag);
+    lastChunk = t;
+    if (warnings.has('mic')) warn('mic', null);
+  }
+  setInterval(() => {
+    if (!writer || demo || !lastChunk) return;
+    const quiet = now() - lastChunk;
+    if (quiet < 2) return;
+    warn('mic', {
+      level: 2,
+      title: `Mic stopped for ${clock(quiet)}`,
+      body:
+        document.visibilityState === 'visible'
+          ? 'The gap is marked, not filled, and markers after it stay lined up. Keep this screen open while recording.'
+          : 'Podstudio left the screen. The gap is marked, not filled, and markers after it stay lined up.',
+      action: ['Resume recording', resumeMic],
+    });
+  }, 500);
+  async function resumeMic() {
+    try {
+      const live = capture.stream?.getAudioTracks()[0]?.readyState === 'live';
+      if (live && capture.ctx) await capture.ctx.resume();
+      else {
+        // The mic was closed: open it again and carry on into the same file.
+        await capture.open({ deviceId: wantedInput, sampleRate: hz(settings.rate), channels: settings.channels });
+        await capture.ctx!.resume();
+        capture.record();
+        voice?.setTrack(capture.voiceTrack());
+      }
+    } catch (err) {
+      showWarning('Couldn’t restart the microphone', (err as Error).message);
+    }
+  }
+
+  const startBtn = $<HTMLButtonElement>('[data-start]');
+  async function start() {
+    if (writer || demo) return;
+    startBtn.disabled = true;
+    await opening;
+    try {
+      if (!capture.ctx) await capture.open({ deviceId: wantedInput, sampleRate: hz(settings.rate), channels: settings.channels });
+      await capture.ctx!.resume();
+    } catch (err) {
+      startBtn.disabled = false;
+      showWarning('Couldn’t open the microphone', (err as Error).message);
+      return;
+    }
+    const w = await TakeWriter.start({
+      episodeId,
+      kind: 'session',
+      markers: [],
+      lineLog: [{ t: 0, line: currentLine }],
+      group: `${episodeId}-g${Date.now().toString(36)}`,
+      startLine: currentLine,
+      startText: lines[currentLine].text,
+      speaker: root.dataset.host!.toUpperCase(),
+      device: capture.label || 'This device',
+      sampleRate: capture.sampleRate,
+      bitDepth: settings.depth,
+      channels: capture.channels,
+    });
+    capture.addEventListener('chunk', (e) => {
+      const samples = (e as CustomEvent<Float32Array>).detail;
+      w.push(samples);
+      onAudioChunk(samples.length / (capture.channels || 1), w.meta.sampleRate);
+    });
+    // The recording's own rate, if the device reported a different one up front.
+    capture.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
+    capture.addEventListener('error', (e) => showWarning('Recording problem', (e as CustomEvent<string>).detail));
+    writer = w;
+    capture.record();
+    sessionStart = performance.now();
+    startBtn.disabled = false;
+    warn('error', null);
+    keepAwake();
+    setState('rec');
+    checkBluetooth();
+  }
+  startBtn.addEventListener('click', start);
+
+  async function stop() {
+    if (!writer) return;
+    coughUp();
+    endAdlib();
+    if (paused) paused.end = now();
+    clearInterval(manualTimer);
+    voice?.stop();
+    await capture.stop();
+    const meta = await writer.finish();
+    writer = null;
+    wakeLock?.release().catch(() => {});
+    await capture.close();
+    location.href = `/episodes/${episodeId}/saved?take=${encodeURIComponent(meta.id)}`;
+  }
+
+  addEventListener('beforeunload', (e) => {
+    if (writer) e.preventDefault();
+  });
+  // Chrome keeps audio paused until the first click or key press on the page.
+  for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => capture.ctx?.resume(), { once: true });
+
+  setWord(word);
+  if (demo) runDemo();
+  else live();
+
+  async function live() {
+    await offerRecovery(episodeId);
+    checkSpace();
+    // Open the chosen mic now: the meter works before you start, so this screen doubles as
+    // the mic check, and voice follow listens to exactly the input that will be recorded.
+    listenOn();
+    startBtn.disabled = false;
+    await opening;
     startVoice();
+  }
+
+  /** The design's example states, without a mic (?demo&state=…). */
+  function runDemo() {
+    const s = params.get('state') ?? 'rec';
+    micLabel = phone.matches ? 'Phone mic' : 'Shure MV7+';
+    micSelect.replaceChildren(new Option(micLabel, ''));
+    const levels: Record<string, number> = { ready: -20, rec: -12, cough: -30, retake: -42, adlib: -14, more: -15, paused: -34 };
+    const base = levels[s] ?? -12;
+    setInterval(() => {
+      const peak = base + Math.sin(Date.now() / 300) * 2;
+      onLevel({ peak, hot: peak, rms: peak - 9, inputs: [peak] });
+    }, 33);
+    startBtn.disabled = false;
+    if (s === 'ready') return;
+    demoNow = { rec: 271, cough: 302, retake: 340, adlib: 435, more: 482, paused: 530 }[s] ?? 271;
+    demoMarkers = [
+      { t: 30, kind: 'retake', line: 1, attempt: 2 },
+      { t: 95, kind: 'cut', line: 3, end: 98 },
+      { t: 160, kind: 'adlib', line: 4, end: 185 },
+      { t: 208, kind: 'retake', line: 6, attempt: 2 },
+    ];
+    setInterval(() => (demoNow += state === 'rec' ? 0.25 : 0), 250);
+    const lineFor: Record<string, number> = { rec: 1, cough: 2, retake: 2, adlib: 3, more: 4, paused: 4 };
+    setWord(starts[lineFor[s] ?? 1] + (s === 'retake' ? 0 : 4));
+    setState('rec');
+    if (s === 'cough') {
+      cough = { t: demoNow - 2 };
+      root.dataset.coughing = '';
+      coughBtn.dataset.holding = '';
+      $('[data-cough-sub]').textContent = 'RELEASE';
+    }
+    if (s === 'retake') {
+      attemptShown = { line: currentLine, n: 2 };
+      setRule();
+      offerUndo(`Retake marked · Line ${currentLine + 1}`, demoMarkers[3]);
+      clearTimeout(toastTimer);
+    }
+    if (s === 'adlib') {
+      startAdlib(Date.now() - 14000);
+      adlib!.t = demoNow - 14;
+    }
+    if (s === 'more') openMore();
+    if (s === 'mic') {
+      warn('mic', {
+        level: 2,
+        title: 'Mic stopped for 0:06',
+        body: 'Podstudio left the screen. The gap is marked, not filled, and markers after it stay lined up. Keep this screen open while recording.',
+        action: ['Resume recording', () => warn('mic', null)],
+      });
+    }
+    if (s === 'paused') {
+      pause();
+      paused!.t = demoNow - 48;
+    }
+    tick();
   }
 </script>

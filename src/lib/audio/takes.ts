@@ -41,29 +41,14 @@ export interface TakeMeta {
   status: 'recording' | 'done';
   /** Zero-based script line voice follow last placed the reader on */
   lastLine?: number;
-  /** Continuous sessions: tracks recorded together share a group id */
+  /** Continuous sessions: an id per session */
   group?: string;
-  /** Continuous sessions: retake and pause markers (shared by every track in the group) */
+  /** Continuous sessions: retakes, cuts, pauses, ad-libs and gaps, on the wall clock */
   markers?: SessionMarker[];
   /** Continuous sessions: when each script line was reached */
   lineLog?: LineStart[];
-  /** Continuous sessions: every speaker and where their track comes from */
-  roster?: RosterEntry[];
-  /** Tracks added from a file a guest sent: the file's name */
-  imported?: string;
   /** Peak level per half second, 0..1, for waveforms */
   peaks: number[];
-}
-
-/**
- * Where a speaker's track comes from: recorded here, on the same mic as another
- * speaker here, on their own device (uploaded, or added from a file), or not at all.
- */
-export interface RosterEntry {
-  speaker: string;
-  source: 'local' | 'shared' | 'remote' | 'off' | 'failed';
-  /** 'shared': whose track they're on */
-  with?: string;
 }
 
 const SEGMENT_SECONDS = 5;

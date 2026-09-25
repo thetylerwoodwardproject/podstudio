@@ -1,0 +1,94 @@
+---
+// 1i · Session ended: what was saved, then transcribe, listen or record another
+import Base from '@/layouts/Base.astro';
+import { episode, episodePaths } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+
+const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5';
+---
+
+<Base title="Session saved">
+  <div class="mx-auto flex min-h-dvh max-w-[480px] flex-col px-6 pt-14 pb-[max(24px,env(safe-area-inset-bottom))]" id="saved" data-episode={episode.id}>
+    <div class="flex size-10 items-center justify-center rounded-full bg-ok text-[20px] text-ink" aria-hidden="true">✓</div>
+    <h1 class="mt-5 text-[26px] tracking-[-0.02em]">Session saved</h1>
+    <p class="mt-2.5 text-[15px] leading-normal text-muted" data-summary>
+      <span data-demo-only>18:42 · 3 retakes · 2 cuts · 1 ad-lib.</span> It’s saved in this browser, so it’s here whenever you
+      come back to this device.
+    </p>
+
+    <dl class="mt-6 flex flex-col border-t border-line text-[14px]">
+      <div class={row}>
+        <dt class="text-muted">Saved</dt>
+        <dd class="font-mono text-[13px]" data-size><span data-demo-only>162 MB · 48 kHz · 24-bit</span></dd>
+      </div>
+      <div class={row}>
+        <dt class="text-muted">Assembled edit</dt>
+        <dd data-edit><span data-demo-only>17:10 after cuts</span></dd>
+      </div>
+      <div class={row}>
+        <dt class="text-muted">Copy in this browser</dt>
+        <dd>Kept until you delete it</dd>
+      </div>
+    </dl>
+
+    <audio class="mt-6 w-full" controls data-player hidden></audio>
+    <a href={`/episodes/${episode.id}/session`} class="mt-5 text-[14px] text-muted underline-offset-2 hover:text-fg hover:underline" data-export>
+      Export the WAV, markers and edit →
+    </a>
+
+    <div class="mt-auto flex flex-col gap-2.5 pt-10">
+      <a href={`/episodes/${episode.id}/transcribing`} class="flex h-13 items-center justify-center rounded-2xl bg-fg text-[16px] text-ink" data-transcribe>
+        Transcribe
+      </a>
+      <div class="grid grid-cols-2 gap-2.5">
+        <button type="button" class="flex h-13 items-center justify-center rounded-2xl border border-edge text-[15px] hover:bg-raised" data-listen>
+          Listen
+        </button>
+        <a href={`/episodes/${episode.id}/recording`} class="flex h-13 items-center justify-center rounded-2xl border border-edge text-[15px] hover:bg-raised" data-again>
+          Record another
+        </a>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { assemble } from '@/lib/audio/assemble';
+  import { formatBytes, formatDuration, getTake, listTakes, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { sessionUrl } from '@/lib/flow';
+  import { markerCounts } from '@/lib/markers';
+
+  const root = document.getElementById('saved')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const episodeId = root.dataset.episode!;
+
+  if (!new URL(location.href).searchParams.has('demo')) live();
+
+  async function live() {
+    const id = new URL(location.href).searchParams.get('take');
+    const take: TakeMeta | null =
+      (id ? await getTake(id) : null) ?? (await listTakes(episodeId)).filter((t) => t.kind === 'session' && t.status === 'done').at(-1) ?? null;
+    $<HTMLAnchorElement>('[data-again]').href = sessionUrl(episodeId);
+    if (!take) {
+      $('[data-summary]').textContent = 'Nothing was recorded in this session.';
+      return;
+    }
+    const seconds = take.samples / take.sampleRate;
+    const markers = take.markers ?? [];
+    const counts = markerCounts(markers.filter((m) => m.kind !== 'pause'));
+    $('[data-summary]').textContent =
+      `${formatDuration(seconds)}${counts ? ` · ${counts}` : ''}. It’s saved in this browser, so it’s here whenever you come back to this device.`;
+    $('[data-size]').textContent = `${formatBytes(takeBytes(take))} · ${take.sampleRate / 1000} kHz · ${take.bitDepth}-bit${take.channels === 2 ? ' · stereo' : ''}`;
+    const edit = assemble(seconds, markers, take.lineLog ?? [], 'cut');
+    $('[data-edit]').textContent = edit.removed ? `${formatDuration(seconds - edit.removed)} after cuts` : `${formatDuration(seconds)} · nothing to cut`;
+    $<HTMLAnchorElement>('[data-export]').href = `/episodes/${episodeId}/session?take=${encodeURIComponent(take.id)}`;
+
+    const player = $<HTMLAudioElement>('[data-player]');
+    $('[data-listen]').addEventListener('click', async () => {
+      if (!player.src) player.src = URL.createObjectURL(await takeWav(take));
+      player.hidden = false;
+      player.play();
+    });
+  }
+</script>

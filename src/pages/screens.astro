@@ -11,7 +11,7 @@ const live: [string, string][] = [
   ['Script: import or paste your own script (every screen uses it)', `${e}/script`],
   ['Studio: pick format and scrolling, then Start session', `${e}/studio`],
   ['Mic check: live level, test recording, read a line', `${e}/mic-check`],
-  ['Recording session: script scrolls with you, one track, R retake, P pause', `${e}/recording`],
+  ['Recording: meter always on, hold C to cough, R retake, A ad-lib, M for More', `${e}/recording`],
   ['Sessions: play, download, delete, open to export', `${e}/sessions`],
   ['Session export: raw WAV with markers, Audacity labels, assembled edit', `${e}/session`],
   ['Voice check: why voice follow isn’t hearing words, on-device voice download', '/voice'],
@@ -25,7 +25,7 @@ const groups: { title: string; items: [string, string, string][] }[] = [
       ['2b', '2FA at sign-in (phone)', '/signin/verify'],
       ['2a', 'Setup · turn on 2FA', '/setup/two-factor'],
       ['5j', 'Setup · Domain & HTTPS (optional)', '/setup/domain'],
-      ['1h', 'Unsupported browser', '/unsupported'],
+      ['—', 'Unsupported browser', '/unsupported'],
     ],
   },
   {
@@ -42,7 +42,15 @@ const groups: { title: string; items: [string, string, string][] }[] = [
       ['1c', 'Studio control', `${e}/studio?demo`],
       ['6a', 'Mic check', `${e}/mic-check?demo`],
       ['5f', 'Recovered session', `${e}/recovered?demo`],
-      ['8a', 'Recording · retake without stopping', `${e}/recording?demo`],
+      ['1a', 'Recording · ready (doubles as the mic check)', `${e}/recording?demo&state=ready`],
+      ['1b', 'Recording', `${e}/recording?demo&state=rec`],
+      ['1c', 'Recording · holding Cough', `${e}/recording?demo&state=cough`],
+      ['1d', 'Recording · retake just marked', `${e}/recording?demo&state=retake`],
+      ['1e', 'Recording · ad-lib', `${e}/recording?demo&state=adlib`],
+      ['1f', 'Recording · More (sheet on a phone, popover on a laptop)', `${e}/recording?demo&state=more`],
+      ['1g', 'Recording · paused', `${e}/recording?demo&state=paused`],
+      ['1h', 'Recording · warning (mic stopped)', `${e}/recording?demo&state=mic`],
+      ['1i', 'Session saved', `${e}/saved?demo`],
     ],
   },
   {
@@ -83,8 +91,8 @@ const groups: { title: string; items: [string, string, string][] }[] = [
     <section class="flex flex-col gap-2">
       <h2 class="eyebrow">Try it live</h2>
       <p class="text-[13px] leading-normal text-muted">
-        Recording, voice follow and exports work in this browser now. Open the monitor, prompter or remote in other tabs
-        or windows and they follow the recording tab. Syncing between devices, sign-in and transcripts need the server.
+        Recording, voice follow and exports work in this browser now. Sign-in, transcripts and opening a session from
+        another device need the server.
       </p>
       <ul class="flex flex-col border-t border-line">
         {live.map(([label, href]) => (

@@ -7,7 +7,6 @@
 
 import { defaultScriptText } from '@/data/script';
 import { parseScript } from './script-parser';
-import { presets } from './speakers';
 
 export interface EpisodeScript {
   text: string;
@@ -78,16 +77,3 @@ export function scriptToText(lines: { who: string; text: string; section: string
   return out.join('\n') + '\n';
 }
 
-const KNOWN = new Set(['TYLER', 'SAM', 'DANA']);
-
-/** Color for a speaker: the cast colors for the known cast, a preset for anyone else. */
-export function speakerColor(who: string) {
-  if (!who) return 'var(--spk-unknown)';
-  if (KNOWN.has(who)) return `var(--spk-${who.toLowerCase()})`;
-  let h = 0;
-  for (const c of who) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const spare = presets.filter((_, i) => ![0, 1, 4].includes(i));
-  return spare[h % spare.length].value;
-}
-
-export const speakerName = (who: string) => (who ? who.charAt(0) + who.slice(1).toLowerCase() : '—');

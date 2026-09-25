@@ -29,8 +29,7 @@ const greenSwitch =
     </div>
 
     <p class="text-[13px] text-subtle" data-empty hidden>
-      No continuous session recorded yet. Switch the recording screen to <span class="text-fg">Continuous</span> to record
-      one.
+      No session recorded yet. Start one from the studio.
     </p>
 
     <section class="flex flex-col gap-2.5">
@@ -180,7 +179,7 @@ const greenSwitch =
             row.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
             const time = Object.assign(document.createElement('span'), { className: 'font-mono text-muted', textContent: mmss(m.t) });
             const kind = Object.assign(document.createElement('span'), {
-              className: { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-bad' }[m.kind],
+              className: { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-rec' }[m.kind],
               textContent: markerName[m.kind],
             });
             const text = document.createElement('span');

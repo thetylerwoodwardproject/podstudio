@@ -5,25 +5,6 @@ import { defaultScript } from './script';
  * can replace one module later. Content is copied from the design handoff.
  */
 
-export type SpeakerKey = 'TYLER' | 'SAM' | 'DANA';
-
-export interface Speaker {
-  key: SpeakerKey;
-  name: string;
-  initial: string;
-  role: string;
-}
-
-export const speakers: Speaker[] = [
-  { key: 'TYLER', name: 'Tyler', initial: 'T', role: 'Host' },
-  { key: 'SAM', name: 'Sam', initial: 'S', role: 'Co-host' },
-  { key: 'DANA', name: 'Dana', initial: 'D', role: 'Guest' },
-];
-
-/** CSS color for a speaker, driven by the cast panel's custom properties. */
-export const spk = (key: SpeakerKey | '?') =>
-  key === '?' ? 'var(--spk-unknown)' : `var(--spk-${key.toLowerCase()})`;
-
 export const user = { name: 'Tyler', username: 'tyler', initial: 'T' };
 
 export const episode = {
@@ -39,12 +20,11 @@ export const episode = {
 };
 
 export interface ScriptLine {
-  who: SpeakerKey;
   text: string;
 }
 
 /** The example episode script (src/data/script.ts); every live screen can use the user's own instead. */
-export const scriptLines: ScriptLine[] = defaultScript.lines.map((l) => ({ who: l.who as SpeakerKey, text: l.text }));
+export const scriptLines: ScriptLine[] = defaultScript.lines.map((l) => ({ text: l.text }));
 
 /** The script as one list of words; every prompter uses these indexes. */
 export const scriptWords = scriptLines.flatMap((l) => l.text.split(/\s+/).filter(Boolean));
@@ -64,20 +44,6 @@ export const sections = (() => {
     line: defaultScript.lines.findIndex((l) => l.section === title),
   }));
 })();
-
-export interface Device {
-  id: string;
-  name: string;
-  glyph: string;
-  meta: string;
-  mic: string | null;
-}
-
-export const devices: Device[] = [
-  { id: 'mac', name: 'MacBook Pro', glyph: 'LAP', meta: 'Chrome 129 · Shure MV7', mic: 'Shure MV7' },
-  { id: 'phone', name: 'iPhone 15 — Chrome', glyph: 'PHN', meta: 'Chrome 129 · Built-in mic', mic: 'Built-in mic' },
-  { id: 'mon', name: 'Studio monitor 2', glyph: 'MON', meta: 'Edge 129 · no input', mic: null },
-];
 
 export type EpisodeStatus = 'Draft' | 'Transcribed' | 'Published' | 'Recorded';
 
@@ -195,17 +161,12 @@ export const setupSteps = [
 export const importPreview = {
   file: 'transmitter-v3.docx',
   meta: '412 words · 42 lines · 3 sections',
-  speakers: [
-    { who: 'TYLER' as SpeakerKey, lines: 22 },
-    { who: 'SAM' as SpeakerKey, lines: 14 },
-    { who: 'DANA' as SpeakerKey, lines: 6 },
-  ],
   section: 'Cold open',
   lines: [
-    { who: 'TYLER' as SpeakerKey, text: 'It was a quiet week in the studio, until the new transmitter arrived.' },
-    { who: 'SAM' as SpeakerKey, text: 'Four pallets? I heard it was five, and one of them was just foam.' },
-    { who: 'TYLER' as SpeakerKey, text: 'Four. I counted.' },
-    { who: 'DANA' as SpeakerKey, text: 'And whether the floor could hold it…' },
+    { text: 'It was a quiet week in the studio, until the new transmitter arrived.' },
+    { text: 'Four pallets, and one of them was just foam.' },
+    { text: 'So this episode is about what happens after the crate is open.' },
+    { text: 'Power, cooling, and the first time we keyed it up.' },
   ],
   target: 'Ep. 143',
 };

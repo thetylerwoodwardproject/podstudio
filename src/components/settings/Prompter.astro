@@ -1,9 +1,6 @@
 ---
 import Section from './Section.astro';
 import Segmented from '@/components/ui/Segmented.astro';
-import Callout from '@/components/ui/Callout.astro';
-import Button from '@/components/ui/Button.astro';
-import { spk } from '@/data/mock';
 
 const sliders = [
   { name: 'size', label: 'Text size', min: 16, max: 50, step: 1, value: 34, unit: ' pt' },
@@ -75,11 +72,6 @@ const pct = (s: (typeof sliders)[number]) => `${(((s.value - s.min) / (s.max - s
         }
       </div>
     </div>
-    <Callout title="Two speaker colors may look alike" color="var(--color-warn)">
-      Red and purple can be hard to tell apart with red-green color blindness. Names always show above each line, so
-      nobody relies on color alone.
-      <Button slot="action">Suggest a safe set</Button>
-    </Callout>
   </div>
 
   <div
@@ -89,13 +81,11 @@ const pct = (s: (typeof sliders)[number]) => `${(((s.value - s.min) / (s.max - s
   >
     <div class="eyebrow">Preview</div>
     <div class="flex flex-col gap-1.5">
-      <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('TYLER') }}>TYLER</div>
       <div class="text-[24px] leading-normal" style="color:#6E6E00" data-dim>It was a quiet week in the studio,</div>
     </div>
     <div class="flex flex-col gap-1.5">
-      <div class="font-mono text-[11px] font-medium tracking-[0.06em]" style={{ color: spk('SAM') }}>SAM · NOW</div>
       <div class="text-[24px] leading-normal" style="color:#FFFF00" data-now>
-        <span class="shadow-[inset_0_-3px_0_var(--color-rec)]">Four</span> pallets? I heard it was five.
+        <span class="shadow-[inset_0_-3px_0_var(--color-rec)]">Four</span> pallets, and one of them was just foam.
       </div>
     </div>
   </div>
