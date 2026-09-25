@@ -78,6 +78,10 @@ It copies the new version, builds it, and restarts. The database is migrated on
 start; your data folder isn't touched otherwise. Sessions and invite codes
 survive a restart, so a guest who's connected reconnects on their own.
 
+Take a backup first (see above). Versioned releases, a backup made
+automatically before migrations, and a documented rollback are planned for the
+lab stage; see `docs/roadmap.md`.
+
 ## Day to day
 
 ```sh
