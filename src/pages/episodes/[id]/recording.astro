@@ -190,6 +190,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
 </AppShell>
 
 <script>
+  import { markerName } from '@/lib/markers';
   import { MicCapture, type Level } from '@/lib/audio/capture';
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
   import { TakeWriter, formatBytes, storageLeft, type RosterEntry } from '@/lib/audio/takes';
@@ -835,8 +836,8 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
         time.textContent = fmt(m.t);
         const text = document.createElement('span');
         const kind = document.createElement('span');
-        kind.className = { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib' }[m.kind];
-        kind.textContent = { retake: 'Retake', pause: 'Pause', adlib: 'Ad-lib' }[m.kind];
+        kind.className = { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-bad' }[m.kind];
+        kind.textContent = markerName[m.kind];
         const words = lines[m.line].text.split(/\s+/).slice(0, 3).join(' ');
         const detail =
           m.kind === 'retake'

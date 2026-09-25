@@ -106,7 +106,8 @@ const greenSwitch =
 </AppShell>
 
 <script>
-  import { assemble, audacityLabels, mapTime, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
+  import { assemble, audacityLabels, mapTime, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
+  import { markerCounts, markerName } from '@/lib/markers';
   import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadScript } from '@/lib/script-store';
@@ -152,26 +153,23 @@ const greenSwitch =
       return;
     }
 
-    // Every speaker's track recorded in this session (one for a solo read).
-    const all = await listTakes(episodeId);
-    const tracks = take.group ? all.filter((t) => t.group === take.group && t.status === 'done') : [take];
+    const tracks = [take];
     const duration = take.samples / take.sampleRate;
-    const markers = take.markers ?? [];
+    // Recorded on the wall clock; assemble() converts these itself.
+    const wallMarkers = take.markers ?? [];
     const lineLog = take.lineLog ?? [];
-    const retakes = markers.filter((m) => m.kind === 'retake');
-    const pauses = markers.filter((m) => m.kind === 'pause');
-    const adlibs = markers.filter((m) => m.kind === 'adlib');
-    const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    // Everything shown or written into files is on the audio (gaps taken out).
+    const { markers } = onAudio(wallMarkers, lineLog);
     $('[data-length]').textContent = clock(duration);
-    $('[data-counts]').textContent =
-      `${plural(retakes.length, 'retake')} · ${plural(pauses.length, 'pause')}` +
-      (adlibs.length ? ` · ${plural(adlibs.length, 'ad-lib')}` : '');
+    $('[data-counts]').textContent = markerCounts(markers) || 'No markers';
 
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
     const describe = (m: SessionMarker) =>
       m.kind === 'retake'
         ? `Retake · Line ${m.line + 1} · attempt ${m.attempt ?? 2}`
-        : `${m.kind === 'adlib' ? 'Ad-lib' : 'Pause'} · Line ${m.line + 1}${m.end != null ? ` · ${clock(m.end - m.t)}` : ''}`;
+        : m.kind === 'gap'
+          ? `Mic stopped · ${clock(m.lost ?? 0)}`
+          : `${markerName[m.kind]} · Line ${m.line + 1}${m.end != null ? ` · ${clock(m.end - m.t)}` : ''}`;
 
     // Markers dialog, newest first.
     const dialogRows = dialog.querySelector<HTMLElement>('[data-marker-rows]')!;
@@ -182,14 +180,16 @@ const greenSwitch =
             row.className = 'grid grid-cols-[64px_1fr] gap-3 border-b border-line py-2.5 text-[13px]';
             const time = Object.assign(document.createElement('span'), { className: 'font-mono text-muted', textContent: mmss(m.t) });
             const kind = Object.assign(document.createElement('span'), {
-              className: { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib' }[m.kind],
-              textContent: { retake: 'Retake', pause: 'Pause', adlib: 'Ad-lib' }[m.kind],
+              className: { retake: 'text-warn', pause: 'text-fg-soft', adlib: 'text-adlib', cut: 'text-muted', gap: 'text-bad' }[m.kind],
+              textContent: markerName[m.kind],
             });
             const text = document.createElement('span');
             const detail =
               m.kind === 'retake'
                 ? m.attempt === 2 ? `Line ${m.line + 1} · “${words(m.line)}”` : `Line ${m.line + 1} · attempt ${m.attempt}`
-                : `${m.end != null ? clock(m.end - m.t) : 'to the end'} · Line ${m.line + 1}`;
+                : m.kind === 'gap'
+                  ? `${clock(m.lost ?? 0)} not recorded · Line ${m.line + 1}`
+                  : `${m.end != null ? clock(m.end - m.t) : 'to the end'} · Line ${m.line + 1}`;
             text.append(kind, ` · ${detail}`);
             row.append(time, text);
             return row;
@@ -203,7 +203,7 @@ const greenSwitch =
     };
     const refresh = () => {
       const o = options();
-      const a = assemble(duration, markers, lineLog, o.pauses);
+      const a = assemble(duration, wallMarkers, lineLog, o.pauses);
       $('[data-removes]').textContent = a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
       const raw = tracks.reduce((n, t) => n + takeBytes(t), 0);
       const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0);
@@ -219,14 +219,15 @@ const greenSwitch =
       $('[data-export-label]').textContent = 'Preparing…';
       try {
         const name = (t: TakeMeta) => `${label}_Session_${t.speaker.charAt(0)}${t.speaker.slice(1).toLowerCase()}`;
+        const endLabel: Partial<Record<SessionMarker['kind'], string>> = { adlib: 'Script resumes', cut: 'Cut ends' };
         const cue = (m: SessionMarker, rate: number, at = m.t) => ({ at: Math.round(at * rate), label: describe(m) });
         const entries: ZipEntry[] = [];
-        // Raw: every track untouched, with a cue at every retake and at both ends of each pause and ad-lib.
+        // Raw: untouched, with a cue at every retake and gap, and at both ends of each pause, cut and ad-lib.
         for (const t of tracks) {
           const len = t.samples / t.sampleRate;
           const cues = markers.flatMap((m) =>
             m.kind !== 'retake' && m.end != null
-              ? [cue(m, t.sampleRate), { at: Math.round(m.end * t.sampleRate), label: m.kind === 'adlib' ? 'Script resumes' : 'Resume' }]
+              ? [cue(m, t.sampleRate), { at: Math.round(m.end * t.sampleRate), label: endLabel[m.kind] ?? 'Resume' }]
               : [cue(m, t.sampleRate)],
           );
           entries.push({ name: `${name(t)}.wav`, data: cues.length ? await rangesWav(t, [[0, len]], cues) : await takeWav(t) });
@@ -235,14 +236,13 @@ const greenSwitch =
         const csv = [
           'time,end,kind,line,attempt,first words',
           ...markers.map((m) =>
-            [m.t.toFixed(3), m.end?.toFixed(3) ?? '', m.kind, m.line + 1, m.attempt ?? '', `"${words(m.line).replace(/"/g, '""')}"`].join(','),
+            [m.t.toFixed(3), m.end?.toFixed(3) ?? '', m.kind === 'gap' ? `gap ${m.lost?.toFixed(3)}` : m.kind, m.line + 1, m.attempt ?? '', `"${words(m.line).replace(/"/g, '""')}"`].join(','),
           ),
         ].join('\n');
         entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
 
         if (o.assembled) {
-          // The same cuts on every track, so the edits stay in sync.
-          const a = assemble(duration, markers, lineLog, o.pauses);
+          const a = assemble(duration, wallMarkers, lineLog, o.pauses);
           for (const t of tracks) {
             for (const [i, ranges] of a.files.entries()) {
               // Ad-libs stay in the edit, so their cues do too (and kept pauses').

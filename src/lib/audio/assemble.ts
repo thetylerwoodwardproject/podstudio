@@ -5,19 +5,61 @@
  * The assembled edit keeps the last attempt of each line: a retake on line L
  * at time t cuts from the most recent time line L started (before t) up to
  * t. Pauses are cut, kept, or used to split the edit into separate files.
- * Ad-libs are only marked: they stay in the edit.
- * All times are in seconds from the start of the session.
+ * Cough cuts are always removed. Ad-libs are only marked: they stay in the edit.
+ *
+ * Markers are stored on the wall clock, in seconds from the start of the
+ * session. When the mic stops (the phone locked, the tab was left), no audio
+ * is written for that stretch and a `gap` marker records it, so everything
+ * after a gap sits earlier in the audio than on the clock: onAudio() converts.
  */
 
 export interface SessionMarker {
   t: number;
-  kind: 'retake' | 'pause' | 'adlib';
+  kind: 'retake' | 'pause' | 'adlib' | 'cut' | 'gap';
   /** Zero-based script line */
   line: number;
   /** Retakes: which attempt this starts (2 = first retake) */
   attempt?: number;
-  /** Pauses: when recording resumed. Ad-libs: when the script resumed */
+  /** Pauses: when recording resumed. Ad-libs: when the script resumed. Cuts and gaps: when they ended */
   end?: number;
+  /** Gaps, after onAudio(): seconds the mic was stopped (the audio has none of them) */
+  lost?: number;
+}
+
+/** Cough cuts reach this far past the button on each side. */
+export const CUT_PADDING = 0.15;
+
+/** Wall-clock stretches the mic was stopped, in order. */
+function gapRanges(markers: SessionMarker[]): Range[] {
+  return merge(markers.filter((m) => m.kind === 'gap' && m.end != null).map((m) => [m.t, m.end!] as Range));
+}
+
+/** Where wall-clock time `t` is in the audio: earlier gaps taken off (a time inside a gap lands where it started). */
+export function audioTime(t: number, gaps: Range[]): number {
+  let shift = 0;
+  for (const [a, b] of gaps) {
+    if (t <= a) break;
+    shift += Math.min(t, b) - a;
+  }
+  return t - shift;
+}
+
+/**
+ * Markers and line starts moved from the wall clock onto the audio. Gaps
+ * become points where the audio jumps, carrying how long the mic was stopped.
+ */
+export function onAudio(markers: SessionMarker[], lineLog: LineStart[]): { markers: SessionMarker[]; lineLog: LineStart[] } {
+  const gaps = gapRanges(markers);
+  if (!gaps.length) return { markers, lineLog };
+  const at = (t: number) => audioTime(t, gaps);
+  return {
+    markers: markers.map((m) =>
+      m.kind === 'gap'
+        ? { ...m, t: at(m.t), end: undefined, lost: (m.end ?? m.t) - m.t }
+        : { ...m, t: at(m.t), ...(m.end != null ? { end: at(m.end) } : {}) },
+    ),
+    lineLog: lineLog.map((s) => ({ ...s, t: at(s.t) })),
+  };
 }
 
 export interface LineStart {
@@ -61,12 +103,19 @@ export function retakeCuts(markers: SessionMarker[], lineLog: LineStart[]): Rang
   return cuts;
 }
 
-export function assemble(duration: number, markers: SessionMarker[], lineLog: LineStart[], pauses: PauseMode): Assembly {
+/**
+ * The edit of a recording `duration` seconds long. Takes wall-clock markers
+ * (as recorded) and converts them with onAudio() first.
+ */
+export function assemble(duration: number, wallMarkers: SessionMarker[], wallLineLog: LineStart[], pauses: PauseMode): Assembly {
+  const { markers, lineLog } = onAudio(wallMarkers, wallLineLog);
+  const clamp = ([a, b]: Range) => [Math.max(0, a), Math.min(duration, b)] as Range;
   const pauseRanges: Range[] = markers
     .filter((m) => m.kind === 'pause')
     .map((m) => [m.t, Math.min(duration, m.end ?? duration)] as Range);
   const cuts = merge([
-    ...retakeCuts(markers, lineLog).map(([a, b]) => [Math.max(0, a), Math.min(duration, b)] as Range),
+    ...retakeCuts(markers, lineLog).map(clamp),
+    ...markers.filter((m) => m.kind === 'cut').map((m) => clamp([m.t, m.end ?? m.t])),
     ...(pauses === 'keep' ? [] : pauseRanges),
   ]);
 

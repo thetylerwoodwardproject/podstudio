@@ -56,6 +56,7 @@ const base = `/episodes/${episode.id}`;
   import { sessionUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { download } from '@/lib/zip';
+  import { markerCounts } from '@/lib/markers';
 
   const root = document.getElementById('sessions')!;
   const episodeId = root.dataset.episode!;
@@ -89,13 +90,10 @@ const base = `/episodes/${episode.id}`;
       const session = t.kind === 'session';
       q('[data-name]').textContent = session ? `Session ${ordered.length - i}` : `${t.name} (older take)`;
       q('[data-when]').textContent = new Date(t.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-      const retakes = t.markers?.filter((m) => m.kind === 'retake').length ?? 0;
-      const pauses = t.markers?.filter((m) => m.kind === 'pause').length ?? 0;
-      const adlibs = t.markers?.filter((m) => m.kind === 'adlib').length ?? 0;
       const bytes = tracks.reduce((n, x) => n + takeBytes(x), 0);
       q('[data-summary]').textContent = [
         formatDuration(takeSeconds(t)),
-        session ? `${retakes} retake${retakes === 1 ? '' : 's'} · ${pauses} pause${pauses === 1 ? '' : 's'}${adlibs ? ` · ${adlibs} ad-lib${adlibs === 1 ? '' : 's'}` : ''}` : '',
+        session ? markerCounts(t.markers ?? []) || 'No markers' : '',
         `${t.bitDepth}-bit · ${t.sampleRate / 1000} kHz · ${t.channels === 2 ? 'stereo' : 'mono'}`,
         formatBytes(bytes),
       ]
