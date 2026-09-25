@@ -15,7 +15,7 @@ const base = `/episodes/${episode.id}`;
       <div>
         <h1 class="text-[22px] tracking-[-0.02em]">Sessions</h1>
         <p class="mt-1.5 text-[13px] text-muted">
-          Every session keeps one file per speaker, with retakes and pauses as markers. Open one to export the edit.
+          Every session is one WAV, with retakes, cuts, pauses and ad-libs as markers. Open one to export the edit.
         </p>
       </div>
       <Button href={`${base}/mic-check`} variant="record" size="lg" class="gap-2.5" data-new-session>
@@ -56,7 +56,6 @@ const base = `/episodes/${episode.id}`;
   import { sessionUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { download } from '@/lib/zip';
-  import { speakerName } from '@/lib/script-store';
 
   const root = document.getElementById('sessions')!;
   const episodeId = root.dataset.episode!;
@@ -69,7 +68,7 @@ const base = `/episodes/${episode.id}`;
     const tpl = (document.getElementById('session-card') as HTMLTemplateElement).content.firstElementChild!;
     const selected = new URL(location.href).searchParams.get('take');
     const all = (await listTakes(episodeId)).filter((t) => t.status === 'done');
-    // One card per session, however many speaker tracks it has. Recordings made before
+    // One card per session. Recordings made before
     // sessions (separate takes) have no group and show on their own.
     const groups = new Map<string, TakeMeta[]>();
     for (const t of all) {
@@ -96,7 +95,6 @@ const base = `/episodes/${episode.id}`;
       const bytes = tracks.reduce((n, x) => n + takeBytes(x), 0);
       q('[data-summary]').textContent = [
         formatDuration(takeSeconds(t)),
-        tracks.length > 1 ? `${tracks.length} tracks · ${tracks.map((x) => speakerName(x.speaker)).join(', ')}` : speakerName(t.speaker),
         session ? `${retakes} retake${retakes === 1 ? '' : 's'} · ${pauses} pause${pauses === 1 ? '' : 's'}${adlibs ? ` · ${adlibs} ad-lib${adlibs === 1 ? '' : 's'}` : ''}` : '',
         `${t.bitDepth}-bit · ${t.sampleRate / 1000} kHz · ${t.channels === 2 ? 'stereo' : 'mono'}`,
         formatBytes(bytes),
@@ -105,12 +103,7 @@ const base = `/episodes/${episode.id}`;
         .join(' · ');
 
       const open = q<HTMLAnchorElement>('[data-open]');
-      // Waiting on someone's track: collect it first.
-      const waiting = (t.roster ?? []).filter((r) => r.source === 'remote' && !tracks.some((x) => x.speaker === r.speaker));
-      if (waiting.length) {
-        open.href = `/episodes/${episodeId}/wrap?take=${encodeURIComponent(t.id)}`;
-        open.textContent = `Waiting for ${waiting.map((r) => speakerName(r.speaker)).join(', ')} →`;
-      } else if (session) open.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(t.id)}`;
+      if (session) open.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(t.id)}`;
       else open.remove();
       // WAVs are disk-backed Blobs, so a URL per session costs nothing up front.
       q<HTMLAudioElement>('[data-audio]').src = URL.createObjectURL(await takeWav(t));

@@ -1,35 +1,58 @@
 ---
-// 1h · Unsupported browser (Firefox / Safari)
+// 1h · Unsupported browser (Firefox / desktop Safari), and ?reason=ios-old for an
+// iPhone or iPad on iOS 16 or earlier.
 import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import Button from '@/components/ui/Button.astro';
 ---
 
-<Base title="Chrome required" anyBrowser>
+<Base title="Browser not supported" anyBrowser>
   <div class="flex min-h-dvh items-center justify-center px-6">
-    <div class="flex max-w-[400px] flex-col gap-3.5">
+    <!-- Computers: Firefox, Safari on the Mac -->
+    <div class="flex max-w-[400px] flex-col gap-3.5" data-reason="">
       <Logo />
-      <h1 class="text-[26px] leading-[1.2] tracking-[-0.02em]">Podstudio runs in Chrome-based browsers only.</h1>
+      <h1 class="text-[26px] leading-[1.2] tracking-[-0.02em]">Podstudio runs in Chrome-based browsers on computers.</h1>
       <p class="text-[14px] leading-[1.6] text-muted">
         Voice follow and WAV recording rely on features Firefox and Safari on the Mac don't ship. Open this link in Chrome
-        or Edge on a computer, or in any browser on an iPhone or iPad.
+        or Edge. On an iPhone or iPad (iOS 17 or later) any browser works.
       </p>
       <div class="mt-1.5 flex gap-2.5">
         <Button variant="primary" data-copy-link>Copy link</Button>
         <Button href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</Button>
       </div>
     </div>
+
+
+    <!-- iOS 16 or earlier, or a WebKit without AudioWorklet / OPFS -->
+    <div class="flex max-w-[400px] flex-col gap-3.5" data-reason="ios-old" hidden>
+      <Logo />
+      <h1 class="mt-4 text-[26px] leading-[1.2] tracking-[-0.02em]">Update iOS to use Podstudio</h1>
+      <p class="text-[14px] leading-[1.55] text-muted">
+        Recording on an iPhone or iPad needs iOS 17 or later. Update in Settings → General → Software Update, then open
+        the link again.
+      </p>
+      <div class="mt-1.5 flex gap-2.5">
+        <Button variant="primary" data-copy-link>Copy link</Button>
+      </div>
+    </div>
   </div>
 </Base>
 
 <script>
-  const btn = document.querySelector<HTMLButtonElement>('[data-copy-link]')!;
-  btn.addEventListener('click', async () => {
-    // Send people back to the page they tried to open, not this one.
-    const from = new URL(location.href).searchParams.get('from');
-    const target = from && new URL(from).origin === location.origin ? from : location.origin;
-    await navigator.clipboard.writeText(target);
-    btn.textContent = 'Copied';
-    setTimeout(() => (btn.textContent = 'Copy link'), 1500);
+  const reason = new URL(location.href).searchParams.get('reason') ?? '';
+  const panels = document.querySelectorAll<HTMLElement>('[data-reason]');
+  const known = [...panels].some((p) => p.dataset.reason === reason);
+  panels.forEach((p) => (p.hidden = p.dataset.reason !== (known ? reason : '')));
+
+  document.querySelectorAll<HTMLButtonElement>('[data-copy-link]').forEach((btn) => {
+    const label = btn.textContent;
+    btn.addEventListener('click', async () => {
+      // Send people back to the page they tried to open, not this one.
+      const from = new URL(location.href).searchParams.get('from');
+      const target = from && new URL(from).origin === location.origin ? from : location.origin;
+      await navigator.clipboard.writeText(target);
+      btn.textContent = 'Copied';
+      setTimeout(() => (btn.textContent = label), 1500);
+    });
   });
 </script>

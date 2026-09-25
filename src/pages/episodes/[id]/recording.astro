@@ -223,6 +223,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
     // Solo reads have one track and no speakers to show. With several speakers, every
     // speaker records their own track for the whole session, on one shared clock.
     const solo = script.speakers.length <= 1;
+    // An iPhone records a single-host show; several speakers on one device need Chrome on a computer.
     const host = script.speakers.includes(root.dataset.local!) ? root.dataset.local! : (script.speakers[0] ?? root.dataset.local!);
     const trackSpeakers = solo ? [host] : script.speakers;
     const INPUTS_KEY = 'podstudio:track-inputs';
@@ -877,7 +878,7 @@ const demoTimeline = { retakes: [13, 61, 63, 98.8], pauses: [[38, 6]] };
       await Promise.all([capture, ...extraCaptures].map((c) => c.close()));
       session.send({ type: 'rec', recording: false, startedAt, device: device(), take: meta.id });
       // Wrap up: wait for every speaker's track before exporting.
-      location.href = `/episodes/${episodeId}/wrap?take=${encodeURIComponent(meta.id)}`;
+      location.href = `/episodes/${episodeId}/session?take=${encodeURIComponent(meta.id)}`;
     }
 
     // Ready for Start before the mic is open; start() waits for it.

@@ -8,7 +8,6 @@ import Controls from '@/components/settings/Controls.astro';
 import Ai from '@/components/settings/Ai.astro';
 import Security from '@/components/settings/Security.astro';
 import Domain from '@/components/settings/Domain.astro';
-import Users from '@/components/settings/Users.astro';
 import Server from '@/components/settings/Server.astro';
 
 const sections = [
@@ -19,12 +18,11 @@ const sections = [
   { key: 'ai', label: 'Transcription & AI', view: Ai },
   { key: 'security', label: 'Security', view: Security },
   { key: 'domain', label: 'Domain & HTTPS', view: Domain },
-  { key: 'users', label: 'Users', view: Users },
   { key: 'server', label: 'Server', view: Server },
 ];
 
 export const getStaticPaths = () =>
-  ['general', 'recording', 'prompter', 'controls', 'ai', 'security', 'domain', 'users', 'server'].map((section) => ({
+  ['general', 'recording', 'prompter', 'controls', 'ai', 'security', 'domain', 'server'].map((section) => ({
     params: { section },
   }));
 

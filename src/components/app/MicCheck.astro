@@ -1,77 +1,43 @@
 ---
-// Green room (after 6a): what to do on the left, a live mic check on the right. The host's
-// green room before a session, and a guest's landing page from their invite link.
+// Green room (6a layout): what to do on the left, a live mic check on the right, before a session.
 import AppShell from '@/layouts/AppShell.astro';
 import StatusRow from '@/components/ui/StatusRow.astro';
 import Button from '@/components/ui/Button.astro';
-import Checkbox from '@/components/ui/Checkbox.astro';
-import { episode, lineStarts, scriptWords, server } from '@/data/mock';
+import { episode, lineStarts, scriptWords } from '@/data/mock';
 import Select from '@/components/ui/Select.astro';
 import LevelMeter from '@/components/audio/LevelMeter.astro';
 
-interface Props {
-  mode: 'host' | 'guest';
-}
-const { mode } = Astro.props;
-const guest = mode === 'guest';
 const ok = 'var(--color-ok)';
 const base = `/episodes/${episode.id}`;
-const host = 'Tyler';
-const joinUrl = `${server.address}/join`;
 
-const c = guest
-  ? {
-      eyebrow: 'Guest · Dana',
-      title: 'Before you join',
-      sub: `Podstudio records your mic on this computer and sends it to ${host}’s server. You’ll talk to ${host} and Sam over your usual call app.`,
-      steps: [
-        ['Join the call', `Use the link ${host} sent for Zoom, Slack, Teams, Discord or whatever you normally use. Keep it running in another window.`],
-        ['Put on headphones', 'Otherwise the call audio comes out of your speakers and gets recorded by your mic.'],
-        ['Pick your mic here', 'Choose the same mic in both apps. Podstudio records it at full quality, separate from the call.'],
-      ],
-      inputs: ['Rode NT-USB'],
-      heard: '“And whether the floor could hold it, which nobody checked until I asked.”',
-      checks: [
-        ['Level', 'Right on target', ok],
-        ['Clipping', 'None', ok],
-        ['Headphones', 'Confirmed', ok],
-        ['Call audio in mic', 'Not detected', ok],
-        ['Format', '24-bit · 48 kHz', undefined],
-        ['Connection to server', 'Good · 38 ms', ok],
-      ],
-      next: `${base}/prompter?as=DANA`,
-    }
-  : {
-      eyebrow: `Host · ${host}`,
-      title: 'Green room',
-      sub: `Get set for ${episode.fullTitle}. Your guests are getting ready in their own green room.`,
-      steps: [
-        ['Check your mic', 'Talk at your normal volume until the meter sits in the target zone, then make a test recording and play it back.'],
-        ['Open the prompter', 'On your phone or a second screen, open the join page and enter the code. It follows your voice as you read.'],
-        ['Bring in your guests', 'Send them the invite link. They join your usual call app and check their mic in their own green room.'],
-      ],
-      inputs: ['Shure MV7 (USB)'],
-      heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
-      checks: [
-        ['Level', 'Right on target', ok],
-        ['Clipping', 'None in the last 30 s', ok],
-        ['Noise floor', '-61 dBFS', ok],
-        ['Voice follow', 'Matched line 1', ok],
-        ['Free space', '5.1 GB · about 9 h', 'var(--color-warn)'],
-        ['Test recording', 'Played back · right on target', ok],
-      ],
-      next: `${base}/recording`,
-    };
-const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone call'];
+const c = {
+  eyebrow: 'Host · Tyler',
+  title: 'Green room',
+  sub: `Get set for ${episode.fullTitle}. The recording screen keeps this meter, so you can check again there.`,
+  steps: [
+    ['Check your level', 'Talk at your normal volume. Your peaks should land in the target zone, −18 to −6 dBFS.'],
+    ['Make a test recording', 'Say a few lines at your loudest and play them back. Listen for distortion, crackle or clicks.'],
+    ['Read a line from the script', 'Voice follow should find it. If it doesn’t, open the voice check from the Heard box.'],
+  ],
+  inputs: ['Shure MV7 (USB)'],
+  heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
+  checks: [
+    ['Level', 'Right on target', ok],
+    ['Clipping', 'None in the last 30 s', ok],
+    ['Noise floor', '-61 dBFS', ok],
+    ['Voice follow', 'Matched line 1', ok],
+    ['Free space', '5.1 GB · about 9 h', 'var(--color-warn)'],
+    ['Test recording', 'Played back · right on target', ok],
+  ],
+  next: `${base}/recording`,
+};
 ---
 
-<AppShell title={c.title} avatar={false} crumbs={guest ? [{ label: episode.fullTitle }] : [{ label: episode.label, href: `${base}/studio` }, { label: 'Green room' }]}>
-  <span slot="topbar" class="truncate text-[13px] text-muted max-sm:hidden">{guest ? `Invited by ${host}` : c.eyebrow}</span>
+<AppShell title={c.title} avatar={false} crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Green room' }]}>
 
   <form
     class="grid lg:min-h-full lg:grid-cols-[1fr_400px]"
     id="mic-check"
-    data-mode={mode}
     data-next={c.next}
     data-episode={episode.id}
     data-words={JSON.stringify(scriptWords)}
@@ -95,50 +61,19 @@ const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone 
               <div class="min-w-0">
                 <div class="text-[15px]">{title}</div>
                 <p class="mt-1 text-[13px] leading-normal text-muted">{body}</p>
-                {!guest && i === 1 && (
-                  <div class="mt-2.5 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg bg-surface px-3 py-2 font-mono text-[13px]">
-                    <span class="text-fg-soft" data-join-url>{joinUrl}</span>
-                    <span class="text-muted">·</span>
-                    <span class="text-muted">Code</span>
-                    <span class="tracking-[0.1em]">{episode.joinCode}</span>
-                  </div>
-                )}
-                {!guest && i === 2 && (
-                  <div class="mt-2.5 flex max-w-[520px] items-center gap-2 rounded-lg bg-surface py-1.5 pr-1.5 pl-3">
-                    <span class="min-w-0 flex-1 truncate font-mono text-[12px] text-fg-soft" data-invite-link>{server.inviteLink}</span>
-                    <button type="button" class="h-7 flex-none rounded-md border border-edge px-2.5 text-[12px] hover:bg-raised" data-copy-invite>
-                      Copy link
-                    </button>
-                  </div>
-                )}
+
               </div>
             </li>
           ))
         }
       </ol>
 
-      {guest && (
-        <ul class="flex flex-wrap gap-1.5" aria-label="Works with any call app">
-          {apps.map((a) => <li class="flex h-6.5 items-center rounded-full bg-surface px-2.5 text-[12px] text-fg-soft">{a}</li>)}
-        </ul>
-      )}
 
       <div class="rounded-xl bg-surface px-4 py-3 text-[14px] leading-normal">
         <span class="text-faint">Heard:</span>
         <span data-heard>{c.heard}</span>
       </div>
 
-      <div class="mt-auto flex items-center gap-4 rounded-xl bg-panel px-4.5 py-3.5 shadow-[inset_2px_0_0_var(--color-muted)]">
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2 text-[14px]">
-            <span class="inline-block size-2 flex-none rounded-full bg-muted"></span>Podstudio records. It doesn’t connect calls.
-          </div>
-          <p class="mt-1 text-[13px] leading-normal text-muted">
-            Talk over Zoom, Slack, Teams, Discord or any call app. Podstudio records each person’s own mic on their own
-            device, never the call audio.
-          </p>
-        </div>
-      </div>
     </section>
 
     <!-- Live mic check -->
@@ -209,19 +144,9 @@ const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone 
       </details>
 
       <div class="mt-auto flex flex-col gap-3 pt-2">
-        {
-          guest ? (
-            <>
-              <Checkbox name="ready" label="I’m on the call and wearing headphones" />
-              <Button type="submit" variant="primary" size="lg" class="w-full" data-join>Join as Dana</Button>
-              <p class="text-center text-[12px] text-subtle" data-live-only data-join-hint>Tick the box above once you’re on the call.</p>
-            </>
-          ) : (
-            <Button type="submit" variant="record" size="lg" class="w-full" data-start>
-              ●&nbsp; Start session
-            </Button>
-          )
-        }
+        <Button type="submit" variant="record" size="lg" class="w-full" data-start>
+          ●&nbsp; Start session
+        </Button>
       </div>
     </aside>
   </form>
@@ -253,13 +178,9 @@ const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone 
     const warn = 'var(--color-warn)';
     const bad = 'var(--color-rec)';
     const faint = 'var(--color-faint)';
-    const host = form.dataset.mode === 'host';
 
-    // The Checks rows, by name: the host's and a guest's lists differ. A check a list
-    // doesn't have is skipped.
-    const rows: Record<string, number> = host
-      ? { level: 0, clip: 1, noise: 2, voice: 3, space: 4, test: 5 }
-      : { level: 0, clip: 1, headphones: 2, bleed: 3, format: 4, server: 5 };
+    // The Checks rows, by name.
+    const rows: Record<string, number> = { level: 0, clip: 1, noise: 2, voice: 3, space: 4, test: 5 };
     // Clipping, noise floor and free space only show when they need attention.
     const quiet = new Set(['clip', 'noise', 'space']);
     const check = (key: string, value: string, color?: string) => {
@@ -273,57 +194,11 @@ const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone 
     };
     ['level', 'clip', 'noise', 'voice'].forEach((k) => check(k, 'Waiting…'));
     check('test', 'Not done yet · record one below', warn);
-    // A guest's own checks: headphones are on them, bleed and the server need a session.
-    check('bleed', 'Checked while recording', faint);
-    check('server', 'Not connected · needs the Podstudio server', warn);
-    check('format', `${settings.depth}-bit · ${settings.rate} kHz${settings.channels === 2 ? ' · stereo' : ''}`);
-
-    // A guest confirms they're on the call with headphones; that's what lets them join.
-    const ready = form.querySelector<HTMLInputElement>('input[name=ready]');
-    if (ready) {
-      const join = $<HTMLButtonElement>('[data-join]');
-      const sync = () => {
-        join.disabled = !ready.checked;
-        $('[data-join-hint]').hidden = ready.checked;
-        check('headphones', ready.checked ? 'Confirmed' : 'Tick the box below', ready.checked ? ok : warn);
-      };
-      ready.addEventListener('change', sync);
-      sync();
-    }
-
-    // The join page and the guests' invite link, on this server's address.
-    const joinUrl = form.querySelector('[data-join-url]');
-    if (joinUrl) joinUrl.textContent = `${location.host}/join`;
-    const copy = form.querySelector<HTMLButtonElement>('[data-copy-invite]');
-    if (copy) {
-      const link = $('[data-invite-link]');
-      link.textContent = `${location.origin}/invite/8f2k-q7mz`;
-      copy.addEventListener('click', async () => {
-        await navigator.clipboard?.writeText(link.textContent!).catch(() => {});
-        copy.textContent = 'Copied';
-        setTimeout(() => (copy.textContent = 'Copy link'), 1500);
-      });
-    }
     $('[data-heard]').textContent = 'Read a line from the script…';
 
     // Carry a starting line (?from=, continuing a recovered session) through to the recording screen.
     const params = new URL(location.href).search;
-    if (host) form.dataset.next = `/episodes/${episodeId}/recording${params}`;
-
-    // A guest's mic choice is theirs: kept apart from the host's settings on a shared computer.
-    const GUEST_MIC = 'podstudio:guest-mic';
-    if (!host) {
-      try {
-        settings.deviceId = localStorage.getItem(GUEST_MIC) ?? '';
-      } catch {}
-    }
-    const saveMic = (deviceId: string) => {
-      if (host) saveSettings('recording', { deviceId });
-      else
-        try {
-          localStorage.setItem(GUEST_MIC, deviceId);
-        } catch {}
-    };
+    form.dataset.next = `/episodes/${episodeId}/recording${params}`;
 
     const { free, hours } = await storageLeft(hz(settings.rate), settings.depth, settings.channels);
     check('space', `${formatBytes(free)} · about ${hours >= 10 ? Math.round(hours) : hours.toFixed(1)} h`, hours < 2 ? warn : ok);
@@ -546,7 +421,7 @@ const apps = ['Zoom', 'Slack huddle', 'Teams', 'Discord', 'Google Meet', 'Phone 
     let voice: VoiceFollow | null = null;
     $<HTMLSelectElement>('[data-mic]').addEventListener('change', (e) => {
       const deviceId = (e.target as HTMLSelectElement).value;
-      saveMic(deviceId);
+      saveSettings('recording', { deviceId });
       settings.deviceId = deviceId;
       // Rebuild the per-input meters for the new device.
       inputMeters.replaceChildren();

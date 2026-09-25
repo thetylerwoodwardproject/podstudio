@@ -1,16 +1,14 @@
 ---
-// 1c · Studio: desktop control (pick recorder, format, follow mode)
+// 1c · Studio: the script, the recording format and how it scrolls, then Start.
 import AppShell from '@/layouts/AppShell.astro';
-import JoinCode from '@/components/app/JoinCode.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Button from '@/components/ui/Button.astro';
-import { devices, episode, episodePaths, studioScript } from '@/data/mock';
+import { episode, episodePaths, studioScript } from '@/data/mock';
 import { mbPerMinute } from '@/lib/audio/format';
 
 export const getStaticPaths = episodePaths;
 
 const base = `/episodes/${episode.id}`;
-const recorder = devices[0];
 const modeHelp = {
   voice: 'Scrolls as the host speaks. Pauses on ad-libs, re-syncs when a scripted phrase is heard.',
   manual: 'Fixed scroll at 150 wpm. Space to pause, ↑ ↓ to nudge speed.',
@@ -18,14 +16,10 @@ const modeHelp = {
 const menu = [
   { label: 'Edit script', href: `${base}/script` },
   { label: 'Recorded sessions', href: `${base}/sessions` },
-  { label: 'Open monitor view', href: `${base}/monitor` },
-  { label: 'Producer remote', href: `${base}/remote` },
 ];
 ---
 
 <AppShell title="Studio" crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}>
-  <JoinCode slot="topbar" />
-
   <form
     class="grid lg:h-full lg:grid-cols-[1fr_380px]"
     data-studio
@@ -60,49 +54,8 @@ const menu = [
     </section>
 
     <aside class="flex flex-col lg:overflow-auto">
-      <div role="radiogroup" aria-labelledby="instances-title" class="flex flex-col gap-3 border-b border-line p-5">
-        <div class="flex items-baseline justify-between">
-          <h2 id="instances-title" class="text-[13px] font-medium">Instances</h2>
-          <span class="font-mono text-[11px] text-faint">tap to set recorder</span>
-        </div>
-        {
-          devices.map((d) => (
-            <label
-              class:list={[
-                'group flex items-center gap-3 rounded-[10px] border border-line p-3 has-checked:border-fg has-checked:bg-surface',
-                d.mic ? 'hover:border-edge' : 'cursor-default!',
-              ]}
-            >
-              <input
-                type="radio"
-                name="recorder"
-                value={d.id}
-                checked={d.id === recorder.id}
-                disabled={!d.mic}
-                data-name={d.name}
-                data-mic={d.mic}
-                class="sr-only"
-              />
-              <span class="flex size-8.5 flex-none items-center justify-center rounded-lg bg-line font-mono text-[11px] font-medium text-muted">
-                {d.glyph}
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-[14px]">{d.name}</span>
-                <span class="mt-0.5 block font-mono text-[11px] text-subtle">{d.meta}</span>
-              </span>
-              <span class="rounded-[5px] bg-raised px-[7px] py-1 font-mono text-[10px] font-medium tracking-[0.06em] text-subtle group-has-checked:hidden">
-                {d.mic ? 'PROMPTER' : 'DISPLAY'}
-              </span>
-              <span class="hidden rounded-[5px] bg-rec px-[7px] py-1 font-mono text-[10px] font-medium tracking-[0.06em] text-white group-has-checked:inline">
-                RECORDER
-              </span>
-            </label>
-          ))
-        }
-      </div>
-
       <div class="flex flex-col gap-4 border-b border-line p-5">
-        <h2 class="text-[13px] font-medium">Recording · <span data-recorder-name>{recorder.name}</span></h2>
+        <h2 class="text-[13px] font-medium">Recording</h2>
         <div class="flex flex-col gap-[7px]">
           <div class="text-[12px] text-muted">Bit depth</div>
           <Segmented name="depth" label="Bit depth" mono value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
@@ -116,7 +69,7 @@ const menu = [
           <Segmented name="channels" label="Channels" value="1" options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} />
         </div>
         <div class="meta flex justify-between text-subtle">
-          <span>Input: <span data-recorder-mic>{recorder.mic}</span></span>
+          <span>Input: <span data-recorder-mic>—</span></span>
           <span><span data-size>{mbPerMinute(24, 48)}</span> MB/min</span>
         </div>
       </div>
@@ -173,9 +126,6 @@ const menu = [
 
   const update = () => {
     const data = new FormData(form);
-    const rec = q<HTMLInputElement>('input[name=recorder]:checked');
-    q('[data-recorder-name]').textContent = rec.dataset.name!;
-    q('[data-recorder-mic]').textContent = rec.dataset.mic!;
     q('[data-size]').textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')), Number(data.get('channels') ?? 1));
     q('[data-mode-text]').textContent = help[String(data.get('mode'))];
   };
@@ -187,7 +137,6 @@ const menu = [
       const input = form.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`);
       if (input && !input.disabled) input.checked = true;
     };
-    pick('recorder', r.recorder);
     pick('depth', String(r.depth));
     pick('rate', String(r.rate));
     pick('channels', String(r.channels));
@@ -197,7 +146,6 @@ const menu = [
     form.addEventListener('change', () => {
       const data = new FormData(form);
       saveSettings('recording', {
-        recorder: String(data.get('recorder')),
         depth: Number(data.get('depth')) as 16 | 24,
         rate: Number(data.get('rate')) as 44.1 | 48,
         channels: Number(data.get('channels')) as 1 | 2,
@@ -208,9 +156,7 @@ const menu = [
 
     offerRecovery(episodeId);
     // The input that will actually be recorded (and that voice follow listens to).
-    // Other devices record on their own mic, shown from their card.
     const showInput = () => {
-      if (q<HTMLInputElement>('input[name=recorder]:checked').value !== form.querySelector<HTMLInputElement>('input[name=recorder]')!.value) return;
       const { deviceId, channels } = loadSettings().recording;
       describeInput(deviceId, channels).then(({ label, missing }) => {
         q('[data-recorder-mic]').textContent = missing ? `${label} (saved mic not connected)` : label;

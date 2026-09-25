@@ -24,8 +24,6 @@ export const speakers: Speaker[] = [
 export const spk = (key: SpeakerKey | '?') =>
   key === '?' ? 'var(--spk-unknown)' : `var(--spk-${key.toLowerCase()})`;
 
-export const speakerByKey = (key: SpeakerKey) => speakers.find((s) => s.key === key)!;
-
 export const user = { name: 'Tyler', username: 'tyler', initial: 'T' };
 
 export const episode = {
@@ -57,10 +55,6 @@ export const lineStarts = scriptLines.reduce<number[]>(
   [],
 );
 
-/** Single-speaker narration from the monitor design (1e). */
-export const monitorScript =
-  'It was a quiet week in the studio, until the new transmitter arrived. Four pallets, one forklift, and a delivery driver who swore he had never seen anything that heavy come off a truck. So this episode is about what happens after the crate is open. Power, cooling, the first time you key it up and watch the meters move.';
-
 /** Script sections; `line` is the first script line of each. */
 export const sections = (() => {
   const times = ['0:00', '1:42', '14:50', '27:05'];
@@ -84,18 +78,6 @@ export const devices: Device[] = [
   { id: 'phone', name: 'iPhone 15 — Chrome', glyph: 'PHN', meta: 'Chrome 129 · Built-in mic', mic: 'Built-in mic' },
   { id: 'mon', name: 'Studio monitor 2', glyph: 'MON', meta: 'Edge 129 · no input', mic: null },
 ];
-
-export const screenAssignments: { name: string; role: string; who: SpeakerKey | 'ALL' }[] = [
-  { name: 'MacBook Pro', role: 'Recorder', who: 'TYLER' },
-  { name: 'iPhone 15', role: 'Prompter', who: 'SAM' },
-  { name: 'Studio monitor 2', role: 'Display', who: 'ALL' },
-];
-
-export const castMeta: Record<SpeakerKey, string> = {
-  TYLER: 'Host · 3 lines',
-  SAM: 'Co-host · 2 lines',
-  DANA: 'Guest · 1 line',
-};
 
 export type EpisodeStatus = 'Draft' | 'Transcribed' | 'Published' | 'Recorded';
 
@@ -124,19 +106,6 @@ export const statusColor: Record<EpisodeStatus, string> = {
 };
 
 export const storage = { usedGb: 41, totalGb: 46, pct: 88, hoursLeft: 9, free: '5.1 GB' };
-
-/** Transcript with speakers (matched against the script), for 3c. */
-export const speakerTranscript: { t: string; who: SpeakerKey | '?'; text: string }[] = [
-  { t: '00:00', who: 'TYLER', text: 'It was a quiet week in the studio, until the new transmitter arrived.' },
-  { t: '00:05', who: 'SAM', text: 'Four pallets? I heard it was five, and one of them was just foam.' },
-  { t: '00:10', who: 'TYLER', text: 'Four. I counted. So this episode is about what happens after the crate is open.' },
-  { t: '00:17', who: 'SAM', text: 'Power, cooling, and the first time we keyed it up.' },
-  { t: '00:22', who: 'DANA', text: 'And whether the floor could hold it, which, for the record, nobody checked until I asked.' },
-  { t: '01:42', who: 'TYLER', text: 'We measured it twice. The spec sheet and the building plans did not agree.' },
-  { t: '02:19', who: '?', text: 'Then there was the question of where the heat was going to go.' },
-];
-
-export const speakerTalkTime: Record<SpeakerKey, string> = { TYLER: '14:22', SAM: '11:05', DANA: '5:39' };
 
 /** Raw Whisper transcript shown beside the episode package (2e). */
 export const transcript = [
@@ -190,29 +159,10 @@ export const transcribeSteps = [
   { label: 'Write titles, description, posts, chapters, soundbites', meta: 'gpt-4o-mini', at: 90 },
 ];
 
-export const tracks: {
-  who: SpeakerKey;
-  device: string;
-  exportDevice: string;
-  status: string;
-  statusColor: string;
-  offset: string;
-}[] = [
-  { who: 'TYLER', device: 'MacBook Pro · studio', exportDevice: 'Studio · MacBook Pro', status: 'Local', statusColor: 'var(--color-ok)', offset: 'Clock offset 0 ms' },
-  { who: 'SAM', device: 'iPhone 15 · remote', exportDevice: 'Remote · iPhone 15', status: 'Uploaded · live', statusColor: 'var(--color-ok)', offset: 'Clock offset +2 ms' },
-  { who: 'DANA', device: 'Laptop · remote', exportDevice: 'Remote · laptop', status: 'Uploading · 2 chunks behind', statusColor: 'var(--color-warn)', offset: 'Clock offset −4 ms' },
-];
-
 export const trustedDevices = [
   { name: 'MacBook Pro · Chrome', meta: 'This device · expires Oct 24' },
   { name: 'iPhone 15 · Chrome', meta: 'Last used today · expires Oct 20' },
-  { name: 'Studio monitor 2 · Edge', meta: 'Last used today · expires Oct 18' },
-];
-
-export const users = [
-  { who: 'TYLER' as SpeakerKey, name: 'Tyler', username: 'tyler', role: 'Admin', state: '2FA ON' },
-  { who: 'SAM' as SpeakerKey, name: 'Sam', username: 'sam', role: 'Host', state: '2FA ON' },
-  { who: 'DANA' as SpeakerKey, name: 'Dana', username: '—', role: 'Guest · Ep. 142 only', state: 'INVITED' },
+  { name: 'Pixel 8 · Chrome', meta: 'Last used today · expires Oct 18' },
 ];
 
 export const shortcuts = [
@@ -230,7 +180,6 @@ export const server = {
   latest: '0.2.0',
   address: 'podstudio.example.com',
   localAddress: 'podstudio.local:4321',
-  inviteLink: 'https://podstudio.example.com/invite/8f2k-q7mz',
 };
 
 export const setupSteps = [

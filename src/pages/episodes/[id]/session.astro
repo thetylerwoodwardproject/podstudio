@@ -25,10 +25,7 @@ const greenSwitch =
   >
     <div>
       <h1 class="text-[22px] tracking-[-0.02em]">Session · <span data-length><span data-demo-only>41:07</span></span></h1>
-      <p class="mt-1.5 text-[13px] text-muted" data-counts><span data-demo-only>2 tracks · 14 retakes · 3 pauses</span></p>
-      <p class="mt-3 rounded-lg bg-surface px-3.5 py-2.5 text-[13px] text-warn" data-waiting hidden>
-        <span data-waiting-text></span> <a class="text-fg underline-offset-2 hover:underline" data-waiting-link>Add their tracks →</a>
-      </p>
+      <p class="mt-1.5 text-[13px] text-muted" data-counts><span data-demo-only>18:42 · 14 retakes · 3 pauses</span></p>
     </div>
 
     <p class="text-[13px] text-subtle" data-empty hidden>
@@ -40,7 +37,7 @@ const greenSwitch =
       <h2 class="eyebrow text-muted!">Always included</h2>
       <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
         <div class="flex-1">
-          <div class="text-[14px]">Raw tracks with markers</div>
+          <div class="text-[14px]">Raw WAV with markers</div>
           <div class="mt-1 text-[12px] text-muted">
             One WAV per speaker, untouched. Markers are embedded in each file and also saved as Audacity labels and a CSV.
           </div>
@@ -55,8 +52,8 @@ const greenSwitch =
         <div class="flex-1">
           <div class="text-[14px]">Assembled edit</div>
           <div class="mt-1 text-[12px] text-muted">
-            Keeps the last attempt of each line and cuts the rest. Saved as a separate file, so the raw tracks stay as they
-            are. <span data-removes><span data-demo-only>Removes 6:52.</span></span>
+            Keeps the last attempt of each line and cuts the rest. Saved as a separate file, so the raw WAV stays as it
+            is. <span data-removes><span data-demo-only>Removes 6:52.</span></span>
           </div>
         </div>
         <span class={greenSwitch}>
@@ -79,7 +76,7 @@ const greenSwitch =
           ))
         }
       </div>
-      <p class="text-[12px] text-subtle">While paused, recording keeps running, so remote guest tracks stay in sync.</p>
+      <p class="text-[12px] text-subtle">While paused, recording keeps running, so the markers stay lined up with the audio.</p>
     </section>
 
     <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
@@ -161,20 +158,13 @@ const greenSwitch =
     const duration = take.samples / take.sampleRate;
     const markers = take.markers ?? [];
     const lineLog = take.lineLog ?? [];
-    // Remote speakers whose track hasn't arrived: the export would leave them out.
-    const waiting = (take.roster ?? []).filter((r) => r.source === 'remote' && !tracks.some((t) => t.speaker === r.speaker));
-    if (waiting.length) {
-      $('[data-waiting]').hidden = false;
-      $('[data-waiting-text]').textContent = `Still waiting for ${waiting.map((r) => r.speaker.charAt(0) + r.speaker.slice(1).toLowerCase()).join(' and ')}. This export won’t include them.`;
-      $<HTMLAnchorElement>('[data-waiting-link]').href = `/episodes/${episodeId}/wrap?take=${encodeURIComponent(take.id)}`;
-    }
     const retakes = markers.filter((m) => m.kind === 'retake');
     const pauses = markers.filter((m) => m.kind === 'pause');
     const adlibs = markers.filter((m) => m.kind === 'adlib');
     const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
     $('[data-length]').textContent = clock(duration);
     $('[data-counts]').textContent =
-      `${plural(tracks.length, 'track')} · ${plural(retakes.length, 'retake')} · ${plural(pauses.length, 'pause')}` +
+      `${plural(retakes.length, 'retake')} · ${plural(pauses.length, 'pause')}` +
       (adlibs.length ? ` · ${plural(adlibs.length, 'ad-lib')}` : '');
 
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';

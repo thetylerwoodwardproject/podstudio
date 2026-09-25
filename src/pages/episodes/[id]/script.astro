@@ -1,17 +1,11 @@
 ---
-// 3a · Script editor with speakers
+// 3a · Script editor: one host reading, in sections.
 import AppShell from '@/layouts/AppShell.astro';
-import JoinCode from '@/components/app/JoinCode.astro';
-import CastPanel from '@/components/app/CastPanel.astro';
-import SpeakerLabel from '@/components/ui/SpeakerLabel.astro';
 import Button from '@/components/ui/Button.astro';
-import Dot from '@/components/ui/Dot.astro';
 import ImportDialog from '@/components/app/ImportDialog.astro';
-import { episode, episodePaths, screenAssignments, scriptLines, speakers, spk } from '@/data/mock';
+import { episode, episodePaths, scriptLines } from '@/data/mock';
 
 export const getStaticPaths = episodePaths;
-
-const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
 ---
 
 <AppShell
@@ -20,22 +14,21 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
   crumbs={[{ label: 'Episodes', href: '/' }, { label: episode.fullTitle }]}
 >
   <Fragment slot="topbar">
-    <JoinCode />
     <Button href={`/episodes/${episode.id}/studio`} variant="record" size="md" class="gap-2.5 px-5">
       <span class="size-2 rounded-full bg-white"></span>
       Go to studio
     </Button>
   </Fragment>
 
-  <div class="grid lg:h-full lg:grid-cols-[1fr_360px]">
-    <section class="flex min-h-0 flex-col border-line lg:border-r">
+  <div class="flex lg:h-full">
+    <section class="flex min-h-0 flex-1 flex-col">
       <div class="flex items-center justify-between border-b border-line px-7 py-3.5 text-[13px] text-muted">
         <div class="flex gap-4.5">
           <span class="text-fg">Script</span>
           <span>Notes</span>
         </div>
         <div class="flex items-center gap-4">
-          <span class="meta max-sm:hidden">Type NAME: to switch speaker</span>
+          <span class="meta max-sm:hidden">## Heading starts a section</span>
           <button type="button" class="text-[13px] text-fg hover:text-white" data-live-only data-open-import>Import or paste</button>
           <button type="button" class="text-[13px] text-muted hover:text-fg" data-live-only data-reset hidden>Use example script</button>
         </div>
@@ -43,72 +36,25 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
       <p class="border-b border-line px-7 py-2.5 text-[12px] text-subtle" data-live-only data-script-note>
         This is the example episode. Import or paste your own script to rehearse with it; every screen uses it.
       </p>
-      <div class="flex min-h-0 w-full flex-1 flex-col gap-5.5 overflow-auto px-6 py-8 sm:px-14" data-script-lines data-episode={episode.id}>
+      <div class="mx-auto flex min-h-0 w-full max-w-[860px] flex-1 flex-col gap-5.5 overflow-auto px-6 py-8 sm:px-14" data-script-lines data-episode={episode.id}>
         {
           scriptLines.map((l) => (
-            <div class="grid grid-cols-[96px_1fr] items-baseline gap-5">
-              <SpeakerLabel name={l.who} color={spk(l.who)} />
-              <div
-                contenteditable="plaintext-only"
-                spellcheck="true"
-                class="rounded text-[19px] leading-[1.65] text-pretty text-fg-soft focus:text-fg focus:outline-none"
-              >{l.text}</div>
-            </div>
+            <div
+              contenteditable="plaintext-only"
+              spellcheck="true"
+              class="rounded text-[19px] leading-[1.65] text-pretty text-fg-soft focus:text-fg focus:outline-none"
+            >{l.text}</div>
           ))
         }
       </div>
     </section>
-
-    <aside class="flex flex-col">
-      <div class="border-b border-line p-5">
-        <CastPanel />
-      </div>
-      <div class="flex flex-col gap-3 p-5">
-        <h2 class="text-[13px] font-medium">Screens</h2>
-        {
-          screenAssignments.map((a) => (
-            <div class="flex items-center justify-between border-b border-line py-2.5">
-              <div>
-                <div class="text-[14px]">{a.name}</div>
-                <div class="mt-0.5 font-mono text-[11px] text-subtle">{a.role}</div>
-              </div>
-              <label class="relative flex h-8 items-center gap-2 rounded-lg border border-edge pr-2.5 pl-2.5 text-[13px] focus-within:border-fg">
-                <Dot color={who(a.who)} data-assign-dot />
-                <select
-                  aria-label={`Who reads on ${a.name}`}
-                  class="appearance-none bg-transparent pr-4 focus:outline-none"
-                  data-assign
-                >
-                  {speakers.map((s) => (
-                    <option value={s.key} selected={s.key === a.who} class="bg-surface">
-                      {s.name}
-                    </option>
-                  ))}
-                  <option value="ALL" selected={a.who === 'ALL'} class="bg-surface">
-                    Everyone
-                  </option>
-                </select>
-                <span class="pointer-events-none absolute right-2.5 text-faint">▾</span>
-              </label>
-            </div>
-          ))
-        }
-      </div>
-      <div class="mt-auto border-t border-line p-5 lg:sticky lg:bottom-0 lg:bg-ink">
-        <Button href={`/episodes/${episode.id}/studio`} variant="record" size="xl" class="w-full gap-2.5">
-          <span class="size-2.5 rounded-full bg-white"></span>
-          Go to studio
-        </Button>
-        <p class="mt-2 text-center text-[12px] text-subtle">Pick the mic, check levels, then record</p>
-      </div>
-    </aside>
   </div>
   <ImportDialog episodeId={episode.id} />
   <template id="script-section"><div class="eyebrow pt-2"></div></template>
 </AppShell>
 
 <script>
-  import { loadScript, resetScript, saveScriptText, scriptToText, speakerColor } from '@/lib/script-store';
+  import { loadScript, resetScript, saveScriptText, scriptToText } from '@/lib/script-store';
 
   // Live: show and edit this episode's script (saved in this browser).
   const list = document.querySelector<HTMLElement>('[data-script-lines]')!;
@@ -140,13 +86,6 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
       }, 400);
     };
 
-    // Solo read: no cast, no speaker column.
-    const solo = script.speakers.length <= 1;
-    if (solo) {
-      document.querySelector<HTMLElement>('main aside')!.hidden = true;
-      list.closest('.grid')!.classList.remove('lg:grid-cols-[1fr_360px]');
-    }
-
     const nodes: Node[] = [];
     let section: string | null = null;
     lines.forEach((l, i) => {
@@ -156,43 +95,14 @@ const who = (k: string) => (k === 'ALL' ? 'var(--color-fg)' : spk(k as never));
         h.textContent = section;
         nodes.push(h);
       }
-      const row = model.cloneNode(true) as HTMLElement;
-      const label = row.firstElementChild as HTMLElement;
-      const text = row.lastElementChild as HTMLElement;
-      if (solo) {
-        row.classList.replace('grid-cols-[96px_1fr]', 'grid-cols-1');
-        label.hidden = true;
-      }
-      const paint = () => {
-        label.style.color = speakerColor(lines[i].who);
-        label.querySelector('span')!.style.background = speakerColor(lines[i].who);
-        label.lastChild!.textContent = lines[i].who || '—';
-      };
-      paint();
+      const text = model.cloneNode(true) as HTMLElement;
       text.textContent = l.text;
       text.addEventListener('input', () => {
         lines[i].text = text.textContent!.trim();
         save();
       });
-      // "NAME: text" at the start of a line switches its speaker.
-      text.addEventListener('blur', () => {
-        const m = /^([A-Za-z][A-Za-z0-9 .'-]{0,23}):\s*(.*)$/.exec(text.textContent!.trim());
-        if (!m) return;
-        lines[i].who = m[1].trim().toUpperCase();
-        lines[i].text = m[2];
-        text.textContent = m[2];
-        paint();
-        save();
-      });
-      nodes.push(row);
+      nodes.push(text);
     });
     list.replaceChildren(...nodes);
-  }
-
-  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-assign]')) {
-    const dot = select.parentElement!.querySelector<HTMLElement>('[data-assign-dot]')!;
-    select.addEventListener('change', () => {
-      dot.style.background = select.value === 'ALL' ? 'var(--color-fg)' : `var(--spk-${select.value.toLowerCase()})`;
-    });
   }
 </script>
