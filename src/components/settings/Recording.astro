@@ -43,6 +43,46 @@ import Select from '@/components/ui/Select.astro';
     <a href="/settings/about" class="underline-offset-2 hover:text-fg hover:underline">DeepFilterNet3</a>.
   </p>
 </div>
+<fieldset class="flex flex-col gap-3 rounded-xl border border-line p-4" data-tones>
+  <legend class="px-1 text-[12px] text-muted">Marker tones in exports</legend>
+  <label class="flex items-center justify-between gap-4 text-[13px]">
+    <span>Add tones to the full recording by default
+      <span class="block text-[12px] text-subtle">A short beep at each marker, so the places to edit can be heard. The edit stays clean.</span>
+    </span>
+    <input type="checkbox" class="size-4 flex-none accent-fg" data-tone-default />
+  </label>
+  <div class="flex flex-wrap gap-x-5 gap-y-2 text-[13px]" role="group" aria-label="Which markers get a tone">
+    {[
+      ['retake', 'Retake', '1 kHz'],
+      ['cut', 'Cough cut', '600 Hz'],
+      ['adlib', 'Ad-lib', '1.4 kHz'],
+      ['pause', 'Pause', '800 Hz'],
+      ['gap', 'Mic stopped', '400 Hz'],
+    ].map(([k, label, hz]) => (
+      <label class="flex items-center gap-2">
+        <input type="checkbox" class="size-4 accent-fg" data-tone-kind={k} />
+        {label} <span class="font-mono text-[11px] text-subtle">{hz}</span>
+      </label>
+    ))}
+  </div>
+  <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+    {[
+      ['level', 'Tone level', -30, -6, 1, 'dBFS'],
+      ['duck', 'Duck under the voice', 0, 24, 1, 'dB'],
+      ['attackMs', 'Attack', 1, 100, 1, 'ms'],
+      ['releaseMs', 'Release', 20, 1000, 10, 'ms'],
+    ].map(([k, label, min, max, step, unit]) => (
+      <label class="flex flex-col gap-1.5 text-[12px] text-muted">
+        <span class="flex justify-between">{label}<span class="font-mono text-fg" data-tone-value={k}></span></span>
+        <input type="range" min={min} max={max} step={step} class="w-full accent-fg" data-tone-range={k} data-unit={unit} />
+      </label>
+    ))}
+  </div>
+  <p class="text-[12px] text-subtle">
+    Ducking puts the tones under your voice: while you're talking they drop by the duck amount. Attack is how fast they
+    drop when you start, release how fast they come back when you stop.
+  </p>
+</fieldset>
 <ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
 <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />
 
@@ -50,6 +90,30 @@ import Select from '@/components/ui/Select.astro';
   import { channelsLabel, mbPerMinute } from '@/lib/audio/format';
   import { loadSettings, saveSettings } from '@/lib/settings';
   import { inputChoices, inputFor } from '@/lib/audio/devices';
+
+  // Marker tones.
+  const tonesBox = document.querySelector<HTMLElement>('[data-tones]');
+  if (tonesBox) {
+    const t = loadSettings().recording.tones;
+    const save = () => saveSettings('recording', { tones: t });
+    const def = tonesBox.querySelector<HTMLInputElement>('[data-tone-default]')!;
+    def.checked = t.inExports;
+    def.addEventListener('change', () => ((t.inExports = def.checked), save()));
+    tonesBox.querySelectorAll<HTMLInputElement>('[data-tone-kind]').forEach((box) => {
+      const k = box.dataset.toneKind as keyof typeof t.kinds;
+      box.checked = t.kinds[k];
+      box.addEventListener('change', () => ((t.kinds[k] = box.checked), save()));
+    });
+    tonesBox.querySelectorAll<HTMLInputElement>('[data-tone-range]').forEach((r) => {
+      const k = r.dataset.toneRange as 'level' | 'duck' | 'attackMs' | 'releaseMs';
+      const out = tonesBox.querySelector(`[data-tone-value="${k}"]`)!;
+      const show = () => (out.textContent = `${r.value.replace('-', '−')} ${r.dataset.unit}`);
+      r.value = String(t[k]);
+      show();
+      r.addEventListener('input', show);
+      r.addEventListener('change', () => ((t[k] = Number(r.value)), save()));
+    });
+  }
 
   // Noise suppression default.
   const ns = document.querySelector<HTMLInputElement>('[data-ns]');

@@ -60,6 +60,20 @@ const greenSwitch =
           <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
         </span>
       </label>
+      <label class="flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg">
+        <div class="flex-1">
+          <div class="text-[14px]">Marker tones in the full recording</div>
+          <div class="mt-1 text-[12px] text-muted">
+            A short beep at each <span data-tone-kinds>retake</span>, ducked under your voice, so the places to edit can be
+            heard. The full recording then isn't untouched; the edit stays clean. Tones, ducking, attack and release are in
+            <a href="/settings/recording" class="underline underline-offset-2 hover:text-fg">Settings → Recording</a>.
+          </div>
+        </div>
+        <span class={greenSwitch}>
+          <input type="checkbox" role="switch" name="tones" class="peer sr-only" aria-label="Marker tones in the full recording" />
+          <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+        </span>
+      </label>
     </section>
 
     <section class="flex flex-col gap-2.5 transition-opacity group-has-[[name=assembled]:not(:checked)]/s:pointer-events-none group-has-[[name=assembled]:not(:checked)]/s:opacity-40">
@@ -142,7 +156,8 @@ const greenSwitch =
 <script>
   import { assemble, audacityLabels, mapTime, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName } from '@/lib/markers';
-  import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, type TakeMeta } from '@/lib/audio/takes';
+  import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
   import { denoiseTake, previewTake } from '@/lib/audio/denoise';
   import { loadSettings, saveSettings } from '@/lib/settings';
   import { download, zip, type ZipEntry } from '@/lib/zip';
@@ -290,10 +305,23 @@ const greenSwitch =
       }
     });
 
+    // Marker tones: which kinds, from settings.
+    const toneSettings = loadSettings().recording.tones;
+    const toneKinds = (Object.keys(toneSettings.kinds) as ToneKind[]).filter((k) => toneSettings.kinds[k]);
+    const toneSwitch = $<HTMLInputElement>('[name=tones]');
+    toneSwitch.checked = toneSettings.inExports && toneKinds.length > 0;
+    toneSwitch.disabled = !toneKinds.length;
+    const kindNames: Record<ToneKind, string> = { retake: 'retake', cut: 'cough cut', adlib: 'ad-lib', pause: 'pause', gap: 'mic stop' };
+    $('[data-tone-kinds]').textContent = toneKinds.length
+      ? toneKinds.map((k) => kindNames[k]).join(', ').replace(/, ([^,]*)$/, ' and $1')
+      : 'marker (none are chosen in Settings)';
+    const placed = (t: TakeMeta): PlacedTone[] =>
+      markers.filter((m) => toneKinds.includes(m.kind as ToneKind)).map((m) => ({ at: Math.round(m.t * t.sampleRate), kind: m.kind as ToneKind }));
+
     const options = () => {
       const data = new FormData(form);
       const ns = Number(data.get('ns') ?? 0);
-      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns };
+      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns, tones: data.has('tones') && toneKinds.length > 0 };
     };
     const refresh = () => {
       const o = options();
@@ -326,7 +354,10 @@ const greenSwitch =
               ? [cue(m, t.sampleRate), { at: Math.round(m.end * t.sampleRate), label: endLabel[m.kind] ?? 'Resume' }]
               : [cue(m, t.sampleRate)],
           );
-          entries.push({ name: `${name(t)}.wav`, data: cues.length ? await rangesWav(t, [[0, len]], cues) : await takeWav(t) });
+          entries.push({
+            name: `${name(t)}.wav`,
+            data: o.tones ? await tonedWav(t, placed(t), toneSettings, cues) : cues.length ? await rangesWav(t, [[0, len]], cues) : await takeWav(t),
+          });
         }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
         const csv = [
@@ -360,7 +391,11 @@ const greenSwitch =
         if (variant) {
           for (const t of tracks) {
             const len = t.samples / t.sampleRate;
-            entries.push({ name: `${name(t)}_clean.wav`, data: await rangesWav(t, [[0, len]], markers.map((m) => cue(m, t.sampleRate)), variant) });
+            const cues = markers.map((m) => cue(m, t.sampleRate));
+            entries.push({
+              name: `${name(t)}_clean.wav`,
+              data: o.tones ? await tonedWav(t, placed(t), toneSettings, cues, variant) : await rangesWav(t, [[0, len]], cues, variant),
+            });
           }
         }
 

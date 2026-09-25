@@ -20,6 +20,7 @@
 
 import { markerChunks, pcmBytes, pcmFloats, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
 import type { LineStart, Range, SessionMarker } from './assemble';
+import { mixTones, toneWindows, type PlacedTone, type ToneSettings } from './tones';
 
 export interface TakeMeta {
   id: string;
@@ -188,6 +189,45 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
   return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], {
     type: 'audio/wav',
   });
+}
+
+/** Byte range [from, to) of the take's audio, as slices of its segment files. */
+function sliceParts(files: File[], from: number, to: number): BlobPart[] {
+  const parts: BlobPart[] = [];
+  let offset = 0;
+  for (const f of files) {
+    const a = Math.max(from, offset);
+    const b = Math.min(to, offset + f.size);
+    if (b > a) parts.push(f.slice(a - offset, b - offset));
+    offset += f.size;
+  }
+  return parts;
+}
+
+/**
+ * The whole take with marker tones mixed in (ducked under the voice). Only the
+ * short stretches around the tones are decoded and re-encoded; the rest is
+ * sliced straight from the saved segments.
+ */
+export async function tonedWav(meta: TakeMeta, tones: PlacedTone[], opts: ToneSettings, markers: Marker[] = [], variant?: string): Promise<Blob> {
+  const bytesPer = frameBytes(meta);
+  const files = await pcmParts(meta, variant);
+  const total = files.reduce((n, f) => n + f.size, 0);
+  const frames = Math.floor(total / bytesPer);
+  const channels = channelsOf(meta);
+  const parts: BlobPart[] = [];
+  let at = 0;
+  for (const w of toneWindows(tones, meta.sampleRate, frames)) {
+    parts.push(...sliceParts(files, at * bytesPer, w.from * bytesPer));
+    const x = await readFrames(meta, w.from, w.to - w.from, variant);
+    parts.push(pcmBytes(mixTones(x, channels, meta.sampleRate, w.from, w.tones, opts), meta.bitDepth) as BlobPart);
+    at = w.to;
+  }
+  parts.push(...sliceParts(files, at * bytesPer, frames * bytesPer));
+  const bytes = frames * bytesPer;
+  const tail = markerChunks(markers);
+  const header = wavHeader(frames, formatOf(meta), tail.length);
+  return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], { type: 'audio/wav' });
 }
 
 export async function takeWav(meta: TakeMeta, variant?: string): Promise<Blob> {

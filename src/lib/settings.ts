@@ -4,6 +4,7 @@
  */
 
 import type { BitDepth, Channels } from './audio/wav';
+import { defaultTones, type ToneSettings } from './audio/tones';
 
 export interface RecordingSettings {
   depth: BitDepth;
@@ -17,6 +18,8 @@ export interface RecordingSettings {
   retakeTone: boolean;
   /** Noise suppression fader for exports, 0–100 % (0 = off) */
   noiseSuppression: number;
+  /** Marker tones mixed into exported recordings, ducked under the voice */
+  tones: ToneSettings;
 }
 
 export interface PrompterSettings {
@@ -41,7 +44,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0 },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -66,7 +69,15 @@ export function loadSettings(): Settings {
     // Settings from when separate takes existed.
     if (saved.recording) for (const old of ['mode', 'tone', 'download']) delete (saved.recording as unknown as Record<string, unknown>)[old];
     return {
-      recording: { ...defaults.recording, ...saved.recording },
+      recording: {
+        ...defaults.recording,
+        ...saved.recording,
+        tones: {
+          ...defaults.recording.tones,
+          ...saved.recording?.tones,
+          kinds: { ...defaults.recording.tones.kinds, ...saved.recording?.tones?.kinds },
+        },
+      },
       prompter: { ...defaults.prompter, ...saved.prompter },
     };
   } catch {
