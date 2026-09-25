@@ -61,15 +61,31 @@ export type RoomMessage = (
   | { type: 'presence'; role: Role; connected: boolean; roles: Role[] }
   | { type: 'upload'; role: Role; segments: number }
   | { type: 'hello'; role: Role; name?: string }
+  /** Waiting room: someone knocking, everyone waiting (sent to the host), and the answer */
+  | { type: 'knock'; member: Knock }
+  | { type: 'knocks'; members: Knock[] }
+  | { type: 'knock-gone'; id: string }
+  | { type: 'admit' | 'deny'; id: string }
+  | { type: 'admit-error'; id: string; error: string }
+  | { type: 'waiting' }
+  | { type: 'admitted' }
   /** From the host: how the show is set up, and the talking points */
   | { type: 'setup'; mode: ScriptMode; points: string[]; hostName: string; guestName?: string }
 ) & { from?: Role };
+
+/** Someone waiting to be let in. */
+export interface Knock {
+  id: string;
+  role: 'guest' | 'producer';
+  name: string;
+}
 
 export interface Membership {
   sessionId: string;
   token: string;
   role: Role;
   episodeId: string;
+  name?: string;
 }
 
 // ── HTTP API ──────────────────────────────────────────────────────────────────
@@ -115,8 +131,9 @@ export async function revokeCode(m: Membership, role: 'guest' | 'producer') {
   return api<{ codes: Codes }>(`sessions/${m.sessionId}/codes/${role}`, { method: 'DELETE', token: m.token });
 }
 
-export async function joinWithCode(code: string): Promise<Membership> {
-  return api<Membership>('join', { method: 'POST', body: JSON.stringify({ code: code.replace(/\D/g, '') }) });
+/** Join with a code and a name. The host still has to let them in (see Room: 'waiting', 'admitted'). */
+export async function joinWithCode(code: string, name: string): Promise<Membership & { name: string }> {
+  return api<Membership & { name: string }>('join', { method: 'POST', body: JSON.stringify({ code: code.replace(/\D/g, ''), name }) });
 }
 
 export async function endSession(m: Membership) {
@@ -212,8 +229,10 @@ export class Room extends EventTarget {
   /** Server clock minus local clock, ms */
   offset = 0;
   connected = false;
-  /** Why the server closed the connection for good (revoked, a guest already there) */
+  /** Why the server closed the connection for good (revoked, turned away, a guest already there) */
   refused = '';
+  /** Still in the waiting room */
+  waiting = false;
 
   constructor(m: Membership) {
     super();
@@ -239,6 +258,8 @@ export class Room extends EventTarget {
       } catch {
         return;
       }
+      if (msg.type === 'waiting') this.waiting = true;
+      if (msg.type === 'admitted') this.waiting = false;
       if ((msg as { type: string }).type === 'pong') {
         this.samples.push({ sent: msg.t!, received: Date.now(), server: msg.server! });
         this.offset = bestOffset(this.samples.slice(-16));
@@ -289,6 +310,14 @@ export class Room extends EventTarget {
   close() {
     this.closed = true;
     this.ws?.close();
+  }
+
+  /** Host only: let someone in from the waiting room, or turn them away. */
+  admit(id: string) {
+    this.send({ type: 'admit', id });
+  }
+  deny(id: string) {
+    this.send({ type: 'deny', id });
   }
 
   private emit(type: string, detail?: unknown) {

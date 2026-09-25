@@ -18,12 +18,16 @@ test('codes can start with 0', () => {
   assert.equal(session.codes.guest, '004217');
 });
 
-test('a code joins as its role, and the token authenticates', () => {
+test('a code joins as its role, waiting until the host lets them in', () => {
   const r = new Registry();
   const { session, hostToken } = r.create('142');
-  const j = r.join(session.codes.guest!)!;
+  const j = r.join(session.codes.guest!, 'Sam')!;
   assert.equal(j.role, 'guest');
+  assert.equal(r.auth(session.id, j.token), null, 'waiting: no access yet');
+  assert.deepEqual(r.waiting(session.id).map((m) => m.name), ['Sam']);
+  r.admit(session.id, j.member.id);
   assert.equal(r.auth(session.id, j.token), 'guest');
+  assert.equal(r.waiting(session.id).length, 0);
   assert.equal(r.auth(session.id, hostToken), 'host');
   assert.equal(r.auth(session.id, 'nope'), null);
   assert.equal(r.join('12345'), null, 'five digits');
@@ -34,6 +38,7 @@ test('revoking a code stops it working and signs out whoever used it', () => {
   const { session } = r.create('142');
   const code = session.codes.guest!;
   const j = r.join(code)!;
+  r.admit(session.id, j.member.id);
   r.revoke(session.id, 'guest');
   assert.equal(r.join(code), null);
   assert.equal(r.auth(session.id, j.token), null);
@@ -76,4 +81,32 @@ test('only one guest at a time', () => {
   assert.equal(p.canJoin('producer'), null);
   p.remove('g1');
   assert.equal(p.canJoin('guest'), null);
+});
+
+test('turning someone away ends their token', () => {
+  const r = new Registry();
+  const { session } = r.create('142');
+  const bot = r.join(session.codes.guest!, 'bot')!;
+  r.deny(session.id, bot.member.id);
+  assert.equal(r.member(session.id, bot.token), null);
+  r.admit(session.id, bot.member.id);
+  assert.equal(r.auth(session.id, bot.token), null, 'can’t be let in after being turned away');
+});
+
+test('only one guest can be let in', () => {
+  const r = new Registry();
+  const { session } = r.create('142');
+  const a = r.join(session.codes.guest!, 'Sam')!;
+  const b = r.join(session.codes.guest!, 'Also Sam')!;
+  assert.equal(typeof r.admit(session.id, a.member.id), 'object');
+  assert.equal(r.admit(session.id, b.member.id), 'A guest is already in the session');
+  r.remove(session.id, a.member.id);
+  assert.equal(typeof r.admit(session.id, b.member.id), 'object');
+});
+
+test('names are trimmed and given a fallback', () => {
+  const r = new Registry();
+  const { session } = r.create('142');
+  assert.equal(r.join(session.codes.producer!, '  ')!.member.name, 'Producer');
+  assert.equal(r.join(session.codes.guest!, 'x'.repeat(80))!.member.name.length, 40);
 });

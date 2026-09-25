@@ -319,6 +319,7 @@ const zones = [
   import { loadScript, saveScriptText, scriptFromText } from '@/lib/script-store';
   import { Room, hostMembership, type Command, type GuestStatus, type SessionState } from '@/lib/room';
   import { isGuestLine, loadShow } from '@/lib/show';
+  import { waitingRoom } from '@/lib/waiting-room';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
@@ -1531,6 +1532,8 @@ const zones = [
 
   function onGuest(g: GuestStatus) {
     guest = { ...guest, ...g, at: Date.now() };
+    // A guest recorded in this session: export waits for their track.
+    if (writer && g.recording && membership) writer.meta.guest = { name: guest.name || 'Guest', sessionId: membership.sessionId };
     const chip = $('[data-guest-chip]');
     chip.hidden = false;
     $('[data-guest-name]').textContent = guest.name || 'Guest';
@@ -1564,6 +1567,7 @@ const zones = [
       }
     });
     room.addEventListener('refused', (e) => showWarning('Couldn’t connect the session', (e as CustomEvent<string>).detail));
+    waitingRoom(room);
     room.connect();
     setInterval(sendState, 500);
     // Tell the host if the guest isn't recording while they are.

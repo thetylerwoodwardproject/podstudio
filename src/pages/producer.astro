@@ -97,8 +97,9 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
   const list = $('[data-lines]');
   if (!m || m.role !== 'producer') {
     list.innerHTML = '<p class="text-[14px] text-muted">Join with your producer code first: <a class="text-fg underline" href="/join">enter a code</a>.</p>';
-    throw new Error('not joined');
+    await new Promise(() => {}); // nothing else runs until they've joined
   }
+  if (!m) throw new Error('unreachable'); // (for the type checker)
 
   const room = new Room(m);
   let state: SessionState | null = null;
@@ -201,7 +202,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     const recording = !!s?.recording;
     const here = room.connected;
     const label = $('[data-rec-label]');
-    label.textContent = !here ? 'RECONNECTING' : !s ? 'WAITING FOR HOST' : s.ended ? 'ENDED' : recording ? `${s.paused ? 'PAUSED' : 'REC'} ${clock(s.startedAtServer ? (room.serverNow() - s.startedAtServer) / 1000 : 0)}` : 'READY';
+    label.textContent = room.waiting ? 'WAITING ROOM' : !here ? 'RECONNECTING' : !s ? 'WAITING FOR HOST' : s.ended ? 'ENDED' : recording ? `${s.paused ? 'PAUSED' : 'REC'} ${clock(s.startedAtServer ? (room.serverNow() - s.startedAtServer) / 1000 : 0)}` : 'READY';
     $('[data-rec]').style.color = recording && !s!.paused ? 'var(--color-rec)' : '';
     $('[data-rec-dot]').style.background = recording ? 'var(--color-rec)' : '';
     const show = (cmd: string, on: boolean) => ($<HTMLButtonElement>(`[data-cmd="${cmd}"]`).hidden = !on);
@@ -249,6 +250,14 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     if (p.role === 'host' && !p.connected) $('[data-rec-label]').textContent = 'HOST OFFLINE';
     renderGuest();
   });
+  room.on('waiting', () => {
+    list.innerHTML = '<p class="flex items-center gap-2 text-[15px] text-muted"><span class="size-2 animate-pulse rounded-full bg-warn"></span>Waiting for the host to let you in…</p>';
+    $('[data-rec-label]').textContent = 'WAITING ROOM';
+  });
+  room.on('admitted', () => {
+    list.innerHTML = '<p class="text-[14px] text-muted" data-empty>Waiting for the host’s screen…</p>';
+    refreshCodes();
+  });
   room.addEventListener('open', () => {
     root.dataset.connected = 'true';
     room.send({ type: 'hello', role: 'producer' });
@@ -257,7 +266,8 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
   room.addEventListener('close', () => (root.dataset.connected = 'false'));
   room.addEventListener('refused', (e) => {
     list.innerHTML = '';
-    const p = Object.assign(document.createElement('p'), { className: 'text-[15px] text-rec', textContent: `${(e as CustomEvent<string>).detail}. Ask the host for a new producer code.` });
+    const why = (e as CustomEvent<string>).detail;
+    const p = Object.assign(document.createElement('p'), { className: 'text-[15px] text-rec', textContent: /didn.t let you in/i.test(why) ? 'The host didn’t let you in.' : `${why}. Ask the host for a new producer code.` });
     list.append(p);
   });
   room.connect();

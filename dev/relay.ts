@@ -10,13 +10,22 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import type { Plugin } from 'vite';
 import { WebSocket, WebSocketServer } from 'ws';
-import { Presence, Registry, type InviteRole, type Role } from './relay-core.ts';
+import { Presence, Registry, type InviteRole, type Member, type Role } from './relay-core.ts';
 
 const DATA = join(process.cwd(), '.podstudio-dev');
 const registry = new Registry();
 const rooms = new Map<string, Presence<WebSocket>>();
 /** The latest state and script a host sent, for whoever connects later. */
 const latest = new Map<string, Record<string, unknown>>();
+/** People waiting to be let in, per session (their sockets get nothing but the answer). */
+const lobbies = new Map<string, Map<WebSocket, Member>>();
+const lobby = (id: string) => lobbies.get(id) ?? lobbies.set(id, new Map()).get(id)!;
+const knockOf = (m: Member) => ({ id: m.id, role: m.role, name: m.name });
+
+function toHosts(sessionId: string, msg: Record<string, unknown>) {
+  const text = JSON.stringify(msg);
+  for (const [ws, role] of rooms.get(sessionId)?.members ?? []) if (role === 'host' && ws.readyState === WebSocket.OPEN) ws.send(text);
+}
 
 const json = (res: ServerResponse, status: number, body?: unknown) => {
   res.statusCode = status;
@@ -48,10 +57,10 @@ async function handle(req: IncomingMessage, res: ServerResponse, next: () => voi
     if (req.method === 'GET' && p[0] === 'health') return json(res, 200, { ok: true, server: 'podstudio-dev-relay', time: Date.now() });
 
     if (req.method === 'POST' && p[0] === 'join' && p.length === 1) {
-      const { code } = JSON.parse(String(await body(req)) || '{}');
-      const j = registry.join(String(code ?? ''));
+      const { code, name } = JSON.parse(String(await body(req)) || '{}');
+      const j = registry.join(String(code ?? ''), String(name ?? ''));
       if (!j) return json(res, 404, { error: 'That code isn’t valid. Check it with the host.' });
-      return json(res, 200, { sessionId: j.session.id, episodeId: j.session.episodeId, role: j.role, token: j.token });
+      return json(res, 200, { sessionId: j.session.id, episodeId: j.session.episodeId, role: j.role, token: j.token, name: j.member.name, admitted: false });
     }
 
     if (p[0] !== 'sessions') return json(res, 404, { error: 'Not found' });
@@ -73,6 +82,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, next: () => voi
         episodeId: session.episodeId,
         codes: role === 'guest' ? undefined : session.codes,
         connected: rooms.get(sessionId)?.roles() ?? [],
+        waiting: role === 'host' ? [...lobby(sessionId).values()].map(knockOf) : undefined,
         ended: session.ended,
       });
     }
@@ -85,6 +95,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, next: () => voi
         registry.revoke(sessionId, r);
         // Revoking signs them out: close their connections.
         for (const [ws, who] of rooms.get(sessionId)?.members ?? []) if (who === r) ws.close(4003, 'Invite revoked');
+        for (const [ws, who] of lobby(sessionId)) if (who.role === r) ws.close(4003, 'Invite revoked');
         return json(res, 200, { codes: session.codes });
       }
     }
@@ -145,6 +156,60 @@ async function handle(req: IncomingMessage, res: ServerResponse, next: () => voi
   }
 }
 
+/** Into the live room: catch up on the host's latest, and tell everyone. */
+function enter(ws: WebSocket, sessionId: string, member: Member) {
+  const room = rooms.get(sessionId) ?? new Presence<WebSocket>();
+  rooms.set(sessionId, room);
+  const refused = room.canJoin(member.role);
+  if (refused) return ws.close(4009, refused);
+  room.add(ws, member.role);
+  for (const m of Object.values(latest.get(sessionId) ?? {})) ws.send(JSON.stringify(m));
+  if (member.role === 'host') ws.send(JSON.stringify({ type: 'knocks', members: [...lobby(sessionId).values()].map(knockOf) }));
+  broadcast(sessionId, { type: 'presence', role: member.role, name: member.name, connected: true, roles: room.roles() });
+  ws.on('message', (data) => {
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(String(data));
+    } catch {
+      return;
+    }
+    if (msg.type === 'ping') return ws.send(JSON.stringify({ type: 'pong', t: msg.t, server: Date.now() }));
+    // Only the host lets people in or turns them away.
+    if ((msg.type === 'admit' || msg.type === 'deny') && member.role === 'host') return answer(sessionId, String(msg.id), msg.type, ws);
+    if (msg.type === 'admit' || msg.type === 'deny') return;
+    msg.from = member.role;
+    if (msg.type === 'state' || msg.type === 'script' || msg.type === 'setup') {
+      latest.set(sessionId, { ...latest.get(sessionId), [msg.type as string]: msg });
+    }
+    broadcast(sessionId, msg, ws);
+  });
+  ws.on('close', () => {
+    room.remove(ws);
+    broadcast(sessionId, { type: 'presence', role: member.role, name: member.name, connected: false, roles: room.roles() });
+  });
+}
+
+function answer(sessionId: string, memberId: string, verdict: 'admit' | 'deny', host: WebSocket) {
+  const waiting = [...lobby(sessionId)].find(([, m]) => m.id === memberId);
+  if (verdict === 'deny') {
+    registry.deny(sessionId, memberId);
+    if (waiting) {
+      lobby(sessionId).delete(waiting[0]);
+      waiting[0].close(4003, 'The host didn’t let you in');
+    }
+    return toHosts(sessionId, { type: 'knock-gone', id: memberId });
+  }
+  const r = registry.admit(sessionId, memberId);
+  if (typeof r === 'string') return host.send(JSON.stringify({ type: 'admit-error', id: memberId, error: r }));
+  toHosts(sessionId, { type: 'knock-gone', id: memberId });
+  if (!waiting) return;
+  lobby(sessionId).delete(waiting[0]);
+  waiting[0].removeAllListeners('message');
+  waiting[0].removeAllListeners('close');
+  waiting[0].send(JSON.stringify({ type: 'admitted' }));
+  enter(waiting[0], sessionId, r);
+}
+
 function attachSockets(server: Server | null | undefined) {
   if (!server) return;
   const wss = new WebSocketServer({ noServer: true });
@@ -152,34 +217,21 @@ function attachSockets(server: Server | null | undefined) {
     const url = new URL(req.url ?? '/', 'http://x');
     if (url.pathname !== '/api/ws') return; // Vite's own HMR socket
     const sessionId = url.searchParams.get('session') ?? '';
-    const role = registry.auth(sessionId, url.searchParams.get('token'));
+    const member = registry.member(sessionId, url.searchParams.get('token'));
     wss.handleUpgrade(req, socket, head, (ws) => {
-      if (!role) return ws.close(4001, 'Not signed in to this session');
-      const room = rooms.get(sessionId) ?? new Presence<WebSocket>();
-      rooms.set(sessionId, room);
-      const refused = room.canJoin(role);
-      if (refused) return ws.close(4009, refused);
-      room.add(ws, role);
-      // Catch up: the host's latest state and script.
-      for (const m of Object.values(latest.get(sessionId) ?? {})) ws.send(JSON.stringify(m));
-      broadcast(sessionId, { type: 'presence', role, connected: true, roles: room.roles() });
+      if (!member) return ws.close(4001, 'Not signed in to this session');
+      if (member.admitted) return enter(ws, sessionId, member);
+      // The waiting room: the host is asked, and nothing else reaches them until they're let in.
+      lobby(sessionId).set(ws, member);
+      ws.send(JSON.stringify({ type: 'waiting' }));
+      toHosts(sessionId, { type: 'knock', member: knockOf(member) });
       ws.on('message', (data) => {
-        let msg: Record<string, unknown>;
         try {
-          msg = JSON.parse(String(data));
-        } catch {
-          return;
-        }
-        if (msg.type === 'ping') return ws.send(JSON.stringify({ type: 'pong', t: msg.t, server: Date.now() }));
-        msg.from = role;
-        if (msg.type === 'state' || msg.type === 'script' || msg.type === 'setup') {
-          latest.set(sessionId, { ...latest.get(sessionId), [msg.type as string]: msg });
-        }
-        broadcast(sessionId, msg, ws);
+          if (JSON.parse(String(data)).type === 'ping') ws.send(JSON.stringify({ type: 'pong', t: JSON.parse(String(data)).t, server: Date.now() }));
+        } catch {}
       });
       ws.on('close', () => {
-        room.remove(ws);
-        broadcast(sessionId, { type: 'presence', role, connected: false, roles: room.roles() });
+        if (lobby(sessionId).delete(ws)) toHosts(sessionId, { type: 'knock-gone', id: member.id });
       });
     });
   });

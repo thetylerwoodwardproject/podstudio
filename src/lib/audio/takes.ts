@@ -56,6 +56,8 @@ export interface TakeMeta {
   startedAtServer?: number;
   /** Recorded on another device (the guest's), fetched from the server */
   remote?: boolean;
+  /** The host's take in a session with a guest: whose track export has to wait for */
+  guest?: { name: string; sessionId: string };
   /** Voice follow restarts, errors and stalls during the session, for diagnosing */
   voiceLog?: { t: number; at: string; event: string; detail?: string }[];
   /** Peak level per half second, 0..1, for waveforms */

@@ -67,6 +67,10 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
           I'm on the call, with headphones on
         </label>
         <p class="text-[13px] text-rec" role="alert" data-green-error hidden></p>
+        <p class="flex items-center gap-2 rounded-xl bg-raised px-3.5 py-3 text-[13px] text-muted" data-lobby hidden>
+          <span class="size-2 flex-none animate-pulse rounded-full bg-warn"></span>
+          Waiting for the host to let you in. Check your mic while you wait.
+        </p>
         <button type="submit" class="flex h-12 items-center justify-center rounded-xl bg-fg text-[15px] font-medium text-ink disabled:opacity-40" data-join>Ready</button>
       </form>
     </section>
@@ -154,8 +158,9 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
   const m = joined();
   if (!m || m.role !== 'guest') {
     fail('Join with your code', 'Open the join page and type the 6-digit code from your host.');
-    throw new Error('not joined');
+    await new Promise(() => {}); // nothing else runs until they've joined
   }
+  if (!m) throw new Error('unreachable'); // (for the type checker)
 
   const settings = loadSettings().recording;
   const NAME_KEY = 'podstudio:guest-name';
@@ -175,6 +180,9 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
   let finished: TakeMeta | null = null;
   let micLabel = '';
   let ready = false;
+  // Waiting room: the host has to let the guest in before anything reaches them.
+  let admitted = false;
+  if (m.name) name = m.name;
 
   // ── Level: meter in the green room, bar while waiting and recording ─────────
   const segs = segmentMeter([...root.querySelectorAll<HTMLElement>('[data-seg]')]);
@@ -243,6 +251,11 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     err.hidden = true;
     if (!name) {
       err.textContent = 'Add your name, so the host knows whose track this is.';
+      err.hidden = false;
+      return;
+    }
+    if (!admitted) {
+      err.textContent = 'The host hasn’t let you in yet. Hang on a moment.';
       err.hidden = false;
       return;
     }
@@ -360,18 +373,45 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     startVoice();
   });
   room.on('state', (msg) => {
+    if (!admitted) {
+      admitted = true;
+      lobbyUi(false);
+    }
     state = msg.state;
     hostName = msg.state.hostName || hostName;
     mode = msg.state.mode;
     $('[data-host-name]').textContent = hostName;
     applyState();
   });
+  const lobbyUi = (waiting: boolean) => {
+    $('[data-lobby]').hidden = !waiting;
+    const btn = $<HTMLButtonElement>('[data-join]');
+    btn.disabled = waiting;
+    btn.textContent = waiting ? 'Waiting to be let in…' : 'Ready';
+  };
+  room.on('waiting', () => {
+    admitted = false;
+    lobbyUi(true);
+  });
+  room.on('admitted', () => {
+    admitted = true;
+    lobbyUi(false);
+    navigator.vibrate?.(30);
+  });
   room.addEventListener('open', () => {
     if (root.dataset.stage === 'connecting') setStage('green');
+    // An admitted guest reconnecting goes straight back in (no 'waiting' comes).
+    setTimeout(() => {
+      if (!room.waiting) {
+        admitted = true;
+        lobbyUi(false);
+      }
+    }, 800);
     if (ready) room.send({ type: 'hello', role: 'guest', name });
   });
   room.addEventListener('refused', (e) => {
     const why = (e as CustomEvent<string>).detail;
+    if (/didn.t let you in/i.test(why)) return fail('The host didn’t let you in', 'If that’s a mistake, ask them for a new code.');
     fail(/revoked/i.test(why) ? 'Your invite was revoked' : 'Couldn’t join', /revoked/i.test(why) ? 'Ask the host for a new code.' : why);
   });
   room.addEventListener('close', () => {

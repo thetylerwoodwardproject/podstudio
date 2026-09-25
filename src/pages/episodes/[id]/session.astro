@@ -28,6 +28,16 @@ const greenSwitch =
       <p class="mt-1.5 text-[13px] text-muted" data-counts><span data-demo-only>18:42 · 14 retakes · 3 pauses</span></p>
     </div>
 
+    <!-- A session with a guest exports only once their track is here, so both line up -->
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-warn/60 bg-warn/8 px-4 py-3.5" role="alert" data-guest-missing hidden>
+      <div class="min-w-0 flex-1">
+        <div class="text-[14px]"><span data-guest-missing-name>The guest</span>'s track isn't here yet</div>
+        <div class="mt-1 text-[12px] text-muted">Export waits for it, so both tracks come out lined up with the same cuts.</div>
+      </div>
+      <a class="inline-flex h-9 items-center rounded-lg bg-fg px-3.5 text-[13px] font-medium text-ink hover:bg-white hover:text-ink" data-guest-missing-link>Get their track</a>
+      <button type="button" class="text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline" data-guest-missing-skip>Export without them</button>
+    </div>
+
     <p class="text-[13px] text-subtle" data-empty hidden>
       No session recorded yet. Start one from the studio.
     </p>
@@ -208,6 +218,19 @@ const greenSwitch =
     // Every track in the session: yours, and the guest's (recorded on their device).
     const all = await listTakes(episodeId);
     const tracks = [take, ...all.filter((t) => t.id !== take.id && t.group && t.group === take.group && t.status === 'done')];
+    // A guest recorded in this session but their track isn't here: hold the export until it is.
+    if (take.guest && tracks.length === 1) {
+      const banner = $('[data-guest-missing]');
+      banner.hidden = false;
+      $('[data-guest-missing-name]').textContent = take.guest.name;
+      $<HTMLAnchorElement>('[data-guest-missing-link]').href = `/episodes/${episodeId}/wrap?take=${encodeURIComponent(take.id)}`;
+      exportBtn.disabled = true;
+      $('[data-guest-missing-skip]').addEventListener('click', () => {
+        if (!confirm(`Export without ${take.guest!.name}'s track? Their audio won't be in this zip.`)) return;
+        banner.hidden = true;
+        exportBtn.disabled = false;
+      });
+    }
     const duration = take.samples / take.sampleRate;
     // A track from another device, lined up on the host's timeline.
     const aligned = (t: TakeMeta, ranges: [number, number][]) => alignedRanges(ranges, trackShift(t, take));

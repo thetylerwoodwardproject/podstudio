@@ -178,7 +178,9 @@ const menu = [
   import { offerRecovery } from '@/lib/recovery';
   import { loadSettings, saveSettings } from '@/lib/settings';
   import { formatCode, loadShow, modeInfo, saveShow } from '@/lib/show';
+  import { waitingRoom } from '@/lib/waiting-room';
   import {
+    Room,
     createSession,
     hostMembership,
     newCode,
@@ -296,11 +298,19 @@ const menu = [
       return m;
     };
 
+    // The waiting room: the host lets people in from here too, before recording.
+    let room: Room | null = null;
     const start = async () => {
       render();
       if (loadShow(episodeId).format !== 'guest') return clearInterval(polling);
       const m = await session();
       if (!m) return;
+      if (!room || room.m.sessionId !== m.sessionId) {
+        room?.close();
+        room = new Room(m);
+        waitingRoom(room);
+        room.connect();
+      }
       clearInterval(polling);
       polling = window.setInterval(async () => {
         try {

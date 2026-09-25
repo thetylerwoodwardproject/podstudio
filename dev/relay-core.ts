@@ -8,12 +8,23 @@ import { randomBytes, randomInt } from 'node:crypto';
 export type Role = 'host' | 'guest' | 'producer';
 export type InviteRole = Exclude<Role, 'host'>;
 
+/**
+ * Someone holding a token for a session. Guests and producers start out
+ * waiting (like a Zoom waiting room) until the host lets them in.
+ */
+export interface Member {
+  id: string;
+  role: Role;
+  name: string;
+  admitted: boolean;
+}
+
 export interface Session {
   id: string;
   episodeId: string;
   codes: Record<InviteRole, string | null>;
-  /** token → role */
-  tokens: Map<string, Role>;
+  /** token → member */
+  tokens: Map<string, Member>;
   ended: boolean;
 }
 
@@ -30,7 +41,7 @@ export class Registry {
   create(episodeId: string) {
     const s: Session = { id: token().slice(0, 12), episodeId, codes: { guest: null, producer: null }, tokens: new Map(), ended: false };
     const hostToken = token();
-    s.tokens.set(hostToken, 'host');
+    s.tokens.set(hostToken, { id: token().slice(0, 8), role: 'host', name: 'Host', admitted: true });
     this.sessions.set(s.id, s);
     this.newCode(s.id, 'guest');
     this.newCode(s.id, 'producer');
@@ -52,27 +63,62 @@ export class Registry {
     this.get(sessionId).codes[role] = null;
     // Whoever joined with it is signed out too.
     const s = this.get(sessionId);
-    for (const [t, r] of s.tokens) if (r === role) s.tokens.delete(t);
+    for (const [t, m] of s.tokens) if (m.role === role) s.tokens.delete(t);
   }
 
-  join(code: string): { session: Session; role: InviteRole; token: string } | null {
+  /** A code and a name get a token that waits for the host to let them in. */
+  join(code: string, name = ''): { session: Session; role: InviteRole; token: string; member: Member } | null {
     if (!/^\d{6}$/.test(code)) return null;
     for (const s of this.sessions.values()) {
       if (s.ended) continue;
       for (const role of ['guest', 'producer'] as const) {
         if (s.codes[role] === code) {
           const t = token();
-          s.tokens.set(t, role);
-          return { session: s, role, token: t };
+          const member: Member = { id: token().slice(0, 8), role, name: name.trim().slice(0, 40) || (role === 'guest' ? 'Guest' : 'Producer'), admitted: false };
+          s.tokens.set(t, member);
+          return { session: s, role, token: t, member };
         }
       }
     }
     return null;
   }
 
-  auth(sessionId: string, t: string | null | undefined): Role | null {
+  /** The member a token belongs to, admitted or still waiting. */
+  member(sessionId: string, t: string | null | undefined): Member | null {
     const s = this.sessions.get(sessionId);
     return (t && s?.tokens.get(t)) || null;
+  }
+
+  /** The role of an admitted member; waiting members get null. */
+  auth(sessionId: string, t: string | null | undefined): Role | null {
+    const m = this.member(sessionId, t);
+    return m?.admitted ? m.role : null;
+  }
+
+  waiting(sessionId: string): Member[] {
+    return [...(this.sessions.get(sessionId)?.tokens.values() ?? [])].filter((m) => !m.admitted);
+  }
+
+  /** The host lets someone in. Only one guest at a time. */
+  admit(sessionId: string, memberId: string): Member | string {
+    const s = this.get(sessionId);
+    const m = [...s.tokens.values()].find((x) => x.id === memberId);
+    if (!m) return 'They’ve already left';
+    if (m.role === 'guest' && [...s.tokens.values()].some((x) => x.role === 'guest' && x.admitted && x !== m)) return 'A guest is already in the session';
+    m.admitted = true;
+    return m;
+  }
+
+  /** The host turns someone away: their token stops working. */
+  deny(sessionId: string, memberId: string) {
+    const s = this.get(sessionId);
+    for (const [t, m] of s.tokens) if (m.id === memberId && !m.admitted) s.tokens.delete(t);
+  }
+
+  /** Remove someone already in (a second guest replacing the first, say). */
+  remove(sessionId: string, memberId: string) {
+    const s = this.get(sessionId);
+    for (const [t, m] of s.tokens) if (m.id === memberId && m.role !== 'host') s.tokens.delete(t);
   }
 
   end(sessionId: string) {
