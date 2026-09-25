@@ -237,7 +237,6 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 
 ## Placeholders and gaps
 
-- **Sessions live in this browser** until the server exists, so the design's "Saved to server" reads "Saved in this browser", and the Offline warning (uploads falling behind) isn't shown. Podstudio asks for persistent storage, but clearing the site's data deletes sessions. Download the ones you want to keep.
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
 - **Needs the server:** sign-in and 2FA, Whisper transcripts, titles/chapters/soundbites (those screens show mock data), and episodes and scripts on the server (still in this browser).
