@@ -3,6 +3,9 @@ import { createWriteStream } from 'node:fs';
 import { rename, rm } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+/** A 5 s segment is at most 48 kHz × 24-bit × 2 channels × 5 s ≈ 1.4 MB; leave room. */
+export const SEGMENT_LIMIT = 8 << 20;
+
 export class HttpError extends Error {
   status: number;
   constructor(status: number, message: string) {

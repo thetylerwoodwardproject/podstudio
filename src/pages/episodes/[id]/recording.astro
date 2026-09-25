@@ -348,6 +348,7 @@ const zones = [
   import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
   import { PeakMeter, toFraction, zone } from '@/lib/audio/meter';
   import { TakeWriter, formatBytes, storageLeft, takeBytes } from '@/lib/audio/takes';
+  import { startTakeUpload, type TakeUpload } from '@/lib/take-upload';
   import { markerCounts, markerName } from '@/lib/markers';
   import { isIOS } from '@/lib/platform';
   import { Prompter, enableHandScroll } from '@/lib/prompter';
@@ -467,6 +468,8 @@ const zones = [
   let currentLine = lineOf(word);
   const capture = new MicCapture();
   let writer: TakeWriter | null = null;
+  /** The take going up to the server as it's recorded */
+  let upload: TakeUpload | null = null;
   let voice: VoiceFollow | null = null;
   const markers = (): SessionMarker[] => writer?.meta.markers ?? demoMarkers;
   let demoMarkers: SessionMarker[] = [];
@@ -544,7 +547,15 @@ const zones = [
     } else if (writer || demo) {
       const ago = writer ? Math.round((Date.now() - writer.meta.updatedAt) / 1000) : 3;
       const first = writer && !writer.meta.segments;
-      saved.textContent = first ? 'First save at 5 s' : phone.matches ? `Saved ${ago} s ago` : `Saved in this browser ${ago} s ago`;
+      // On the server once every saved piece has gone up; otherwise in this browser (it catches up).
+      const up = upload?.status();
+      const onServer = !!up?.lastSent && up.pending <= 1;
+      const upAgo = up?.lastSent ? Math.round((Date.now() - up.lastSent) / 1000) : ago;
+      saved.textContent = first
+        ? 'First save at 5 s'
+        : onServer
+          ? phone.matches ? `Saved ${upAgo} s ago` : `Saved to server ${upAgo} s ago`
+          : phone.matches ? `Saved ${ago} s ago` : `Saved in this browser ${ago} s ago`;
       $('[data-saved-dot]').style.background = ago > 30 && !first ? 'var(--color-warn)' : '';
     }
     // Cough and ad-lib show a live pill in place of "Saved".
@@ -913,7 +924,8 @@ const zones = [
     $('[data-mic-note]').hidden = !recording;
     if (writer) {
       const behind = Math.round((Date.now() - writer.meta.updatedAt) / 1000);
-      $('[data-store]').textContent = `In this browser · ${formatBytes(takeBytes(writer.meta))}${behind > 30 ? ` · ${behind} s behind` : ''}`;
+      const pending = upload?.status().pending ?? 0;
+      $('[data-store]').textContent = `In this browser · ${formatBytes(takeBytes(writer.meta))}${behind > 30 ? ` · ${behind} s behind` : ''} · ${pending > 1 ? `${pending} pieces to send` : 'on the server'}`;
       $('[data-store-dot]').style.background = behind > 30 ? 'var(--color-warn)' : '';
     }
     renderSections();
@@ -1304,6 +1316,19 @@ const zones = [
   }
   const showWarning = (title: string, body: string) => warn('error', { level: 2, title, body });
 
+  // Uploads to the server: send what's waiting, and say so when they fall behind.
+  setInterval(() => {
+    if (!upload || !writer) return;
+    upload.tick();
+    const { pending } = upload.status();
+    warn(
+      'uploads',
+      pending > 6
+        ? { level: 1, title: 'Uploads are behind', body: `${pending} pieces waiting to go to the server. Recording carries on in this browser; they catch up on their own.` }
+        : null,
+    );
+  }, 1000);
+
   // Clipping, from the meter.
   setInterval(() => {
     const clipping = state !== 'ready' && Date.now() - clipAt < 3000;
@@ -1514,6 +1539,7 @@ const zones = [
     capture.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
     capture.addEventListener('error', (e) => showWarning('Recording problem', (e as CustomEvent<string>).detail));
     writer = w;
+    upload = startTakeUpload(w.meta);
     w.meta.voiceLog = voiceLog.slice();
     if (pads) {
       const ps = pads.engine.settings;
@@ -1535,6 +1561,7 @@ const zones = [
 
   async function stop() {
     if (!writer) return;
+    const sending = upload;
     coughUp();
     guestCoughed(false);
     endAdlib();
@@ -1544,6 +1571,11 @@ const zones = [
     await capture.stop();
     const meta = await writer.finish();
     writer = null;
+    // The last pieces to the server (up to 10 s); anything left goes up from the next page.
+    if (sending) {
+      saved.textContent = 'Sending the last pieces…';
+      await sending.finish(meta, 10000);
+    }
     wakeLock?.release().catch(() => {});
     await capture.close();
     ended = true;

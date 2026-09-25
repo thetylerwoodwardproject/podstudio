@@ -35,8 +35,14 @@ authentication (an authenticator app, plus ten one-time recovery codes). After t
 episode's script, show setup (solo or with a guest, script mode, talking points) and hotkey pads, and the pad
 sound library. Pages are rendered with the server's copy and it's kept in this browser too, so the recording
 screen works offline; a change made offline goes up on the next page load. Scripts carry a version, so a tab
-with an old copy can't overwrite a newer one (it takes the newer copy instead). Recordings are still made and
-kept in this browser; they upload in the next step.
+with an old copy can't overwrite a newer one (it takes the newer copy instead).
+
+**Recordings go to the server as you record.** Each 5 s piece is saved in this browser first, then uploaded,
+with the take's markers. The header says "Saved to server" while it's caught up and "Saved in this browser"
+while it's catching up (offline, say); more than 30 s behind shows "Uploads are behind". At Stop the last
+pieces go up (up to 10 s); anything left is sent from the next page, and the Saved screen says how much of
+it the server has. On another computer, Sessions lists recordings that are on the server but not in that
+browser: **Bring into this browser**, then play or export as usual. Deleting a session deletes both copies.
 - Passwords are hashed with scrypt; the session cookie is random and only its hash is stored; sign-in and
   codes are limited to 10 tries per 15 minutes.
 
@@ -158,6 +164,8 @@ server/
   guard.ts                  which pages need an account (they're static files, so it runs in front of them)
   cli.ts                    reset-password, reset-2fa
   library.ts                episodes, scripts (versioned), show setup, pads, the sound library (media/)
+  takes.ts                  host recordings uploaded as they're made (takes/<id>/seg-*.pcm + meta.json)
+  testing.ts                test helper: the API on a random port, signed in
 dev/server-plugin.ts        mounts server/api.ts in npm run dev
 docs/server-api.md          the API for guests and producers
 src/
@@ -230,11 +238,9 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 ## Placeholders and gaps
 
 - **Sessions live in this browser** until the server exists, so the design's "Saved to server" reads "Saved in this browser", and the Offline warning (uploads falling behind) isn't shown. Podstudio asks for persistent storage, but clearing the site's data deletes sessions. Download the ones you want to keep.
-- **Server upload** (5 s segments to `PUT /api/sessions/:id/segments/:n`, approved in the handoff) is waiting for the server.
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
 - **Needs the server:** sign-in and 2FA, Whisper transcripts, titles/chapters/soundbites (those screens show mock data), and episodes and scripts on the server (still in this browser).
-- **Host tracks don't upload yet**: yours is saved in this browser. The same segment upload will send it to the server once it exists.
 - **Zips** are limited to 4 GB.
 - **Setup wizard:** the Server check, Admin account, OpenAI key and Done steps have no designs yet, so "Verify and continue" goes straight to the Domain step.
 - **OpenDyslexic** is listed as a prompter font, but the font isn't bundled yet, so it falls back to Atkinson Hyperlegible.

@@ -34,9 +34,12 @@ const base = `/episodes/${episode.id}`;
         No sessions yet. Start one from the studio.
       </p>
     </div>
-    <p class="text-[12px] leading-normal text-warn">
-      Sessions are kept in this browser until the Podstudio server is set up. Download them before clearing this site’s
-      data.
+    <div class="flex flex-col gap-2.5" data-server-list hidden>
+      <h2 class="eyebrow text-muted!">On the server, not in this browser</h2>
+    </div>
+    <p class="text-[12px] leading-normal text-subtle" data-upload-note>
+      Sessions are saved in this browser as you record and sent to the server, so they're safe if this browser's data is
+      cleared, and you can export them from another computer.
     </p>
   </div>
 
@@ -59,7 +62,8 @@ const base = `/episodes/${episode.id}`;
 </AppShell>
 
 <script>
-  import { deleteTake, formatBytes, formatDuration, listTakes, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { deleteTake, formatBytes, formatDuration, listTakes, saveRemoteTake, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { fetchTakeSegment, resumeUploads, serverTakes } from '@/lib/take-upload';
   import { sessionUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
   import { download } from '@/lib/zip';
@@ -69,7 +73,44 @@ const base = `/episodes/${episode.id}`;
   const root = document.getElementById('sessions')!;
   const episodeId = root.dataset.episode!;
   root.querySelector<HTMLAnchorElement>('[data-new-session]')!.href = sessionUrl(episodeId);
-  render();
+  render().then(async () => {
+    // Anything that didn't finish going up (closed early, or offline) goes now.
+    const note = root.querySelector<HTMLElement>('[data-upload-note]')!;
+    const was = note.textContent;
+    await resumeUploads(episodeId, (t) => (note.textContent = `Sent ${t.name} to the server.`));
+    setTimeout(() => (note.textContent = was), 4000);
+    renderServerOnly();
+  });
+
+  /** Sessions on the server that this browser doesn't have: bring one in to play or export it. */
+  async function renderServerOnly() {
+    const local = new Set((await listTakes(episodeId)).map((t) => t.id));
+    const box = root.querySelector<HTMLElement>('[data-server-list]')!;
+    box.querySelectorAll('[data-server-take]').forEach((x) => x.remove());
+    const missing = (await serverTakes(episodeId)).filter((t) => !local.has(t.id) && t.done && t.segments);
+    box.hidden = !missing.length;
+    for (const t of missing) {
+      const m = t.meta;
+      const row = document.createElement('div');
+      row.dataset.serverTake = t.id;
+      row.className = 'flex flex-wrap items-center gap-3 rounded-xl border border-line px-4.5 py-3.5 text-[14px]';
+      row.innerHTML = `<span class="min-w-0 flex-1"><span data-t></span><span class="meta ml-2 text-muted" data-m></span></span><button type="button" class="inline-flex h-8 items-center rounded-lg bg-raised px-3 text-[13px] hover:bg-surface">Bring into this browser</button>`;
+      row.querySelector('[data-t]')!.textContent = new Date(m.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      row.querySelector('[data-m]')!.textContent = `${formatDuration(m.samples / m.sampleRate)} · ${formatBytes(m.samples * (m.bitDepth / 8) * (m.channels ?? 1))}`;
+      const btn = row.querySelector('button')!;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await saveRemoteTake({ ...m, segments: t.segments, status: 'recording', remote: true }, (n) => fetchTakeSegment(t.id, n), (n) => (btn.textContent = `Bringing it in · ${n} of ${t.segments}`));
+          location.href = `/episodes/${episodeId}/sessions?take=${encodeURIComponent(t.id)}`;
+        } catch (err) {
+          btn.textContent = `Couldn’t: ${(err as Error).message}. Try again`;
+          btn.disabled = false;
+        }
+      });
+      box.append(row);
+    }
+  }
 
   async function render() {
     await offerRecovery(episodeId);
@@ -130,8 +171,11 @@ const base = `/episodes/${episode.id}`;
       });
       q('[data-delete]').addEventListener('click', async () => {
         const what = tracks.length > 1 ? `this session and its ${tracks.length} tracks` : 'this recording';
-        if (!confirm(`Delete ${what}? This can’t be undone.`)) return;
-        for (const x of tracks) await deleteTake(x.id);
+        if (!confirm(`Delete ${what}, here and on the server? This can’t be undone.`)) return;
+        for (const x of tracks) {
+          await deleteTake(x.id);
+          await fetch(`/api/takes/${encodeURIComponent(x.id)}`, { method: 'DELETE', credentials: 'same-origin' }).catch(() => {});
+        }
         render();
       });
       list.append(card);

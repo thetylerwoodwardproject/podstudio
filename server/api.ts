@@ -30,6 +30,7 @@ export function createApi(ctx: Context): Api {
     if (await live.handle(req, res, url, p)) return;
     if (!accounts.allowed(req)) throw new HttpError(401, 'Sign in first');
     if (await ctx.library.handle(req, res, url, p)) return;
+    if (await ctx.takes.handle(req, res, url, p)) return;
     throw new HttpError(404, 'Not found');
   };
 

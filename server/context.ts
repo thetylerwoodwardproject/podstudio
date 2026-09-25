@@ -7,12 +7,14 @@ import { loadConfig, type Config } from './config.ts';
 import { dbFile, openDb, type Db } from './db.ts';
 import { Library } from './library.ts';
 import { LiveStore } from './live-store.ts';
+import { Takes } from './takes.ts';
 
 export interface Context {
   config: Config;
   db: Db;
   live: LiveStore;
   library: Library;
+  takes: Takes;
 }
 
 const KEY = Symbol.for('podstudio.context');
@@ -22,6 +24,7 @@ export function createContext(config: Config = loadConfig()): Context {
   const db = openDb(dbFile(config.data));
   const ctx = { config, db, live: new LiveStore(db) } as Context;
   ctx.library = new Library(ctx);
+  ctx.takes = new Takes(ctx);
   (globalThis as G)[KEY] = ctx;
   return ctx;
 }

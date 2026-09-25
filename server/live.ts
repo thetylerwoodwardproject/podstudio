@@ -10,11 +10,9 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Context } from './context.ts';
-import { HttpError, RateLimit, clientIp, json, readBody, readJson, streamToFile } from './http.ts';
+import { HttpError, RateLimit, SEGMENT_LIMIT, clientIp, json, readBody, readJson, streamToFile } from './http.ts';
 import { Presence, type InviteRole, type Member, type Role } from './live-store.ts';
 
-/** A 5 s segment is at most 48 kHz × 24-bit × 2 channels × 5 s ≈ 1.4 MB; leave room. */
-export const SEGMENT_LIMIT = 8 << 20;
 const segName = (n: number) => `seg-${String(n).padStart(6, '0')}.pcm`;
 const isRole = (r: string): r is Role => r === 'host' || r === 'guest' || r === 'producer';
 const bearer = (req: IncomingMessage, url: URL) => req.headers.authorization?.replace(/^Bearer /, '') ?? url.searchParams.get('token');
