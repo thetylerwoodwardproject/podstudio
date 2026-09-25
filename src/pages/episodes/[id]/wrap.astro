@@ -1,0 +1,191 @@
+---
+// After a session with a guest: your track is saved; wait for the guest's to finish
+// uploading, bring it into this browser, then export both.
+import AppShell from '@/layouts/AppShell.astro';
+import Button from '@/components/ui/Button.astro';
+import { episode, episodePaths } from '@/data/mock';
+
+export const getStaticPaths = episodePaths;
+const row = 'flex items-center gap-4 border-b border-line py-4';
+---
+
+<AppShell title="Wrapping up" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Wrapping up' }]}>
+  <div class="mx-auto flex w-full max-w-[640px] flex-col gap-6 px-6 py-10" id="wrap" data-episode={episode.id}>
+    <div>
+      <h1 class="text-[24px] tracking-[-0.02em]">Wrapping up</h1>
+      <p class="mt-1.5 text-[14px] leading-normal text-muted">
+        Your track is saved. The guest's uploads as they record; once the last pieces are in, it comes into this browser and
+        you can export both, lined up.
+      </p>
+    </div>
+    <div class="flex flex-col border-t border-line">
+      <div class={row}>
+        <span class="size-2.5 flex-none rounded-full bg-ok"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[15px]" data-host-name>Your track</div>
+          <div class="meta text-muted" data-host-meta>Saved in this browser</div>
+        </div>
+      </div>
+      <div class={row}>
+        <span class="size-2.5 flex-none rounded-full bg-warn" data-guest-dot></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[15px]" data-guest-name>Guest</div>
+          <div class="meta text-muted" data-guest-meta>Checking…</div>
+          <div class="mt-2 h-1 overflow-hidden rounded-full bg-line" data-progress hidden><div class="h-full w-0 rounded-full bg-fg transition-[width]" data-progress-fill></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <Button variant="primary" size="lg" data-continue disabled>Continue to export</Button>
+      <button type="button" class="text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline" data-skip>Export without the guest</button>
+      <label class="ml-auto cursor-pointer text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline">
+        Add the guest's file instead
+        <input type="file" accept="audio/*,.wav" class="sr-only" data-file />
+      </label>
+    </div>
+    <p class="text-[12px] text-subtle">
+      If the guest's upload can't finish, they can download their recording from their page and send it to you.
+    </p>
+  </div>
+</AppShell>
+
+<script>
+  import { formatBytes, formatDuration, getTake, listTakes, saveRemoteTake, takeBytes, type TakeMeta } from '@/lib/audio/takes';
+  import { importTrack } from '@/lib/audio/import';
+  import { Room, fetchSegment, hostMembership, trackInfo, type GuestStatus } from '@/lib/room';
+
+  const root = document.getElementById('wrap')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const episodeId = root.dataset.episode!;
+  const id = new URL(location.href).searchParams.get('take');
+  const exportUrl = () => `/episodes/${episodeId}/session?take=${encodeURIComponent(id ?? '')}`;
+  const continueBtn = $<HTMLButtonElement>('[data-continue]');
+  continueBtn.addEventListener('click', () => (location.href = exportUrl()));
+  $('[data-skip]').addEventListener('click', () => {
+    if (confirm('Export without the guest’s track? You can come back for it while the session is on the server.')) location.href = exportUrl();
+  });
+
+  const setGuest = (text: string, color: string, name?: string) => {
+    $('[data-guest-meta]').textContent = text;
+    $('[data-guest-dot]').style.background = color;
+    if (name) $('[data-guest-name]').textContent = `${name}'s track`;
+  };
+  const progress = (f: number | null) => {
+    $('[data-progress]').hidden = f == null;
+    if (f != null) $('[data-progress-fill]').style.width = `${Math.round(f * 100)}%`;
+  };
+
+  run();
+
+  async function run() {
+    const host = id ? await getTake(id) : null;
+    if (!host) {
+      setGuest('No session to wrap up.', 'var(--color-faint)');
+      return;
+    }
+    $('[data-host-name]').textContent = `${host.speaker.charAt(0)}${host.speaker.slice(1).toLowerCase()}'s track`;
+    $('[data-host-meta]').textContent = `Saved · ${formatDuration(host.samples / host.sampleRate)} · ${formatBytes(takeBytes(host))}`;
+
+    const existing = (await listTakes(episodeId)).find((t) => t.group === host.group && t.id !== host.id && t.status === 'done');
+    if (existing) return ready(existing);
+
+    const m = hostMembership(episodeId);
+    if (!m) {
+      setGuest('Not connected to a session. Add the guest’s file, or export your track on its own.', 'var(--color-faint)');
+      return;
+    }
+    // Live progress from the guest's page, and what the server has.
+    const room = new Room(m);
+    let live: GuestStatus | null = null;
+    room.on('guest', (g) => {
+      live = { ...live, ...g };
+      if (g.name) $('[data-guest-name]').textContent = `${g.name}'s track`;
+    });
+    room.connect();
+
+    let fetching = false;
+    const check = async () => {
+      if (fetching) return;
+      let info;
+      try {
+        info = await trackInfo(m, 'guest');
+      } catch {
+        setGuest('Can’t reach the server. Retrying…', 'var(--color-warn)');
+        return;
+      }
+      const meta = info.meta as null | { name: string; sampleRate: number; bitDepth: 16 | 24; channels: 1 | 2; startedAtServer: number | null; segments: number; done: boolean };
+      const name = meta?.name ?? live?.name;
+      if (!meta && !info.segments) {
+        setGuest(live ? (live.recording ? 'Still recording on their device…' : 'Waiting for their upload to start…') : 'No guest track yet. Is their page still open?', 'var(--color-warn)', name);
+        return;
+      }
+      const total = meta?.done ? meta.segments : (live?.uploaded ?? 0) + (live?.pending ?? 0) || info.segments;
+      if (!meta?.done || info.segments < meta.segments) {
+        setGuest(`Uploading from their device · ${info.segments} of ${total || '?'} pieces`, 'var(--color-warn)', name);
+        progress(total ? info.segments / total : 0);
+        return;
+      }
+      // Everything's on the server: bring it into this browser as the session's second track.
+      fetching = true;
+      setGuest(`Bringing it into this browser · 0 of ${meta.segments}`, 'var(--color-warn)', name);
+      const guest: TakeMeta = {
+        id: `${host!.id}-guest`,
+        episodeId,
+        number: host!.number,
+        name: `${host!.name} · ${meta.name}`,
+        kind: 'session',
+        startLine: host!.startLine,
+        startText: host!.startText,
+        speaker: meta.name.toUpperCase(),
+        device: 'Guest device',
+        sampleRate: meta.sampleRate,
+        bitDepth: meta.bitDepth,
+        channels: meta.channels,
+        samples: 0,
+        segments: meta.segments,
+        startedAt: host!.startedAt,
+        updatedAt: Date.now(),
+        status: 'recording',
+        group: host!.group,
+        markers: host!.markers,
+        lineLog: host!.lineLog,
+        startedAtServer: meta.startedAtServer ?? undefined,
+        remote: true,
+        peaks: [],
+      };
+      try {
+        await saveRemoteTake(guest, (n) => fetchSegment(m, 'guest', n), (n) => {
+          setGuest(`Bringing it into this browser · ${n} of ${meta.segments}`, 'var(--color-warn)', name);
+          progress(n / meta.segments);
+        });
+      } catch (err) {
+        fetching = false;
+        setGuest(`Couldn’t bring it in: ${(err as Error).message}. Retrying…`, 'var(--color-rec)', name);
+        return;
+      }
+      clearInterval(timer);
+      room.close();
+      ready(guest);
+    };
+    const timer = window.setInterval(check, 2000);
+    check();
+  }
+
+  function ready(guest: TakeMeta) {
+    const name = `${guest.speaker.charAt(0)}${guest.speaker.slice(1).toLowerCase()}`;
+    $('[data-guest-name]').textContent = `${name}'s track`;
+    setGuest(`In this browser · ${formatDuration(guest.samples / guest.sampleRate)} · ${formatBytes(takeBytes(guest))}`, 'var(--color-ok)');
+    progress(null);
+    continueBtn.disabled = false;
+    $('[data-skip]').hidden = true;
+  }
+
+  $<HTMLInputElement>('[data-file]').addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    const host = id ? await getTake(id) : null;
+    if (!file || !host) return;
+    setGuest(`Adding ${file.name}…`, 'var(--color-warn)');
+    const t = await importTrack(file, host, 'GUEST', (f) => progress(f));
+    ready(t);
+  });
+</script>

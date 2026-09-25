@@ -1,0 +1,316 @@
+---
+/*
+ * The producer, after joining with a code. Never records and never asks for
+ * the mic. Sees the script with the live reading position and can edit it,
+ * runs the session (start, pause, end), marks retakes, ad-libs and cuts, moves
+ * the reader, and keeps an eye on the guest (level, uploads, their code).
+ */
+import AppShell from '@/layouts/AppShell.astro';
+
+const btn = 'flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-[14px] font-medium transition-colors disabled:opacity-35';
+const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono text-[10px] leading-none opacity-70';
+---
+
+<AppShell title="Producer" avatar={false} anyBrowser crumbs={[{ label: 'Producer' }]}>
+  <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium text-muted" role="status" data-rec>
+    <span class="size-2 rounded-full bg-faint" data-rec-dot></span>
+    <span data-rec-label>CONNECTING</span>
+  </div>
+  <div id="producer" class="grid lg:h-full lg:grid-cols-[1fr_360px] lg:grid-rows-[minmax(0,1fr)]" data-connected="false">
+    <section class="flex min-h-0 flex-col border-line lg:border-r">
+      <div class="flex items-center justify-between gap-4 border-b border-line px-6 py-3 text-[13px] text-muted">
+        <span data-mode-label>Script</span>
+        <span class="meta" data-edit-note>Click a line to move the reader there. Edit any line; it updates everyone.</span>
+      </div>
+      <div class="mx-auto flex min-h-[50dvh] w-full max-w-[860px] flex-1 flex-col gap-1 overflow-auto px-6 py-6" data-lines>
+        <p class="text-[14px] text-muted" data-empty>Waiting for the host’s screen…</p>
+      </div>
+    </section>
+
+    <aside class="flex min-h-0 flex-col gap-5 overflow-auto p-5">
+      <div class="flex flex-col gap-2.5">
+        <h2 class="eyebrow">Session</h2>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class:list={[btn, 'col-span-2 bg-rec text-white']} data-cmd="start">● Start recording</button>
+          <button type="button" class:list={[btn, 'bg-raised text-fg']} data-cmd="pause" hidden>Pause <span class={kbd}>P</span></button>
+          <button type="button" class:list={[btn, 'bg-fg text-ink']} data-cmd="resume" hidden>Resume <span class={kbd}>P</span></button>
+          <button type="button" class:list={[btn, 'border border-rec text-rec']} data-cmd="stop" hidden>End session</button>
+        </div>
+        <p class="text-[12px] text-subtle" data-session-note>The host and guest record on their own devices; you run it from here.</p>
+      </div>
+
+      <div class="flex flex-col gap-2.5">
+        <h2 class="eyebrow">Markers</h2>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" class:list={[btn, 'bg-warn px-2 font-semibold text-ink']} data-cmd="retake">Retake <span class={kbd}>R</span></button>
+          <button type="button" class:list={[btn, 'bg-raised px-2 text-fg aria-pressed:bg-adlib aria-pressed:text-ink']} aria-pressed="false" data-cmd="adlib">Ad-lib <span class={kbd}>A</span></button>
+          <button type="button" class:list={[btn, 'bg-raised px-2 text-fg aria-pressed:bg-fg aria-pressed:text-ink']} aria-pressed="false" data-cmd="cut">Cut <span class={kbd}>C</span></button>
+        </div>
+        <p class="text-[12px] text-subtle">Cut starts on the first press and ends on the second. <span data-counts></span></p>
+      </div>
+
+      <div class="flex flex-col gap-2.5">
+        <h2 class="eyebrow">Reader</h2>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class:list={[btn, 'bg-raised text-fg']} data-cmd="prev">← Back</button>
+          <button type="button" class:list={[btn, 'bg-raised text-fg']} data-cmd="next">Next →</button>
+        </div>
+        <div class="flex flex-col" data-sections></div>
+      </div>
+
+      <div class="flex flex-col gap-2.5 rounded-xl border border-line p-4" data-guest-panel>
+        <div class="flex items-baseline justify-between">
+          <h2 class="eyebrow">Guest</h2>
+          <span class="text-[12px] text-muted" data-guest-state>Not joined</span>
+        </div>
+        <div class="text-[15px]" data-guest-name>—</div>
+        <div class="flex items-center gap-3">
+          <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line"><span class="absolute inset-y-0 left-0 w-0 rounded-full" data-guest-level></span></span>
+          <span class="font-mono text-[11px] text-muted" data-guest-db>— dB</span>
+        </div>
+        <div class="font-mono text-[11px] text-muted" data-guest-upload></div>
+        <div class="mt-1 flex flex-col gap-1">
+          <div class="flex items-center justify-between text-[12px]">
+            <span class="text-muted">Guest code</span>
+            <span class="font-mono text-[15px] tracking-[0.06em]" data-guest-code>—</span>
+          </div>
+          <div class="flex gap-4 text-[12px]">
+            <button type="button" class="text-muted hover:text-fg" data-new-guest-code>New code</button>
+            <button type="button" class="text-muted hover:text-rec" data-revoke-guest>Revoke</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</AppShell>
+
+<script>
+  import { toFraction, zone } from '@/lib/audio/meter';
+  import { markerCounts } from '@/lib/markers';
+  import { Room, joined, newCode, revokeCode, sessionInfo, type Command, type GuestStatus, type SessionState } from '@/lib/room';
+  import { scriptFromText, scriptToText, type EpisodeScript } from '@/lib/script-store';
+  import { formatCode, isGuestLine, modeInfo } from '@/lib/show';
+
+  const root = document.getElementById('producer')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const m = joined();
+  const list = $('[data-lines]');
+  if (!m || m.role !== 'producer') {
+    list.innerHTML = '<p class="text-[14px] text-muted">Join with your producer code first: <a class="text-fg underline" href="/join">enter a code</a>.</p>';
+    throw new Error('not joined');
+  }
+
+  const room = new Room(m);
+  let state: SessionState | null = null;
+  let script: EpisodeScript | null = null;
+  let version = 0;
+  let points: string[] = [];
+  let guest: GuestStatus | null = null;
+  let guestHere = false;
+  const clock = (sec: number) => {
+    const t = Math.max(0, Math.floor(sec));
+    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+  };
+  const send = (c: Command) => room.send({ type: 'command', ...c });
+
+  // ── The script: live position, click to move, edit in place ────────────────
+  let editTimer: number | undefined;
+  function renderScript() {
+    if (!state) return;
+    if (state.mode === 'points') return renderPoints();
+    if (state.mode === 'adlib') {
+      list.innerHTML = '<p class="text-[15px] text-muted">Ad-lib show: there’s no script. Use the markers and session controls.</p>';
+      return;
+    }
+    if (!script) return;
+    const lines = script.lines;
+    list.replaceChildren(
+      ...lines.map((l, n) => {
+        const row = document.createElement('div');
+        row.dataset.line = String(n);
+        row.className = 'group grid grid-cols-[60px_1fr] items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface data-[now]:bg-raised data-[now]:shadow-[inset_2px_0_0_var(--color-rec)]';
+        const who = document.createElement('button');
+        who.type = 'button';
+        who.className = 'mt-1 text-left font-mono text-[11px] font-medium tracking-[0.06em]';
+        const guestLine = state!.mode === 'lines' && isGuestLine(l.who, guest?.name);
+        who.textContent = state!.mode === 'lines' ? (guestLine ? 'GUEST' : 'HOST') : `${n + 1}`;
+        who.style.color = guestLine ? 'var(--spk-sam)' : state!.mode === 'lines' ? 'var(--spk-tyler)' : 'var(--color-subtle)';
+        who.title = 'Move the reader here';
+        who.addEventListener('click', () => send({ action: 'goto', word: script!.lineStarts[n] }));
+        const text = document.createElement('div');
+        text.contentEditable = 'plaintext-only';
+        text.spellcheck = true;
+        text.className = 'text-[17px] leading-[1.6] text-fg-soft focus:text-fg focus:outline-none';
+        text.textContent = l.text;
+        text.addEventListener('input', () => {
+          lines[n].text = text.textContent!.trim();
+          clearTimeout(editTimer);
+          editTimer = window.setTimeout(() => {
+            version = Math.max(version, state?.scriptVersion ?? 0) + 1;
+            room.send({ type: 'script', version, text: scriptToText(lines) });
+            $('[data-edit-note]').textContent = 'Saved · everyone has the new version';
+          }, 700);
+        });
+        row.append(who, text);
+        return row;
+      }),
+    );
+    renderSections();
+    markLine();
+  }
+  const lineOf = (i: number) => (script ? script.lineStarts.reduce((line, s, n) => (i >= s ? n : line), 0) : 0);
+  let shownLine = -1;
+  function markLine() {
+    if (!state || !script || state.mode === 'points' || state.mode === 'adlib') return;
+    const line = lineOf(state.word);
+    if (line === shownLine) return;
+    shownLine = line;
+    list.querySelectorAll<HTMLElement>('[data-line]').forEach((r) => r.toggleAttribute('data-now', Number(r.dataset.line) === line));
+    // Don't pull the page away while someone is typing in it.
+    if (!list.contains(document.activeElement)) list.querySelector(`[data-line="${line}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  function renderPoints() {
+    list.replaceChildren(
+      ...(points.length ? points : ['No talking points yet.']).map((p, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `rounded-xl px-4 py-3 text-left text-[18px] ${i === (state?.point ?? 0) ? 'bg-raised text-fg shadow-[inset_2px_0_0_var(--color-rec)]' : 'text-muted hover:bg-surface'}`;
+        b.textContent = p;
+        b.addEventListener('click', () => send({ action: 'point', index: i }));
+        return b;
+      }),
+    );
+  }
+  function renderSections() {
+    $('[data-sections]').replaceChildren(
+      ...(script?.sections ?? []).map((s, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'flex justify-between rounded-lg px-3 py-2 text-left text-[13px] hover:bg-surface';
+        b.innerHTML = `<span></span><span class="font-mono text-[11px] text-subtle">Line ${s.line + 1}</span>`;
+        b.firstElementChild!.textContent = s.title;
+        b.addEventListener('click', () => send({ action: 'section', index: i }));
+        return b;
+      }),
+    );
+  }
+
+  // ── Session state from the host ────────────────────────────────────────────
+  function renderState() {
+    const s = state;
+    const recording = !!s?.recording;
+    const here = room.connected;
+    const label = $('[data-rec-label]');
+    label.textContent = !here ? 'RECONNECTING' : !s ? 'WAITING FOR HOST' : s.ended ? 'ENDED' : recording ? `${s.paused ? 'PAUSED' : 'REC'} ${clock(s.startedAtServer ? (room.serverNow() - s.startedAtServer) / 1000 : 0)}` : 'READY';
+    $('[data-rec]').style.color = recording && !s!.paused ? 'var(--color-rec)' : '';
+    $('[data-rec-dot]').style.background = recording ? 'var(--color-rec)' : '';
+    const show = (cmd: string, on: boolean) => ($<HTMLButtonElement>(`[data-cmd="${cmd}"]`).hidden = !on);
+    show('start', !recording && !s?.ended);
+    show('pause', recording && !s!.paused);
+    show('resume', recording && !!s!.paused);
+    show('stop', recording);
+    for (const c of ['retake', 'adlib', 'cut']) $<HTMLButtonElement>(`[data-cmd="${c}"]`).disabled = !recording || !!s?.paused;
+    $('[data-cmd="adlib"]').setAttribute('aria-pressed', String(!!s?.adlib));
+    $('[data-cmd="cut"]').setAttribute('aria-pressed', String(!!s?.cut));
+    $('[data-counts]').textContent = s ? markerCounts(s.markers.filter((x) => x.kind !== 'pause')) : '';
+    if (s) $('[data-mode-label]').textContent = modeInfo[s.mode].label;
+    $('[data-session-note]').textContent = s?.ended
+      ? 'The session has ended. The host is collecting the guest’s track.'
+      : 'The host and guest record on their own devices; you run it from here.';
+    markLine();
+    if (s?.mode === 'points') renderPoints();
+  }
+
+  room.on('state', (msg) => {
+    const modeChanged = state?.mode !== msg.state.mode;
+    state = msg.state;
+    version = Math.max(version, state.scriptVersion);
+    if (modeChanged) renderScript();
+    renderState();
+  });
+  room.on('script', (msg) => {
+    if (msg.version < version) return;
+    version = msg.version;
+    const editing = list.contains(document.activeElement);
+    script = scriptFromText(msg.text, true);
+    shownLine = -1;
+    if (!editing) renderScript();
+  });
+  room.on('setup', (msg) => {
+    points = msg.points;
+    if (state?.mode === 'points') renderPoints();
+  });
+  room.on('guest', (g) => {
+    guest = { ...guest, ...g };
+    renderGuest();
+  });
+  room.on('presence', (p) => {
+    if (p.role === 'guest') guestHere = p.connected;
+    if (p.role === 'host' && !p.connected) $('[data-rec-label]').textContent = 'HOST OFFLINE';
+    renderGuest();
+  });
+  room.addEventListener('open', () => {
+    root.dataset.connected = 'true';
+    room.send({ type: 'hello', role: 'producer' });
+    refreshCodes();
+  });
+  room.addEventListener('close', () => (root.dataset.connected = 'false'));
+  room.addEventListener('refused', (e) => {
+    list.innerHTML = '';
+    const p = Object.assign(document.createElement('p'), { className: 'text-[15px] text-rec', textContent: `${(e as CustomEvent<string>).detail}. Ask the host for a new producer code.` });
+    list.append(p);
+  });
+  room.connect();
+  setInterval(renderState, 500);
+
+  // ── Guest ───────────────────────────────────────────────────────────────────
+  function renderGuest() {
+    $('[data-guest-state]').textContent = guestHere ? (guest?.recording ? 'Recording' : guest?.done ? 'Track sent' : 'Connected') : guest ? 'Left' : 'Not joined';
+    $('[data-guest-state]').style.color = guestHere ? 'var(--color-ok)' : '';
+    $('[data-guest-name]').textContent = guest?.name || '—';
+    const lvl = guest?.level ?? -90;
+    $('[data-guest-level]').style.width = `${toFraction(lvl) * 100}%`;
+    $('[data-guest-level]').style.background = guest?.clip ? 'var(--color-rec)' : zone(lvl);
+    $('[data-guest-db]').textContent = guest?.level != null && guest.level > -60 ? `${String(guest.level).replace('-', '−')} dB` : '— dB';
+    $('[data-guest-upload]').textContent = guest?.recording || guest?.uploaded ? `Sent ${guest.uploaded ?? 0} of ${(guest.uploaded ?? 0) + (guest.pending ?? 0)} pieces${guest.mic ? ` · ${guest.mic}` : ''}` : '';
+  }
+  async function refreshCodes() {
+    try {
+      const info = await sessionInfo(m!);
+      $('[data-guest-code]').textContent = formatCode(info.codes?.guest ?? null);
+      guestHere = info.connected.includes('guest');
+      renderGuest();
+    } catch {}
+  }
+  $('[data-new-guest-code]').addEventListener('click', async () => {
+    const r = await newCode(m, 'guest');
+    $('[data-guest-code]').textContent = formatCode(r.code);
+  });
+  $('[data-revoke-guest]').addEventListener('click', async () => {
+    if (!confirm('Revoke the guest code? The guest is signed out.')) return;
+    await revokeCode(m, 'guest');
+    refreshCodes();
+  });
+
+  // ── Controls ────────────────────────────────────────────────────────────────
+  document.querySelectorAll<HTMLButtonElement>('[data-cmd]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const action = b.dataset.cmd as Command['action'];
+      if (action === 'stop' && !confirm('End the session for everyone?')) return;
+      send({ action } as Command);
+    }),
+  );
+  addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    const key = e.key.toLowerCase();
+    const rec = !!state?.recording;
+    if (key === 'r' && rec) send({ action: 'retake' });
+    else if (key === 'a' && rec) send({ action: 'adlib' });
+    else if (key === 'c' && rec) send({ action: 'cut' });
+    else if (key === 'p' && rec) send({ action: state!.paused ? 'resume' : 'pause' });
+    else if (e.key === 'ArrowRight' || e.key === 'PageDown') send({ action: 'next' });
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') send({ action: 'prev' });
+    else return;
+    e.preventDefault();
+  });
+</script>

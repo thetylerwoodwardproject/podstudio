@@ -62,10 +62,10 @@ const greenSwitch =
       </label>
       <label class="flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg">
         <div class="flex-1">
-          <div class="text-[14px]">Marker tones in the full recording</div>
+          <div class="text-[14px]">Marker tones in your full recording</div>
           <div class="mt-1 text-[12px] text-muted">
             A short beep at each <span data-tone-kinds>retake</span>, ducked under your voice, so the places to edit can be
-            heard. The full recording then isn't untouched; the edit stays clean. Tones, ducking, attack and release are in
+            heard. Your full recording then isn't untouched; the edit and a guest's track stay clean. Tones, ducking, attack and release are in
             <a href="/settings/recording" class="underline underline-offset-2 hover:text-fg">Settings → Recording</a>.
           </div>
         </div>
@@ -156,7 +156,8 @@ const greenSwitch =
 <script>
   import { assemble, audacityLabels, mapTime, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName } from '@/lib/markers';
-  import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, type TakeMeta } from '@/lib/audio/takes';
+  import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, type TakeMeta } from '@/lib/audio/takes';
+  import { alignedRanges } from '@/lib/audio/align';
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
   import { denoiseTake, previewTake } from '@/lib/audio/denoise';
   import { loadSettings, saveSettings } from '@/lib/settings';
@@ -204,8 +205,12 @@ const greenSwitch =
       return;
     }
 
-    const tracks = [take];
+    // Every track in the session: yours, and the guest's (recorded on their device).
+    const all = await listTakes(episodeId);
+    const tracks = [take, ...all.filter((t) => t.id !== take.id && t.group && t.group === take.group && t.status === 'done')];
     const duration = take.samples / take.sampleRate;
+    // A track from another device, lined up on the host's timeline.
+    const aligned = (t: TakeMeta, ranges: [number, number][]) => alignedRanges(ranges, trackShift(t, take));
     // Recorded on the wall clock; assemble() converts these itself.
     const wallMarkers = take.markers ?? [];
     const lineLog = take.lineLog ?? [];
@@ -356,7 +361,14 @@ const greenSwitch =
           );
           entries.push({
             name: `${name(t)}.wav`,
-            data: o.tones ? await tonedWav(t, placed(t), toneSettings, cues) : cues.length ? await rangesWav(t, [[0, len]], cues) : await takeWav(t),
+            data:
+              t !== take
+                ? await rangesWav(t, aligned(t, [[0, duration]]), cues) // lined up with yours, same length
+                : o.tones
+                  ? await tonedWav(t, placed(t), toneSettings, cues)
+                  : cues.length
+                    ? await rangesWav(t, [[0, len]], cues)
+                    : await takeWav(t),
           });
         }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
@@ -394,7 +406,12 @@ const greenSwitch =
             const cues = markers.map((m) => cue(m, t.sampleRate));
             entries.push({
               name: `${name(t)}_clean.wav`,
-              data: o.tones ? await tonedWav(t, placed(t), toneSettings, cues, variant) : await rangesWav(t, [[0, len]], cues, variant),
+              data:
+                t !== take
+                  ? await rangesWav(t, aligned(t, [[0, duration]]), cues, variant)
+                  : o.tones
+                    ? await tonedWav(t, placed(t), toneSettings, cues, variant)
+                    : await rangesWav(t, [[0, len]], cues, variant),
             });
           }
         }
@@ -410,8 +427,8 @@ const greenSwitch =
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, t.sampleRate, x.at));
               const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}` : `${name(t)}_edit`;
-              entries.push({ name: `${file}.wav`, data: await rangesWav(t, ranges, kept) });
-              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, ranges, kept, variant) });
+              entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept) });
+              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant) });
             }
           }
         }

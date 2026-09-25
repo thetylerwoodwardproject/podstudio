@@ -59,6 +59,11 @@ const zones = [
         <span class="ml-1 size-2 rounded-full border-[1.5px] border-faint" role="img" aria-label="Voice follow off" title="Voice follow off" data-voice-dot></span>
       </div>
       <div class="flex min-w-0 items-center justify-end">
+        <span class="mr-3 flex items-center gap-1.5 rounded-full bg-raised px-2.5 py-1 text-[12px]" title="Guest" data-guest-chip hidden>
+          <span class="size-2 rounded-full bg-faint" data-guest-dot></span>
+          <span class="max-w-[10ch] truncate" data-guest-name>Guest</span>
+          <span class="font-mono text-[11px] text-muted" data-guest-up></span>
+        </span>
         <span class="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-muted" data-saved-wrap>
           <span class="size-1.5 flex-none rounded-full bg-ok group-data-[state=ready]/r:hidden" data-saved-dot></span>
           <span class="truncate" data-saved></span>
@@ -90,6 +95,12 @@ const zones = [
       <div class="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-16 bg-linear-to-t from-void to-transparent" aria-hidden="true"></div>
       <div class="pointer-events-none absolute inset-x-0 top-0 z-[1] h-10 bg-linear-to-b from-void to-transparent" aria-hidden="true"></div>
       <div class="mx-auto flex max-w-[820px] flex-col px-6 transition-transform duration-500 ease-in-out lg:px-10" data-track></div>
+      <!-- With a guest: talking points, or no script at all -->
+      <ol class="absolute inset-0 mx-auto flex max-w-[820px] flex-col gap-2 overflow-auto px-6 py-6 lg:px-10" data-points-view hidden></ol>
+      <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center" data-adlib-view hidden>
+        <p class="text-[26px]">Ad-lib</p>
+        <p class="text-[14px] text-muted">No script for this show. Just talk; markers work as usual.</p>
+      </div>
     </main>
 
     <!-- Laptop: markers on a thin timeline (amber retakes, grey cuts, blue ad-libs, red gaps) -->
@@ -305,7 +316,9 @@ const zones = [
   import { isIOS } from '@/lib/platform';
   import { Prompter, enableHandScroll } from '@/lib/prompter';
   import { offerRecovery } from '@/lib/recovery';
-  import { loadScript } from '@/lib/script-store';
+  import { loadScript, saveScriptText, scriptFromText } from '@/lib/script-store';
+  import { Room, hostMembership, type Command, type GuestStatus, type SessionState } from '@/lib/room';
+  import { isGuestLine, loadShow } from '@/lib/show';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
 
@@ -317,8 +330,8 @@ const zones = [
   const params = new URL(location.href).searchParams;
   const demo = params.has('demo');
   const episodeId = root.dataset.episode!;
-  const script = loadScript(episodeId);
-  const { words, lines, lineStarts: starts, sections } = script;
+  let script = loadScript(episodeId);
+  let { words, lines, lineStarts: starts, sections } = script;
   const settings = loadSettings().recording;
   const prompterSettings = loadSettings().prompter;
   root.style.setProperty('--p-font', prompterSettings.font);
@@ -337,7 +350,7 @@ const zones = [
   // ── The script ─────────────────────────────────────────────────────────────
   const viewport = $('[data-viewport]');
   const track = $('[data-track]');
-  track.replaceChildren(
+  const renderTrack = () => track.replaceChildren(
     ...lines.map((l, n) => {
       const row = document.createElement('div');
       row.dataset.line = String(n);
@@ -364,8 +377,10 @@ const zones = [
   const tag = document.createElement('div');
   tag.className = 'mt-2 font-mono text-[11px] font-medium tracking-[0.08em] text-(--rule) uppercase';
   tag.hidden = true;
-  const prompter = new Prompter(viewport, track, { line: 0.3 });
-  enableHandScroll(prompter, viewport);
+  renderTrack();
+  let prompter = new Prompter(viewport, track, { line: 0.3 });
+  // Scrolls whichever prompter is current (the script can be edited during a session).
+  enableHandScroll({ nudge: (dy: number) => prompter.nudge(dy) } as Prompter, viewport);
 
   // ── Text size, on this device only (80–160 %) ──────────────────────────────
   const SIZE_KEY = 'podstudio:text-size';
@@ -819,6 +834,7 @@ const zones = [
   setInterval(() => isMoreOpen() && renderMore(), 1000);
 
   const sectionList = $('[data-sections]');
+  const renderSectionList = () => {
   $('[data-sections-wrap]').hidden = !sections.length;
   sectionList.replaceChildren(
     ...sections.map((s, i) => {
@@ -836,6 +852,8 @@ const zones = [
       return b;
     }),
   );
+  };
+  renderSectionList();
   function renderSections() {
     const current = sectionOf(currentLine);
     sectionList.querySelectorAll<HTMLElement>('[data-section]').forEach((b) => {
@@ -915,6 +933,8 @@ const zones = [
     else if (key === 'u') undo();
     else if (isMoreOpen() && /^[1-9]$/.test(key)) jumpToSection(Number(key) - 1);
     // Page turners send PageDown / PageUp.
+    else if ((e.key === 'ArrowRight' || e.key === 'PageDown') && pointsMode) setPoint(point + 1);
+    else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && pointsMode) setPoint(point - 1);
     else if ((e.key === 'ArrowRight' || e.key === 'PageDown') && !cough) setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
     else if ((e.key === 'ArrowLeft' || e.key === 'PageUp') && !cough) setWord(starts[Math.max(currentLine - 1, 0)]);
     else return;
@@ -966,6 +986,8 @@ const zones = [
   let manualTimer: number | undefined;
   function startVoice() {
     if (voice || manualTimer) return;
+    // Talking points and ad-lib shows have no script to follow.
+    if (pointsMode || adlibMode) return;
     // Manual speed (Studio → Scrolling): advance at a steady pace instead of listening.
     if (prompterSettings.mode === 'manual') {
       manualTimer = window.setInterval(() => {
@@ -1346,6 +1368,8 @@ const zones = [
     logVoice('recording started');
     capture.record();
     sessionStart = performance.now();
+    // With a guest: when this track started on the server's clock, to line up the guest's.
+    if (room) w.meta.startedAtServer = Math.round(room.serverNow());
     startBtn.disabled = false;
     warn('error', null);
     keepAwake();
@@ -1366,7 +1390,10 @@ const zones = [
     writer = null;
     wakeLock?.release().catch(() => {});
     await capture.close();
-    location.href = `/episodes/${episodeId}/saved?take=${encodeURIComponent(meta.id)}`;
+    ended = true;
+    sendState();
+    // With a guest, wait for their track before exporting.
+    location.href = `/episodes/${episodeId}/${room ? 'wrap' : 'saved'}?take=${encodeURIComponent(meta.id)}`;
   }
 
   addEventListener('beforeunload', (e) => {
@@ -1374,6 +1401,189 @@ const zones = [
   });
   // Chrome keeps audio paused until the first click or key press on the page.
   for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => capture.ctx?.resume(), { once: true });
+
+  // ── With a guest: the live room (guest and producer on their own devices) ──
+  const show = loadShow(episodeId, root.dataset.host);
+  const membership = show.format === 'guest' && !demo ? hostMembership(episodeId) : null;
+  const room = membership ? new Room(membership) : null;
+  const pointsMode = !!room && show.mode === 'points';
+  const adlibMode = !!room && show.mode === 'adlib';
+  let scriptVersion = 1;
+  let point = 0;
+  let ended = false;
+  let guest: (GuestStatus & { at: number }) | null = null;
+  let guestConnected = false;
+
+  const stateNow = (): SessionState => ({
+    recording: state !== 'ready' && !ended,
+    paused: state === 'paused',
+    ended,
+    startedAtServer: writer?.meta.startedAtServer ?? null,
+    word,
+    line: currentLine,
+    point,
+    markers: markers(),
+    scriptVersion,
+    mode: show.mode,
+    hostName: root.dataset.host!,
+    adlib: !!adlib,
+    cut: !!cough,
+  });
+  function sendState() {
+    room?.send({ type: 'state', state: stateNow() });
+  }
+
+  function renderPoints() {
+    $('[data-points-view]').replaceChildren(
+      ...show.points.map((p, i) => {
+        const li = document.createElement('li');
+        li.className = `cursor-pointer rounded-xl px-4 py-3 text-[20px] lg:text-[26px] ${i === point ? 'bg-raised text-fg shadow-[inset_2px_0_0_var(--color-rec)]' : 'text-muted hover:bg-surface'}`;
+        li.textContent = p;
+        li.addEventListener('click', () => setPoint(i));
+        return li;
+      }),
+    );
+    if (!show.points.length) $('[data-points-view]').textContent = 'No talking points yet. Add them on the script page.';
+  }
+  function setPoint(i: number) {
+    point = Math.max(0, Math.min(show.points.length - 1, i));
+    renderPoints();
+    sendState();
+  }
+  if (pointsMode || adlibMode) {
+    track.hidden = true;
+    $('[data-points-view]').hidden = !pointsMode;
+    $('[data-adlib-view]').hidden = !adlibMode;
+    if (pointsMode) renderPoints();
+  }
+
+  /** A new version of the script from the producer: keep the reader on the same line. */
+  function applyScript(text: string, version: number) {
+    if (version <= scriptVersion && version !== 0) return;
+    scriptVersion = version;
+    saveScriptText(episodeId, text);
+    script = scriptFromText(text, true);
+    ({ words, lines, lineStarts: starts, sections } = script);
+    const line = Math.min(currentLine, lines.length - 1);
+    renderTrack();
+    prompter = new Prompter(viewport, track, { line: 0.3 });
+    renderSectionList();
+    currentLine = line;
+    word = starts[line];
+    prompter.setWord(word);
+    if (voice) {
+      stopVoice();
+      startVoice();
+    }
+    setRule();
+    renderSections();
+  }
+
+  function handleCommand(c: Command) {
+    switch (c.action) {
+      case 'start':
+        if (state === 'ready') start();
+        break;
+      case 'pause':
+        pause();
+        break;
+      case 'resume':
+        resume();
+        break;
+      case 'stop':
+        stop();
+        break;
+      case 'retake':
+        retake();
+        break;
+      case 'adlib':
+        toggleAdlib();
+        break;
+      case 'cut':
+        if (cough) coughUp();
+        else coughDown();
+        break;
+      case 'cough':
+        if (c.down) coughDown();
+        else coughUp();
+        break;
+      case 'next':
+        if (pointsMode) setPoint(point + 1);
+        else setWord(starts[Math.min(currentLine + 1, starts.length - 1)]);
+        break;
+      case 'prev':
+        if (pointsMode) setPoint(point - 1);
+        else setWord(starts[Math.max(currentLine - 1, 0)]);
+        break;
+      case 'goto':
+        setWord(c.word);
+        break;
+      case 'section':
+        jumpToSection(c.index);
+        break;
+      case 'point':
+        setPoint(c.index);
+        break;
+    }
+    sendState();
+  }
+
+  function onGuest(g: GuestStatus) {
+    guest = { ...guest, ...g, at: Date.now() };
+    const chip = $('[data-guest-chip]');
+    chip.hidden = false;
+    $('[data-guest-name]').textContent = guest.name || 'Guest';
+    $('[data-guest-dot]').style.background = !guestConnected ? '' : guest.clip ? 'var(--color-rec)' : guest.level != null && guest.level > -45 ? zone(guest.level) : 'var(--color-faint)';
+    const pending = guest.pending ?? 0;
+    $('[data-guest-up]').textContent = guest.recording || guest.uploaded ? `↑${guest.uploaded ?? 0}${pending ? `+${pending}` : ''}` : '';
+    $<HTMLElement>('[data-guest-up]').style.color = pending > 6 ? 'var(--color-warn)' : '';
+    // Speaker lines: on the guest's lines, their voice follow moves the reader.
+    if (g.word != null && show.mode === 'lines' && isGuestLine(lines[currentLine]?.who ?? '', guest.name) && state !== 'paused') setWord(g.word);
+  }
+
+  if (room) {
+    $('[data-guest-chip]').hidden = false;
+    $('[data-guest-name]').textContent = 'Guest';
+    $('[data-guest-up]').textContent = 'not here yet';
+    room.addEventListener('open', () => {
+      room.send({ type: 'hello', role: 'host', name: root.dataset.host! });
+      room.send({ type: 'setup', mode: show.mode, points: show.points, hostName: root.dataset.host! });
+      room.send({ type: 'script', version: scriptVersion, text: script.text });
+      sendState();
+    });
+    room.on('command', (c) => handleCommand(c));
+    room.on('guest', (g) => onGuest(g));
+    room.on('script', (msg) => msg.from !== 'host' && applyScript(msg.text, msg.version));
+    room.on('presence', (p) => {
+      if (p.role !== 'guest') return;
+      guestConnected = p.connected;
+      if (!p.connected) {
+        $('[data-guest-dot]').style.background = '';
+        $('[data-guest-up]').textContent = 'left';
+      }
+    });
+    room.addEventListener('refused', (e) => showWarning('Couldn’t connect the session', (e as CustomEvent<string>).detail));
+    room.connect();
+    setInterval(sendState, 500);
+    // Tell the host if the guest isn't recording while they are.
+    setInterval(() => {
+      const t = Date.now();
+      const quiet = !guest || t - guest.at > 5000;
+      const name = guest?.name || 'The guest';
+      warn(
+        'guest',
+        state === 'rec' && writer && now() > 5 && (quiet || !guest?.recording)
+          ? {
+              level: 1,
+              title: quiet ? `${name} isn't connected` : `${name} isn't recording`,
+              body: quiet
+                ? 'Their page may be closed or offline. If it’s open, it keeps recording and catches up.'
+                : 'Ask them to check their Podstudio page. Your recording carries on.',
+            }
+          : null,
+      );
+    }, 1000);
+  }
 
   setWord(word);
   if (demo) runDemo();

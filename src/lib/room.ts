@@ -61,6 +61,8 @@ export type RoomMessage = (
   | { type: 'presence'; role: Role; connected: boolean; roles: Role[] }
   | { type: 'upload'; role: Role; segments: number }
   | { type: 'hello'; role: Role; name?: string }
+  /** From the host: how the show is set up, and the talking points */
+  | { type: 'setup'; mode: ScriptMode; points: string[]; hostName: string; guestName?: string }
 ) & { from?: Role };
 
 export interface Membership {

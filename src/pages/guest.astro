@@ -1,0 +1,521 @@
+---
+/*
+ * The guest, after joining with a code. Green room (6a): what to do, their
+ * name, mic and level. Then waiting for the host, then recording on this
+ * device while they talk on Zoom, Teams or similar: their track uploads in 5 s
+ * pieces as they go. What they see while recording depends on the show's
+ * script mode: their lines highlighted, the talking points, or just a
+ * recording light.
+ */
+import Base from '@/layouts/Base.astro';
+import Logo from '@/components/ui/Logo.astro';
+import LevelMeter from '@/components/audio/LevelMeter.astro';
+
+const step = 'flex gap-3.5 text-[14px] leading-normal';
+const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-raised font-mono text-[12px] text-muted';
+---
+
+<Base title="Guest" bodyClass="bg-void!">
+  <div id="guest" class="group/g relative flex min-h-dvh flex-col bg-void text-fg" data-stage="connecting" style="--p-device:1">
+    <div class="absolute inset-x-0 top-0 z-20 hidden h-[3px] bg-rec group-data-[stage=rec]/g:block" aria-hidden="true"></div>
+    <header class="flex h-14 flex-none items-center justify-between gap-4 px-5">
+      <Logo />
+      <div class="flex items-center gap-2 font-mono text-[13px] font-medium text-muted group-data-[stage=rec]/g:text-rec" role="status">
+        <span class="size-2 rounded-full bg-faint group-data-[stage=rec]/g:bg-rec"></span>
+        <span data-rec-label>GUEST</span>
+      </div>
+    </header>
+
+    <!-- Connecting / problems -->
+    <section class="mx-auto flex w-full max-w-[520px] flex-1 flex-col justify-center gap-3 px-6 pb-16 group-data-[stage=connecting]/g:flex group-data-[stage=error]/g:flex hidden">
+      <h1 class="text-[24px] tracking-[-0.02em]" data-msg-title>Connecting…</h1>
+      <p class="text-[14px] leading-normal text-muted" data-msg-body></p>
+      <a href="/join" class="mt-2 text-[14px] text-fg underline underline-offset-2" data-msg-join hidden>Enter a code</a>
+    </section>
+
+    <!-- Green room -->
+    <section class="mx-auto hidden w-full max-w-[980px] flex-1 grid-cols-1 gap-8 px-6 pt-4 pb-10 group-data-[stage=green]/g:grid lg:grid-cols-[1fr_1fr] lg:gap-12 lg:pt-10">
+      <div class="flex flex-col gap-6">
+        <div>
+          <h1 class="text-[28px] leading-[1.15] tracking-[-0.02em]"><span data-host-name>The host</span> is recording with you</h1>
+          <p class="mt-2 text-[14px] leading-normal text-muted">
+            You'll talk on your usual call. Podstudio records your voice here, at full quality, and sends it to the host as you go.
+          </p>
+        </div>
+        <ol class="flex flex-col gap-4">
+          <li class={step}><span class={num}>1</span><span>Join the call first (Zoom, Teams, whatever the host uses) and keep it running.</span></li>
+          <li class={step}><span class={num}>2</span><span>Wear headphones, so this mic only hears you and not the call.</span></li>
+          <li class={step}><span class={num}>3</span><span>Pick your mic and talk like you will on the show. Aim for the amber zone.</span></li>
+        </ol>
+        <p class="text-[13px] text-subtle" data-guest-sees></p>
+      </div>
+      <form class="flex flex-col gap-5 rounded-2xl border border-line p-5" data-green novalidate>
+        <label class="flex flex-col gap-1.5 text-[12px] text-muted">
+          Your name
+          <input name="name" required autocomplete="given-name" class="h-11 rounded-lg border border-edge bg-surface px-3 text-[15px] text-fg focus:border-fg focus:outline-none" placeholder="Sam" />
+        </label>
+        <label class="flex flex-col gap-1.5 text-[12px] text-muted">
+          Microphone
+          <select name="mic" class="h-11 rounded-lg border border-edge bg-surface px-3 text-[14px] text-fg focus:border-fg focus:outline-none" data-mic></select>
+        </label>
+        <div class="flex flex-col gap-2">
+          <LevelMeter compact />
+          <p class="flex items-center gap-2 text-[14px]"><span class="size-2 rounded-full bg-faint" data-verdict-dot></span><span data-verdict>Talk to check your level</span></p>
+        </div>
+        <label class="flex items-start gap-3 text-[14px]">
+          <input type="checkbox" name="ready" class="mt-0.5 size-4 accent-fg" />
+          I'm on the call, with headphones on
+        </label>
+        <p class="text-[13px] text-rec" role="alert" data-green-error hidden></p>
+        <button type="submit" class="flex h-12 items-center justify-center rounded-xl bg-fg text-[15px] font-medium text-ink disabled:opacity-40" data-join>Ready</button>
+      </form>
+    </section>
+
+    <!-- Waiting, recording, done -->
+    <section class="mx-auto hidden w-full max-w-[860px] flex-1 flex-col px-6 group-data-[stage=waiting]/g:flex group-data-[stage=rec]/g:flex group-data-[stage=done]/g:flex">
+      <div class="rounded-2xl bg-raised px-4 py-3.5" data-banner>
+        <div class="text-[15px]" data-banner-title>You're in</div>
+        <p class="mt-0.5 text-[13px] leading-normal text-muted" data-banner-body></p>
+      </div>
+      <div class="rounded-2xl bg-rec/12 px-4 py-3.5 mt-2" role="alert" data-warn hidden>
+        <div class="text-[15px]" data-warn-title></div>
+        <p class="mt-0.5 text-[13px] text-muted" data-warn-body></p>
+      </div>
+
+      <!-- Speaker lines: the script, with their lines highlighted -->
+      <div class="relative mt-2 min-h-[240px] flex-1 overflow-hidden" data-viewport hidden>
+        <div class="pointer-events-none absolute inset-x-0 top-0 z-[1] h-10 bg-linear-to-b from-void to-transparent"></div>
+        <div class="flex flex-col transition-transform duration-500 ease-in-out" data-track></div>
+      </div>
+      <!-- Talking points -->
+      <ol class="mt-4 flex flex-1 flex-col gap-2" data-points hidden></ol>
+      <!-- Host script or ad-lib: a big light -->
+      <div class="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center" data-light hidden>
+        <span class="size-5 rounded-full bg-faint group-data-[stage=rec]/g:bg-rec group-data-[stage=rec]/g:shadow-[0_0_40px_var(--color-rec)]"></span>
+        <p class="text-[22px]" data-light-text>Waiting to start</p>
+        <p class="text-[13px] text-muted">Just talk. Podstudio's recording you on this device.</p>
+      </div>
+
+      <div class="flex flex-col gap-3 py-5" data-done-actions hidden>
+        <button type="button" class="flex h-12 items-center justify-center rounded-xl border border-edge text-[15px] hover:bg-raised" data-download>Download my recording</button>
+      </div>
+    </section>
+
+    <footer class="sticky bottom-0 hidden flex-none border-t border-line bg-void px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] group-data-[stage=waiting]/g:block group-data-[stage=rec]/g:block">
+      <div class="mx-auto flex max-w-[860px] items-center gap-3">
+        <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+          <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-level-fill></span>
+        </span>
+        <span class="flex-none font-mono text-[11px] text-muted" data-level-text>— dB</span>
+        <button
+          type="button"
+          class="hidden h-11 flex-none items-center rounded-xl bg-raised px-5 text-[14px] font-medium select-none group-data-[stage=rec]/g:flex data-[holding]:bg-fg data-[holding]:text-ink"
+          style="touch-action:none;-webkit-touch-callout:none"
+          data-cough
+        >
+          Cough <span class="ml-2 font-mono text-[10px] opacity-70">HOLD</span>
+        </button>
+      </div>
+      <p class="mx-auto mt-2 max-w-[860px] font-mono text-[11px] text-subtle" data-upload></p>
+    </footer>
+  </div>
+</Base>
+
+<script>
+  import { MicCapture, type Level } from '@/lib/audio/capture';
+  import { availableInput, describeInput, inputChoices, inputFor } from '@/lib/audio/devices';
+  import { segmentMeter, toFraction, verdict, zone } from '@/lib/audio/meter';
+  import { TakeWriter, segmentFile, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { Prompter } from '@/lib/prompter';
+  import { Room, joined, uploadSegment, uploadTrackMeta, type ScriptMode, type SessionState } from '@/lib/room';
+  import { scriptFromText, type EpisodeScript } from '@/lib/script-store';
+  import { hz, loadSettings, saveSettings } from '@/lib/settings';
+  import { isGuestLine, modeInfo } from '@/lib/show';
+  import { Uploader } from '@/lib/upload';
+  import { VoiceFollow, voiceFollowSupported } from '@/lib/voice/follow';
+  import { isIOS } from '@/lib/platform';
+  import { download } from '@/lib/zip';
+
+  const root = document.getElementById('guest')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  type Stage = 'connecting' | 'error' | 'green' | 'waiting' | 'rec' | 'done';
+  const setStage = (s: Stage) => (root.dataset.stage = s);
+  const fail = (title: string, body: string, rejoin = true) => {
+    $('[data-msg-title]').textContent = title;
+    $('[data-msg-body]').textContent = body;
+    $('[data-msg-join]').hidden = !rejoin;
+    setStage('error');
+  };
+  const clock = (sec: number) => {
+    const t = Math.max(0, Math.floor(sec));
+    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+  };
+
+  const m = joined();
+  if (!m || m.role !== 'guest') {
+    fail('Join with your code', 'Open the join page and type the 6-digit code from your host.');
+    throw new Error('not joined');
+  }
+
+  const settings = loadSettings().recording;
+  const NAME_KEY = 'podstudio:guest-name';
+  const room = new Room(m);
+  const capture = new MicCapture();
+  let name = '';
+  try {
+    name = localStorage.getItem(NAME_KEY) ?? '';
+  } catch {}
+  let hostName = 'The host';
+  let mode: ScriptMode = 'host';
+  let points: string[] = [];
+  let script: EpisodeScript | null = null;
+  let state: SessionState | null = null;
+  let writer: TakeWriter | null = null;
+  let uploader: Uploader | null = null;
+  let finished: TakeMeta | null = null;
+  let micLabel = '';
+  let ready = false;
+
+  // ── Level: meter in the green room, bar while waiting and recording ─────────
+  const segs = segmentMeter([...root.querySelectorAll<HTMLElement>('[data-seg]')]);
+  let peakHold: number[] = [];
+  let windowPeak = -Infinity;
+  let clipAt = 0;
+  let shown = 0;
+  capture.addEventListener('level', (e) => {
+    const l = (e as CustomEvent<Level>).detail;
+    segs(l.peak);
+    windowPeak = Math.max(windowPeak, l.peak);
+    if (l.hot > -0.5) clipAt = Date.now();
+    const target = toFraction(l.peak);
+    shown = target > shown ? target : Math.max(target, shown - 0.015);
+    const fill = $('[data-level-fill]');
+    fill.style.width = `${shown * 100}%`;
+    fill.style.background = Date.now() - clipAt < 1500 ? 'var(--color-rec)' : zone(l.peak);
+  });
+  setInterval(() => {
+    peakHold = [...peakHold.slice(-5), windowPeak];
+    windowPeak = -Infinity;
+    const hold = Math.max(...peakHold);
+    const db = Number.isFinite(hold) ? Math.round(Math.min(0, hold)) || 0 : null;
+    $('[data-level-text]').textContent = db == null ? '— dB' : `${String(db).replace('-', '−')} dB`;
+    if (Number.isFinite(hold) && hold > -45) {
+      const [text, color] = Date.now() - clipAt < 3000 ? ['Too hot · turn the gain down', 'var(--color-rec)'] : verdict(hold);
+      $('[data-verdict]').textContent = text;
+      $('[data-verdict-dot]').style.background = color;
+    }
+  }, 250);
+
+  // ── The mic ─────────────────────────────────────────────────────────────────
+  const micSelect = $<HTMLSelectElement>('[data-mic]');
+  let wanted = '';
+  async function openMic() {
+    wanted = await availableInput(settings.deviceId, settings.channels);
+    try {
+      await capture.open({ deviceId: wanted, sampleRate: hz(settings.rate), channels: settings.channels });
+      micLabel = (await describeInput(wanted, settings.channels)).label;
+      capture.ctx?.resume().catch(() => {});
+    } catch (err) {
+      $('[data-green-error]').hidden = false;
+      $('[data-green-error]').textContent =
+        (err as Error).name === 'NotAllowedError' ? 'Podstudio needs your microphone. Allow it for this site, then reload.' : `Couldn’t open the mic: ${(err as Error).message}`;
+      return;
+    }
+    const choices = await inputChoices(settings.channels);
+    micSelect.replaceChildren(...choices.map((c) => new Option(c.label, c.value)));
+    micSelect.value = inputFor(wanted, settings.channels);
+  }
+  micSelect.addEventListener('change', async () => {
+    saveSettings('recording', { deviceId: micSelect.value });
+    settings.deviceId = micSelect.value;
+    await openMic();
+  });
+  for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => capture.ctx?.resume(), { once: true });
+
+  // ── Green room ──────────────────────────────────────────────────────────────
+  const green = $<HTMLFormElement>('[data-green]');
+  (green.elements.namedItem('name') as HTMLInputElement).value = name;
+  green.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = new FormData(green);
+    name = String(data.get('name') ?? '').trim();
+    const err = $('[data-green-error]');
+    err.hidden = true;
+    if (!name) {
+      err.textContent = 'Add your name, so the host knows whose track this is.';
+      err.hidden = false;
+      return;
+    }
+    if (!data.has('ready')) {
+      err.textContent = 'Join the call and put your headphones on first.';
+      err.hidden = false;
+      return;
+    }
+    try {
+      localStorage.setItem(NAME_KEY, name);
+    } catch {}
+    ready = true;
+    room.send({ type: 'hello', role: 'guest', name });
+    showSession();
+  });
+
+  // ── The session, as the host runs it ────────────────────────────────────────
+  const track = $('[data-track]');
+  let prompter: Prompter | null = null;
+  let voice: VoiceFollow | null = null;
+  const lineOf = (i: number) => (script ? script.lineStarts.reduce((line, s, n) => (i >= s ? n : line), 0) : 0);
+
+  function renderScript() {
+    if (!script) return;
+    track.replaceChildren(
+      ...script.lines.map((l, n) => {
+        const mine = isGuestLine(l.who, name);
+        const row = document.createElement('div');
+        row.dataset.line = String(n);
+        row.className = 'group/l grid grid-cols-[52px_1fr] gap-3 py-[0.4em] text-[length:calc(22px*var(--p-device))] md:text-[length:calc(30px*var(--p-device))]';
+        const who = document.createElement('span');
+        who.className = 'pt-[0.45em] font-mono text-[11px] font-medium tracking-[0.06em]';
+        who.textContent = mine ? 'YOU' : hostName.toUpperCase().slice(0, 6);
+        who.style.color = mine ? 'var(--spk-sam)' : 'var(--color-subtle)';
+        const text = document.createElement('div');
+        text.className = mine
+          ? 'leading-[1.32] text-fg-soft group-data-[l=past]/l:text-ghost group-data-[l=now]/l:text-fg'
+          : 'text-[0.78em] leading-[1.35] text-subtle group-data-[l=past]/l:text-ghost group-data-[l=now]/l:text-muted';
+        for (const w of l.text.split(/\s+/).filter(Boolean)) {
+          const span = document.createElement('span');
+          span.dataset.word = '';
+          span.className = 'decoration-rec decoration-2 underline-offset-[0.2em] group-data-[l=now]/l:data-[w=now]:underline';
+          span.textContent = w;
+          text.append(span, ' ');
+        }
+        row.append(who, text);
+        return row;
+      }),
+    );
+    prompter = new Prompter($('[data-viewport]'), track, { line: 0.3 });
+    prompter.setWord(state?.word ?? 0);
+  }
+
+  function renderPoints() {
+    $('[data-points]').replaceChildren(
+      ...points.map((p, i) => {
+        const li = document.createElement('li');
+        li.className = `rounded-xl px-4 py-3 text-[18px] ${i === (state?.point ?? 0) ? 'bg-raised text-fg shadow-[inset_2px_0_0_var(--color-rec)]' : 'text-muted'}`;
+        li.textContent = p;
+        return li;
+      }),
+    );
+  }
+
+  function showSession() {
+    if (!ready) return;
+    $('[data-viewport]').hidden = mode !== 'lines';
+    $('[data-points]').hidden = mode !== 'points';
+    $('[data-light]').hidden = mode === 'lines' || mode === 'points';
+    if (mode === 'lines') renderScript();
+    if (mode === 'points') renderPoints();
+    applyState();
+  }
+
+  function applyState() {
+    if (!ready) return;
+    const s = state;
+    const recording = !!s?.recording;
+    if (finished) return;
+    setStage(recording ? 'rec' : writer ? 'rec' : 'waiting');
+    $('[data-banner-title]').textContent = recording
+      ? s!.paused
+        ? 'Paused · still recording'
+        : 'Recording'
+      : `You're in`;
+    $('[data-banner-body]').textContent = recording
+      ? s!.paused
+        ? `${hostName} paused. Stay on the call; this stretch is left out of the edit.`
+        : 'Talk as you normally would. Your track uploads as you go.'
+      : `Waiting for ${hostName} to start recording. Stay on the call with your headphones on.`;
+    $('[data-light-text]').textContent = recording ? (s!.paused ? 'Paused' : 'Recording') : 'Waiting to start';
+    if (s && prompter && mode === 'lines') prompter.setWord(s.word);
+    if (mode === 'points') renderPoints();
+    // Voice follow listens on the guest's own lines only.
+    if (voice && script && s) {
+      const line = lineOf(s.word);
+      if (!isGuestLine(script.lines[line]?.who ?? '', name)) voice.setWord(s.word);
+    }
+    if (recording && !writer) start();
+    else if (!recording && writer) stop();
+  }
+
+  room.on('setup', (msg) => {
+    hostName = msg.hostName || hostName;
+    mode = msg.mode;
+    points = msg.points;
+    $('[data-host-name]').textContent = hostName;
+    $('[data-guest-sees]').textContent = `You'll see: ${modeInfo[mode].guestSees.toLowerCase()}.`;
+    showSession();
+  });
+  room.on('script', (msg) => {
+    script = scriptFromText(msg.text, true);
+    if (mode === 'lines' && ready) renderScript();
+    startVoice();
+  });
+  room.on('state', (msg) => {
+    state = msg.state;
+    hostName = msg.state.hostName || hostName;
+    mode = msg.state.mode;
+    $('[data-host-name]').textContent = hostName;
+    applyState();
+  });
+  room.addEventListener('open', () => {
+    if (root.dataset.stage === 'connecting') setStage('green');
+    if (ready) room.send({ type: 'hello', role: 'guest', name });
+  });
+  room.addEventListener('refused', (e) => {
+    const why = (e as CustomEvent<string>).detail;
+    fail(/revoked/i.test(why) ? 'Your invite was revoked' : 'Couldn’t join', /revoked/i.test(why) ? 'Ask the host for a new code.' : why);
+  });
+  room.addEventListener('close', () => {
+    if (writer) warn('Offline · recording on this device', 'Your recording carries on here and catches up when you’re back online.');
+  });
+  room.addEventListener('open', () => warn(null));
+  room.connect();
+  openMic();
+  setTimeout(() => root.dataset.stage === 'connecting' && fail('Can’t reach the session', 'Check your connection, or ask the host to check the Podstudio server.'), 8000);
+
+  function warn(title: string | null, body = '') {
+    $('[data-warn]').hidden = !title;
+    $('[data-warn-title]').textContent = title ?? '';
+    $('[data-warn-body]').textContent = body;
+  }
+
+  // Voice follow on the guest's own lines (speaker-lines mode, not on an iPhone).
+  function startVoice() {
+    if (voice || mode !== 'lines' || !script || isIOS() || !voiceFollowSupported()) return;
+    voice = new VoiceFollow(script.words);
+    voice.track = capture.voiceTrack();
+    voice.setWord(state?.word ?? 0);
+    voice.addEventListener('word', (e) => {
+      const w = (e as CustomEvent<number>).detail;
+      if (script && isGuestLine(script.lines[lineOf(w)]?.who ?? '', name)) room.send({ type: 'guest', name, word: w });
+    });
+    voice.start();
+  }
+
+  // ── Recording on this device ────────────────────────────────────────────────
+  async function start() {
+    if (writer) return;
+    try {
+      if (!capture.ctx) await capture.open({ deviceId: wanted, sampleRate: hz(settings.rate), channels: settings.channels });
+      await capture.ctx!.resume();
+    } catch (err) {
+      warn('Couldn’t start your mic', (err as Error).message);
+      return;
+    }
+    const w = await TakeWriter.start({
+      episodeId: m!.episodeId,
+      kind: 'session',
+      markers: [],
+      lineLog: [],
+      group: `remote-${m!.sessionId}`,
+      startLine: 0,
+      startText: '',
+      speaker: name.toUpperCase(),
+      device: capture.label || 'Guest device',
+      sampleRate: capture.sampleRate,
+      bitDepth: settings.depth,
+      channels: capture.channels,
+    });
+    capture.addEventListener('chunk', (e) => writer?.push((e as CustomEvent<Float32Array>).detail));
+    capture.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
+    writer = w;
+    capture.record();
+    w.meta.startedAtServer = Math.round(room.serverNow());
+    uploader = new Uploader(
+      () => w.meta.segments,
+      async (n) => uploadSegment(m!, 'guest', n, await segmentFile(w.meta, n)),
+    );
+    uploadTrackMeta(m!, 'guest', trackMeta(w.meta, false)).catch(() => {});
+    (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<unknown> } }).wakeLock?.request('screen').catch(() => {});
+    setStage('rec');
+  }
+
+  const trackMeta = (t: TakeMeta, done: boolean) => ({
+    name,
+    sampleRate: t.sampleRate,
+    bitDepth: t.bitDepth,
+    channels: t.channels ?? 1,
+    startedAtServer: t.startedAtServer ?? null,
+    segments: t.segments,
+    samples: t.samples,
+    done,
+  });
+
+  let stopping = false;
+  async function stop() {
+    if (!writer || stopping) return;
+    stopping = true;
+    await capture.stop();
+    const meta = await writer.finish();
+    writer = null;
+    finished = meta;
+    setStage('done');
+    $('[data-banner-title]').textContent = 'Sending the last pieces…';
+    $('[data-banner-body]').textContent = 'Keep this page open for a moment.';
+    $('[data-viewport]').hidden = $('[data-points]').hidden = true;
+    $('[data-light]').hidden = true;
+    const all = await uploader!.flush();
+    await uploadTrackMeta(m!, 'guest', trackMeta(meta, all)).catch(() => {});
+    $('[data-banner-title]').textContent = all ? 'All sent. Thank you!' : 'Some pieces didn’t send';
+    $('[data-banner-body]').textContent = all
+      ? `${hostName} has your recording. You can close this page.`
+      : 'Download your recording below and send it to the host, so nothing is lost.';
+    $('[data-done-actions]').hidden = false;
+    capture.close();
+  }
+  $('[data-download]').addEventListener('click', async () => {
+    if (finished) download(await takeWav(finished), `${name || 'Guest'}_recording.wav`);
+  });
+
+  // Upload as it records, and tell the host how it's going.
+  setInterval(() => {
+    uploader?.tick();
+    if (!ready) return;
+    const st = uploader?.status;
+    const t = writer?.meta ?? finished;
+    const since = state?.startedAtServer ? (room.serverNow() - state.startedAtServer) / 1000 : 0;
+    $('[data-rec-label]').textContent = writer ? `REC ${clock(since)}` : finished ? 'DONE' : 'GUEST';
+    $('[data-upload]').textContent = st ? `Sent ${st.uploaded} of ${st.uploaded + st.pending} pieces${st.error ? ` · retrying (${st.error})` : ''}` : '';
+    if (st && st.pending > 6) warn('Uploads are behind', `${st.pending} pieces waiting. They catch up on their own; keep this page open.`);
+    room.send({
+      type: 'guest',
+      name,
+      level: Number.isFinite(Math.max(...peakHold)) ? Math.round(Math.max(...peakHold)) : -90,
+      clip: Date.now() - clipAt < 3000,
+      recording: !!writer,
+      uploaded: st?.uploaded ?? 0,
+      pending: st?.pending ?? 0,
+      done: !!finished && (st?.pending ?? 0) === 0,
+      mic: micLabel,
+      take: t ? { sampleRate: t.sampleRate, bitDepth: t.bitDepth, channels: t.channels ?? 1, startedAtServer: t.startedAtServer ?? null, segments: t.segments } : undefined,
+    });
+  }, 500);
+
+  // Cough: hold to mark a cut (on both tracks, so they stay the same length).
+  const coughBtn = $('[data-cough]');
+  const cough = (down: boolean) => {
+    if (!writer) return;
+    if (down) coughBtn.dataset.holding = '';
+    else delete coughBtn.dataset.holding;
+    navigator.vibrate?.(down ? 15 : 0);
+    room.send({ type: 'command', action: 'cough', down });
+  };
+  coughBtn.addEventListener('pointerdown', (e) => {
+    coughBtn.setPointerCapture(e.pointerId);
+    cough(true);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) coughBtn.addEventListener(ev, () => coughBtn.dataset.holding !== undefined && cough(false));
+  coughBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  addEventListener('beforeunload', (e) => {
+    if (writer || (uploader && uploader.status.pending)) e.preventDefault();
+  });
+</script>

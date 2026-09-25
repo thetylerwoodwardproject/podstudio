@@ -7,11 +7,13 @@ interface Props {
   title: string;
   crumbs: Crumb[];
   avatar?: boolean;
+  /** Skip the browser check (pages that don't record) */
+  anyBrowser?: boolean;
 }
-const { title, crumbs, avatar } = Astro.props;
+const { title, crumbs, avatar, anyBrowser } = Astro.props;
 ---
 
-<Base title={title}>
+<Base title={title} anyBrowser={anyBrowser}>
   <div class="flex h-dvh flex-col">
     <TopBar crumbs={crumbs} avatar={avatar}>
       <slot name="topbar-center" slot="center" />

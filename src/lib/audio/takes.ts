@@ -52,6 +52,10 @@ export interface TakeMeta {
   markers?: SessionMarker[];
   /** Continuous sessions: when each script line was reached */
   lineLog?: LineStart[];
+  /** Server clock (ms) when this track's recorder started, for lining up tracks from different devices */
+  startedAtServer?: number;
+  /** Recorded on another device (the guest's), fetched from the server */
+  remote?: boolean;
   /** Voice follow restarts, errors and stalls during the session, for diagnosing */
   voiceLog?: { t: number; at: string; event: string; detail?: string }[];
   /** Peak level per half second, 0..1, for waveforms */
@@ -172,9 +176,19 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
   }
   const parts: BlobPart[] = [];
   let bytes = 0;
+  // Stretches before the take starts or after it ends come out as silence, so a track
+  // from another device can be lined up with the host's (see alignedRanges).
+  const silence = (n: number) => {
+    if (n <= 0) return;
+    parts.push(new Uint8Array(n));
+    bytes += n;
+  };
   for (const [a, b] of ranges) {
-    const from = Math.min(total, Math.round(a * meta.sampleRate) * bytesPer);
-    const to = Math.min(total, Math.round(b * meta.sampleRate) * bytesPer);
+    const fa = Math.round(a * meta.sampleRate) * bytesPer;
+    const fb = Math.round(b * meta.sampleRate) * bytesPer;
+    silence(Math.min(fb, 0) - fa);
+    const from = Math.min(total, Math.max(0, fa));
+    const to = Math.min(total, Math.max(0, fb));
     files.forEach((f, i) => {
       const start = Math.max(from, offsets[i]);
       const end = Math.min(to, offsets[i] + f.size);
@@ -183,6 +197,7 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
         bytes += end - start;
       }
     });
+    silence(fb - Math.max(total, fa));
   }
   const tail = markerChunks(markers);
   const header = wavHeader(bytes / bytesPer, formatOf(meta), tail.length);
@@ -230,12 +245,46 @@ export async function tonedWav(meta: TakeMeta, tones: PlacedTone[], opts: ToneSe
   return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], { type: 'audio/wav' });
 }
 
+/**
+ * How far (seconds) a track from another device started after the host's, from
+ * their server-clock start times: positive when the guest started later.
+ */
+export function trackShift(track: TakeMeta, host: TakeMeta): number {
+  if (track === host || track.startedAtServer == null || host.startedAtServer == null) return 0;
+  return (track.startedAtServer - host.startedAtServer) / 1000;
+}
+
 export async function takeWav(meta: TakeMeta, variant?: string): Promise<Blob> {
   const parts = await pcmParts(meta, variant);
   const bytes = parts.reduce((n, p) => n + p.size, 0);
   return new Blob([wavHeader(bytes / frameBytes(meta), formatOf(meta)) as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : [])], {
     type: 'audio/wav',
   });
+}
+
+/** One saved segment (1-based) of a take, as a disk-backed File. */
+export async function segmentFile(meta: TakeMeta, n: number): Promise<File> {
+  const dir = await (await takesDir()).getDirectoryHandle(meta.id);
+  return (await dir.getFileHandle(segName(n))).getFile();
+}
+
+/**
+ * Save a take recorded elsewhere (the guest's, from the server) into this
+ * browser, segment by segment, so it exports like any other track.
+ */
+export async function saveRemoteTake(meta: TakeMeta, fetchSegment: (n: number) => Promise<ArrayBuffer>, onProgress?: (n: number) => void) {
+  const dir = await (await takesDir()).getDirectoryHandle(meta.id, { create: true });
+  let samples = 0;
+  for (let n = 1; n <= meta.segments; n++) {
+    const data = await fetchSegment(n);
+    await writeFile(dir, segName(n), data);
+    samples += data.byteLength / frameBytes(meta);
+    onProgress?.(n);
+  }
+  meta.samples = samples;
+  meta.status = 'done';
+  await writeFile(dir, 'meta.json', JSON.stringify(meta));
+  return meta;
 }
 
 /** `count` frames from frame `from` onward, as float samples (interleaved when stereo). */
