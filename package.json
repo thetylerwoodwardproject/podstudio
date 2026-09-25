@@ -6,11 +6,11 @@
   "license": "MIT",
   "scripts": {
     "dev": "astro dev",
-    "dev:phone": "HTTPS=1 astro dev --host",
+    "dev:phone": "astro dev --host",
     "build": "astro check && astro build",
-    "preview": "astro preview",
+    "preview": "node dev/serve.ts",
     "check": "astro check",
-    "test": "node --test 'src/**/*.test.ts'"
+    "test": "node --test 'src/**/*.test.ts' 'dev/**/*.test.ts'"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -22,7 +22,10 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@types/node": "^26.6.2",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "ws": "^8.21.3"
   }
 }

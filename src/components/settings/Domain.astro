@@ -17,7 +17,7 @@ const warn = 'var(--color-warn)';
 const proxies = [
   { value: 'caddy', label: 'Caddy', hint: 'No Certbot needed. Caddy gets and renews certificates for you.' },
   { value: 'nginx', label: 'Nginx', hint: 'Nginx needs Certbot to get and renew certificates.' },
-  { value: 'none', label: 'None (local only)', hint: 'Only this computer can record. Other devices can still show the prompter on your local network.' },
+  { value: 'none', label: 'None (local only)', hint: 'Self-signed HTTPS on your local network: each device accepts a certificate warning once.' },
 ];
 const states = [
   { value: 'ok', label: 'Healthy' },
@@ -47,8 +47,9 @@ const segBtn =
     <Button slot="action" href="#fix" class="h-9 px-3.5 text-[13px]">How to fix</Button>
   </Callout>
   <Callout data-when="local" size="lg" title="Local only" color="var(--color-muted)">
-    Right now, only the computer running Podstudio can record. Browsers only allow the microphone over HTTPS, so
-    recording on your phone needs a domain with a certificate.
+    Podstudio serves HTTPS with a self-signed certificate until a domain is set up, so phones, guests and your
+    producer on this network can connect. Each device shows a certificate warning the first time: accept it once.
+    Add a domain below to get a real certificate from Caddy or Nginx with Certbot.
   </Callout>
 
   <div class="flex flex-col gap-2" data-when="ok warn">
