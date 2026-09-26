@@ -20,6 +20,27 @@ in the code.
 
 Before adding a one-off style, check whether a component above already does it.
 
+### Svelte for stateful panels
+
+Pages, layouts and simple components are `.astro`. A panel with a lot of
+state that changes as you use it (several controls that affect each other,
+graphs that follow the settings) is a Svelte 5 component in
+`src/components/`, like `app/ToneCard.svelte`:
+
+- Style it with Tailwind classes and the tokens above, the same as `.astro`
+  files. Write class names out in full; for values only known at runtime
+  (speaker colours, positions) use `style:` bindings.
+- Keep audio, measurement and file work in `src/lib/` as plain TypeScript,
+  and pass it in. The component holds UI state and reports changes
+  (`onchange`); the page owns the data.
+- When the data only exists in the browser (takes in OPFS), the page script
+  mounts it with `mount()` from `svelte`, loaded with a dynamic `import()` so
+  the page opens without it.
+- Keep the `data-*` hooks the browser tests use.
+- `npx svelte-check` must pass, as well as `npx astro check`.
+- Existing panels move to Svelte only when they need real work. The recording
+  screen and `lib/audio` stay as they are.
+
 ## Fonts
 - Sans: `-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif`
 - Mono: `ui-monospace, 'SF Mono', Menlo, monospace`. Use it for numbers, units, times, key hints and caps tags.

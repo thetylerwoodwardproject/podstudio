@@ -254,8 +254,6 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
   import { flatTone, toneActive, toneSummary, type VoiceTone } from '@/lib/audio/tone';
   import { longTermSpectrum } from '@/lib/audio/spectrum';
   import { TonePreview } from '@/lib/audio/tone-preview';
-  import { flushSync, mount } from 'svelte';
-  import ToneCard from '@/components/app/ToneCard.svelte';
   import { mountLoudness } from '@/lib/loudness-view';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadScript } from '@/lib/script-store';
@@ -593,6 +591,8 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         saveSettings('recording', { publish: { ...p, voices: { ...p.voices, ...structuredClone(tones) } } });
       }, 300);
     };
+    // The card (and Svelte) load just after the page, so the page itself opens as fast as before.
+    const [{ mount, flushSync }, { default: ToneCard }] = await Promise.all([import('svelte'), import('@/components/app/ToneCard.svelte')]);
     const toneView = mount(ToneCard, {
       target: $('[data-tone-mount]'),
       props: {
