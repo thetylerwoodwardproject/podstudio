@@ -23,7 +23,9 @@
   <a href="#where-it-stands">Where it stands</a> ·
   <a href="#try-it">Try it</a> ·
   <a href="#put-it-on-a-server">Deploy</a> ·
-  <a href="docs/roadmap.md">Roadmap</a>
+  <a href="#more-screens">Screens</a> ·
+  <a href="docs/roadmap.md">Roadmap</a> ·
+  <a href="#made-by">Made by</a>
 </p>
 
 > [!WARNING]
@@ -66,6 +68,40 @@ kept in step.
 | 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
 
 Every feature in detail: [docs/features.md](docs/features.md).
+
+## More screens
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/recording-more.png" alt="The More panel while recording: pause, text size, sections, the mic and what's saved"></td>
+    <td width="50%"><img src="docs/images/export.png" alt="Export: the raw WAV with markers, the assembled edit, marker tones and noise suppression"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>More</b>: pause, text size, jump to a section, the mic and what's saved</sub></td>
+    <td align="center"><sub><b>Export</b>: raw WAV with markers, the assembled edit, noise suppression</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/script.png" alt="The script editor, with sections and the running word count"></td>
+    <td width="50%"><img src="docs/images/sessions.png" alt="Sessions: play a take, open it to export, download the raw WAV"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Script</b>: paste or import, sections from <code>## headings</code></sub></td>
+    <td align="center"><sub><b>Sessions</b>: every take, with its markers, ready to play or export</sub></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="34%" align="center"><img src="docs/images/phone-recording.png" alt="Recording on a phone: the script, the level meter and the control bar" width="260"></td>
+    <td width="66%" valign="middle">
+      <h3>On a phone, too</h3>
+      <p>The same control bar works on a phone: Cough, Retake and Ad-lib under your thumb, the level meter above them, and the script taking the rest of the screen. iPhones and iPads with iOS 17 or later record through Safari or any other browser; Android works in Chrome.</p>
+      <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
+      <img src="docs/images/saved.png" alt="Session saved: length, markers, size and format">
+      <p><sub><b>Session saved</b>: length, markers, file size, and how much is already on the server</sub></p>
+    </td>
+  </tr>
+</table>
 
 ## Where it stands
 
@@ -115,6 +151,21 @@ The installer walks you through everything:
 
 Run it again to upgrade; it backs up the database first. Podstudio idles at
 about 120 MB of RAM. The full guide is [docs/deploy.md](docs/deploy.md).
+
+## Made by
+
+<table>
+  <tr>
+    <td valign="middle">
+      Podstudio is made by <b>Tyler Woodward</b>, host of the podcast <a href="https://tylerwoodward.me"><b>The Tyler Woodward Project</b></a>.
+      <br><br>
+      <a href="https://tylerwoodward.me"><img alt="The Tyler Woodward Project" src="https://img.shields.io/badge/podcast-tylerwoodward.me-ff453a?style=flat-square"></a>
+      <a href="https://www.facebook.com/thetylerwoodwardproject"><img alt="Facebook" src="https://img.shields.io/badge/Facebook-thetylerwoodwardproject-26272b?style=flat-square&logo=facebook&logoColor=white"></a>
+      <a href="https://www.threads.net/@tylerwoodward.me"><img alt="Threads" src="https://img.shields.io/badge/Threads-@tylerwoodward.me-26272b?style=flat-square&logo=threads&logoColor=white"></a>
+      <a href="https://www.instagram.com/tylerwoodward.me"><img alt="Instagram" src="https://img.shields.io/badge/Instagram-@tylerwoodward.me-26272b?style=flat-square&logo=instagram&logoColor=white"></a>
+    </td>
+  </tr>
+</table>
 
 ## For developers
 
