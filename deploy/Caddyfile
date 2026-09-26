@@ -1,6 +1,7 @@
 # Podstudio behind Caddy: HTTPS with an automatic Let's Encrypt certificate,
-# renewed on its own. install.sh writes this to /etc/caddy/Caddyfile with your
-# domain, and an `email` global option first if you gave one.
+# renewed on its own. install.sh writes this to /etc/caddy/sites/podstudio.caddy
+# with your domain; /etc/caddy/Caddyfile imports every file in that folder, so
+# other sites on the same Caddy (like the landing page, site/) sit beside it.
 {$DOMAIN} {
 	encode zstd gzip
 	# Recording pieces are small (5 s, about 1.4 MB), pad sounds up to 200 MB.

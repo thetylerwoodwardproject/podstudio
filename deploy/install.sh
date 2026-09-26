@@ -21,6 +21,7 @@
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
+. "$SRC/deploy/caddy-sites.sh"
 APP=/opt/podstudio
 DATA=/var/lib/podstudio
 ENV_FILE=/etc/podstudio.env
@@ -80,12 +81,11 @@ install_caddy() {
   ok "Caddy $(caddy version | cut -d' ' -f1)"
 }
 configure_caddy() {
-  {
-    if [[ -n "$EMAIL" ]]; then printf '{\n\temail %s\n}\n\n' "$EMAIL"; fi
-    sed "s/{\$DOMAIN}/$DOMAIN/" "$APP/deploy/Caddyfile"
-  } > /etc/caddy/Caddyfile
-  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || fail "The Caddyfile doesn't validate: caddy validate --config /etc/caddy/Caddyfile"
-  ok "Caddy set up for $DOMAIN"
+  # Podstudio is one site among any others on this Caddy (deploy/caddy-sites.sh).
+  caddy_use_sites "$EMAIL"
+  sed "s/{\$DOMAIN}/$DOMAIN/" "$APP/deploy/Caddyfile" > /tmp/podstudio.caddy
+  caddy_write_site podstudio /tmp/podstudio.caddy
+  ok "Caddy set up for $DOMAIN ($CADDY_SITES/podstudio.caddy)"
 }
 install_nginx() {
   apt-get install -y -qq nginx certbot python3-certbot-nginx >/dev/null || fail "Couldn't install Nginx and Certbot (apt-get install nginx certbot python3-certbot-nginx)."
@@ -138,7 +138,7 @@ proxy_facts() {
   if [[ "$PROXY" == nginx ]]; then
     PROXY_NAME="Nginx + Certbot" PROXY_CONF="$NGINX_SITE" PROXY_LOG="journalctl -u nginx -n 30, /var/log/letsencrypt/letsencrypt.log"
   else
-    PROXY_NAME="Caddy" PROXY_CONF=/etc/caddy/Caddyfile PROXY_LOG="journalctl -u caddy -n 30"
+    PROXY_NAME="Caddy" PROXY_CONF=/etc/caddy/sites/podstudio.caddy PROXY_LOG="journalctl -u caddy -n 30"
   fi
 }
 

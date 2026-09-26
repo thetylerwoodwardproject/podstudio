@@ -1,0 +1,18 @@
+# The landing page (site/), static files only. site/deploy.sh writes this to
+# /etc/caddy/sites/<domain>.caddy; Caddy gets and renews the certificate.
+{$DOMAIN} {
+	root * /var/www/{$DOMAIN}
+	encode zstd gzip
+	file_server
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+	}
+	@assets path /images/* /style.css /favicon.svg /og.png
+	header @assets Cache-Control "public, max-age=86400"
+}

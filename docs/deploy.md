@@ -37,7 +37,7 @@ It walks you through eight steps, checking each one:
    | | |
    |---|---|
    | `podstudio` | the app, on `127.0.0.1:4321` (systemd unit: `deploy/podstudio.service`) |
-   | `caddy` | HTTPS on your domain, in front of it (`/etc/caddy/Caddyfile`, from `deploy/Caddyfile`) |
+   | `caddy` | HTTPS on your domain, in front of it (`/etc/caddy/sites/podstudio.caddy`, from `deploy/Caddyfile`) |
    | or `nginx` | the same with `--proxy nginx` (`/etc/nginx/sites-available/podstudio`, from `deploy/nginx.conf`; Certbot adds HTTPS) |
 
 7. **Backups:** offers a nightly backup to `/var/backups/podstudio` (see below).
@@ -62,6 +62,18 @@ sudo ./deploy/install.sh --domain podcast.example.com --email you@example.com --
 
 `--proxy nginx` picks Nginx; `--no-firewall` and `--no-backups` skip those
 steps; `--help` lists the options.
+
+## Other sites on the same Caddy
+
+`/etc/caddy/Caddyfile` only holds the global options (the certificate email)
+and `import /etc/caddy/sites/*.caddy`; each site is its own file in that
+folder. Podstudio's is `podstudio.caddy`. Add your own sites there and they
+survive reinstalls and upgrades. The landing page is one (`site/`,
+`sudo ./site/deploy.sh`; see `site/README.md`).
+
+An install from before this layout has Podstudio's site written into
+`/etc/caddy/Caddyfile` itself. The first run of either script moves it to
+`sites/podstudio.caddy` and keeps a backup of the old file beside it.
 
 ## Using Nginx instead
 
