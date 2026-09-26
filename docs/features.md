@@ -79,10 +79,26 @@ like cameras with timecode, with three things:
   least-late chunk. A 40-minute recording has about 480 of them; they travel
   with the guest's track to your browser.
 - **Timecode in every file.** Each exported WAV has a Broadcast WAV (`bext`)
-  start time on the session clock. Premiere, Resolve, Reaper, Pro Tools and
-  Audition can line the files up by timecode on their own, without Podstudio.
+  start time on the session clock. Editors such as Pro Tools, Reaper, Logic,
+  Cubase, Resolve and Premiere can line the files up by it on their own.
   Full-length files share one timecode; each edit starts at the timecode of
   its first kept moment, the same on every track.
+
+  | Editor | Placing files at their timecode |
+  |---|---|
+  | Pro Tools | Spot mode, then the clip's **Original Time Stamp** |
+  | Reaper | **Item: Move to media source preferred position (BWF start offset)** |
+  | Logic Pro | **Move Region to Recorded Position** |
+  | Cubase, Nuendo | **Move to Origin** |
+  | DaVinci Resolve (Fairlight) | **Auto Sync Audio → Based on Timecode**, or the clip's source timecode |
+  | Premiere Pro | **Synchronize → Timecode** |
+
+  Menu names vary a little between versions. Audacity and GarageBand ignore
+  the timestamp. You don't need timecode for a normal export anyway: every
+  full-length file starts at the same moment and runs the same length, and
+  every edit has the same cuts, so dropping them all at the start lines them
+  up in any editor. Timecode helps when files have been trimmed or moved, or
+  when you add audio from a camera or another recorder.
 
 At export, Podstudio fits each device's clock from its sync points:
 
