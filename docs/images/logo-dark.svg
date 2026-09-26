@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="96" viewBox="0 0 440 96" role="img" aria-label="Podstudio">
+  <!-- The mark: a record dot and the script, the current line lit -->
+  <rect x="4" y="4" width="88" height="88" rx="22" fill="#0b0b0c"/>
+  <rect x="4.5" y="4.5" width="87" height="87" rx="21.5" fill="none" stroke="#26272b"/>
+  <circle cx="34" cy="48" r="13" fill="#ff453a"/>
+  <circle cx="34" cy="48" r="19" fill="none" stroke="#ff453a" stroke-opacity=".28" stroke-width="3"/>
+  <rect x="59" y="33" width="20" height="5" rx="2.5" fill="#3a3b3f"/>
+  <rect x="59" y="45.5" width="22" height="5" rx="2.5" fill="#ededea"/>
+  <rect x="59" y="58" width="14" height="5" rx="2.5" fill="#3a3b3f"/>
+  <text x="116" y="59" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="600" letter-spacing="-0.8" textLength="196" lengthAdjust="spacingAndGlyphs" fill="#ededea">Podstudio</text>
+  <text x="118" y="81" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="500" letter-spacing="1.2" textLength="300" lengthAdjust="spacingAndGlyphs" fill="#8a8c91">TELEPROMPTER · RECORDER · SELF-HOSTED</text>
+</svg>

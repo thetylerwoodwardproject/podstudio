@@ -1,4 +1,28 @@
-# Podstudio
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img src="docs/images/logo-light.svg" alt="Podstudio" width="440">
+  </picture>
+</p>
+
+<p align="center">A free, self-hosted teleprompter and podcast recorder.<br>Read your script, record lossless WAV, and keep every retake marked.</p>
+
+<p align="center">
+  <img src="docs/images/recording.png" alt="Recording: the script follows your voice, the current line is marked, and Cough, Retake and Ad-lib are one key away" width="900">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/studio.png" alt="The studio: the episode's script with recording format and scrolling beside it"></td>
+    <td width="50%"><img src="docs/images/settings-recording.png" alt="Settings: recording format, noise suppression and marker tones"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The studio: script, format and voice follow</sub></td>
+    <td align="center"><sub>Recording settings: format, noise suppression, marker tones</sub></td>
+  </tr>
+</table>
+
+## What it is
 
 A free, self-hosted teleprompter and recorder for podcasts, audio only. Record solo, or with **one guest** and an optional **producer**: everyone talks on their usual call (Zoom, Teams…) and Podstudio records each person on their own device, losslessly, with the script kept in step. Voice follow scrolls the script as you talk, and the recording is a lossless WAV with retakes, coughs, pauses and ad-libs as markers.
 
