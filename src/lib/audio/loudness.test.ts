@@ -123,3 +123,25 @@ test('leveler and meter give the same result in chunks as in one go', () => {
   }
   for (let i = 0; i < x.length; i += 997) assert.ok(Math.abs(joined[i] - whole[i]) < 1e-7);
 });
+
+test('short-term history and loudness range', () => {
+  const rate = 48000;
+  // 20 s at −20 dBFS, then 20 s at −30 dBFS (a 10 dB step), stereo
+  const x = new Float32Array(rate * 40 * 2);
+  for (let i = 0; i < rate * 40; i++) {
+    const a = 10 ** ((i < rate * 20 ? -20 : -30) / 20);
+    x[2 * i] = x[2 * i + 1] = a * Math.sin((2 * Math.PI * 1000 * i) / rate);
+  }
+  const m = new LoudnessMeter(rate, 2);
+  m.push(x);
+  const h = m.shortTerm(1);
+  assert.equal(h.length, 40);
+  assert.equal(h[1], -Infinity, 'nothing until 3 s in');
+  assert.ok(Math.abs(h[10] - -20) < 0.2 && Math.abs(h[35] - -30) < 0.2, `${h[10]} ${h[35]}`);
+  const lra = m.range()!;
+  assert.ok(Math.abs(lra - 10) < 0.6, `range ${lra}`);
+  // A steady tone has almost no range
+  const steady = new LoudnessMeter(rate, 2);
+  steady.push(x.subarray(0, rate * 18 * 2));
+  assert.ok(steady.range()! < 0.2);
+});

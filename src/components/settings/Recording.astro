@@ -148,6 +148,13 @@ const toneSliders = [
     <Fragment slot="hint"><span class="font-mono text-[12px] whitespace-nowrap">128 kbps</span> mono or <span class="font-mono text-[12px] whitespace-nowrap">192 kbps</span> stereo, beside the WAV</Fragment>
     <Switch name="publish-mp3" label="MP3 too" />
   </Row>
+  <Row title="Loudness meter" hint="On the export page: the episode's loudness while you preview, and what the finished file measured" data-publish-options>
+    <Switch name="publish-meter" label="Loudness meter" />
+  </Row>
+  <Row title="Tone" data-publish-options data-publish-voices>
+    <Fragment slot="hint"><span data-voices-text>Set each person's EQ and compressor on the export page; it's remembered here by name.</span></Fragment>
+    <button type="button" class="h-9 flex-none rounded-[10px] border border-border px-3 text-[14px] text-text hover:border-handle" data-voices-forget hidden>Forget</button>
+  </Row>
 </Card>
 
 <Card label="Session" rows>
@@ -158,6 +165,7 @@ const toneSliders = [
 <script>
   import { channelsLabel, mbPerMinute } from '@/lib/audio/format';
   import { loadSettings, saveSettings } from '@/lib/settings';
+  import { toneActive, toneSummary } from '@/lib/audio/tone';
   import { inputChoices, inputFor } from '@/lib/audio/devices';
 
   // Marker tones.
@@ -195,6 +203,22 @@ const toneSliders = [
     box('publish-mix').checked = p.mix;
     box('publish-level').checked = p.level;
     box('publish-mp3').checked = p.mp3;
+    box('publish-meter').checked = p.meter;
+    // Remembered tones, by name
+    const showVoices = () => {
+      const voices = loadSettings().recording.publish.voices;
+      const names = Object.keys(voices).filter((n) => toneActive(voices[n]));
+      const cap = (n: string) => n.charAt(0) + n.slice(1).toLowerCase();
+      pub.querySelector('[data-voices-text]')!.textContent = names.length
+        ? `Remembered for ${names.map(cap).join(', ').replace(/, ([^,]*)$/, ' and $1')}: ${names.map((n) => toneSummary(voices[n])).join('; ')}. Change them on the export page.`
+        : "Set each person's EQ and compressor on the export page; it's remembered here by name.";
+      pub.querySelector<HTMLElement>('[data-voices-forget]')!.hidden = !names.length;
+    };
+    showVoices();
+    pub.querySelector('[data-voices-forget]')!.addEventListener('click', () => {
+      saveSettings('recording', { publish: { ...loadSettings().recording.publish, voices: {} } });
+      showVoices();
+    });
     pub.querySelector<HTMLInputElement>(`[name="publish-loudness"][value="${p.loudness}"]`)!.checked = true;
     const targets = { stereo: '−16 LUFS', mono: '−19 LUFS', off: 'Off' };
     const dim = () => {
@@ -209,6 +233,8 @@ const toneSliders = [
     pub.addEventListener('change', () => {
       saveSettings('recording', {
         publish: {
+          ...loadSettings().recording.publish,
+          meter: box('publish-meter').checked,
           mix: box('publish-mix').checked,
           level: box('publish-level').checked,
           mp3: box('publish-mp3').checked,

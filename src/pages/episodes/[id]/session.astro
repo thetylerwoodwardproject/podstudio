@@ -9,6 +9,8 @@ import Card from '@/components/ui/Card.astro';
 import Row from '@/components/ui/Row.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Switch from '@/components/ui/Switch.astro';
+import ToneCard from '@/components/app/ToneCard.astro';
+import LoudnessCard from '@/components/app/LoudnessCard.astro';
 import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
 export const prerender = false;
@@ -207,6 +209,9 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       </Row>
     </Card>
 
+    <ToneCard />
+    <LoudnessCard />
+
     <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
       <span class="meta mr-auto text-muted" data-summary></span>
       <Button data-open-markers>Open markers</Button>
@@ -246,6 +251,11 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
   import { denoiseTake, previewTake } from '@/lib/audio/denoise';
   import { loadSettings, saveSettings } from '@/lib/settings';
+  import { flatTone, toneActive, toneSummary, type VoiceTone } from '@/lib/audio/tone';
+  import { longTermSpectrum } from '@/lib/audio/spectrum';
+  import { TonePreview } from '@/lib/audio/tone-preview';
+  import { mountTone } from '@/lib/tone-view';
+  import { mountLoudness } from '@/lib/loudness-view';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadScript } from '@/lib/script-store';
 
@@ -530,6 +540,19 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       dim();
       form.addEventListener('change', dim);
     }
+    // Tone: each person's EQ and compressor, remembered by name (Settings → Recording → Tone).
+    const voiceKeys = new Map<TakeMeta, string>();
+    for (const t of tracks) {
+      let k = t.speaker || (t === take ? 'HOST' : 'GUEST');
+      while ([...voiceKeys.values()].includes(k)) k += '+';
+      voiceKeys.set(t, k);
+    }
+    const voiceKey = (t: TakeMeta) => voiceKeys.get(t)!;
+    const savedVoices = loadSettings().recording.publish.voices;
+    const tones: Record<string, VoiceTone> = Object.fromEntries(tracks.map((t) => [voiceKey(t), structuredClone(savedVoices[voiceKey(t)] ?? flatTone())]));
+    /** A processed copy of someone's edit: levelled (and toned), or toned only. */
+    const copyOf = (o: ReturnType<typeof options>, t: TakeMeta) => (o.pub.level ? 'levelled' : toneActive(tones[voiceKey(t)]) ? 'toned' : null);
+
     // The ranges each episode file (and levelled copy) is made from: the edit's, or the whole session.
     const pubParts = (o: ReturnType<typeof options>) => (o.assembled ? assemble(duration, wallMarkers, lineLog, o.pauses).files : [[[0, duration]] as [number, number][]]);
     const refresh = () => {
@@ -545,11 +568,12 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       const parts = o.pub.mix ? pubParts(o).length : 0;
       const pubLen = o.assembled ? duration - a.removed : duration;
       const pubCh = o.pub.loudness === 'mono' ? 1 : 2;
-      const pubFiles = parts * (1 + (o.pub.mp3 ? 1 : 0)) + (o.pub.mix && o.pub.level ? parts * tracks.length : 0);
+      const withCopy = o.pub.mix ? tracks.filter((t) => copyOf(o, t)) : [];
+      const pubFiles = parts * (1 + (o.pub.mp3 ? 1 : 0)) + parts * withCopy.length;
       const pubBytes = o.pub.mix
         ? pubLen * take.sampleRate * (take.bitDepth / 8) * pubCh +
           (o.pub.mp3 ? (pubLen * (pubCh === 2 ? 192 : 128) * 1000) / 8 : 0) +
-          (o.pub.level ? tracks.reduce((n, t) => n + pubLen * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0) : 0)
+          withCopy.reduce((n, t) => n + pubLen * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0)
         : 0;
       const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0) + (take.voiceLog?.length ? 1 : 0) + pubFiles;
       const padBytes = withPads ? duration * take.sampleRate * (take.bitDepth / 8) * 2 * (1 + (o.assembled ? 1 : 0) + (o.mix ? 1 : 0)) : 0;
@@ -557,6 +581,160 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
     };
     form.addEventListener('change', refresh);
     refresh();
+
+    // ── Tone (each person's EQ and compressor) and the episode's loudness meter ──
+    const targetOf = (o: ReturnType<typeof options>) => (o.pub.loudness === 'off' ? null : TARGETS[o.pub.loudness].lufs);
+    let saveTimer = 0;
+    const rememberTones = () => {
+      clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => {
+        const p = loadSettings().recording.publish;
+        saveSettings('recording', { publish: { ...p, voices: { ...p.voices, ...structuredClone(tones) } } });
+      }, 300);
+    };
+    const toneView = mountTone(
+      $('[data-tone]'),
+      tracks.map((t) => ({ key: voiceKey(t), name: cap(t.speaker), role: t === take ? 'Host' : 'Guest', color: t === take ? 'var(--color-spk-yellow)' : 'var(--color-spk-teal)' })),
+      tones,
+      {
+        rate: take.sampleRate,
+        spectrum: async (k) => longTermSpectrum(await takeWav(tracks.find((t) => voiceKey(t) === k)!)),
+        onChange: () => {
+          rememberTones();
+          refresh();
+          previewChanged();
+        },
+      },
+    );
+    const loudRoot = $('[data-loudness]');
+    const meterOn = loadSettings().recording.publish.meter;
+    loudRoot.hidden = !meterOn;
+    const loud = mountLoudness(loudRoot);
+    loud.setTarget(targetOf(options()));
+    function showExported({ r, seconds, parts }: { r: Awaited<ReturnType<typeof renderMaster>>; seconds: number; parts: number }) {
+      const short = [...r.history].reverse().find((x) => Number.isFinite(x)) ?? -Infinity;
+      loud.show({ integrated: r.result, short, momentary: -Infinity, range: r.range, peak: r.truePeak, history: r.history, seconds });
+      loud.note(`What the exported episode${parts > 1 ? ' (part 1)' : ''} measured, start to finish. Short-term is its last 3 s.`, 'Exported');
+    }
+
+    // Preview: 30 s of the episode through the export's own chain (lib/audio/tone-preview.ts).
+    let tonePreview: TonePreview | null = null;
+    let previewFor = '';
+    let padsReady = false;
+    let rendering = false;
+    let again = false;
+    let renderTimer = 0;
+    const pBtn = $<HTMLButtonElement>('[data-tone-preview]');
+    const pStatus = $('[data-tone-preview-status]');
+    const abGroup = $('[data-tone-ab]');
+    const optsKey = (o: ReturnType<typeof options>) => `${o.pub.loudness}|${o.pub.level}|${o.assembled}|${o.pauses}`;
+    const playingText = () =>
+      tonePreview?.ab === 'original' ? "Original: everyone's tone off, at the same loudness." : "The episode mix with everyone's tone, as the export makes it.";
+    async function buildPreview(o: ReturnType<typeof options>) {
+      const ranges = pubParts(o)[0];
+      const total = ranges.reduce((n, [a, b]) => n + b - a, 0);
+      const len = Math.min(30, total);
+      const s0 = total > 40 ? Math.min(total - 30, total * 0.3) : 0;
+      // That stretch of the edit, as ranges of the session
+      const sub: [number, number][] = [];
+      let pos = 0;
+      for (const [a, b] of ranges) {
+        const from = Math.max(a, a + (s0 - pos));
+        const to = Math.min(b, a + (s0 + len - pos));
+        if (to > from) sub.push([from, to]);
+        pos += b - a;
+      }
+      const inputs = [];
+      for (const t of tracks) inputs.push({ key: voiceKey(t), wav: await rangesWav(t, aligned(t, sub), [], undefined, mutedFor(t), null) });
+      if (withPads) {
+        if (!padsReady) await renderPads(take!, (d) => (pStatus.textContent = `Pads track… ${Math.round(d * 100)}%`));
+        padsReady = true;
+        inputs.push({ key: null, wav: await rangesWav(stereoOf(take!), sub, [], 'pads', [], null) });
+      }
+      return new TonePreview(inputs, { rate: take!.sampleRate, channels: o.pub.loudness === 'mono' ? 1 : 2, lufs: targetOf(o), levelling: o.pub.level });
+    }
+    async function renderPreview() {
+      if (!tonePreview) return;
+      if (rendering) {
+        again = true;
+        return;
+      }
+      rendering = true;
+      pStatus.textContent = 'Updating…';
+      try {
+        do {
+          again = false;
+          await tonePreview.render(tones);
+        } while (again);
+        pStatus.textContent = tonePreview.playing ? playingText() : '';
+      } finally {
+        rendering = false;
+      }
+    }
+    function previewChanged() {
+      if (!tonePreview) return;
+      clearTimeout(renderTimer);
+      renderTimer = window.setTimeout(renderPreview, 250);
+    }
+    function stopPreview(text = '') {
+      tonePreview?.stop();
+      pBtn.textContent = 'Preview 30 s';
+      toneView.live(null, null);
+      pStatus.textContent = text;
+    }
+    let frame = 0;
+    function tick() {
+      if (!tonePreview?.playing) return;
+      requestAnimationFrame(tick);
+      const t = tonePreview.position();
+      if (meterOn && tonePreview.meter) loud.show(tonePreview.loudnessAt(t));
+      if (frame++ % 2 === 0) {
+        const v = tonePreview.voiceAt(toneView.key, t);
+        toneView.live(v.spectrum, v.level);
+      }
+    }
+    pBtn.addEventListener('click', async () => {
+      if (tonePreview?.playing) return stopPreview();
+      const o = options();
+      pBtn.disabled = true;
+      try {
+        if (!tonePreview || previewFor !== optsKey(o)) {
+          tonePreview?.close();
+          pStatus.textContent = 'Getting 30 s of the episode ready…';
+          tonePreview = await buildPreview(o);
+          previewFor = optsKey(o);
+          await renderPreview();
+        }
+        await tonePreview.play();
+        abGroup.hidden = false;
+        pBtn.textContent = 'Stop';
+        pStatus.textContent = playingText();
+        loud.note('The preview, measured as it plays: 30 s of the episode with everyone’s tone, as the export makes it.', 'Preview');
+        tick();
+      } catch (err) {
+        pStatus.textContent = `Couldn’t preview: ${(err as Error).message}`;
+      } finally {
+        pBtn.disabled = false;
+      }
+    });
+    abGroup.querySelectorAll<HTMLButtonElement>('[data-ab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        tonePreview?.setAb(b.dataset.ab as 'original' | 'tone');
+        abGroup.querySelectorAll('[data-ab]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        if (tonePreview?.playing) pStatus.textContent = playingText();
+      }),
+    );
+    // Loudness, levelling or the edit changed: the preview has to be made again.
+    form.addEventListener('change', (e) => {
+      const o = options();
+      loud.setTarget(targetOf(o));
+      if ((e.target as HTMLElement).closest('[data-tone]')) return;
+      if (tonePreview && previewFor !== optsKey(o)) {
+        tonePreview.close();
+        tonePreview = null;
+        stopPreview('Settings changed: preview again to hear them.');
+      }
+    });
 
     exportBtn.addEventListener('click', async () => {
       const o = options();
@@ -684,6 +862,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
 
         // Ready to publish: everyone mixed at the loudness target, peaks under −1 dBTP.
         const pubLines: string[] = [];
+        const results: { r: Awaited<ReturnType<typeof renderMaster>>; seconds: number; parts: number }[] = [];
         if (o.pub.mix) {
           const target = o.pub.loudness === 'off' ? null : TARGETS[o.pub.loudness];
           const outCh: 1 | 2 = o.pub.loudness === 'mono' ? 1 : 2;
@@ -697,8 +876,9 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
             const inputs: MasterTrack[] = [];
             for (const t of tracks) {
               const wav = await rangesWav(t, aligned(t, ranges), [], variant ?? undefined, mutedFor(t), null);
-              const input: MasterTrack = { wav, level: true };
-              if (o.pub.level) {
+              const tone = tones[voiceKey(t)];
+              const input: MasterTrack = { wav, level: true, tone: toneActive(tone) ? tone : undefined };
+              if (copyOf(o, t)) {
                 const w = await VariantWriter.open(t, `level-${i + 1}`);
                 writers.push(w);
                 input.levelled = (x) => w.write(x);
@@ -719,20 +899,24 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
                 name: `${label}_Episode${suffix}.mp3`,
                 data: await encodeMp3(episodeWav, `${title}${suffix ? ` (part ${i + 1})` : ''}`, (d) => ($('[data-export-label]').textContent = `MP3${suffix ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`)),
               });
-            if (o.pub.level)
-              for (const t of tracks) {
-                const file = o.assembled ? `${name(t)}_edit${parts.length > 1 ? `_part${i + 1}` : ''}_levelled` : `${name(t)}_levelled`;
-                entries.push({ name: `${file}.wav`, data: await takeWav(t, `level-${i + 1}`, tc(t, at)) });
-              }
+            for (const t of tracks) {
+              const copy = copyOf(o, t);
+              if (!copy) continue;
+              const file = o.assembled ? `${name(t)}_edit${parts.length > 1 ? `_part${i + 1}` : ''}_${copy}` : `${name(t)}_${copy}`;
+              entries.push({ name: `${file}.wav`, data: await takeWav(t, `level-${i + 1}`, tc(t, at)) });
+            }
             const f = (x: number) => (Number.isFinite(x) ? x.toFixed(1).replace('-', '−') : '—');
             pubLines.push(
-              `Episode${suffix ? ` part ${i + 1}` : ''}: ${target ? `${f(r.result)} LUFS integrated (${f(r.measured)} before, gain ${r.gain >= 0 ? '+' : '−'}${Math.abs(r.gain).toFixed(1)} dB)` : `loudness unchanged (${f(r.measured)} LUFS)`}, ${outCh === 2 ? 'stereo' : 'mono'}, true peak under −1 dBTP; levelling ${o.pub.level ? 'on' : 'off'}${variant ? ', from the noise-suppressed audio' : ''}.`,
+              `Episode${suffix ? ` part ${i + 1}` : ''}: ${target ? `${f(r.result)} LUFS integrated (${f(r.measured)} before, gain ${r.gain >= 0 ? '+' : '−'}${Math.abs(r.gain).toFixed(1)} dB)` : `loudness unchanged (${f(r.measured)} LUFS)`}, ${outCh === 2 ? 'stereo' : 'mono'}, true peak ${f(r.truePeak)} dBTP${r.range != null ? `, loudness range ${f(r.range)} LU` : ''}; levelling ${o.pub.level ? 'on' : 'off'}${variant ? ', from the noise-suppressed audio' : ''}; tone: ${tracks.map((t) => `${cap(t.speaker)} ${toneSummary(tones[voiceKey(t)])}`).join(', ')}.`,
             );
+            if (i === 0) results.push({ r, seconds: r.frames / take.sampleRate, parts: parts.length });
           }
           $('[data-export-label]').textContent = 'Preparing…';
         }
         entries.push({ name: `${label}_Session_export.txt`, data: syncReport() + (pubLines.length ? `\n${pubLines.join('\n')}\n` : '') });
         download(await zip(entries), `${label}_Session.zip`);
+        // The loudness card: what the finished episode measured.
+        if (results[0]) showExported(results[0]);
       } catch (err) {
         alert((err as Error).message);
       } finally {

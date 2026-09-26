@@ -156,6 +156,32 @@ Recording. Each switch is independent:
   Encoded in the browser by LAME (lamejs, LGPL), which loads only when an MP3
   is made.
 
+- **Tone** (per person, off until you set it). A ten-band graphic EQ (31 Hz
+  to 16 kHz, ±12 dB) and a compressor for each voice, applied to their edit
+  before the leveller and the mix. The graph shows a speech target, the
+  voice's own long-term spectrum (measured from their take) before and with
+  the EQ, and the EQ curve. Presets (Flat, Warm, Clear, De-mud, Radio, and
+  Gentle, Voice, Broadcast for the compressor), and **Match to target**, which
+  suggests bands that move the voice toward the target by up to 6 dB each.
+  Sweep a finger or the mouse across the faders to draw the curve, or drag
+  the dots on the graph; on a phone all ten fit. The compressor is drawn as
+  its curve (input against output) with the voice's level riding on it while
+  you preview. Each person's tone is remembered by name (Settings →
+  Recording → Tone lists them). With tone on and levelling off, the zip also
+  gets a toned copy of each edit (`…_edit_toned.wav`); with levelling on, the
+  levelled copy includes the tone.
+- **Preview 30 s** plays a stretch of the episode through the export's own
+  chain (tone, leveller, loudness target, limiter), so what you hear is what
+  you get. **Original / With tone** switches between everyone's tone off and
+  on at the same loudness. Changing a setting while it plays updates it in
+  about a second.
+- **Loudness meter** (on by default; Settings → Recording). While the
+  preview plays: integrated, short-term and momentary loudness, range and
+  true peak, a momentary bar against the target (green within 1 LU), and
+  short-term loudness over time. After an export it shows what the finished
+  episode measured, start to finish, and `…_export.txt` has the same figures
+  and each person's tone.
+
 The episode is made from the same audio as the edits: lined up and drift
 corrected, coughs muted, and cleaned when noise suppression is on. The
 originals are never changed. `…_export.txt` in the zip gives the result,

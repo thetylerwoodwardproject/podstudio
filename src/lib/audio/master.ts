@@ -3,7 +3,8 @@
  * mixed into one file at a podcast loudness target, optionally with each
  * speaker levelled first.
  *
- *   pass 1  read every track in 5 s chunks, level the voices (writing
+ *   pass 1  read every track in 5 s chunks, give each voice its tone (EQ and
+ *           compressor, lib/audio/tone.ts), level the voices (writing
  *           levelled copies of each edit if asked), mix, and measure the
  *           integrated loudness of the mix (BS.1770);
  *   pass 2  the same mix again (levelling is deterministic), with the gain
@@ -15,7 +16,8 @@
  * recorded at another rate is converted as it's read. Nothing large is held in
  * memory, and nothing here touches the originals.
  */
-import { Leveler, LoudnessMeter, TruePeakLimiter } from './loudness.ts';
+import { Leveler, LoudnessMeter, TruePeakLimiter, truePeak } from './loudness.ts';
+import { ToneProcessor, toneActive, type VoiceTone } from './tone.ts';
 import { pcmFloats, type BitDepth } from './wav.ts';
 import { parseWav, type WavInfo } from './wav-read.ts';
 
@@ -28,6 +30,8 @@ export interface MasterTrack {
   wav: Blob;
   /** Level this track (voices yes, the Pads track no) */
   level: boolean;
+  /** This person's EQ and compressor, before the leveller */
+  tone?: VoiceTone;
   /** Where to write this track's levelled copy (its own rate and channels), if wanted */
   levelled?: (x: Float32Array) => Promise<void>;
 }
@@ -39,6 +43,12 @@ export interface MasterResult {
   gain: number;
   /** Loudness of the result, LUFS (measured again on what was written) */
   result: number;
+  /** Loudness range of the result, LU (null for a very short file) */
+  range: number | null;
+  /** Highest true peak of the result, dBTP */
+  truePeak: number;
+  /** Short-term loudness of the result every second, LUFS */
+  history: number[];
   frames: number;
 }
 
@@ -60,6 +70,11 @@ export class WavReader {
     r.info = info;
     r.frames = Math.floor(Math.min(info.dataBytes, blob.size - info.dataOffset) / ((info.bitDepth / 8) * info.channels));
     return r;
+  }
+
+  /** Moves to a frame, for reading windows from anywhere in the file. */
+  seek(frame: number) {
+    this.pos = Math.max(0, Math.min(this.frames, Math.floor(frame)));
   }
 
   /** The next `n` frames (fewer at the end). */
@@ -155,6 +170,7 @@ export async function renderMaster(
   const pass = async (withCopies: boolean, each: (mix: Float32Array) => Promise<void> | void, stage: 'level' | 'master') => {
     const readers = await Promise.all(tracks.map((t) => WavReader.open(t.wav)));
     const levellers = readers.map((r, i) => (o.levelling && tracks[i].level ? new Leveler(r.info.sampleRate, r.info.channels) : null));
+    const tones = readers.map((r, i) => (toneActive(tracks[i].tone) ? new ToneProcessor(r.info.sampleRate, r.info.channels, tracks[i].tone!) : null));
     const resamplers = readers.map((r) => (r.info.sampleRate === o.rate ? null : new Resampler(r.info.sampleRate, o.rate, r.info.channels)));
     const pending = readers.map(() => new Float32Array(0));
     for (let done = 0; done < total; done += chunk) {
@@ -166,6 +182,7 @@ export async function renderMaster(
         while (pending[i].length / ch < n) {
           let x = await r.read(Math.ceil((chunk * r.info.sampleRate) / o.rate) + 4);
           if (!x.length) break;
+          if (tones[i]) x = tones[i]!.process(x);
           if (levellers[i]) x = levellers[i]!.process(x);
           if (withCopies && tracks[i].levelled) await tracks[i].levelled!(x);
           if (resamplers[i]) x = resamplers[i]!.process(x);
@@ -186,7 +203,10 @@ export async function renderMaster(
     if (withCopies)
       for (const [i, r] of readers.entries()) {
         if (!tracks[i].levelled) continue;
-        for (let x = await r.read(chunk); x.length; x = await r.read(chunk)) await tracks[i].levelled!(levellers[i] ? levellers[i]!.process(x) : x);
+        for (let x = await r.read(chunk); x.length; x = await r.read(chunk)) {
+          if (tones[i]) x = tones[i]!.process(x);
+          await tracks[i].levelled!(levellers[i] ? levellers[i]!.process(x) : x);
+        }
       }
   };
 
@@ -197,9 +217,14 @@ export async function renderMaster(
   const g = 10 ** (gainDb / 20);
   const limiter = new TruePeakLimiter(o.rate, o.channels, -1);
   const after = new LoudnessMeter(o.rate, o.channels);
+  let tp = 0;
   const out = async (y: Float32Array) => {
     if (!y.length) return;
     after.push(y);
+    // True peak: only chunks whose sample peak could beat it (between samples adds at most ~3 dB).
+    let sp = 0;
+    for (const v of y) sp = Math.max(sp, Math.abs(v));
+    if (sp * 1.5 > tp) tp = Math.max(tp, truePeak(y, o.channels));
     await write(y);
   };
   await pass(
@@ -211,5 +236,5 @@ export async function renderMaster(
     'master',
   );
   await out(limiter.flush());
-  return { measured, gain: gainDb, result: after.integrated(), frames: total };
+  return { measured, gain: gainDb, result: after.integrated(), range: after.range(), truePeak: tp > 0 ? 20 * Math.log10(tp) : -Infinity, history: after.shortTerm(1), frames: total };
 }

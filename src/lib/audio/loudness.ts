@@ -117,6 +117,42 @@ export class LoudnessMeter {
     const gated = abs.filter((e) => loud(e) > rel);
     return loud(gated.reduce((a, b) => a + b, 0) / gated.length);
   }
+
+  /** Momentary loudness (the last 400 ms) every 100 ms, LUFS; the first is at 400 ms. */
+  momentary(): number[] {
+    return this.blocks.map((e) => -0.691 + db(e));
+  }
+
+  /** Short-term loudness (the last 3 s) every `step` seconds, for a loudness-over-time graph; −Infinity until 3 s in. */
+  shortTerm(step = 1): number[] {
+    const every = Math.max(1, Math.round(step * 10));
+    const out: number[] = [];
+    for (let i = every - 1; i < this.subs.length; i += every) out.push(this.shortAt(i));
+    return out;
+  }
+
+  private shortAt(i: number) {
+    if (i < 29) return -Infinity;
+    let e = 0;
+    for (let k = i - 29; k <= i; k++) e += this.subs[k];
+    return -0.691 + db(e / (30 * this.subLen));
+  }
+
+  /**
+   * Loudness range (EBU Tech 3342), in LU: the spread of short-term loudness
+   * between its 10th and 95th percentiles, ignoring silence (−70 LUFS) and
+   * anything 20 LU under the average. null if there isn't enough to measure.
+   */
+  range(): number | null {
+    const st: number[] = [];
+    for (let i = 29; i < this.subs.length; i++) st.push(this.shortAt(i));
+    const abs = st.filter((x) => x > -70);
+    if (abs.length < 10) return null;
+    const rel = db(abs.reduce((a, x) => a + 10 ** (x / 10), 0) / abs.length) - 20;
+    const g = abs.filter((x) => x > rel).sort((a, b) => a - b);
+    const at = (p: number) => g[Math.min(g.length - 1, Math.max(0, Math.round(p * (g.length - 1))))];
+    return at(0.95) - at(0.1);
+  }
 }
 
 /** 4× interpolation: 3 in-between values per sample from a windowed-sinc FIR (16 taps per phase). */

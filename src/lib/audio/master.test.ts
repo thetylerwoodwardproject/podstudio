@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { encodeWav } from './wav.ts';
 import { renderMaster, Resampler } from './master.ts';
 import { LoudnessMeter } from './loudness.ts';
+import { flatTone } from './tone.ts';
 
 /** Speech-like test signal: noise bursts (syllables) with pauses, at a given level. */
 function voice(rate: number, seconds: number, dbfs: number, seed: number) {
@@ -126,6 +127,22 @@ test('mono sums a stereo pads track at the balance heard in stereo', async () =>
     const padOnly = Float32Array.from(y, (v, i) => v - 0.2 * Math.sin((2 * Math.PI * 300 * i) / rate));
     assert.ok(Math.abs(rms(padOnly, 1, 0) - 0.2 / Math.SQRT2) < 0.005, `pad in mono: ${rms(padOnly, 1, 0)}`);
   }
+});
+
+test('each voice goes through its own tone; the result reports range, true peak and history', async () => {
+  const rate = 16000;
+  const host = voice(rate, 20, -34, 11);
+  const plain = collect();
+  await renderMaster([{ wav: encodeWav([host], { sampleRate: rate, bitDepth: 24 }), level: true }], { rate, channels: 1, lufs: null, levelling: false }, plain.write);
+  const toned = collect();
+  const tone = { ...flatTone(), comp: { on: true, threshold: -20, ratio: 3, knee: 8, makeup: 6, preset: null } };
+  const r = await renderMaster([{ wav: encodeWav([host], { sampleRate: rate, bitDepth: 24 }), level: true, tone }], { rate, channels: 1, lufs: null, levelling: false }, toned.write);
+  // Quiet speech under the threshold: the compressor leaves it, the make-up raises it 6 dB.
+  const gain = lufs(toned.all(), rate, 1) - lufs(plain.all(), rate, 1);
+  assert.ok(Math.abs(gain - 6) < 0.8, `tone added ${gain.toFixed(2)} dB`);
+  assert.equal(r.history.length, 20);
+  assert.ok(r.truePeak <= -1 + 0.1 && r.truePeak > -40, `true peak ${r.truePeak}`);
+  assert.ok(r.range != null && r.range >= 0);
 });
 
 test('resampling 44.1 kHz to 48 kHz keeps the length and the tone', () => {

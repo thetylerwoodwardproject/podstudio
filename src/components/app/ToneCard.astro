@@ -1,0 +1,106 @@
+---
+/*
+ * Tone on the export page: a graphic EQ and a compressor for each person,
+ * applied to their edit before the leveller and the mix. Driven by
+ * lib/tone-view.ts (the controls and graphs) and the page's preview, which
+ * plays 30 s through the real export chain. Design: docs/design/Tone_mockup.html.
+ */
+import Switch from '@/components/ui/Switch.astro';
+
+const tag = 'font-mono text-[11px] font-medium tracking-[0.06em] text-text-3 uppercase';
+const seg = 'inline-grid auto-cols-[minmax(0,1fr)] grid-flow-col gap-[3px] rounded-[10px] border border-border bg-page p-[3px]';
+const segBtn = 'flex h-8 items-center justify-center rounded-[7px] px-3.5 text-[14px] whitespace-nowrap text-text-2 hover:text-text aria-pressed:bg-text aria-pressed:font-medium aria-pressed:text-page';
+const sliders = [
+  { key: 'threshold', label: 'Threshold', min: -40, max: 0, step: 1 },
+  { key: 'ratio', label: 'Ratio', min: 1, max: 10, step: 0.5 },
+  { key: 'knee', label: 'Knee', min: 0, max: 18, step: 1 },
+  { key: 'makeup', label: 'Make-up gain', min: 0, max: 12, step: 0.5 },
+];
+---
+
+<section class="flex flex-col gap-3" data-tone data-pub-options>
+  <h2 class="section-label">Tone</h2>
+  <div class="flex min-w-0 flex-col gap-4 rounded-[14px] bg-surface p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class={seg} role="group" aria-label="Whose tone" data-tone-voices></div>
+      <div class={seg} role="group" aria-label="View">
+        <button type="button" class={segBtn} data-tone-view="eq" aria-pressed="true">Graphic EQ</button>
+        <button type="button" class={segBtn} data-tone-view="comp" aria-pressed="false">Compressor</button>
+      </div>
+    </div>
+
+    <!-- Graphic EQ -->
+    <div class="flex flex-col gap-4" data-tone-eq>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <ul class="flex flex-wrap items-center gap-4 text-[12px] text-text-2">
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-text"></span>Speech target</li>
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full opacity-40" data-tone-voice-color></span>Voice before</li>
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full" data-tone-voice-color></span>With EQ</li>
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-text-2"></span>EQ</li>
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-warn"></span>Spectrum</li>
+        </ul>
+        <label class="flex items-center gap-2.5 text-[13px] text-text-2"><Switch name="tone-eq-on" label="EQ on" />EQ on</label>
+      </div>
+      <div class="relative h-[240px] min-w-0 lg:h-[300px]" data-tone-eq-plot>
+        <div class="h-full" data-tone-eq-svg></div>
+        <div class="absolute inset-0 cursor-crosshair" data-tone-eq-hit></div>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class={`${seg} max-w-full overflow-x-auto`} role="group" aria-label="EQ preset" data-tone-presets></div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="h-9 rounded-[10px] border border-border px-3.5 text-[14px] whitespace-nowrap text-text hover:border-handle disabled:opacity-40" data-tone-match>Match to target</button>
+          <button type="button" class="h-9 rounded-[10px] px-3 text-[14px] text-text-2 hover:text-text" data-tone-reset>Reset</button>
+        </div>
+      </div>
+      <div class="grid touch-none grid-cols-10 gap-0.5 select-none" data-tone-bands></div>
+      <p class="help">
+        Sweep across the bands to draw the curve, or drag the dots on the graph; double-click a band to reset it. <b class="font-medium text-text">Match to target</b> suggests bands that
+        bring <span data-tone-name>the voice</span> toward the speech target, by up to <span class="font-mono text-[12px] whitespace-nowrap">6 dB</span> each. <span data-tone-status></span>
+      </p>
+    </div>
+
+    <!-- Compressor -->
+    <div class="flex flex-col gap-4" data-tone-comp hidden>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <ul class="flex flex-wrap items-center gap-4 text-[12px] text-text-2">
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-handle"></span>No change (1:1)</li>
+          <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-text"></span>Compressor</li>
+          <li class="flex items-center gap-2"><span class="size-2 rounded-full" data-tone-voice-color></span>The voice now</li>
+        </ul>
+        <label class="flex items-center gap-2.5 text-[13px] text-text-2"><Switch name="tone-comp-on" label="Compressor on" />Compressor on</label>
+      </div>
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div class="h-[280px] min-w-0 lg:h-[320px]" data-tone-comp-plot></div>
+        <div class="flex flex-col gap-5">
+          <div class={seg} role="group" aria-label="Compressor preset" data-tone-comp-presets></div>
+          {
+            sliders.map((s) => (
+              <label class="flex flex-col gap-2.5">
+                <span class="flex items-baseline justify-between text-[14px]">
+                  {s.label}
+                  <span class="font-mono text-[13px]" {...{ [`data-tone-${s.key}`]: '' }} />
+                </span>
+                <input type="range" name={`tone-${s.key}`} min={s.min} max={s.max} step={s.step} class="w-full" />
+              </label>
+            ))
+          }
+          <div class="flex flex-col gap-2">
+            <span class={tag}>Gain reduction</span>
+            <span class="font-mono text-[28px] leading-none font-medium"><span data-tone-gr>—</span><span class="text-[13px] font-normal text-text-2"> dB</span></span>
+            <span class="flex h-1.5 flex-row-reverse overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-warn)_20%,var(--color-meter-off))]"><span class="h-full w-0 rounded-full bg-warn" data-tone-gr-bar></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview: 30 s through the same chain as the export -->
+    <div class="flex flex-wrap items-center gap-3 border-t border-divider pt-4">
+      <button type="button" class="h-9 rounded-[10px] bg-text px-4 text-[14px] font-medium text-page disabled:opacity-40" data-tone-preview>Preview 30 s</button>
+      <div class={seg} role="group" aria-label="Compare" data-tone-ab hidden>
+        <button type="button" class={segBtn} data-ab="original" aria-pressed="false">Original</button>
+        <button type="button" class={segBtn} data-ab="tone" aria-pressed="true">With tone</button>
+      </div>
+      <span class="text-[13px] text-text-2" data-tone-preview-status>Plays the episode mix with everyone's tone, at the loudness you've chosen.</span>
+    </div>
+  </div>
+</section>

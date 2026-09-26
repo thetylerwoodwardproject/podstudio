@@ -5,6 +5,7 @@
 
 import type { BitDepth, Channels } from './audio/wav';
 import { defaultTones, type ToneSettings } from './audio/tones';
+import { cleanTone, type VoiceTone } from './audio/tone';
 
 export interface RecordingSettings {
   depth: BitDepth;
@@ -33,6 +34,10 @@ export interface PublishSettings {
   level: boolean;
   /** An MP3 of the episode too */
   mp3: boolean;
+  /** Show the loudness meter for the episode on the export page */
+  meter: boolean;
+  /** Each person's tone (EQ and compressor), remembered by speaker name (upper case, as on their track) */
+  voices: Record<string, VoiceTone>;
 }
 
 export interface PrompterSettings {
@@ -57,7 +62,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { mix: true, loudness: 'stereo', level: false, mp3: true } },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { mix: true, loudness: 'stereo', level: false, mp3: true, meter: true, voices: {} } },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -90,7 +95,11 @@ export function loadSettings(): Settings {
           ...saved.recording?.tones,
           kinds: { ...defaults.recording.tones.kinds, ...saved.recording?.tones?.kinds },
         },
-        publish: { ...defaults.recording.publish, ...saved.recording?.publish },
+        publish: {
+          ...defaults.recording.publish,
+          ...saved.recording?.publish,
+          voices: Object.fromEntries(Object.entries(saved.recording?.publish?.voices ?? {}).map(([k, v]) => [k, cleanTone(v)])),
+        },
       },
       prompter: { ...defaults.prompter, ...saved.prompter },
     };
