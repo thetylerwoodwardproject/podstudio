@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "author": "Tyler Woodward (https://tylerwoodward.me)",
+  "homepage": "https://github.com/thetylerwoodwardproject/podstudio",
   "scripts": {
     "dev": "astro dev",
     "dev:phone": "astro dev --host",
