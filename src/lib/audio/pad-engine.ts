@@ -222,6 +222,25 @@ export class PadEngine {
     if (v.logged && t != null) (v.logged.levels ??= []).push({ t, db });
   }
 
+  /**
+   * A light tick in the headphones as a riding fader clicks into a detent.
+   * Straight to the output: not through the pads bus or its meter, and not in
+   * the log, so it's never on the Pads track.
+   */
+  tick() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const at = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.frequency.value = 2400;
+    g.gain.setValueAtTime(0.05, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.012);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + 0.015);
+  }
+
   /** Stop one pad, fading over `seconds`. */
   stop(key: number, seconds = 0) {
     const v = this.voices.get(key);

@@ -15,6 +15,7 @@ import Logo from '@/components/ui/Logo.astro';
 import PadRail from '@/components/app/PadRail.astro';
 import PadStrip from '@/components/app/PadStrip.astro';
 import MixerLanes from '@/components/app/MixerLanes.astro';
+import MixerDock from '@/components/app/MixerDock.astro';
 import { episode as mockEpisode, user } from '@/data/mock';
 
 export const prerender = false;
@@ -108,11 +109,12 @@ const zones = [
       <div class="mx-auto flex max-w-[820px] flex-col px-6 transition-transform duration-500 ease-in-out lg:px-10" data-track></div>
       <!-- With a guest: talking points, or no script at all -->
       <ol class="absolute inset-0 mx-auto flex max-w-[820px] flex-col gap-2 overflow-auto px-6 py-6 lg:px-10" data-points-view hidden></ol>
-      <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center" data-adlib-view hidden>
-        <p class="text-[26px]">Ad-lib</p>
-        <p class="text-[14px] text-muted">No script for this show. Just talk; markers work as usual.</p>
+      <!-- Ad-lib with a guest, on a phone (2a): the levels are in the dock below -->
+      <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center lg:hidden" data-adlib-view hidden>
+        <p class="text-[26px] text-text">Just talk</p>
+        <p class="text-[14px] text-text-2">No script for this show. Markers work as usual.</p>
       </div>
-      <!-- Ad-lib with a guest: the mixer view (1b) -->
+      <!-- Ad-lib with a guest, on a laptop: the mixer lanes (1b) -->
       <MixerLanes />
     </main>
 
@@ -127,6 +129,7 @@ const zones = [
     </div>
 
     <PadStrip episodeId={episode.id} />
+    <MixerDock />
 
     <footer class="relative z-10 flex-none border-t border-line bg-void px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] lg:flex lg:items-center lg:gap-8 lg:px-8 lg:py-4">
       <!-- Undo, for 4 s after a retake, cough or ad-lib -->
@@ -153,7 +156,7 @@ const zones = [
       </div>
 
       <!-- Mixer view: the levels are in the lanes above -->
-      <p class="truncate font-mono text-[11px] text-muted lg:min-w-0 lg:flex-1 lg:text-[12px]" data-mixer-note hidden></p>
+      <p class="hidden truncate font-mono text-[11px] text-muted lg:block lg:min-w-0 lg:flex-1 lg:text-[12px]" data-mixer-note hidden></p>
       <div class="flex w-full flex-col gap-2 lg:max-w-[640px] lg:min-w-0 lg:flex-1" data-meter-wrap>
       <button type="button" class="flex w-full items-center gap-3 text-left" aria-label="Level details" aria-expanded="false" data-level>
         <span class="w-9 flex-none font-mono text-[10px] tracking-[0.06em] text-subtle" data-mic-tag hidden>MIC</span>
@@ -1654,6 +1657,7 @@ const zones = [
     mixer = mountMixer(root, { host: root.dataset.host!, guest: 'Guest' }, () => state === 'rec');
     mixer.setMeta('guest', 'Guest · not here yet');
     $('[data-meter-wrap]').hidden = true;
+    $('[data-adlib-view]').hidden = false;
     const note = $('[data-mixer-note]');
     note.hidden = false;
     setInterval(() => {

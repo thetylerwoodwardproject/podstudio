@@ -7,6 +7,7 @@
  */
 import { PadEngine, type Playing } from './audio/pad-engine';
 import { PAD_INK, loadPadSettings, padColor, padLength, padTag, padsFor, savePadSettings, type Pad } from './pads';
+import { detentBetween, faderPos, faderTop, slideLevel } from './pad-fader';
 
 const minSec = (s: number) => {
   const t = Math.max(0, Math.round(s));
@@ -245,6 +246,7 @@ export async function mountPadRail(root: HTMLElement, episodeId: string, armed: 
         return false;
       });
 
+    const fader = mountFader(strip, row);
     const status = q(strip, '[data-pad-strip-status]');
     const edges = { left: q(strip, '[data-pad-edge="left"]'), right: q(strip, '[data-pad-edge="right"]') };
     return (playing: Playing[]) => {
@@ -267,6 +269,179 @@ export async function mountPadRail(root: HTMLElement, episodeId: string, armed: 
       }
       const lvl = engine.level();
       q(sheet, '[data-pad-sheet-db]').textContent = Number.isFinite(lvl) && lvl > -60 ? dbText(lvl) : '—';
+      fader.update(playing);
+    };
+  }
+
+  /**
+   * Press and slide (2c). Hold a playing loop or one-shot in the strip for
+   * 350 ms and it becomes a full-width fader: slide to ride its level (logged
+   * for the Pads track by the engine), with a tick at 0 dB and at its saved
+   * level. It goes back to the strip 2 s after you let go, or when the pad stops.
+   */
+  function mountFader(strip: HTMLElement, row: HTMLElement) {
+    const q = <T extends HTMLElement = HTMLElement>(s: string) => strip.querySelector<T>(s)!;
+    const box = q('[data-pad-fader]');
+    const track = q('[data-pad-fader-track]');
+    const LONG_PRESS = 350;
+    const SLOP = 8;
+    const LINGER = 2000;
+    let key: number | null = null;
+    let db = 0;
+    /** The slide in progress: where the finger and the level started */
+    let ride: { x0: number; db0: number } | null = null;
+    let closing: ReturnType<typeof setTimeout> | undefined;
+    let swallowClick = false;
+
+    const pad = () => (key != null ? byKey.get(key) : undefined);
+    const draw = () => {
+      const p = pad();
+      if (!p) return;
+      const f = faderPos(db, p.gainDb) * 100;
+      const fill = q('[data-pad-fader-fill]');
+      fill.style.width = `${f}%`;
+      fill.style.background = `color-mix(in oklab, ${padColor(p.color)} 35%, transparent)`;
+      q('[data-pad-fader-knob]').style.left = `calc(${f}% - 1px)`;
+      q('[data-pad-fader-saved]').style.left = `${faderPos(p.gainDb, p.gainDb) * 100}%`;
+      q('[data-pad-fader-db]').textContent = dbText(db);
+    };
+    const open = (k: number, levelDb: number) => {
+      const p = byKey.get(k)!;
+      key = k;
+      db = levelDb;
+      clearTimeout(closing);
+      q('[data-pad-fader-dot]').style.background = padColor(p.color);
+      q('[data-pad-fader-name]').textContent = `${k} · ${p.name}`;
+      q('[data-pad-fader-top]').textContent = dbText(faderTop(p.gainDb));
+      row.parentElement!.hidden = true;
+      box.hidden = false;
+      strip.dataset.riding = String(k);
+      draw();
+    };
+    const close = () => {
+      clearTimeout(closing);
+      key = null;
+      ride = null;
+      box.hidden = true;
+      row.parentElement!.hidden = false;
+      delete strip.dataset.riding;
+    };
+    const linger = () => {
+      clearTimeout(closing);
+      closing = setTimeout(close, LINGER);
+    };
+    const slide = (x: number) => {
+      const p = pad();
+      if (!ride || !p || key == null) return;
+      const next = slideLevel(ride.db0, x - ride.x0, track.clientWidth || row.clientWidth, p.gainDb);
+      if (next === db) return;
+      if (detentBetween(db, next, p.gainDb) != null) {
+        navigator.vibrate?.(8);
+        engine.tick();
+      }
+      db = next;
+      engine.setLevel(key, db);
+      draw();
+    };
+
+    // Long press on a strip pad. Touch events, so that once riding the slide
+    // can stop the strip from scrolling (and the browser from cancelling it).
+    let pending: { k: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
+    row.addEventListener(
+      'touchstart',
+      (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLElement>('[data-pad-key]');
+        const k = Number(b?.dataset.padKey);
+        const t = e.touches[0];
+        const playing = engine.playing().find((p) => p.key === k && !p.stopping);
+        if (!b || !playing || playing.pad.mode === 'hold' || e.touches.length > 1) return;
+        pending = {
+          k,
+          x: t.clientX,
+          y: t.clientY,
+          timer: setTimeout(() => {
+            const now = engine.playing().find((p) => p.key === k && !p.stopping);
+            if (!now || !pending) return;
+            swallowClick = true;
+            open(k, now.levelDb);
+            ride = { x0: pending.x, db0: now.levelDb };
+            pending = null;
+            navigator.vibrate?.(8);
+          }, LONG_PRESS),
+        };
+      },
+      { passive: true },
+    );
+    row.addEventListener(
+      'touchmove',
+      (e) => {
+        const t = e.touches[0];
+        if (pending && Math.hypot(t.clientX - pending.x, t.clientY - pending.y) > SLOP) {
+          clearTimeout(pending.timer);
+          pending = null;
+        }
+        if (ride) {
+          if (e.cancelable) e.preventDefault();
+          slide(t.clientX);
+        }
+      },
+      { passive: false },
+    );
+    const lift = () => {
+      if (pending) clearTimeout(pending.timer);
+      pending = null;
+      if (ride) {
+        ride = null;
+        linger();
+        // Not every browser sends a click after a long press; don't let the flag eat the next tap.
+        setTimeout(() => (swallowClick = false), 400);
+      }
+    };
+    row.addEventListener('touchend', lift);
+    row.addEventListener('touchcancel', lift);
+    // Letting go of a long press isn't a tap: don't fire (or fade) the pad.
+    row.addEventListener(
+      'click',
+      (e) => {
+        if (!swallowClick) return;
+        swallowClick = false;
+        e.stopPropagation();
+        e.preventDefault();
+      },
+      true,
+    );
+
+    // Touching the fader again (before it goes back) keeps riding.
+    track.addEventListener('pointerdown', (e) => {
+      if (key == null) return;
+      clearTimeout(closing);
+      track.setPointerCapture(e.pointerId);
+      ride = { x0: e.clientX, db0: db };
+    });
+    track.addEventListener('pointermove', (e) => slide(e.clientX));
+    for (const ev of ['pointerup', 'pointercancel'])
+      track.addEventListener(ev, () => {
+        if (!ride) return;
+        ride = null;
+        linger();
+      });
+    q('[data-pad-fader-fade]').addEventListener('click', () => {
+      if (key != null) engine.stop(key, 2);
+      close();
+    });
+    q('[data-pad-fader-stop]').addEventListener('click', () => {
+      if (key != null) engine.stop(key);
+      close();
+    });
+
+    return {
+      update(playing: Playing[]) {
+        if (key == null) return;
+        const p = playing.find((v) => v.key === key && !v.stopping);
+        if (!p) return close();
+        const left = p.pad.mode === 'loop' ? p.len - (p.pos % p.len) : p.len - p.pos;
+        q('[data-pad-fader-meta]').textContent = `${padTag(p.pad)} · ${minSec(left)} left`;
+      },
     };
   }
 

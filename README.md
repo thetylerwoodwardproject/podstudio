@@ -109,9 +109,9 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 | | |
 |---|---|
-| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · hotkey pads · accounts with two-factor · episodes, scripts and recordings stored on the server · the guided installer |
+| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · a mixer view on a laptop or phone · hotkey pads, with faders on a phone · accounts with two-factor · episodes, scripts and recordings stored on the server · the guided installer |
 | 🚧 **In progress** | First test on a real VPS (the lab environment) · checking iPhone recording on real devices |
-| 🗓️ **Next** | Versioned releases with upgrade paths · Whisper transcripts through your own OpenAI key · the mixer view and pad faders on a phone. See [docs/roadmap.md](docs/roadmap.md) |
+| 🗓️ **Next** | Versioned releases with upgrade paths · Whisper transcripts through your own OpenAI key. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |
 
 Known gaps and caveats: [docs/features.md#known-gaps](docs/features.md#known-gaps).

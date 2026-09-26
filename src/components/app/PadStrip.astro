@@ -2,7 +2,8 @@
 /*
  * Hotkey pads on a phone or tablet (Hotkey Pads 2a–2b): a swipeable strip of
  * the nine pads between the script and the control bar, and a panel that
- * slides up with the full 1–9 grid. Filled in by lib/pad-rail.ts; hidden
+ * slides up with the full 1–9 grid. Press and hold a playing pad and it grows
+ * into a fader to ride its level (2c). Filled in by lib/pad-rail.ts; hidden
  * until a pad is assigned, and on laptops (they get the rail).
  */
 interface Props {
@@ -24,6 +25,30 @@ const { episodeId } = Astro.props;
     <!-- A playing pad scrolled out of view: a dot at that edge -->
     <span class="pointer-events-none absolute top-1/2 -left-2.5 size-2 -translate-y-1/2 rounded-full" data-pad-edge="left" hidden></span>
     <span class="pointer-events-none absolute top-1/2 -right-2.5 size-2 -translate-y-1/2 rounded-full" data-pad-edge="right" hidden></span>
+  </div>
+  <!-- Press and slide (2c): the pad's fader, in place of the row until 2 s after you let go -->
+  <div class="flex flex-col gap-3 pb-1" data-pad-fader hidden>
+    <div class="flex items-center justify-between gap-3">
+      <span class="flex min-w-0 items-center gap-2 text-[14px] text-text">
+        <span class="size-2 flex-none rounded-full" data-pad-fader-dot></span>
+        <span class="truncate" data-pad-fader-name></span>
+      </span>
+      <span class="flex-none font-mono text-[11px] font-medium tracking-[0.06em] text-text-3" data-pad-fader-meta></span>
+    </div>
+    <div class="flex items-end justify-between gap-3">
+      <span class="font-mono text-[26px] leading-none font-medium text-text" data-pad-fader-db>— dB</span>
+      <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-text-3">SLIDE TO SET LEVEL</span>
+    </div>
+    <div class="relative h-11 touch-none overflow-hidden rounded-[10px] border border-border bg-page select-none" data-pad-fader-track>
+      <span class="absolute inset-y-0 left-0" data-pad-fader-fill></span>
+      <span class="absolute inset-y-2 w-px bg-text-3" title="Saved level" data-pad-fader-saved></span>
+      <span class="absolute inset-y-0 w-0.5 bg-text" data-pad-fader-knob></span>
+      <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center font-mono text-[11px] text-text-2" data-pad-fader-top>0 dB</span>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <button type="button" class="h-9 rounded-[10px] bg-control text-[14px] text-text" data-pad-fader-fade>Fade out · <span class="font-mono text-[13px]">2 s</span></button>
+      <button type="button" class="h-9 rounded-[10px] border border-border text-[14px] text-text" data-pad-fader-stop>Stop</button>
+    </div>
   </div>
 </div>
 

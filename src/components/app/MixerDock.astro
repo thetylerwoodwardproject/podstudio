@@ -1,0 +1,108 @@
+---
+/*
+ * Mixer View 2a–2b, on a phone: a dock above the control bar with one thin
+ * meter per person (in place of the footer meter), which slides up into full
+ * strips with talk time. The control bar stays below it, so Cough and Retake
+ * still work while it's open. Driven by lib/mixer-view.ts, like the laptop's
+ * lanes (1b); laptops never show it.
+ */
+import { toFraction } from '@/lib/audio/meter';
+
+const people = [
+  { who: 'host', role: 'HOST', dot: 'var(--color-spk-yellow)' },
+  { who: 'guest', role: 'GUEST', dot: 'var(--color-spk-teal)' },
+];
+// The meter's zones (framework): −60 to −18 green, −18 to −6 amber, above −6 red.
+const zones = [
+  [0, toFraction(-18), 'var(--color-ok)'],
+  [toFraction(-18), toFraction(-6), 'var(--color-warn)'],
+  [toFraction(-6), 1, 'var(--color-rec)'],
+] as const;
+const scale = [0, -6, -18, -60];
+const minus = (n: number) => String(n).replace('-', '−');
+const tag = 'font-mono text-[11px] font-medium tracking-[0.06em] text-text-3 uppercase';
+---
+
+<div class="relative z-20 flex-none border-t border-divider bg-page px-4 pt-1.5 pb-2 lg:hidden" aria-label="Levels" data-mixer-dock hidden>
+  <button type="button" class="mx-auto block h-4 w-16 touch-none" aria-label="Open levels" aria-expanded="false" data-dock-handle>
+    <span class="mx-auto block h-1 w-9 rounded-full bg-handle"></span>
+  </button>
+  <button type="button" class="flex w-full flex-col gap-2 text-left" aria-label="Open levels" data-dock-open>
+    {
+      people.map((p) => (
+        <span class="grid w-full grid-cols-[88px_1fr_64px] items-center gap-3" data-dock-row={p.who}>
+          <span class="flex min-w-0 items-center gap-2 text-[14px] text-text">
+            <span class="size-2 flex-none rounded-full" style={{ background: p.dot }} />
+            <span class="truncate" data-dock-name />
+          </span>
+          <span class="relative h-1.5 min-w-0 overflow-hidden rounded-full">
+            {zones.map(([a, b, c]) => (
+              <span class="absolute inset-y-0" style={{ left: `${a * 100}%`, width: `${(b - a) * 100}%`, background: `color-mix(in oklab, ${c} 20%, var(--color-meter-off))` }} />
+            ))}
+            <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-dock-fill />
+          </span>
+          <span class="text-right font-mono text-[13px] text-text-2" data-dock-db>— dB</span>
+        </span>
+      ))
+    }
+  </button>
+
+  <!-- Slid up (2b): a strip per person and talk time. It grows up from the dock; the scrim covers the script above. -->
+  <div class="fixed inset-x-0 top-0 z-[15] bg-black/40" data-dock-scrim hidden></div>
+  <div
+    class="absolute inset-x-0 bottom-0 z-20 flex max-h-[70dvh] flex-col overflow-auto rounded-t-[22px] bg-surface px-4 pt-2 pb-3 transition-transform duration-200"
+    role="dialog"
+    aria-label="Levels"
+    data-dock-sheet
+    hidden
+  >
+    <div class="touch-none" data-dock-sheet-head>
+      <button type="button" class="mx-auto mb-2 block h-4 w-16" aria-label="Close levels" data-dock-close>
+        <span class="mx-auto block h-1 w-9 rounded-full bg-handle"></span>
+      </button>
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class={tag}>Levels</h2>
+        <span class={tag}>Target −18 to −6</span>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      {
+        people.map((p) => (
+          <div class="flex flex-col items-center gap-3 rounded-[14px] bg-page px-3 py-4" data-dock-strip={p.who}>
+            <div class="flex w-full flex-col items-center gap-1">
+              <span class="flex max-w-full items-center gap-2 text-[15px] text-text">
+                <span class="size-2 flex-none rounded-full" style={{ background: p.dot }} />
+                <span class="truncate" data-dock-name />
+              </span>
+              <span class={tag}>{p.role}</span>
+            </div>
+            <div class="flex h-44 items-stretch gap-2">
+              <div class="relative w-7 font-mono text-[10px] text-text-3" aria-hidden="true">
+                {scale.map((d) => (
+                  <span class="absolute right-0 translate-y-1/2 leading-none" style={{ bottom: `${toFraction(d) * 100}%` }}>
+                    {minus(d)}
+                  </span>
+                ))}
+              </div>
+              <div class="flex w-4 flex-col-reverse gap-[3px]" aria-hidden="true" data-dock-meter />
+            </div>
+            <div class="flex flex-col items-center gap-1">
+              <span class="font-mono text-[22px] leading-none font-medium text-text" data-dock-db>— dB</span>
+              <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-text-3" data-dock-status>IDLE</span>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+    <div class="mt-4 flex flex-col gap-2 px-1">
+      <div class="flex items-center justify-between gap-3">
+        <span class={tag}>Talk time</span>
+        <span class="font-mono text-[13px] text-text-2" data-dock-talk-text>—</span>
+      </div>
+      <span class="flex h-1 w-full overflow-hidden rounded-full bg-border">
+        <span class="h-full" style="background:var(--color-spk-yellow);width:0" data-dock-talk-host></span>
+        <span class="h-full" style="background:var(--color-spk-teal);width:0" data-dock-talk-guest></span>
+      </span>
+    </div>
+  </div>
+</div>
