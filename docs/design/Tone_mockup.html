@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Mockup: Tone (graphic EQ and compressor per speaker) and the loudness meter for the finished episode. Designed, not built; see docs/roadmap.md. -->
+<title>Podstudio Tone</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0b0b0c;
+    --surface: #141416;
+    --plot: #16171a;
+    --control: #1c1c1f;
+    --divider: #1c1d20;
+    --border: #26272b;
+    --track-off: #2a2b2f;
+    --handle: #3a3b3f;
+    --meter-off: #1f2023;
+    --text: #ededea;
+    --text-2: #8a8c91;
+    --text-3: #6a6c71;
+    --rec: #ff453a;
+    --warn: #ff9f0a;
+    --ok: #30d158;
+    --spk-yellow: oklch(83.77% 0.148 81.72);
+    --spk-teal: oklch(90.16% 0.173 188.71);
+    --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--page); color: var(--text); }
+  body { font: 14px/1.4 var(--sans); -webkit-font-smoothing: antialiased; padding-inline: 16px; padding-block: 0 48px; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+
+  /* Shell */
+  header.bar { height: 56px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--divider); margin-inline: -16px; padding-inline: 16px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; }
+  .brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--rec); }
+  .crumb { color: var(--text-2); font-size: 14px; }
+  .crumb b { color: var(--text); font-weight: 400; }
+  .tag { font: 500 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+  .mockup { margin-left: auto; border: 1px solid var(--border); border-radius: 999px; padding: 5px 10px; }
+
+  .intro { display: flex; flex-direction: column; gap: 8px; padding-top: 32px; }
+  h1 { font-size: 26px; font-weight: 500; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+  .help { font-size: 13px; line-height: 1.5; color: var(--text-2); margin: 0; max-width: 68ch; }
+  .mono { font-family: var(--mono); white-space: nowrap; }
+
+  section { display: flex; flex-direction: column; gap: 12px; }
+  .section-label { font-size: 13px; font-weight: 500; color: var(--text-2); margin: 0; }
+  .card { background: var(--surface); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* Segmented (framework) */
+  .seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--page); }
+  .seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--text); color: var(--page); font-weight: 500; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  /* Buttons */
+  .btn { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: transparent; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--handle); }
+  .btn.primary { background: var(--text); color: var(--page); border-color: var(--text); font-weight: 500; }
+  .btn.ghost { border-color: transparent; color: var(--text-2); }
+  .btn.ghost:hover { color: var(--text); }
+
+  /* Toggle */
+  .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-2); font-size: 13px; }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .switch span.t { width: 40px; height: 24px; border-radius: 999px; background: var(--track-off); position: relative; transition: background .15s; flex: none; }
+  .switch span.t::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--text-2); transition: transform .15s, background .15s; }
+  .switch input:checked + span.t { background: var(--text); }
+  .switch input:checked + span.t::after { transform: translateX(16px); background: var(--page); }
+  .switch input:focus-visible + span.t { outline: 2px solid var(--text); outline-offset: 2px; }
+
+  /* Graphs */
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-2); list-style: none; margin: 0; padding: 0; }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .legend i { width: 16px; height: 2px; border-radius: 2px; display: block; }
+  .plot { height: 300px; min-width: 0; }
+  #eq-plot { cursor: crosshair; }
+  .plot svg { display: block; width: 100%; height: 100%; }
+
+  /* Faders */
+  .bands { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 2px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .band { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; border-radius: 10px; padding-block: 6px; transition: background .15s; }
+  .band.active { background: var(--control); }
+  .band .val { font: 13px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; min-height: 16px; }
+  .band .val.zero { color: var(--text-3); }
+  .fader { position: relative; width: 100%; max-width: 40px; height: 150px; cursor: ns-resize; }
+  .fader .track { position: absolute; left: calc(50% - 2px); top: 0; bottom: 0; width: 4px; border-radius: 2px; background: var(--border); }
+  .fader .mid { position: absolute; left: 20%; right: 20%; top: 50%; height: 1px; background: var(--handle); }
+  .fader .fill { position: absolute; left: calc(50% - 2px); width: 4px; border-radius: 2px; background: var(--text); }
+  .fader .knob { position: absolute; left: calc(50% - 8px); width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: var(--text); }
+  .band .hz { font: 11px var(--mono); color: var(--text-3); }
+
+  /* Sliders (framework) */
+  .slider { display: flex; flex-direction: column; gap: 10px; }
+  .slider .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .slider .top span:last-child { font: 13px var(--mono); }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 16px; background: transparent; margin: 0; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--fill, 50%), var(--border) var(--fill, 50%)); }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--fill, 50%), var(--border) var(--fill, 50%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--text); margin-top: -6px; border: 0; }
+  input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--text); border: 0; }
+
+  .comp { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; }
+  .comp .plot { height: 340px; }
+  .grbar { height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--warn) 20%, var(--meter-off)); overflow: hidden; direction: rtl; }
+  .grbar i { display: block; height: 100%; width: 0; background: var(--warn); border-radius: 3px; }
+  .readout { font: 500 28px/1 var(--mono); }
+  .readout small { font-size: 13px; color: var(--text-2); font-weight: 400; }
+
+  /* Listen */
+  .listen { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+  .meter { position: relative; height: 6px; border-radius: 3px; overflow: hidden; background: linear-gradient(to right, color-mix(in oklab, var(--ok) 20%, var(--meter-off)) 0 70%, color-mix(in oklab, var(--warn) 20%, var(--meter-off)) 70% 90%, color-mix(in oklab, var(--rec) 20%, var(--meter-off)) 90%); }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; }
+  .drop { border: 1px dashed var(--track-off); border-radius: 10px; padding: 10px 14px; color: var(--text-2); font-size: 13px; cursor: pointer; }
+  .drop:hover, .drop.over { border-color: var(--handle); color: var(--text); }
+  .lk-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr)); gap: 16px; align-items: end; }
+  .lk-main, .lk-stat { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .lk-big { font: 500 36px/1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lk-big small, .lk-stat small { font-size: 13px; color: var(--text-2); font-weight: 400; }
+  .lk-stat > span:last-child { font: 18px/1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lk-meter { position: relative; height: 8px; border-radius: 4px; background: var(--meter-off); overflow: visible; }
+  .lk-meter i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 4px; transition: width .08s linear; }
+  .lk-meter b { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
+  .notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--text-2); font-size: 13px; line-height: 1.5; max-width: 72ch; }
+  .notes b { color: var(--text); font-weight: 500; }
+
+  @media (max-width: 760px) {
+    .comp { grid-template-columns: minmax(0, 1fr); }
+    .listen { grid-template-columns: minmax(0, 1fr); }
+    .plot { height: 240px; }
+    .comp .plot { height: 280px; }
+    .crumb { display: none; }
+    .lk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lk-main { grid-column: 1 / -1; }
+    .band .val { font-size: 11px; }
+    .band .hz { font-size: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body style="margin:0">
+
+<div class="wrap">
+  <header class="bar">
+    <span class="brand"><i></i>Podstudio</span>
+    <span class="crumb">Ep. 142 / <b>Export</b></span>
+    <span class="tag mockup">Mockup</span>
+  </header>
+
+  <div class="intro">
+    <h1>Tone for each voice</h1>
+    <p class="help">A graphic EQ and a compressor per person, set on the export page. Try a preset, sweep across the bands, or press <b>Play</b> to hear an example conversation (Tyler and Sam taking turns, each through their own tone) and switch between Original and With tone. The loudness meter at the bottom measures the whole mix. Curves and numbers are example data until you play something.</p>
+  </div>
+
+  <section>
+    <h2 class="section-label">Ready to publish · Tone</h2>
+    <div class="card">
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Speaker" id="speakers">
+          <button type="button" data-spk="tyler" aria-pressed="true"><span class="dot" style="background:var(--spk-yellow)"></span>Tyler <span class="tag">Host</span></button>
+          <button type="button" data-spk="sam" aria-pressed="false"><span class="dot" style="background:var(--spk-teal)"></span>Sam <span class="tag">Guest</span></button>
+        </div>
+        <div class="seg" role="group" aria-label="View" id="views">
+          <button type="button" data-view="eq" aria-pressed="true">Graphic EQ</button>
+          <button type="button" data-view="comp" aria-pressed="false">Compressor</button>
+        </div>
+      </div>
+
+      <!-- Graphic EQ -->
+      <div id="eq-view" style="display:flex;flex-direction:column;gap:16px">
+        <div class="toolbar">
+          <ul class="legend" id="eq-legend">
+            <li><i style="background:var(--text)"></i>Target</li>
+            <li><i id="lg-before" style="opacity:.4"></i>Voice before</li>
+            <li><i id="lg-after"></i>Voice with EQ</li>
+            <li><i style="background:var(--text-2)"></i>EQ</li>
+            <li><i style="background:var(--warn)"></i>Spectrum</li>
+          </ul>
+          <label class="switch"><input type="checkbox" id="eq-on" checked><span class="t"></span>EQ on</label>
+        </div>
+        <div class="plot" id="eq-plot" style="position:relative"><div id="eq-svg" style="height:100%"></div><div id="eq-hit" style="position:absolute;inset:0"></div></div>
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="Preset" id="presets"></div>
+          <div class="row">
+            <button type="button" class="btn" id="match">Match to target</button>
+            <button type="button" class="btn ghost" id="reset">Reset</button>
+          </div>
+        </div>
+        <div class="bands" id="bands"></div>
+        <p class="help" id="eq-how">Sweep a finger or the mouse across the bands to draw the curve, left to right and back. Or drag the dots on the graph. Double-click a band to reset it.</p>
+        <p class="help" id="eq-hint">Tyler's mic is a little boomy around <span class="mono">200 Hz</span>. <b>Match to target</b> suggests bands that bring the voice toward the target, by up to <span class="mono">6 dB</span> each.</p>
+      </div>
+
+      <!-- Compressor -->
+      <div id="comp-view" style="display:none;flex-direction:column;gap:16px">
+        <div class="toolbar">
+          <ul class="legend">
+            <li><i style="background:var(--handle)"></i>No change (1:1)</li>
+            <li><i style="background:var(--text)"></i>Compressor</li>
+            <li><i id="lg-now"></i>The voice now</li>
+          </ul>
+          <label class="switch"><input type="checkbox" id="comp-on" checked><span class="t"></span>Compressor on</label>
+        </div>
+        <div class="comp">
+          <div class="plot" id="comp-plot"></div>
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <div class="seg" role="group" aria-label="Compressor preset" id="comp-presets"></div>
+            <div class="slider"><div class="top"><span>Threshold</span><span id="v-threshold"></span></div><input type="range" id="threshold" min="-40" max="0" step="1" aria-label="Threshold"></div>
+            <div class="slider"><div class="top"><span>Ratio</span><span id="v-ratio"></span></div><input type="range" id="ratio" min="1" max="10" step="0.5" aria-label="Ratio"></div>
+            <div class="slider"><div class="top"><span>Knee</span><span id="v-knee"></span></div><input type="range" id="knee" min="0" max="18" step="1" aria-label="Knee"></div>
+            <div class="slider"><div class="top"><span>Make-up gain</span><span id="v-makeup"></span></div><input type="range" id="makeup" min="0" max="12" step="0.5" aria-label="Make-up gain"></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span class="tag">Gain reduction</span>
+              <span class="readout" id="gr-text">0.0<small> dB</small></span>
+              <div class="grbar"><i id="gr-bar"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-label">Hear it</h2>
+    <div class="card">
+      <div class="listen">
+        <button type="button" class="btn primary" id="play" style="min-width:96px">Play</button>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+          <div class="row" style="justify-content:space-between">
+            <span id="source" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Example conversation · <span class="mono">16 s</span></span>
+            <span class="mono" style="font-size:13px;color:var(--text-2)" id="level">— dB</span>
+          </div>
+          <div class="meter"><i id="meter"></i></div>
+        </div>
+        <div class="seg" role="group" aria-label="Compare" id="ab">
+          <button type="button" data-ab="a" aria-pressed="false">Original</button>
+          <button type="button" data-ab="b" aria-pressed="true">With tone</button>
+        </div>
+      </div>
+      <label class="drop" id="drop" for="file">Drop a WAV or MP3 here, or click to pick one. It plays as the selected speaker and stays in this browser.</label>
+      <input type="file" id="file" accept="audio/*" hidden>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-label">Loudness · the finished episode</h2>
+    <div class="card">
+      <div class="toolbar">
+        <label class="switch"><input type="checkbox" id="lk-on" checked><span class="t"></span>Show the loudness meter</label>
+        <div class="row">
+          <span class="tag" id="lk-example">Example</span>
+          <div class="seg" role="group" aria-label="Loudness target" id="lk-target">
+            <button type="button" data-t="stereo" aria-pressed="true">Stereo <span class="mono">−16</span></button>
+            <button type="button" data-t="mono" aria-pressed="false">Mono <span class="mono">−19</span></button>
+          </div>
+        </div>
+      </div>
+      <div id="lk-body" style="display:flex;flex-direction:column;gap:16px">
+        <div class="lk-grid">
+          <div class="lk-main">
+            <span class="tag">Integrated</span>
+            <span class="lk-big"><span id="lk-int">—</span><small> LUFS</small></span>
+          </div>
+          <div class="lk-stat"><span class="tag">Short-term</span><span><span id="lk-short">—</span> <small>LUFS</small></span></div>
+          <div class="lk-stat"><span class="tag">Momentary</span><span><span id="lk-mom">—</span> <small>LUFS</small></span></div>
+          <div class="lk-stat"><span class="tag">Range</span><span><span id="lk-range">—</span> <small>LU</small></span></div>
+          <div class="lk-stat"><span class="tag">Peak</span><span><span id="lk-peak">—</span> <small>dBFS</small></span></div>
+        </div>
+        <div class="lk-meter" aria-hidden="true"><i id="lk-bar"></i><b id="lk-tick"></b></div>
+        <ul class="legend">
+          <li><i style="background:var(--text)"></i>Target <span class="mono" id="lk-target-text">−16 LUFS</span></li>
+          <li><i style="background:color-mix(in oklab, var(--ok) 45%, transparent);height:8px"></i>Within <span class="mono">1 LU</span></li>
+          <li><i style="background:var(--text-2)"></i>Short-term, last minute</li>
+        </ul>
+        <div class="plot" id="lk-plot" style="height:200px"></div>
+        <p class="help" id="lk-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-label">How it would work</h2>
+    <ul class="notes">
+      <li><b>At export, per person.</b> Each person's edit goes through their EQ, then the compressor, then the optional leveller, before the mix reaches <span class="mono">−16 LUFS</span>. The recordings themselves never change, so you can redo the tone any time.</li>
+      <li><b>Measured from the recording.</b> "Voice before" is that person's long-term average spectrum, taken from their take. The target is a speech curve: a low cut under <span class="mono">80 Hz</span>, a little less mud, a touch of presence.</li>
+      <li><b>Saved as defaults.</b> Settings → Recording keeps a tone per host, and a guest starts flat or from a preset.</li>
+      <li><b>A loudness meter for the whole show.</b> Optional (Settings → Recording). Live while you preview the mix, and on the export page after rendering it shows what the finished episode measured: integrated loudness, range and true peak, with its loudness over time.</li>
+      <li><b>For your DAW.</b> The untouched files are always in the zip; toned copies would be optional, like the levelled ones.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ── Geometry (as src/lib/graph.ts): log 20 Hz–20 kHz, ±24 dB ──
+  const F_MIN = 20, F_MAX = 20000, NS = 'http://www.w3.org/2000/svg';
+  const freqPos = (f) => Math.log10(Math.min(F_MAX, Math.max(F_MIN, f)) / F_MIN) / Math.log10(F_MAX / F_MIN);
+  const minus = (s) => String(s).replace('-', '−');
+  const sgn = (d, digits = 0) => (d > 0 ? '+' : '') + minus(d.toFixed(digits));
+  const BANDS = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  const hz = (f) => (f >= 1000 ? f / 1000 + 'k' : String(f));
+  const FREQS = Array.from({ length: 240 }, (_, i) => F_MIN * (F_MAX / F_MIN) ** (i / 239));
+  const RATE = 48000;
+
+  // ── Speech target and example voices (dB, relative) ──
+  const interp = (pts) => (f) => {
+    const x = Math.log10(f);
+    if (x <= Math.log10(pts[0][0])) return pts[0][1];
+    for (let i = 1; i < pts.length; i++) {
+      const [f1, d1] = pts[i], [f0, d0] = pts[i - 1];
+      if (x <= Math.log10(f1)) { const t = (x - Math.log10(f0)) / (Math.log10(f1) - Math.log10(f0)); return d0 + (d1 - d0) * (0.5 - Math.cos(Math.PI * t) / 2); }
+    }
+    return pts[pts.length - 1][1];
+  };
+  const target = interp([[20, -22], [45, -12], [80, -1], [120, 0], [300, -0.5], [600, -1], [1200, 0], [2500, 1.5], [4500, 2.5], [7000, 1], [11000, -1.5], [20000, -8]]);
+  const voices = {
+    tyler: { name: 'Tyler', color: 'var(--spk-yellow)', raw: '#e8b84a', curve: interp([[20, -20], [50, -6], [90, 2], [180, 6], [300, 4.5], [600, 0.5], [1200, -0.5], [2500, -1.5], [3800, -3], [6000, -1], [10000, -3], [20000, -12]]), hint: "Tyler's mic is a little boomy around <span class=\"mono\">200 Hz</span> and dull at <span class=\"mono\">4 kHz</span>." },
+    sam: { name: 'Sam', color: 'var(--spk-teal)', raw: '#2ee6d6', curve: interp([[20, -26], [80, -14], [150, -7], [300, -2.5], [700, 0], [1500, 0.5], [3000, 3], [5000, 5.5], [8000, 3], [12000, -2], [20000, -10]]), hint: "Sam is on a laptop mic: thin under <span class=\"mono\">150 Hz</span> and a bit harsh around <span class=\"mono\">5 kHz</span>." },
+  };
+
+  // ── Peaking biquad response (RBJ), Q for octave bands ──
+  const Q = 1.41;
+  function peakDb(f, fc, gain) {
+    if (!gain) return 0;
+    const A = 10 ** (gain / 40), w0 = (2 * Math.PI * fc) / RATE, alpha = Math.sin(w0) / (2 * Q), cw = Math.cos(w0);
+    const b0 = 1 + alpha * A, b1 = -2 * cw, b2 = 1 - alpha * A, a0 = 1 + alpha / A, a1 = -2 * cw, a2 = 1 - alpha / A;
+    const w = (2 * Math.PI * f) / RATE;
+    const re = (c0, c1, c2) => c0 + c1 * Math.cos(-w) + c2 * Math.cos(-2 * w);
+    const im = (c1, c2) => c1 * Math.sin(-w) + c2 * Math.sin(-2 * w);
+    const num = Math.hypot(re(b0, b1, b2), im(b1, b2)), den = Math.hypot(re(a0, a1, a2), im(a1, a2));
+    return 20 * Math.log10(num / den);
+  }
+  const eqDb = (f, gains) => gains.reduce((s, g, i) => s + peakDb(f, BANDS[i], g), 0);
+
+  // ── State per speaker ──
+  const PRESETS = {
+    Flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    Warm: [0, 2, 2, 1, 0, 0, -1, -1, -2, -2],
+    Clear: [-6, -3, 0, -2, -1, 0, 1, 3, 2, 0],
+    'De-mud': [0, 0, -1, -4, -3, -1, 0, 1, 0, 0],
+    Radio: [-12, -6, 2, -2, 0, 2, 3, 3, -4, -10],
+  };
+  const COMP = {
+    Gentle: { threshold: -24, ratio: 2, knee: 12, makeup: 3 },
+    Voice: { threshold: -20, ratio: 3, knee: 8, makeup: 5 },
+    Broadcast: { threshold: -16, ratio: 5, knee: 4, makeup: 7 },
+  };
+  const state = {
+    tyler: { eq: [...PRESETS.Flat], eqOn: true, preset: 'Flat', comp: { ...COMP.Voice }, compPreset: 'Voice', compOn: true },
+    sam: { eq: [...PRESETS.Flat], eqOn: true, preset: 'Flat', comp: { ...COMP.Voice }, compPreset: 'Voice', compOn: true },
+  };
+  let spk = 'tyler';
+  let view = 'eq';
+  const cur = () => state[spk];
+  /** Long-term spectrum measured from a loaded clip, per speaker (null: the example curve) */
+  const measured = { tyler: null, sam: null };
+  const voiceDb = (f) => (measured[spk] ? measured[spk](f) : voices[spk].curve(f));
+
+  const $ = (s) => document.querySelector(s);
+  const el = (name, attrs, parent) => { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.append(e); return e; };
+
+  // ── The frequency graph ──
+  const eqBox = $('#eq-plot'), eqSvg = $('#eq-svg'), eqHit = $('#eq-hit');
+  let spectrum = null; // [f, db][] while playing
+  let eqGeo = null;
+  /** The band nearest a point on the graph (by frequency), and the gain for its height (±12). */
+  const graphBand = (cx, cy) => {
+    const r = eqBox.getBoundingClientRect(), g = eqGeo, px = cx - r.left, py = cy - r.top;
+    let i = 0; BANDS.forEach((fc, k) => { if (Math.abs(g.x(fc) - px) < Math.abs(g.x(BANDS[i]) - px)) i = k; });
+    return { i, db: 24 - ((py - g.T) / g.h) * 48, near: Math.hypot(g.x(BANDS[i]) - px, g.y(cur().eqOn ? eqDb(BANDS[i], cur().eq) : 0) - py) < 32 };
+  };
+  // Dragging on the graph is relative to where it started, so nothing jumps; sliding sideways moves to the next band.
+  let drag = null;
+  const dragAt = (cx, cy) => {
+    const b = graphBand(cx, cy);
+    if (b.i !== drag.i) drag = { i: b.i, y0: cy, g0: cur().eq[b.i] };
+    setBand(drag.i, drag.g0 + ((drag.y0 - cy) / eqGeo.h) * 48);
+  };
+  const dragStart = (cx, cy) => { const b = graphBand(cx, cy); drag = { i: b.i, y0: cy, g0: cur().eq[b.i] }; setBand(b.i, drag.g0); };
+  const dragEnd = () => { if (drag) { drag = null; release(); } };
+  // Mouse: anywhere on the graph. Touch: only from near a dot, so the page still scrolls over the graph.
+  // A layer over the plot takes the input: the SVG under it is redrawn on every change, which would strand a touch that began on it.
+  eqHit.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' || !eqGeo) return; e.preventDefault(); dragStart(e.clientX, e.clientY); });
+  document.addEventListener('pointermove', (e) => { if (drag && e.pointerType !== 'touch') dragAt(e.clientX, e.clientY); });
+  document.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') dragEnd(); });
+  eqHit.addEventListener('touchstart', (e) => { if (!eqGeo) return; const t = e.touches[0]; if (!graphBand(t.clientX, t.clientY).near) return; e.preventDefault(); dragStart(t.clientX, t.clientY); }, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (!drag) return; e.preventDefault(); const t = e.touches[0]; dragAt(t.clientX, t.clientY); }, { passive: false });
+  document.addEventListener('touchend', dragEnd);
+  document.addEventListener('touchcancel', dragEnd);
+  function drawEq() {
+    const W = eqBox.clientWidth, H = eqBox.clientHeight;
+    if (!W || !H) return;
+    const L = 34, B = 22, T = 8, R = 8, w = W - L - R, h = H - T - B;
+    const x = (f) => L + freqPos(f) * w, y = (d) => T + ((24 - Math.max(-24, Math.min(24, d))) / 48) * h;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Frequency response' });
+    const defs = el('defs', {}, svg);
+    const g = el('linearGradient', { id: 'sp', x1: L, x2: L + w, y1: 0, y2: 0, gradientUnits: 'userSpaceOnUse' }, defs);
+    [[0, '#ff453a'], [0.08, '#ff9f0a'], [0.9, '#ff9f0a'], [1, '#ff453a']].forEach(([o, c]) => el('stop', { offset: o, 'stop-color': c }, g));
+    el('clipPath', { id: 'clip' }, defs).append(el('rect', { x: L, y: T, width: w, height: h }));
+    el('rect', { x: L, y: T, width: w, height: h, fill: '#16171a' }, svg);
+    for (let dec = 10; dec <= 10000; dec *= 10) for (let k = 1; k <= 9; k++) { const f = k * dec; if (f < 20 || f > 20000) continue; el('line', { x1: x(f), x2: x(f), y1: T, y2: T + h, stroke: [1, 2, 5].includes(k) ? '#26272b' : '#1c1d20' }, svg); }
+    for (let d = 24; d >= -24; d -= 6) el('line', { x1: L, x2: L + w, y1: y(d), y2: y(d), stroke: d === 0 ? '#3a3b3f' : '#26272b' }, svg);
+    const label = (t, a) => { const e = el('text', Object.assign({ fill: '#6a6c71', 'font-family': 'ui-monospace, SF Mono, Menlo, monospace', 'font-size': 10 }, a), svg); e.textContent = t; };
+    for (let d = 18; d >= -18; d -= 6) label(d > 0 ? '+' + d : minus(d), { x: L - 6, y: y(d) + 3.5, 'text-anchor': 'end' });
+    const labels = w < 380 ? [100, 500, 2000, 10000] : [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    labels.forEach((f) => label(hz(f), { x: x(f), y: T + h + 15, 'text-anchor': 'middle' }));
+    const plot = el('g', { 'clip-path': 'url(#clip)' }, svg);
+    const path = (fn, attrs) => el('path', Object.assign({ d: FREQS.map((f, i) => (i ? 'L' : 'M') + x(f).toFixed(1) + ' ' + y(fn(f)).toFixed(1)).join(' '), fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, attrs), plot);
+    const s = cur();
+    const eqFn = (f) => (s.eqOn ? eqDb(f, s.eq) : 0);
+    if (spectrum && spectrum.length) el('path', { d: spectrum.map(([f, d], i) => (i ? 'L' : 'M') + x(f).toFixed(1) + ' ' + y(d).toFixed(1)).join(' '), fill: 'none', stroke: 'url(#sp)', 'stroke-width': 1.25, opacity: 0.85 }, plot);
+    // EQ: a soft area around 0 dB with its line
+    const eqLine = FREQS.map((f, i) => (i ? 'L' : 'M') + x(f).toFixed(1) + ' ' + y(eqFn(f)).toFixed(1)).join(' ');
+    el('path', { d: `${eqLine} L${x(F_MAX)} ${y(0)} L${x(F_MIN)} ${y(0)} Z`, fill: '#ededea', opacity: 0.06 }, plot);
+    path(eqFn, { stroke: '#8a8c91', 'stroke-width': 1.5 });
+    path(target, { stroke: '#ededea', 'stroke-width': 2 });
+    path(voiceDb, { stroke: voices[spk].raw, 'stroke-width': 1.5, opacity: 0.4 });
+    path((f) => voiceDb(f) + eqFn(f), { stroke: voices[spk].raw, 'stroke-width': 2 });
+    // A dot per band on the EQ curve: drag one up or down, or slide sideways to the next.
+    BANDS.forEach((fc, i) => el('circle', { cx: x(fc), cy: y(eqFn(fc)), r: active === i ? 6 : 4, fill: active === i ? '#ededea' : '#8a8c91', stroke: '#16171a', 'stroke-width': 2 }, svg));
+    if (active != null) {
+      const t = el('text', { x: L + 10, y: T + 18, fill: '#ededea', 'font-family': 'ui-monospace, SF Mono, Menlo, monospace', 'font-size': 12 }, svg);
+      t.textContent = `${hz(BANDS[active])} Hz · ${s.eq[active] ? sgn(s.eq[active]) : '0'} dB`;
+    }
+    eqGeo = { L, T, w, h, x, y };
+    eqSvg.replaceChildren(svg);
+  }
+
+  // ── Faders ──
+  const bandsEl = $('#bands');
+  /** The band being touched (highlighted on the row and the graph), or null */
+  let active = null, activeTimer = 0;
+  function setBand(i, v) {
+    v = Math.max(-12, Math.min(12, Math.round(v)));
+    active = i;
+    clearTimeout(activeTimer);
+    if (cur().eq[i] !== v) { cur().eq[i] = v; cur().preset = null; cur().eqOn = true; }
+    update();
+  }
+  const release = () => { clearTimeout(activeTimer); activeTimer = setTimeout(() => { active = null; update(); }, 900); };
+  // One finger across the row: whichever band is under it takes the finger's height, so you can draw the curve left to right and back.
+  const sweep = (e) => {
+    const fs = [...bandsEl.querySelectorAll('.fader')];
+    const rects = fs.map((f) => f.getBoundingClientRect());
+    let i = rects.findIndex((r, k) => e.clientX < (k < rects.length - 1 ? (r.right + rects[k + 1].left) / 2 : Infinity));
+    if (i < 0) i = rects.length - 1;
+    const r = rects[i];
+    setBand(i, 12 - ((e.clientY - r.top) / r.height) * 24);
+  };
+  bandsEl.addEventListener('pointerdown', (e) => { if (e.target.closest('.fader, .band')) { bandsEl.setPointerCapture(e.pointerId); sweep(e); } });
+  bandsEl.addEventListener('pointermove', (e) => { if (bandsEl.hasPointerCapture(e.pointerId)) sweep(e); });
+  for (const ev of ['pointerup', 'pointercancel']) bandsEl.addEventListener(ev, release);
+  const faders = BANDS.map((f, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'band';
+    wrap.innerHTML = `<span class="val"></span><div class="fader" role="slider" tabindex="0" aria-label="${hz(f)} Hz" aria-valuemin="-12" aria-valuemax="12"><span class="track"></span><span class="mid"></span><span class="fill"></span><span class="knob"></span></div><span class="hz">${hz(f)}</span>`;
+    bandsEl.append(wrap);
+    const fader = wrap.querySelector('.fader');
+    const set = (v) => setBand(i, v);
+    fader.addEventListener('dblclick', () => set(0));
+    fader.addEventListener('keydown', (e) => {
+      const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
+      if (step) { e.preventDefault(); set(cur().eq[i] + step); }
+      if (e.key === '0') set(0);
+    });
+    return () => {
+      wrap.classList.toggle('active', active === i);
+      const v = cur().eq[i];
+      const val = wrap.querySelector('.val');
+      val.textContent = v ? sgn(v) : '0';
+      val.classList.toggle('zero', !v);
+      fader.setAttribute('aria-valuenow', v);
+      fader.setAttribute('aria-valuetext', `${minus(v)} dB`);
+      const pos = (12 - v) / 24; // 0 top … 1 bottom
+      const knob = wrap.querySelector('.knob'), fill = wrap.querySelector('.fill');
+      knob.style.top = pos * 100 + '%';
+      fill.style.top = Math.min(pos, 0.5) * 100 + '%';
+      fill.style.height = Math.abs(pos - 0.5) * 100 + '%';
+    };
+  });
+
+  // Presets
+  const presetsEl = $('#presets');
+  Object.keys(PRESETS).forEach((name) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = name; b.dataset.preset = name;
+    b.addEventListener('click', () => { cur().eq = [...PRESETS[name]]; cur().preset = name; update(); });
+    presetsEl.append(b);
+  });
+  $('#reset').addEventListener('click', () => { cur().eq = [...PRESETS.Flat]; cur().preset = 'Flat'; update(); });
+  $('#match').addEventListener('click', () => {
+    // Line the voice up with the target over the speech range, then fill each band's difference, up to 6 dB.
+    const speech = FREQS.filter((f) => f >= 150 && f <= 6000);
+    const offset = speech.reduce((s, f) => s + target(f) - voiceDb(f), 0) / speech.length;
+    const g = BANDS.map((fc) => {
+      const around = FREQS.filter((f) => f >= fc / 1.41 && f <= fc * 1.41);
+      const diff = around.reduce((s, f) => s + target(f) - voiceDb(f) - offset, 0) / around.length;
+      return Math.max(-6, Math.min(6, Math.round(diff * 0.8)));
+    });
+    cur().eq = g; cur().preset = null; cur().eqOn = true; update();
+  });
+  $('#eq-on').addEventListener('change', (e) => { cur().eqOn = e.target.checked; update(); });
+
+  // ── Compressor ──
+  const compBox = $('#comp-plot');
+  const ranges = ['threshold', 'ratio', 'knee', 'makeup'];
+  const fmt = { threshold: (v) => `${minus(v)} dB`, ratio: (v) => `${v}:1`, knee: (v) => `${v} dB`, makeup: (v) => `+${v} dB` };
+  ranges.forEach((k) => $('#' + k).addEventListener('input', (e) => { cur().comp[k] = Number(e.target.value); cur().compPreset = null; update(); }));
+  const compPresetsEl = $('#comp-presets');
+  Object.keys(COMP).forEach((name) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = name; b.dataset.preset = name;
+    b.addEventListener('click', () => { cur().comp = { ...COMP[name] }; cur().compPreset = name; update(); });
+    compPresetsEl.append(b);
+  });
+  $('#comp-on').addEventListener('change', (e) => { cur().compOn = e.target.checked; update(); });
+  /** Output level for an input level (soft knee), before make-up. */
+  function compOut(x, c) {
+    const { threshold: T, ratio: R, knee: W } = c;
+    if (2 * (x - T) < -W) return x;
+    if (W > 0 && 2 * Math.abs(x - T) <= W) return x + ((1 / R - 1) * (x - T + W / 2) ** 2) / (2 * W);
+    return T + (x - T) / R;
+  }
+  let nowIn = -30; // the voice's level right now (dBFS)
+  function drawComp() {
+    const W = compBox.clientWidth, H = compBox.clientHeight;
+    if (!W || !H) return;
+    const L = 34, B = 22, T = 8, R = 8, w = W - L - R, h = H - T - B;
+    const x = (d) => L + ((d + 60) / 60) * w, y = (d) => T + ((0 - Math.max(-60, Math.min(0, d))) / 60) * h;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Compressor transfer curve' });
+    el('clipPath', { id: 'cclip' }, el('defs', {}, svg)).append(el('rect', { x: L, y: T, width: w, height: h }));
+    el('rect', { x: L, y: T, width: w, height: h, fill: '#16171a' }, svg);
+    for (let d = -60; d <= 0; d += 6) {
+      const major = d % 12 === 0;
+      el('line', { x1: x(d), x2: x(d), y1: T, y2: T + h, stroke: major ? '#26272b' : '#1c1d20' }, svg);
+      el('line', { x1: L, x2: L + w, y1: y(d), y2: y(d), stroke: major ? '#26272b' : '#1c1d20' }, svg);
+    }
+    const label = (t, a) => { const e = el('text', Object.assign({ fill: '#6a6c71', 'font-family': 'ui-monospace, SF Mono, Menlo, monospace', 'font-size': 10 }, a), svg); e.textContent = t; };
+    for (let d = -48; d <= 0; d += 12) { label(minus(d), { x: L - 6, y: y(d) + 3.5, 'text-anchor': 'end' }); label(minus(d), { x: x(d), y: T + h + 15, 'text-anchor': 'middle' }); }
+    label('IN', { x: L + w - 4, y: T + h - 6, 'text-anchor': 'end', 'letter-spacing': '0.06em' });
+    label('OUT', { x: L + 6, y: T + 14, 'letter-spacing': '0.06em' });
+    const plot = el('g', { 'clip-path': 'url(#cclip)' }, svg);
+    const c = cur().comp, on = cur().compOn;
+    const out = (d) => (on ? compOut(d, c) + c.makeup : d);
+    el('line', { x1: x(-60), y1: y(-60), x2: x(0), y2: y(0), stroke: '#3a3b3f', 'stroke-width': 1.5 }, plot);
+    if (on) el('line', { x1: x(c.threshold), x2: x(c.threshold), y1: T, y2: T + h, stroke: '#6a6c71', 'stroke-dasharray': '3 4' }, plot);
+    const pts = []; for (let d = -60; d <= 0.001; d += 0.5) pts.push((pts.length ? 'L' : 'M') + x(d).toFixed(1) + ' ' + y(out(d)).toFixed(1));
+    el('path', { d: pts.join(' '), fill: 'none', stroke: '#ededea', 'stroke-width': 2, 'stroke-linejoin': 'round' }, plot);
+    if (on) label(`THRESHOLD ${minus(c.threshold)}`, { x: Math.min(x(c.threshold) + 6, L + w - 90), y: T + 14, 'letter-spacing': '0.06em' });
+    el('circle', { cx: x(nowIn), cy: y(out(nowIn)), r: 5, fill: voices[spk].raw, stroke: '#16171a', 'stroke-width': 2 }, plot);
+    compBox.replaceChildren(svg);
+    const gr = on ? compOut(nowIn, c) - nowIn : 0;
+    $('#gr-text').innerHTML = `${minus(gr.toFixed(1))}<small> dB</small>`;
+    $('#gr-bar').style.width = Math.min(100, (-gr / 18) * 100) + '%';
+  }
+
+  // ── Tabs ──
+  const press = (group, attr, value) => group.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === value)));
+  $('#speakers').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; spk = b.dataset.spk; spectrum = null; update(); applyAudio(); });
+  $('#views').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    view = b.dataset.view;
+    $('#eq-view').style.display = view === 'eq' ? 'flex' : 'none';
+    $('#comp-view').style.display = view === 'comp' ? 'flex' : 'none';
+    update();
+  });
+
+  function update() {
+    const s = cur();
+    press($('#speakers'), 'spk', spk);
+    press($('#views'), 'view', view);
+    press(presetsEl, 'preset', s.preset ?? '');
+    press(compPresetsEl, 'preset', s.compPreset ?? '');
+    $('#eq-on').checked = s.eqOn;
+    $('#comp-on').checked = s.compOn;
+    ['#lg-before', '#lg-after', '#lg-now'].forEach((q) => ($(q).style.background = voices[spk].color));
+    $('#eq-hint').innerHTML = (measured[spk] ? `Measured from <b>${fileName}</b> while it played.` : voices[spk].hint) + ' <b>Match to target</b> suggests bands that bring the voice toward the target, by up to <span class="mono">6 dB</span> each.';
+    faders.forEach((f) => f());
+    ranges.forEach((k) => {
+      const input = $('#' + k);
+      input.value = s.comp[k];
+      input.style.setProperty('--fill', ((s.comp[k] - input.min) / (input.max - input.min)) * 100 + '%');
+      $('#v-' + k).textContent = fmt[k](s.comp[k]);
+    });
+    drawEq(); drawComp(); applyAudio(); if (typeof drawLoud === 'function') drawLoud();
+  }
+  new ResizeObserver(() => { drawEq(); drawComp(); }).observe(document.body);
+
+  // ── Audio: each speaker's source → (A) straight or (B) 10 peaking filters → compressor → make-up,
+  //    both into the episode mix → K-weighted loudness meter, and out.
+  let ctx = null, chains = null, master = null, sources = [], buffers = null, fileName = '', playing = false, ab = 'b';
+  const ltas = { sum: null, n: 0 };
+  function chain() {
+    const input = ctx.createGain();
+    const filters = BANDS.map((f) => { const b = ctx.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = f; b.Q.value = Q; return b; });
+    const comp = ctx.createDynamicsCompressor();
+    comp.attack.value = 0.01; comp.release.value = 0.2;
+    const makeup = ctx.createGain(), dry = ctx.createGain(), wet = ctx.createGain(), out = ctx.createGain();
+    const analyser = ctx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.6;
+    const pre = ctx.createAnalyser(); pre.fftSize = 4096;
+    input.connect(pre);
+    input.connect(dry).connect(out);
+    filters.reduce((prev, f) => (prev.connect(f), f), input).connect(comp).connect(makeup).connect(wet).connect(out);
+    out.connect(analyser);
+    out.connect(master.mix);
+    return { input, filters, comp, makeup, dry, wet, analyser, pre };
+  }
+  // Loudness (BS.1770): K-weighting (high shelf + high pass) on the mix, then mean square per 100 ms.
+  async function graph() {
+    if (ctx) return;
+    ctx = new AudioContext();
+    const mix = ctx.createGain(), out = ctx.createAnalyser();
+    out.fftSize = 2048;
+    const shelf = ctx.createBiquadFilter(); shelf.type = 'highshelf'; shelf.frequency.value = 1681.97; shelf.gain.value = 4;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 38.13; hp.Q.value = 0.5;
+    mix.connect(out).connect(ctx.destination);
+    master = { mix, out };
+    chains = { tyler: chain(), sam: chain() };
+    // Mean square of the K-weighted mix every 100 ms (a 4096-sample window, about 85 ms at 48 kHz).
+    const kw = ctx.createAnalyser(); kw.fftSize = 4096;
+    mix.connect(shelf).connect(hp).connect(kw);
+    const buf = new Float32Array(kw.fftSize);
+    setInterval(() => {
+      if (!playing) return;
+      kw.getFloatTimeDomainData(buf);
+      let sum = 0; for (const x of buf) sum += x * x;
+      loud.push(sum / buf.length);
+    }, 100);
+  }
+  function applyAudio() {
+    if (!chains) return;
+    const t = ctx.currentTime;
+    for (const who of ['tyler', 'sam']) {
+      const s = state[who], n = chains[who], c = s.comp;
+      n.filters.forEach((f, i) => f.gain.setTargetAtTime(s.eqOn ? s.eq[i] : 0, t, 0.02));
+      n.comp.threshold.value = s.compOn ? c.threshold : 0;
+      n.comp.ratio.value = s.compOn ? c.ratio : 1;
+      n.comp.knee.value = c.knee;
+      n.makeup.gain.setTargetAtTime(s.compOn ? 10 ** (c.makeup / 20) : 1, t, 0.02);
+      n.dry.gain.setTargetAtTime(ab === 'a' ? 1 : 0, t, 0.02);
+      n.wet.gain.setTargetAtTime(ab === 'b' ? 1 : 0, t, 0.02);
+    }
+  }
+  $('#ab').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; ab = b.dataset.ab; press($('#ab'), 'ab', ab); applyAudio(); });
+
+  /**
+   * A synthetic voice: a pitched buzz through moving vowel formants, in syllables, speaking during
+   * `turns` ([start, end] seconds), coloured like its mic. Tyler and Sam take turns in a 16 s loop.
+   */
+  const DUR = 16;
+  async function exampleVoice({ pitch, formants, turns, mic, level }) {
+    const sr = 48000, off = new OfflineAudioContext(1, sr * DUR, sr);
+    const osc = off.createOscillator(); osc.type = 'sawtooth';
+    for (let i = 0; i < DUR * 2; i++) osc.frequency.setTargetAtTime(pitch * (0.88 + 0.24 * Math.abs(Math.sin(i * 1.7))), i / 2, 0.15);
+    const noise = off.createBufferSource(); const nb = off.createBuffer(1, sr * DUR, sr); const nd = nb.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1; noise.buffer = nb;
+    const nGain = off.createGain(); nGain.gain.value = 0.04;
+    const vowels = [[700, 1220, 2600], [300, 2300, 3000], [500, 1000, 2400], [400, 1900, 2600], [650, 1080, 2650]];
+    const env = off.createGain(); env.gain.value = 0;
+    const mix = off.createGain();
+    const fs = [0, 1, 2].map((k) => { const b = off.createBiquadFilter(); b.type = 'bandpass'; b.Q.value = [6, 9, 10][k]; const g = off.createGain(); g.gain.value = [1, 0.6, 0.35][k]; b.connect(g).connect(mix); return b; });
+    const src = off.createGain(); osc.connect(src); noise.connect(nGain).connect(src);
+    fs.forEach((b) => src.connect(b));
+    // The mic's colour (what the EQ is there to fix)
+    const colour = mic.map(([type, f, g, q]) => { const b = off.createBiquadFilter(); b.type = type; b.frequency.value = f; if (g != null) b.gain.value = g; if (q != null) b.Q.value = q; return b; });
+    colour.reduce((prev, b) => (prev.connect(b), b), mix).connect(env).connect(off.destination);
+    let v = 0;
+    for (const [a, z] of turns) {
+      let t = a;
+      while (t < z) {
+        const phraseEnd = Math.min(z, t + 1.4 + Math.random() * 1.2);
+        while (t < phraseEnd) {
+          const syl = 0.14 + Math.random() * 0.16, vw = vowels[v++ % vowels.length];
+          fs.forEach((b, k) => b.frequency.setTargetAtTime(vw[k] * formants, t, 0.03));
+          env.gain.setTargetAtTime(0.9, t, 0.02); env.gain.setTargetAtTime(0.25, t + syl * 0.7, 0.03);
+          t += syl + 0.03;
+        }
+        env.gain.setTargetAtTime(0, t, 0.05); t += 0.3 + Math.random() * 0.25;
+      }
+    }
+    osc.start(); noise.start();
+    const out = await off.startRendering();
+    const d = out.getChannelData(0); let peak = 0; for (const x of d) peak = Math.max(peak, Math.abs(x));
+    for (let i = 0; i < d.length; i++) d[i] *= level / peak;
+    return out;
+  }
+  const exampleEpisode = async () => ({
+    tyler: await exampleVoice({ pitch: 118, formants: 1, level: 0.2, turns: [[0.2, 3.4], [7.0, 9.6], [12.6, 14.6]], mic: [['peaking', 200, 6, 1], ['peaking', 4000, -3, 1.2]] }),
+    sam: await exampleVoice({ pitch: 196, formants: 1.14, level: 0.12, turns: [[3.8, 6.6], [10.0, 12.2], [14.9, 15.8]], mic: [['highpass', 160, null, 0.7], ['peaking', 5000, 6, 1.5]] }),
+  });
+
+  const playBtn = $('#play');
+  async function play() {
+    await graph();
+    await ctx.resume();
+    if (!buffers) { playBtn.textContent = 'Making…'; buffers = await exampleEpisode(); fileName = ''; }
+    sources = [];
+    for (const who of ['tyler', 'sam']) {
+      if (!buffers[who]) continue;
+      const src = ctx.createBufferSource(); src.buffer = buffers[who]; src.loop = true;
+      src.connect(chains[who].input); src.start();
+      sources.push(src);
+    }
+    playing = true; playBtn.textContent = 'Stop';
+    loudReset(); applyAudio(); loop();
+  }
+  function stop() { sources.forEach((s) => s.stop()); sources = []; playing = false; playBtn.textContent = 'Play'; spectrum = null; drawEq(); }
+  playBtn.addEventListener('click', () => (playing ? stop() : play()));
+
+  async function loadFile(file) {
+    if (!file) return;
+    await graph();
+    try {
+      const b = await ctx.decodeAudioData(await file.arrayBuffer());
+      if (playing) stop();
+      // A clip plays as the selected speaker alone.
+      buffers = { [spk]: b }; fileName = file.name;
+      measured[spk] = null; ltas.sum = null; ltas.n = 0; ltas.spk = spk;
+      $('#source').innerHTML = `${file.name.replace(/[<>&]/g, '')} as ${voices[spk].name} · <span class="mono">${Math.round(b.duration)} s</span>`;
+      play();
+    } catch { $('#source').textContent = "That file couldn't be read as audio. Try a WAV or MP3."; }
+  }
+  $('#file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  const drop = $('#drop');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+
+  // ── Loudness of the episode mix ──
+  // 100 ms mean squares, stereo with the voices centred (L = R), so a mono sum counts twice.
+  let loud = [];
+  const lufs = (ms) => (ms > 0 ? -0.691 + 10 * Math.log10(2 * ms) : -Infinity);
+  const mean = (a) => a.reduce((s, x) => s + x, 0) / (a.length || 1);
+  let loudReset = () => { loud = []; };
+  function loudness() {
+    const n = loud.length;
+    const momentary = n >= 4 ? lufs(mean(loud.slice(-4))) : -Infinity;
+    const short = n >= 30 ? lufs(mean(loud.slice(-30))) : n >= 4 ? lufs(mean(loud)) : -Infinity;
+    // Integrated: 400 ms blocks every 100 ms, gated at −70 LUFS then 10 LU under the ungated mean.
+    const blocks = [];
+    for (let i = 3; i < n; i++) blocks.push((loud[i] + loud[i - 1] + loud[i - 2] + loud[i - 3]) / 4);
+    const abs = blocks.filter((b) => lufs(b) > -70);
+    const rel = lufs(mean(abs)) - 10;
+    const gated = abs.filter((b) => lufs(b) > rel);
+    const integrated = gated.length ? lufs(mean(gated)) : -Infinity;
+    // Range: 10th to 95th percentile of short-term loudness, gated at −70 and 20 LU under.
+    const st = [];
+    for (let i = 29; i < n; i += 10) st.push(lufs(mean(loud.slice(i - 29, i + 1))));
+    const stg = st.filter((x) => x > -70);
+    const stRel = stg.length ? 10 * Math.log10(mean(stg.map((x) => 10 ** (x / 10)))) - 20 : -Infinity;
+    const r = stg.filter((x) => x > stRel).sort((a, b) => a - b);
+    const range = r.length > 4 ? r[Math.floor(r.length * 0.95) - 1] - r[Math.floor(r.length * 0.1)] : null;
+    return { momentary, short, integrated, range };
+  }
+  // Short-term loudness history for the graph (one point per 100 ms), and the peak.
+  let history = [], peakHold = -Infinity;
+  const TARGET_BY = { stereo: -16, mono: -19 };
+  let targetMode = 'stereo';
+  $('#lk-target').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; targetMode = b.dataset.t; press($('#lk-target'), 't', targetMode); drawLoud(); });
+  $('#lk-on').addEventListener('change', (e) => { $('#lk-body').style.display = e.target.checked ? 'flex' : 'none'; drawLoud(); });
+
+  // At rest: an example 60 s of an episode, clearly marked, so the meter shows what it does.
+  const exampleHistory = Array.from({ length: 600 }, (_, i) => -19.4 + Math.sin(i / 37) * 2.2 + Math.sin(i / 11) * 1.1 + (i % 97 < 6 ? -9 : 0));
+  const exampleNumbers = { momentary: -18.2, short: -19.1, integrated: -19.4, range: 5.8, peak: -4.1 };
+
+  const loudBox = $('#lk-plot');
+  function drawLoud() {
+    const W = loudBox.clientWidth, H = loudBox.clientHeight;
+    if (!W || !H) return;
+    const target = TARGET_BY[targetMode];
+    const L = 34, B = 22, T = 8, R = 8, w = W - L - R, h = H - T - B, lo = -42, hi = -6;
+    // Mono: the same mix on one channel reads 3 dB under the centred stereo.
+    const mono = targetMode === 'mono' ? -3.01 : 0;
+    const pts = (playing && history.length ? history : exampleHistory).map((d) => d + mono);
+    const x = (i) => L + (i / 599) * w, y = (d) => T + ((hi - Math.max(lo, Math.min(hi, d))) / (hi - lo)) * h;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Short-term loudness over the last minute' });
+    el('clipPath', { id: 'lclip' }, el('defs', {}, svg)).append(el('rect', { x: L, y: T, width: w, height: h }));
+    el('rect', { x: L, y: T, width: w, height: h, fill: '#16171a' }, svg);
+    for (let s2 = 0; s2 <= 60; s2 += 10) el('line', { x1: x(s2 * 10), x2: x(s2 * 10), y1: T, y2: T + h, stroke: '#1c1d20' }, svg);
+    for (let d = hi; d >= lo; d -= 6) el('line', { x1: L, x2: L + w, y1: y(d), y2: y(d), stroke: '#26272b' }, svg);
+    const label = (t, a) => { const e = el('text', Object.assign({ fill: '#6a6c71', 'font-family': 'ui-monospace, SF Mono, Menlo, monospace', 'font-size': 10 }, a), svg); e.textContent = t; };
+    for (let d = hi - 6; d > lo; d -= 6) label(minus(d), { x: L - 6, y: y(d) + 3.5, 'text-anchor': 'end' });
+    [[0, '−60 s'], [300, '−30 s'], [599, 'now']].forEach(([i, t]) => label(t, { x: x(i), y: T + h + 15, 'text-anchor': i === 0 ? 'start' : i === 599 ? 'end' : 'middle' }));
+    const plot = el('g', { 'clip-path': 'url(#lclip)' }, svg);
+    // The target, with ±1 LU either side in green
+    el('rect', { x: L, y: y(target + 1), width: w, height: y(target - 1) - y(target + 1), fill: 'var(--ok)', opacity: 0.12 }, plot);
+    el('line', { x1: L, x2: L + w, y1: y(target), y2: y(target), stroke: '#ededea', 'stroke-width': 2 }, plot);
+    $('#lk-target-text').textContent = `${minus(target)} LUFS`;
+    const off = 600 - pts.length;
+    // Only measured points (the first few windows aren't full yet)
+    let first = -1;
+    const line = pts.map((d, i) => (Number.isFinite(d) ? (first < 0 ? ((first = i), 'M') : 'L') + x(i + off).toFixed(1) + ' ' + y(d).toFixed(1) : '')).join(' ');
+    if (first >= 0 && pts.length - first > 1) {
+      el('path', { d: `${line} L${x(599)} ${y(lo)} L${x(first + off)} ${y(lo)} Z`, fill: '#ededea', opacity: 0.05 }, plot);
+      el('path', { d: line, fill: 'none', stroke: '#8a8c91', 'stroke-width': 2, 'stroke-linejoin': 'round' }, plot);
+    }
+    loudBox.replaceChildren(svg);
+
+    const raw = playing && loud.length ? { ...loudness(), peak: peakHold } : exampleNumbers;
+    const n = { ...raw, integrated: raw.integrated + mono, short: raw.short + mono, momentary: raw.momentary + mono };
+    const fmt = (d, digits = 1) => (Number.isFinite(d) ? minus(d.toFixed(digits)) : '—');
+    $('#lk-int').textContent = fmt(n.integrated);
+    $('#lk-short').textContent = fmt(n.short);
+    $('#lk-mom').textContent = fmt(n.momentary);
+    $('#lk-range').textContent = n.range == null ? '—' : n.range.toFixed(1);
+    $('#lk-peak').textContent = fmt(n.peak);
+    $('#lk-example').hidden = playing;
+    // Momentary bar: −42 to −6, the target tick, green within 1 LU, amber under, red over
+    const f = (d) => Math.max(0, Math.min(1, (d - lo) / (hi - lo)));
+    const bar = $('#lk-bar');
+    bar.style.width = f(n.momentary) * 100 + '%';
+    // Green within 1 LU of the target, amber over it, grey under (speech dips all the time; that's fine)
+    bar.style.background = n.momentary > target + 1 ? 'var(--warn)' : n.momentary >= target - 1 ? 'var(--ok)' : 'var(--text-2)';
+    $('#lk-tick').style.left = f(target) * 100 + '%';
+    const gain = Number.isFinite(n.integrated) ? target - n.integrated : null;
+    $('#lk-note').innerHTML = gain == null
+      ? 'Play to measure.'
+      : `To publish at <span class="mono">${minus(target)} LUFS</span>, the export ${Math.abs(gain) < 0.05 ? 'leaves it as it is' : `${gain > 0 ? 'adds' : 'takes off'} <span class="mono">${Math.abs(gain).toFixed(1)} dB</span>`}; true peaks stay under <span class="mono">−1 dBTP</span>.`;
+  }
+
+  // While playing: live spectrum, level, the compressor dot, the loudness, and (for a loaded clip) the long-term spectrum.
+  function bucket(bins, sr, top, cols = 160) {
+    const sums = new Float64Array(cols), n = new Uint32Array(cols), binHz = sr / 2 / bins.length;
+    for (let i = 1; i < bins.length; i++) { const f = i * binHz; if (f < 20 || f > 20000 || !isFinite(bins[i])) continue; const c = Math.min(cols - 1, Math.floor(freqPos(f) * cols)); sums[c] += 10 ** (bins[i] / 10); n[c]++; }
+    const pts = []; for (let c = 0; c < cols; c++) if (n[c]) pts.push([F_MIN * (F_MAX / F_MIN) ** ((c + 0.5) / cols), 10 * Math.log10(sums[c] / n[c] + 1e-12)]);
+    if (top == null) return pts;
+    const peak = Math.max(...pts.map((p) => p[1])); return pts.map(([f, d]) => [f, d - peak + top]);
+  }
+  const bins = new Float32Array(2048), preBins = new Float32Array(2048), td = new Float32Array(2048);
+  let frame = 0, lastHist = 0;
+  function loop() {
+    if (!playing) return;
+    requestAnimationFrame(loop);
+    const n = chains[spk];
+    n.analyser.getFloatFrequencyData(bins);
+    // Smoothed in time and into about third-octave columns, so it reads as a band behind the curves.
+    const fresh = bucket(bins, ctx.sampleRate, 18, 60);
+    spectrum = spectrum && spectrum.length === fresh.length ? fresh.map(([f, d], i) => [f, spectrum[i][1] * 0.8 + d * 0.2]) : fresh;
+    // The episode's level (the mix)
+    master.out.getFloatTimeDomainData(td);
+    let pk = 0; for (const x of td) pk = Math.max(pk, Math.abs(x));
+    const db = pk > 0 ? 20 * Math.log10(pk) : -Infinity;
+    peakHold = Math.max(peakHold, db);
+    $('#level').textContent = isFinite(db) && db > -60 ? `${minus(db.toFixed(0))} dB` : '— dB';
+    const m = $('#meter'); m.style.width = Math.max(0, (db + 60) / 60) * 100 + '%'; m.style.background = db > -6 ? 'var(--rec)' : db > -18 ? 'var(--warn)' : 'var(--ok)';
+    // The input level feeding this speaker's compressor (pre-EQ is close enough for the dot)
+    n.pre.getFloatTimeDomainData(td);
+    let pi = 0; for (const x of td) pi = Math.max(pi, Math.abs(x));
+    nowIn = Math.max(-60, pi > 0 ? 20 * Math.log10(pi) : -60);
+    // Loudness history: one short-term point per 100 ms block received
+    if (loud.length !== lastHist) {
+      for (let i = lastHist; i < loud.length; i++) { const w = loud.slice(Math.max(0, i - 29), i + 1); history.push(i >= 9 ? lufs(mean(w)) : NaN); }
+      if (history.length > 600) history = history.slice(-600);
+      lastHist = loud.length;
+    }
+    // A loaded clip: build its long-term spectrum as it plays, for the current speaker.
+    if (fileName && ltas.spk === spk && frame % 4 === 0) {
+      n.pre.getFloatFrequencyData(preBins);
+      const pts = bucket(preBins, ctx.sampleRate, null);
+      if (!ltas.sum) ltas.sum = pts.map(([f]) => [f, 0]);
+      pts.forEach(([, d], i) => (ltas.sum[i][1] += 10 ** (d / 10)));
+      ltas.n++;
+      if (ltas.n > 8) {
+        const avg = ltas.sum.map(([f, s2]) => [f, 10 * Math.log10(s2 / ltas.n)]);
+        const speech = avg.filter(([f]) => f >= 150 && f <= 6000);
+        const mn = speech.reduce((s2, p2) => s2 + p2[1], 0) / speech.length;
+        const norm = avg.map(([f, d]) => [f, d - mn]);
+        measured[spk] = (f) => { let best = norm[0]; for (const p2 of norm) if (Math.abs(Math.log(p2[0] / f)) < Math.abs(Math.log(best[0] / f))) best = p2; return best[1]; };
+      }
+    }
+    frame++;
+    view === 'eq' ? drawEq() : drawComp();
+    if (frame % 6 === 0) drawLoud();
+    if (frame % 30 === 0) update();
+  }
+  const _loudReset = loudReset;
+  loudReset = () => { _loudReset(); history = []; lastHist = 0; peakHold = -Infinity; };
+
+  // At rest: a gently moving example level on the compressor, so the dot shows what it does.
+  setInterval(() => { if (!playing && view === 'comp') { nowIn = -26 + Math.sin(Date.now() / 700) * 9 + Math.sin(Date.now() / 230) * 3; drawComp(); } }, 60);
+  new ResizeObserver(() => drawLoud()).observe(loudBox);
+
+  update();
+})();
+</script>
+
+</body>
+</html>
