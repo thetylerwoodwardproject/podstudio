@@ -4,6 +4,11 @@ import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
+import Block from '@/components/ui/Block.astro';
+import Card from '@/components/ui/Card.astro';
+import Row from '@/components/ui/Row.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import Switch from '@/components/ui/Switch.astro';
 import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
 export const prerender = false;
@@ -26,6 +31,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
     id="session"
     data-episode={episode.id}
     data-label={`Ep${episode.number}`}
+    data-title={episode.label}
     data-lines={JSON.stringify(scriptLines.map((l) => l.text))}
   >
     <div>
@@ -172,6 +178,32 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       </div>
     </section>
 
+    <Card label="Ready to publish" rows data-publish>
+      <Row title="Episode file" hint="Everyone mixed into one file, ready to upload to your podcast host. The separate tracks above are still in the zip for your DAW." data-pub-row>
+        <Switch name="pub-mix" label="Episode file" />
+      </Row>
+      <Block data-pub-options>
+        <div class="text-[14px] text-text">Loudness, <span class="font-mono text-[13px]">LUFS</span></div>
+        <Segmented
+          name="pub-loudness"
+          label="Loudness"
+          value="stereo"
+          options={[
+            { value: 'stereo', label: 'Stereo −16' },
+            { value: 'mono', label: 'Mono −19' },
+            { value: 'off', label: 'Off' },
+          ]}
+        />
+        <p class="help">True peaks stay under <span class="font-mono text-[12px]">−1 dBTP</span>, so encoding doesn't clip. Off only limits the peaks.</p>
+      </Block>
+      <Row title="Level each speaker" hint="Evens out each voice, up to 12 dB. Adds a levelled copy of each person's edit; the originals are kept." data-pub-options>
+        <Switch name="pub-level" label="Level each speaker" />
+      </Row>
+      <Row title="MP3 too" hint="128 kbps mono or 192 kbps stereo" data-pub-options>
+        <Switch name="pub-mp3" label="MP3 too" />
+      </Row>
+    </Card>
+
     <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
       <span class="meta mr-auto text-muted" data-summary></span>
       <Button data-open-markers>Open markers</Button>
@@ -204,6 +236,9 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
   import { hasPads, renderPads, renderRoughMix, stereoOf } from '@/lib/audio/pads-export';
   import { bextFor, formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, trackStart, trackSync, type TakeMeta } from '@/lib/audio/takes';
   import { guestRanges, guestTime, timecode, type SyncMap } from '@/lib/audio/sync';
+  import { renderMaster, TARGETS, type MasterTrack } from '@/lib/audio/master';
+  import { encodeMp3 } from '@/lib/audio/mp3';
+  import { VariantWriter } from '@/lib/audio/takes';
   import { alignedRanges } from '@/lib/audio/align';
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
   import { denoiseTake, previewTake } from '@/lib/audio/denoise';
@@ -456,8 +491,34 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
     const options = () => {
       const data = new FormData(form);
       const ns = Number(data.get('ns') ?? 0);
-      return { assembled: data.has('assembled'), pauses: String(data.get('pauses')) as PauseMode, ns, tones: data.has('tones') && toneKinds.length > 0, mix: withPads && data.has('mix') };
+      return {
+        assembled: data.has('assembled'),
+        pauses: String(data.get('pauses')) as PauseMode,
+        ns,
+        tones: data.has('tones') && toneKinds.length > 0,
+        mix: withPads && data.has('mix'),
+        pub: {
+          mix: data.has('pub-mix'),
+          loudness: String(data.get('pub-loudness') ?? 'stereo') as 'stereo' | 'mono' | 'off',
+          level: data.has('pub-level'),
+          mp3: data.has('pub-mp3'),
+        },
+      };
     };
+    // Ready to publish: the defaults from Settings → Recording.
+    {
+      const p = loadSettings().recording.publish;
+      const box = (n: string) => form.querySelector<HTMLInputElement>(`[name="${n}"]`)!;
+      box('pub-mix').checked = p.mix;
+      box('pub-level').checked = p.level;
+      box('pub-mp3').checked = p.mp3;
+      form.querySelector<HTMLInputElement>(`[name="pub-loudness"][value="${p.loudness}"]`)!.checked = true;
+      const dim = () => form.querySelectorAll('[data-pub-options]').forEach((el) => el.classList.toggle('opacity-40', !box('pub-mix').checked));
+      dim();
+      form.addEventListener('change', dim);
+    }
+    // The ranges each episode file (and levelled copy) is made from: the edit's, or the whole session.
+    const pubParts = (o: ReturnType<typeof options>) => (o.assembled ? assemble(duration, wallMarkers, lineLog, o.pauses).files : [[[0, duration]] as [number, number][]]);
     const refresh = () => {
       const o = options();
       const a = assemble(duration, wallMarkers, lineLog, o.pauses);
@@ -467,9 +528,19 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       // Noise suppression on: every audio file comes twice, unprocessed and cleaned.
       const copies = o.ns ? 2 : 1;
       const padTracks = withPads ? 1 : 0;
-      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0);
+      // Ready to publish: an episode file per part (and its MP3), and a levelled copy of each person's edit.
+      const parts = o.pub.mix ? pubParts(o).length : 0;
+      const pubLen = o.assembled ? duration - a.removed : duration;
+      const pubCh = o.pub.loudness === 'mono' ? 1 : 2;
+      const pubFiles = parts * (1 + (o.pub.mp3 ? 1 : 0)) + (o.pub.mix && o.pub.level ? parts * tracks.length : 0);
+      const pubBytes = o.pub.mix
+        ? pubLen * take.sampleRate * (take.bitDepth / 8) * pubCh +
+          (o.pub.mp3 ? (pubLen * (pubCh === 2 ? 192 : 128) * 1000) / 8 : 0) +
+          (o.pub.level ? tracks.reduce((n, t) => n + pubLen * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0) : 0)
+        : 0;
+      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0) + (take.voiceLog?.length ? 1 : 0) + pubFiles;
       const padBytes = withPads ? duration * take.sampleRate * (take.bitDepth / 8) * 2 * (1 + (o.assembled ? 1 : 0) + (o.mix ? 1 : 0)) : 0;
-      $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes)}`;
+      $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes + pubBytes)}`;
     };
     form.addEventListener('change', refresh);
     refresh();
@@ -515,7 +586,6 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
           $('[data-export-label]').textContent = 'Preparing…';
         }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
-        entries.push({ name: `${label}_Session_sync.txt`, data: syncReport() });
         const csv = [
           'time,end,kind,line,attempt,first words or pad',
           ...markers.map((m) =>
@@ -598,6 +668,57 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
             }
           }
         }
+
+        // Ready to publish: everyone mixed at the loudness target, peaks under −1 dBTP.
+        const pubLines: string[] = [];
+        if (o.pub.mix) {
+          const target = o.pub.loudness === 'off' ? null : TARGETS[o.pub.loudness];
+          const outCh: 1 | 2 = o.pub.loudness === 'mono' ? 1 : 2;
+          const master = { ...take, channels: outCh };
+          const parts = pubParts(o);
+          const title = form.dataset.title ?? label;
+          for (const [i, ranges] of parts.entries()) {
+            const suffix = parts.length > 1 ? `_part${i + 1}` : '';
+            const at = ranges[0]?.[0] ?? 0;
+            const writers: VariantWriter[] = [];
+            const inputs: MasterTrack[] = [];
+            for (const t of tracks) {
+              const wav = await rangesWav(t, aligned(t, ranges), [], variant ?? undefined, mutedFor(t), null);
+              const input: MasterTrack = { wav, level: true };
+              if (o.pub.level) {
+                const w = await VariantWriter.open(t, `level-${i + 1}`);
+                writers.push(w);
+                input.levelled = (x) => w.write(x);
+              }
+              inputs.push(input);
+            }
+            if (withPads) inputs.push({ wav: await rangesWav(stereoOf(take), ranges, [], 'pads', [], null), level: false });
+            const out = await VariantWriter.open(master, `master-${i + 1}`);
+            const r = await renderMaster(inputs, { rate: take.sampleRate, channels: outCh, lufs: target?.lufs ?? null, levelling: o.pub.level }, (x) => out.write(x), (stage, d) => {
+              $('[data-export-label]').textContent = `${stage === 'level' ? (o.pub.level ? 'Levelling' : 'Measuring loudness') : 'Mastering'}${parts.length > 1 ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`;
+            });
+            await out.done();
+            for (const w of writers) await w.done();
+            const episodeWav = await takeWav(master, `master-${i + 1}`, tc(take, at));
+            entries.push({ name: `${label}_Episode${suffix}.wav`, data: episodeWav });
+            if (o.pub.mp3)
+              entries.push({
+                name: `${label}_Episode${suffix}.mp3`,
+                data: await encodeMp3(episodeWav, `${title}${suffix ? ` (part ${i + 1})` : ''}`, (d) => ($('[data-export-label]').textContent = `MP3${suffix ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`)),
+              });
+            if (o.pub.level)
+              for (const t of tracks) {
+                const file = o.assembled ? `${name(t)}_edit${parts.length > 1 ? `_part${i + 1}` : ''}_levelled` : `${name(t)}_levelled`;
+                entries.push({ name: `${file}.wav`, data: await takeWav(t, `level-${i + 1}`, tc(t, at)) });
+              }
+            const f = (x: number) => (Number.isFinite(x) ? x.toFixed(1).replace('-', '−') : '—');
+            pubLines.push(
+              `Episode${suffix ? ` part ${i + 1}` : ''}: ${target ? `${f(r.result)} LUFS integrated (${f(r.measured)} before, gain ${r.gain >= 0 ? '+' : '−'}${Math.abs(r.gain).toFixed(1)} dB)` : `loudness unchanged (${f(r.measured)} LUFS)`}, ${outCh === 2 ? 'stereo' : 'mono'}, true peak under −1 dBTP; levelling ${o.pub.level ? 'on' : 'off'}${variant ? ', from the noise-suppressed audio' : ''}.`,
+            );
+          }
+          $('[data-export-label]').textContent = 'Preparing…';
+        }
+        entries.push({ name: `${label}_Session_export.txt`, data: syncReport() + (pubLines.length ? `\n${pubLines.join('\n')}\n` : '') });
         download(await zip(entries), `${label}_Session.zip`);
       } catch (err) {
         alert((err as Error).message);

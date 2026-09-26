@@ -5,7 +5,9 @@
  */
 import Section from './Section.astro';
 import ToggleRow from './ToggleRow.astro';
+import Block from '@/components/ui/Block.astro';
 import Card from '@/components/ui/Card.astro';
+import Row from '@/components/ui/Row.astro';
 import CheckChip from '@/components/ui/CheckChip.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Select from '@/components/ui/Select.astro';
@@ -119,6 +121,32 @@ const toneSliders = [
   </div>
 </section>
 
+<Card label="Ready to publish" rows data-publish>
+  <Row title="Episode file" hint="Everyone mixed into one file, ready for your podcast host. The separate tracks are always in the export too.">
+    <Switch name="publish-mix" label="Episode file" />
+  </Row>
+  <Block data-publish-options>
+    <div class={label}>Loudness, <span class="font-mono text-[13px]">LUFS</span></div>
+    <Segmented
+      name="publish-loudness"
+      label="Loudness"
+      value="stereo"
+      options={[
+        { value: 'stereo', label: 'Stereo −16' },
+        { value: 'mono', label: 'Mono −19' },
+        { value: 'off', label: 'Off' },
+      ]}
+    />
+    <p class="help">The usual podcast targets: the two sound equally loud. True peaks are kept under <span class="font-mono text-[12px]">−1 dBTP</span> so MP3 encoding doesn't clip. Off only limits the peaks.</p>
+  </Block>
+  <Row title="Level each speaker" hint="Evens out each voice, up to 12 dB, so nobody's quieter than the rest. Makes levelled copies; the originals are kept." data-publish-options>
+    <Switch name="publish-level" label="Level each speaker" />
+  </Row>
+  <Row title="MP3 too" hint="128 kbps mono or 192 kbps stereo, beside the WAV" data-publish-options>
+    <Switch name="publish-mp3" label="MP3 too" />
+  </Row>
+</Card>
+
 <Card label="Session" rows>
   <ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
   <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="Always on" />
@@ -153,6 +181,30 @@ const toneSliders = [
       show();
       r.addEventListener('input', show);
       r.addEventListener('change', () => ((t[k] = Number(r.value)), save()));
+    });
+  }
+
+  // Ready to publish.
+  const pub = document.querySelector<HTMLElement>('[data-publish]');
+  if (pub) {
+    const p = loadSettings().recording.publish;
+    const box = (n: string) => pub.querySelector<HTMLInputElement>(`[name="${n}"]`)!;
+    box('publish-mix').checked = p.mix;
+    box('publish-level').checked = p.level;
+    box('publish-mp3').checked = p.mp3;
+    pub.querySelector<HTMLInputElement>(`[name="publish-loudness"][value="${p.loudness}"]`)!.checked = true;
+    const dim = () => pub.querySelectorAll('[data-publish-options]').forEach((el) => el.classList.toggle('opacity-40', !box('publish-mix').checked));
+    dim();
+    pub.addEventListener('change', () => {
+      saveSettings('recording', {
+        publish: {
+          mix: box('publish-mix').checked,
+          level: box('publish-level').checked,
+          mp3: box('publish-mp3').checked,
+          loudness: pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value as 'stereo' | 'mono' | 'off',
+        },
+      });
+      dim();
     });
   }
 

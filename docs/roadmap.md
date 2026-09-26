@@ -30,34 +30,6 @@ something you can install over a running copy without losing data.
   release with real recordings in place, restart during a live session (guests
   reconnect), and idle memory.
 
-## Publish-ready export: loudness and leveling
-
-Today's export is made for editing: an untouched WAV and an edit for each
-person, lined up, with nothing done to their level. Next, an export you can
-publish as is, alongside the files for editing yourself.
-
-- **Mixed episode file.** Everyone's edit (and the Pads track) mixed into one
-  file: **stereo at −16 LUFS** or **mono at −19 LUFS** integrated, the
-  usual podcast targets. Loudness measured to ITU-R BS.1770 / EBU R128, with a
-  true-peak limit (about −1 dBTP) so encoding to MP3 or AAC doesn't clip.
-  Still to explore: where the measuring and gain run (in the browser, like
-  noise suppression, or natively on the server), and whether to export MP3 as
-  well as WAV.
-- **Adaptive leveling per track (optional switch).** A compressor/leveler on
-  each person's track before the mix, so a quiet guest and a loud host come
-  out even and nobody jumps when they laugh. Off by default; set in Settings →
-  Recording and on the export page, next to the loudness target. Like noise
-  suppression, it makes processed copies and never changes the raw files.
-- **Both ways out, always.** The export page offers:
-  - **Ready to publish:** the mixed, leveled, loudness-matched episode.
-  - **Everything for your DAW:** the raw and edited WAVs per person, lined up
-    with timecode (as now), for your own post-production.
-
-**Landing page, once this ships:** advertise both. "Export it as is and publish
-it straight to your podcast feed, or take every track into your favourite DAW
-and do your own post-production." Not before: today's export doesn't make a
-finished, loudness-matched file, so the claim would be ahead of the app.
-
 ## Mixer view on a phone (Mixer View 2a–2b)
 
 For a host + guest session with no script (ad-lib mode), on a phone. The laptop mixer (1b) is built.

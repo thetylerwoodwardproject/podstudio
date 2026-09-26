@@ -6,6 +6,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 - [Recording solo](#recording-solo)
 - [With a guest and a producer](#with-a-guest-and-a-producer)
 - [Keeping tracks in sync](#keeping-tracks-in-sync)
+- [Ready to publish](#ready-to-publish)
 - [Hotkey pads](#hotkey-pads)
 - [Keys (laptop)](#keys-laptop)
 - [Browsers](#browsers)
@@ -117,11 +118,46 @@ At export, Podstudio fits each device's clock from its sync points:
   than "corrected" by guesswork. Drift counts only when it's clearly bigger
   than the timing jitter.
 
-The zip has `…_sync.txt` saying what was done ("Sam: 48 ms of drift corrected
+The zip has `…_export.txt` saying what was done ("Sam: 48 ms of drift corrected
 (+60 ppm), 3.0 s of missing audio filled with silence"), and the export page
 shows the same. Accuracy is set by the browser's timing, typically within 10
 to 20 ms. Recordings made before sync points existed are lined up by their
 start times only.
+
+## Ready to publish
+
+Every export gives you two ways out: the files for your own post-production
+(an untouched WAV and an edit per person, lined up, with timecode), and an
+episode you can upload to your podcast host as is. The episode part is set on
+the export page under **Ready to publish**, with the defaults in Settings →
+Recording. Each switch is independent:
+
+- **Episode file** (on by default). Everyone's edit, and the Pads track if you
+  used pads, mixed into `…_Episode.wav`. If pauses are set to split, there's
+  one per part (`…_Episode_part2.wav`).
+- **Loudness.** **Stereo −16 LUFS** (the default), **Mono −19 LUFS** (the
+  same loudness heard on one channel), or **Off**. Loudness is measured to
+  ITU-R BS.1770-4 / EBU R128 (K-weighted, gated), the gain is set to reach the
+  target, and a true-peak limiter keeps everything under −1 dBTP so encoding
+  to MP3 or AAC doesn't clip. Off mixes and limits only, with no gain. In
+  stereo, voices sit in the centre.
+- **Level each speaker** (off by default). A slow leveler on each voice before
+  the mix, so a quiet guest and a loud host come out even: it steers each
+  voice toward the same speech level by up to ±12 dB, holds its gain through
+  pauses (room noise and silence are never pushed up), and a gentle 3:1
+  compressor catches laughs and shouts. It also puts a levelled copy of each
+  person's edit in the zip (`…_edit_levelled.wav`) for your DAW. The Pads
+  track isn't levelled.
+- **MP3 too** (on by default). `…_Episode.mp3` beside the WAV: 192 kbps
+  stereo or 128 kbps mono, with an ID3 tag carrying the episode's name.
+  Encoded in the browser by LAME (lamejs, LGPL), which loads only when an MP3
+  is made.
+
+The episode is made from the same audio as the edits: lined up and drift
+corrected, coughs muted, and cleaned when noise suppression is on. The
+originals are never changed. `…_export.txt` in the zip gives the result,
+for example "Episode: −16.0 LUFS integrated (−21.3 before, gain +5.3 dB),
+stereo, true peak under −1 dBTP; levelling on".
 
 ## Hotkey pads
 

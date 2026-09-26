@@ -20,6 +20,19 @@ export interface RecordingSettings {
   noiseSuppression: number;
   /** Marker tones mixed into exported recordings, ducked under the voice */
   tones: ToneSettings;
+  /** The ready-to-publish episode in exports (lib/audio/master.ts) */
+  publish: PublishSettings;
+}
+
+export interface PublishSettings {
+  /** Make the mixed episode file */
+  mix: boolean;
+  /** −16 LUFS stereo, −19 LUFS mono, or no loudness change (peak limit only) */
+  loudness: 'stereo' | 'mono' | 'off';
+  /** Level each speaker before the mix (and export levelled copies of each edit) */
+  level: boolean;
+  /** An MP3 of the episode too */
+  mp3: boolean;
 }
 
 export interface PrompterSettings {
@@ -44,7 +57,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { mix: true, loudness: 'stereo', level: false, mp3: true } },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -77,6 +90,7 @@ export function loadSettings(): Settings {
           ...saved.recording?.tones,
           kinds: { ...defaults.recording.tones.kinds, ...saved.recording?.tones?.kinds },
         },
+        publish: { ...defaults.recording.publish, ...saved.recording?.publish },
       },
       prompter: { ...defaults.prompter, ...saved.prompter },
     };

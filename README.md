@@ -64,6 +64,7 @@ kept in step.
 | ✂️ **Marked, not cut** | Retake, cough and ad-lib are one key each. The raw WAV stays whole; the export adds an edit that keeps your last attempt of each line |
 | 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and the session from anywhere |
 | ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
+| 📦 **Publish as is, or take it to your DAW** | A ready-to-publish episode at −16 LUFS stereo or −19 LUFS mono (WAV and MP3), with optional levelling of each voice, beside every person's raw and edited WAV for your own post-production |
 | 🎛️ **Hotkey pads** | Nine sounds on the number keys, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |
 | 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
@@ -108,7 +109,7 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 | | |
 |---|---|
-| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · hotkey pads · accounts with two-factor · episodes, scripts and recordings stored on the server · the guided installer |
+| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · hotkey pads · accounts with two-factor · episodes, scripts and recordings stored on the server · the guided installer |
 | 🚧 **In progress** | First test on a real VPS (the lab environment) · checking iPhone recording on real devices |
 | 🗓️ **Next** | Versioned releases with upgrade paths · Whisper transcripts through your own OpenAI key · the mixer view and pad faders on a phone. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |
