@@ -502,6 +502,8 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
       bitDepth: settings.depth,
       channels: capture.channels,
     });
+    // Sync points on the session's shared clock, so the host's export can correct drift and gaps.
+    w.useClock(() => room.serverNow(), 'server');
     capture.addEventListener('chunk', (e) => writer?.push((e as CustomEvent<Float32Array>).detail));
     capture.addEventListener('format', (e) => (w.meta.sampleRate = (e as CustomEvent<number>).detail));
     writer = w;
@@ -529,6 +531,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     startedAtServer: t.startedAtServer ?? null,
     segments: t.segments,
     samples: t.samples,
+    sync: t.sync ?? null,
     done,
   });
 

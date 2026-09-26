@@ -26,3 +26,15 @@ test('stereo to mono averages, mono to stereo copies', () => {
   assert.deepEqual([...remix(new Float32Array([1, 0, 0.5, 0.5]), 2, 1)], [0.5, 0.5]);
   assert.deepEqual([...remix(new Float32Array([0.25, 0.5]), 1, 2)], [0.25, 0.25, 0.5, 0.5]);
 });
+
+test('reads back a WAV with timecode (bext before the audio)', async () => {
+  const bext = { description: 'Podstudio · TYLER', originator: 'Podstudio', reference: 'take', start: Date.now(), sampleRate: 48000 };
+  const blob = encodeWav([new Float32Array([0.5, -0.5])], { sampleRate: 48000, bitDepth: 16, bext });
+  const bytes = await blob.arrayBuffer();
+  const info = parseWav(new DataView(bytes))!;
+  assert.equal(info.dataOffset, 44 + 610);
+  assert.equal(info.dataBytes, 4);
+  assert.equal(new DataView(bytes).getUint32(4, true), bytes.byteLength - 8, 'RIFF size covers the bext chunk');
+  const f = wavFloats(bytes.slice(info.dataOffset), info);
+  assert.ok(Math.abs(f[0] - 0.5) < 1e-3 && Math.abs(f[1] + 0.5) < 1e-3);
+});

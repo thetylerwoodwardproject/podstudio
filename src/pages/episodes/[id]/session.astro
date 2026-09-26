@@ -58,6 +58,15 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         </div>
         <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
       </div>
+      <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
+        <div class="flex-1">
+          <div class="text-[14px]">Timecode and sync</div>
+          <div class="mt-1 text-[12px] text-muted" data-sync-note>
+            Every WAV carries its start as Broadcast WAV timecode, so editors can line the files up on their own.
+          </div>
+        </div>
+        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
+      </div>
       <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5" data-pads-row hidden>
         <div class="flex-1">
           <div class="text-[14px]">Pads track</div>
@@ -193,7 +202,8 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
   import { assemble, audacityLabels, mapTime, mutes, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName, padLabel } from '@/lib/markers';
   import { hasPads, renderPads, renderRoughMix, stereoOf } from '@/lib/audio/pads-export';
-  import { formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, type TakeMeta } from '@/lib/audio/takes';
+  import { bextFor, formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, trackStart, trackSync, type TakeMeta } from '@/lib/audio/takes';
+  import { guestRanges, guestTime, timecode, type SyncMap } from '@/lib/audio/sync';
   import { alignedRanges } from '@/lib/audio/align';
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
   import { denoiseTake, previewTake } from '@/lib/audio/denoise';
@@ -259,8 +269,51 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       });
     }
     const duration = take.samples / take.sampleRate;
-    // A track from another device, lined up on the host's timeline.
-    const aligned = (t: TakeMeta, ranges: [number, number][]) => alignedRanges(ranges, trackShift(t, take));
+    // A track from another device on the host's timeline: with sync points, drift and gaps
+    // are corrected (lib/audio/sync.ts); older tracks are lined up by their start only.
+    const hostStart = trackStart(take);
+    const syncs = new Map<TakeMeta, SyncMap | null>();
+    const syncOf = (t: TakeMeta) => {
+      if (!syncs.has(t)) syncs.set(t, t === take ? null : trackSync(t, take));
+      return syncs.get(t)!;
+    };
+    const aligned = (t: TakeMeta, ranges: [number, number][]) => {
+      const m = syncOf(t);
+      return m ? guestRanges(m, ranges, take.sampleRate, t.sampleRate) : alignedRanges(ranges, trackShift(t, take));
+    };
+    // Timecode: every file carries where it starts on the session clock, so editors line them up.
+    const tc = (t: TakeMeta, at = 0) => bextFor(t, hostStart + at * 1000);
+    const secs = (x: number) => (x < 10 ? x.toFixed(1) : String(Math.round(x))).replace('-', '−');
+    /** What was done to line each track up, for the page and the zip. */
+    const syncLines = () =>
+      tracks
+        .filter((t) => t !== take)
+        .map((t) => {
+          const who = t.speaker.charAt(0) + t.speaker.slice(1).toLowerCase();
+          const m = syncOf(t);
+          if (!m) return `${who}: lined up by start time only (recorded before sync points existed).`;
+          const parts = [
+            m.driftMs >= 1
+              ? `${Math.round(m.driftMs)} ms of drift corrected (${m.ppm > 0 ? '+' : '−'}${Math.abs(m.ppm).toFixed(0)} ppm)`
+              : 'no measurable drift',
+          ];
+          if (m.gaps >= 0.05) parts.push(`${secs(m.gaps)} s of missing audio filled with silence`);
+          if (m.dropped >= 0.05) parts.push(`${secs(m.dropped)} s left out while your mic was stopped`);
+          return `${who}: ${parts.join(', ')}.`;
+        });
+    const syncReport = () =>
+      [
+        `Timecode (session clock, ${Intl.DateTimeFormat().resolvedOptions().timeZone}): ${timecode(hostStart)} at the start of every full-length file.`,
+        'Edits start at the timecode of their first kept moment, the same on every track.',
+        ...syncLines(),
+        '',
+      ].join('\n');
+    {
+      const lines = syncLines();
+      $('[data-sync-note]').textContent =
+        `Every WAV carries its start as Broadcast WAV timecode (${timecode(hostStart)}), so editors can line the files up on their own.` +
+        (lines.length ? ` ${lines.join(' ')}` : '');
+    }
     // Recorded on the wall clock; assemble() converts these itself.
     const wallMarkers = take.markers ?? [];
     const lineLog = take.lineLog ?? [];
@@ -280,7 +333,17 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
     const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
     const whoName = (m: SessionMarker) => (m.who === 'guest' ? (guestTrack ? cap(guestTrack.speaker) : take.guest?.name ?? 'Guest') : cap(take.speaker));
     /** Each person's coughs, muted in their own edit (seconds of their own track). */
-    const mutedFor = (t: TakeMeta) => aligned(t, mutes(wallMarkers, t === take ? 'host' : 'guest', duration));
+    const mutedFor = (t: TakeMeta): [number, number][] => {
+      const own = mutes(wallMarkers, t === take ? 'host' : 'guest', duration);
+      const m = syncOf(t);
+      if (!m) return alignedRanges(own, trackShift(t, take));
+      // Host-timeline mutes, moved onto the guest's own audio.
+      return own.flatMap(([a, b]) => {
+        const ga = guestTime(m, a, take.sampleRate, t.sampleRate);
+        const gb = guestTime(m, b, take.sampleRate, t.sampleRate);
+        return ga != null && gb != null ? [[ga, gb] as [number, number]] : [];
+      });
+    };
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
     const describe = (m: SessionMarker) =>
       m.kind === 'pad'
@@ -404,7 +467,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       // Noise suppression on: every audio file comes twice, unprocessed and cleaned.
       const copies = o.ns ? 2 : 1;
       const padTracks = withPads ? 1 : 0;
-      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 2 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0);
+      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0);
       const padBytes = withPads ? duration * take.sampleRate * (take.bitDepth / 8) * 2 * (1 + (o.assembled ? 1 : 0) + (o.mix ? 1 : 0)) : 0;
       $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes)}`;
     };
@@ -432,26 +495,27 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
             name: `${name(t)}.wav`,
             data:
               t !== take
-                ? await rangesWav(t, aligned(t, [[0, duration]]), cues) // lined up with yours, same length
+                ? await rangesWav(t, aligned(t, [[0, duration]]), cues, undefined, [], tc(t)) // lined up with yours, same length
                 : o.tones
-                  ? await tonedWav(t, placed(t), toneSettings, cues)
+                  ? await tonedWav(t, placed(t), toneSettings, cues, undefined, tc(t))
                   : cues.length
-                    ? await rangesWav(t, [[0, len]], cues)
-                    : await takeWav(t),
+                    ? await rangesWav(t, [[0, len]], cues, undefined, [], tc(t))
+                    : await takeWav(t, undefined, tc(t)),
           });
         }
         // The Pads track: rebuilt from the press log on your mic's clock, and the optional rough mix.
         if (withPads) {
           await renderPads(take, (d) => ($('[data-export-label]').textContent = `Pads track… ${Math.round(d * 100)}%`));
           const cues = markers.filter((m) => m.kind === 'pad').map((m) => cue(m, take.sampleRate));
-          entries.push({ name: `${label}_Session_Pads.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'pads') });
+          entries.push({ name: `${label}_Session_Pads.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'pads', [], tc(take)) });
           if (o.mix) {
             await renderRoughMix(take, (d) => ($('[data-export-label]').textContent = `Rough mix… ${Math.round(d * 100)}%`));
-            entries.push({ name: `${label}_Session_RoughMix.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'mix') });
+            entries.push({ name: `${label}_Session_RoughMix.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'mix', [], tc(take)) });
           }
           $('[data-export-label]').textContent = 'Preparing…';
         }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
+        entries.push({ name: `${label}_Session_sync.txt`, data: syncReport() });
         const csv = [
           'time,end,kind,line,attempt,first words or pad',
           ...markers.map((m) =>
@@ -495,10 +559,10 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
               name: `${name(t)}_clean.wav`,
               data:
                 t !== take
-                  ? await rangesWav(t, aligned(t, [[0, duration]]), cues, variant)
+                  ? await rangesWav(t, aligned(t, [[0, duration]]), cues, variant, [], tc(t))
                   : o.tones
-                    ? await tonedWav(t, placed(t), toneSettings, cues, variant)
-                    : await rangesWav(t, [[0, len]], cues, variant),
+                    ? await tonedWav(t, placed(t), toneSettings, cues, variant, tc(t))
+                    : await rangesWav(t, [[0, len]], cues, variant, [], tc(t)),
             });
           }
         }
@@ -515,8 +579,10 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
                 .map((x) => cue(x.m, t.sampleRate, x.at));
               const file = a.files.length > 1 ? `${name(t)}_edit_part${i + 1}` : `${name(t)}_edit`;
               // Their own coughs are muted; nothing is cut for a cough, so every edit keeps the same length.
-              entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept, undefined, mutedFor(t)) });
-              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant, mutedFor(t)) });
+              // Every track's edit starts at the same moment, so they share a timecode.
+              const at = tc(t, ranges[0]?.[0] ?? 0);
+              entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept, undefined, mutedFor(t), at) });
+              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant, mutedFor(t), at) });
             }
           }
           // The Pads edit: the same cuts as the mic edit; a cough never mutes the pads.
@@ -528,7 +594,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, take.sampleRate, x.at));
               const file = a.files.length > 1 ? `${label}_Session_Pads_edit_part${i + 1}` : `${label}_Session_Pads_edit`;
-              entries.push({ name: `${file}.wav`, data: await rangesWav(stereoOf(take), ranges, kept, 'pads') });
+              entries.push({ name: `${file}.wav`, data: await rangesWav(stereoOf(take), ranges, kept, 'pads', [], tc(take, ranges[0]?.[0] ?? 0)) });
             }
           }
         }

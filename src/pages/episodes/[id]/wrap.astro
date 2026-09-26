@@ -119,7 +119,7 @@ const row = 'flex items-center gap-4 border-b border-line py-4';
         setGuest('Can’t reach the server. Retrying…', 'var(--color-warn)');
         return;
       }
-      const meta = info.meta as null | { name: string; sampleRate: number; bitDepth: 16 | 24; channels: 1 | 2; startedAtServer: number | null; segments: number; done: boolean };
+      const meta = info.meta as null | { name: string; sampleRate: number; bitDepth: 16 | 24; channels: 1 | 2; startedAtServer: number | null; segments: number; sync?: TakeMeta['sync'] | null; done: boolean };
       const name = meta?.name ?? live?.name;
       if (!meta && !info.segments) {
         setGuest(live ? (live.recording ? 'Still recording on their device…' : 'Waiting for their upload to start…') : 'No guest track yet. Is their page still open?', 'var(--color-warn)', name);
@@ -156,6 +156,7 @@ const row = 'flex items-center gap-4 border-b border-line py-4';
         markers: host!.markers,
         lineLog: host!.lineLog,
         startedAtServer: meta.startedAtServer ?? undefined,
+        sync: meta.sync ?? undefined,
         remote: true,
         peaks: [],
       };

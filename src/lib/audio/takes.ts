@@ -18,6 +18,7 @@
  * The original segments are never changed.
  */
 
+import { SILENT, fitClock, startTime, syncGuest, type Bext, type SyncLog, type SyncMap, type SyncPoint } from './sync';
 import { markerChunks, pcmBytes, pcmFloats, wavHeader, type BitDepth, type Channels, type Marker } from './wav';
 import type { LineStart, Range, SessionMarker } from './assemble';
 import { mixTones, toneWindows, type PlacedTone, type ToneSettings } from './tones';
@@ -56,6 +57,8 @@ export interface TakeMeta {
   lineLog?: LineStart[];
   /** Server clock (ms) when this track's recorder started, for lining up tracks from different devices */
   startedAtServer?: number;
+  /** Sync points (frames captured, shared-clock ms), about every 5 s: drift and gap correction, timecode (lib/audio/sync.ts) */
+  sync?: SyncLog;
   /** Recorded on another device (the guest's), fetched from the server */
   remote?: boolean;
   /** The host's take in a session with a guest: whose track export has to wait for */
@@ -173,7 +176,15 @@ async function pcmParts(meta: TakeMeta, variant?: string): Promise<File[]> {
  * in `muted` (seconds of the take, e.g. coughs) come out silent, with a short
  * fade at each edge; only those are decoded and re-encoded.
  */
-export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker[] = [], variant?: string, muted: Range[] = []): Promise<Blob> {
+export async function rangesWav(
+  meta: TakeMeta,
+  ranges: Range[],
+  markers: Marker[] = [],
+  variant?: string,
+  muted: Range[] = [],
+  /** Timecode; by default where the first range starts on this track */
+  bext: Bext | null = bextFor(meta, trackStart(meta) + (ranges[0] && ranges[0][0] < SILENT ? Math.max(0, ranges[0][0]) : 0) * 1000),
+): Promise<Blob> {
   const bytesPer = frameBytes(meta);
   const channels = channelsOf(meta);
   const files = await pcmParts(meta, variant);
@@ -233,7 +244,7 @@ export async function rangesWav(meta: TakeMeta, ranges: Range[], markers: Marker
     }
   }
   const tail = markerChunks(markers);
-  const header = wavHeader(bytes / bytesPer, formatOf(meta), tail.length);
+  const header = wavHeader(bytes / bytesPer, { ...formatOf(meta), bext: bext ?? undefined }, tail.length);
   return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], {
     type: 'audio/wav',
   });
@@ -257,7 +268,7 @@ function sliceParts(files: File[], from: number, to: number): BlobPart[] {
  * short stretches around the tones are decoded and re-encoded; the rest is
  * sliced straight from the saved segments.
  */
-export async function tonedWav(meta: TakeMeta, tones: PlacedTone[], opts: ToneSettings, markers: Marker[] = [], variant?: string): Promise<Blob> {
+export async function tonedWav(meta: TakeMeta, tones: PlacedTone[], opts: ToneSettings, markers: Marker[] = [], variant?: string, bext: Bext | null = bextFor(meta)): Promise<Blob> {
   const bytesPer = frameBytes(meta);
   const files = await pcmParts(meta, variant);
   const total = files.reduce((n, f) => n + f.size, 0);
@@ -274,7 +285,7 @@ export async function tonedWav(meta: TakeMeta, tones: PlacedTone[], opts: ToneSe
   parts.push(...sliceParts(files, at * bytesPer, frames * bytesPer));
   const bytes = frames * bytesPer;
   const tail = markerChunks(markers);
-  const header = wavHeader(frames, formatOf(meta), tail.length);
+  const header = wavHeader(frames, { ...formatOf(meta), bext: bext ?? undefined }, tail.length);
   return new Blob([header as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : []), tail as BlobPart], { type: 'audio/wav' });
 }
 
@@ -287,10 +298,35 @@ export function trackShift(track: TakeMeta, host: TakeMeta): number {
   return (track.startedAtServer - host.startedAtServer) / 1000;
 }
 
-export async function takeWav(meta: TakeMeta, variant?: string): Promise<Blob> {
+/** The track's clock, fitted from its sync points (lib/audio/sync.ts). */
+export const trackClock = (t: TakeMeta) => fitClock(t.sync?.points ?? [], t.sampleRate, t.samples, t.startedAtServer ?? t.startedAt);
+
+/** When the track's first frame was captured, ms on its clock (the session's shared clock with a guest). */
+export const trackStart = (t: TakeMeta) => startTime(trackClock(t));
+
+/**
+ * How a guest's track maps onto the host's, with drift and gaps accounted for,
+ * or null for tracks without shared-clock sync points (from before they
+ * existed): those are lined up by their start times only (trackShift).
+ */
+export function trackSync(guest: TakeMeta, host: TakeMeta): SyncMap | null {
+  const ok = (t: TakeMeta) => t.sync?.clock === 'server' && t.sync.points.length >= 3;
+  return ok(guest) && ok(host) ? syncGuest(trackClock(host), trackClock(guest), host.sampleRate) : null;
+}
+
+/** Broadcast WAV timecode for a file of this track starting at `start` (ms). */
+export const bextFor = (t: TakeMeta, start = trackStart(t)): Bext => ({
+  description: `Podstudio · ${t.speaker} · ${t.name}`,
+  originator: 'Podstudio',
+  reference: t.id.slice(0, 32),
+  start,
+  sampleRate: t.sampleRate,
+});
+
+export async function takeWav(meta: TakeMeta, variant?: string, bext: Bext | null = bextFor(meta)): Promise<Blob> {
   const parts = await pcmParts(meta, variant);
   const bytes = parts.reduce((n, p) => n + p.size, 0);
-  return new Blob([wavHeader(bytes / frameBytes(meta), formatOf(meta)) as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : [])], {
+  return new Blob([wavHeader(bytes / frameBytes(meta), { ...formatOf(meta), bext: bext ?? undefined }) as BlobPart, ...parts, ...(bytes % 2 ? [new Uint8Array(1) as BlobPart] : [])], {
     type: 'audio/wav',
   });
 }
@@ -415,6 +451,10 @@ export class TakeWriter {
   private writing: Promise<void> = Promise.resolve();
   private releaseLock!: () => void;
   private dir!: FileSystemDirectoryHandle;
+  /** The clock sync points are logged on: the session's shared clock with a guest, else this device's. */
+  private clock: () => number = Date.now;
+  /** This segment's least-late chunk: chunks only ever arrive late, so it's the truest. */
+  private best: SyncPoint | null = null;
 
   private constructor(readonly meta: TakeMeta) {}
 
@@ -448,6 +488,12 @@ export class TakeWriter {
     return writer;
   }
 
+  /** Log sync points on the session's shared clock (call before recording starts). */
+  useClock(clock: () => number, kind: SyncLog['clock']) {
+    this.clock = clock;
+    this.meta.sync = { clock: kind, points: [] };
+  }
+
   get seconds() {
     return (this.meta.samples + this.pendingSamples) / this.meta.sampleRate;
   }
@@ -455,6 +501,10 @@ export class TakeWriter {
   push(samples: Float32Array) {
     this.pending.push(samples);
     this.pendingSamples += samples.length / channelsOf(this.meta);
+    // When these frames arrived: the least-late chunk of each segment becomes a sync point.
+    const p: SyncPoint = [this.meta.samples + this.pendingSamples, Math.round(this.clock())];
+    const late = (x: SyncPoint) => x[1] - (x[0] * 1000) / this.meta.sampleRate;
+    if (!this.best || late(p) < late(this.best)) this.best = p;
     const perPeak = this.meta.sampleRate * PEAK_SECONDS * channelsOf(this.meta);
     for (let i = 0; i < samples.length; i++) {
       const a = Math.abs(samples[i]);
@@ -474,6 +524,8 @@ export class TakeWriter {
     const count = this.pendingSamples;
     this.pending = [];
     this.pendingSamples = 0;
+    if (this.best) (this.meta.sync ??= { clock: 'local', points: [] }).points.push(this.best);
+    this.best = null;
     if (!count) return this.writing;
     this.writing = this.writing.then(async () => {
       const joined = new Float32Array(count * channelsOf(this.meta));

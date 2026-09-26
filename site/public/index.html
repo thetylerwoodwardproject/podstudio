@@ -74,7 +74,7 @@
         <article class="card">
           <span class="num">04</span>
           <h3>A guest and a producer</h3>
-          <p>A 6-digit code and a waiting room. Your guest records on their own device while you talk on your usual call.</p>
+          <p>A 6-digit code and a waiting room. Your guest records on their own device, kept in sync with yours, while you talk on your usual call.</p>
         </article>
         <article class="card">
           <span class="num">05</span>
@@ -108,6 +108,43 @@
           <li><span class="dot warn"></span>Next: versioned releases, transcripts, mixer on a phone</li>
         </ul>
         <a class="link" href="https://github.com/thetylerwoodwardproject/podstudio/blob/main/docs/roadmap.md">Read the roadmap →</a>
+      </div>
+    </section>
+
+    <section class="wrap section faq-wrap" id="faq">
+      <h2 class="section-label">Questions</h2>
+      <div class="faq">
+        <details open>
+          <summary>If the recordings drift out of sync, can they be lined up again?</summary>
+          <p>
+            Yes, like cameras with timecode. Everyone in a session shares one clock, and every track notes where it
+            is on that clock every 5 seconds. At export Podstudio uses those points to correct the drift between
+            devices and to fill any gap where a guest's audio dropped out, so the tracks stay lined up to the end.
+            Every WAV also carries its start as Broadcast WAV timecode, so your editor can line the files up on its own.
+          </p>
+        </details>
+        <details>
+          <summary>Is Podstudio a call app like Zoom?</summary>
+          <p>
+            No. It records; it doesn't carry audio between people. Talk on Zoom, Teams, Discord or a phone call while
+            each person's device records their own mic, with headphones on so the call doesn't leak in.
+          </p>
+        </details>
+        <details>
+          <summary>Does it need the internet?</summary>
+          <p>
+            Recording works without it, and saves every 5 seconds. Voice follow uses the browser's speech recognition,
+            which in Chrome sends audio to Google to turn it into text, so the device doing voice follow needs a
+            connection. Guests upload to your server as they record.
+          </p>
+        </details>
+        <details>
+          <summary>What does it cost?</summary>
+          <p>
+            Nothing: it's free and MIT licensed, with no paid tier. You run it on your own server, like a small VPS,
+            which is where your recordings live.
+          </p>
+        </details>
       </div>
     </section>
 

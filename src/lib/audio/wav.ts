@@ -3,8 +3,10 @@
  * interleaved (L R L R …). Takes float samples in chunks so a
  * long take never needs one giant buffer: each chunk becomes one Blob part.
  * Optional cue markers (cue + LIST/adtl/labl) are read by Reaper, Audition,
- * Pro Tools and Logic.
+ * Pro Tools and Logic. An optional Broadcast WAV (bext) chunk carries the
+ * file's start as timecode, so editors can line tracks up by it.
  */
+import { bextChunk, type Bext } from './sync.ts';
 
 export type BitDepth = 16 | 24;
 
@@ -22,6 +24,8 @@ export interface WavOptions {
   /** 1 (mono, the default) or 2 (stereo, interleaved) */
   channels?: Channels;
   markers?: Marker[];
+  /** Broadcast WAV timecode: where this file starts */
+  bext?: Bext;
 }
 
 const ascii = (view: DataView, offset: number, text: string) => {
@@ -105,14 +109,16 @@ export function markerChunks(markers: Marker[]): Uint8Array {
 }
 
 /** RIFF + fmt + data headers for `frames` sample frames (one sample per channel). */
-export function wavHeader(frames: number, { sampleRate, bitDepth, channels = 1 }: WavOptions, trailingBytes = 0): Uint8Array {
+export function wavHeader(frames: number, { sampleRate, bitDepth, channels = 1, bext }: WavOptions, trailingBytes = 0): Uint8Array {
   const blockAlign = (bitDepth / 8) * channels;
   const dataSize = frames * blockAlign;
   const pad = dataSize % 2;
-  const out = new Uint8Array(44);
+  // RIFF, fmt, then bext (if any) before the audio, where every reader looks for it.
+  const ext = bext ? bextChunk(bext) : new Uint8Array(0);
+  const out = new Uint8Array(44 + ext.length);
   const view = new DataView(out.buffer);
   ascii(view, 0, 'RIFF');
-  view.setUint32(4, 36 + dataSize + pad + trailingBytes, true);
+  view.setUint32(4, 36 + ext.length + dataSize + pad + trailingBytes, true);
   ascii(view, 8, 'WAVE');
   ascii(view, 12, 'fmt ');
   view.setUint32(16, 16, true);
@@ -122,8 +128,9 @@ export function wavHeader(frames: number, { sampleRate, bitDepth, channels = 1 }
   view.setUint32(28, sampleRate * blockAlign, true);
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, bitDepth, true);
-  ascii(view, 36, 'data');
-  view.setUint32(40, dataSize, true);
+  out.set(ext, 36);
+  ascii(view, 36 + ext.length, 'data');
+  view.setUint32(40 + ext.length, dataSize, true);
   return out;
 }
 

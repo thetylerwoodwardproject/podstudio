@@ -5,6 +5,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 
 - [Recording solo](#recording-solo)
 - [With a guest and a producer](#with-a-guest-and-a-producer)
+- [Keeping tracks in sync](#keeping-tracks-in-sync)
 - [Hotkey pads](#hotkey-pads)
 - [Keys (laptop)](#keys-laptop)
 - [Browsers](#browsers)
@@ -60,8 +61,51 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
   - **Producer** (`/producer`), any browser, never asks for a mic: the live script (edit any line and everyone gets it), Start / Pause / End for everyone, Retake and Ad-lib, ← → and sections (no cough button: a cough is marked by whoever coughs), and the guest's level, upload progress and code.
 - **The host's recording screen** is in charge: it records your track, shares the session state, and applies the producer's and guest's actions. A chip in the header shows the guest's level and uploads, with a warning if they stop recording or drop off.
 - **Wrapping up** (`/episodes/142/wrap`): after End, it waits for the guest's last pieces, brings their track into this browser, then opens Export. If an upload failed, **Add the guest's file** takes the WAV they downloaded. **Export waits for the guest's track** wherever you open it from: the export page and the Sessions list both send you to the wrap-up until it's in, with "Export without them" as a deliberate, confirmed choice.
-- **Export** has a raw WAV and an edit for each person, lined up: each track records when it started on the server's clock, so the guest's is padded or trimmed to match yours, and both edits get the same cuts, so they're the same length. Each person's coughs are muted in their own edit only. Noise suppression makes cleaned copies of both; marker tones go on your track only.
+- **Export** has a raw WAV and an edit for each person, lined up on your timeline: the guest's is corrected for clock drift and gaps (see [Keeping tracks in sync](#keeping-tracks-in-sync)), and both edits get the same cuts, so they're the same length. Each person's coughs are muted in their own edit only. Noise suppression makes cleaned copies of both; marker tones go on your track only.
 - **The server API** is in `docs/server-api.md`, implemented by `server/live.ts`. Sessions, codes and tokens are in SQLite, so restarting the server keeps them. Joining is limited to 20 tries per address per 10 minutes, so codes can't be guessed.
+
+## Keeping tracks in sync
+
+When you and a guest record on separate devices, the two recordings have to
+line up in the edit, and stay lined up to the last minute. Podstudio does this
+like cameras with timecode, with three things:
+
+- **One clock for the session.** Every device in a session measures its offset
+  from the server's clock (several quick pings when it joins, and again every
+  minute). That's the session clock.
+- **Sync points in every track.** While recording, each track notes every 5 s
+  how many samples it has captured and the session-clock time they arrived.
+  Audio arrives in chunks a little late, never early, so each 5 s keeps its
+  least-late chunk. A 40-minute recording has about 480 of them; they travel
+  with the guest's track to your browser.
+- **Timecode in every file.** Each exported WAV has a Broadcast WAV (`bext`)
+  start time on the session clock. Premiere, Resolve, Reaper, Pro Tools and
+  Audition can line the files up by timecode on their own, without Podstudio.
+  Full-length files share one timecode; each edit starts at the timecode of
+  its first kept moment, the same on every track.
+
+At export, Podstudio fits each device's clock from its sync points:
+
+- **Drift.** No two audio devices run at exactly the same speed: a few tens
+  of parts per million apart is normal, which is 50 to 100 ms over 40 minutes,
+  enough to hear as an echo. The guest's track is corrected by slipping single
+  samples (dropping or repeating one) at evenly spaced points, so it stays
+  within a frame of true. Nothing is filtered or resampled, and the raw
+  recordings in the browser are never changed.
+- **Gaps.** If the guest's audio stopped for a while (a phone call, the mic
+  taken away), that stretch comes out as silence in their track, so what
+  follows still lines up. If *your* mic stopped, the guest's audio from that
+  moment is left out, because your track has no time for it.
+- **Only real drift.** A short recording, or a noisy one, doesn't have enough
+  points to measure drift reliably, so it's lined up by its start only rather
+  than "corrected" by guesswork. Drift counts only when it's clearly bigger
+  than the timing jitter.
+
+The zip has `…_sync.txt` saying what was done ("Sam: 48 ms of drift corrected
+(+60 ppm), 3.0 s of missing audio filled with silence"), and the export page
+shows the same. Accuracy is set by the browser's timing, typically within 10
+to 20 ms. Recordings made before sync points existed are lined up by their
+start times only.
 
 ## Hotkey pads
 

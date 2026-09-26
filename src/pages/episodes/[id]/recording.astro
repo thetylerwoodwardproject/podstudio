@@ -1530,6 +1530,8 @@ const zones = [
       bitDepth: settings.depth,
       channels: capture.channels,
     });
+    // With a guest: sync points on the session's shared clock, to line the tracks up at export.
+    if (room) w.useClock(() => room!.serverNow(), 'server');
     capture.addEventListener('chunk', (e) => {
       const samples = (e as CustomEvent<Float32Array>).detail;
       w.push(samples);
