@@ -195,6 +195,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
           ]}
         />
         <p class="help">The usual podcast targets. True peaks stay under <span class="font-mono text-[12px] whitespace-nowrap">−1 dBTP</span>, so encoding doesn't clip. Off only limits the peaks.</p>
+        <p class="help" data-pub-mono-note hidden>Your pads are stereo. Mono sums left and right into one channel, at the same balance you hear in stereo.</p>
       </Block>
       <Row title="Level each speaker" data-pub-options>
         <Fragment slot="hint">Evens out each voice, by up to <span class="font-mono text-[12px] whitespace-nowrap">12 dB</span>. Adds a levelled copy of each person's edit; the originals are kept.</Fragment>
@@ -521,7 +522,10 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
           el.classList.toggle('opacity-40', !box('pub-mix').checked);
           el.inert = !box('pub-mix').checked;
         });
-        $('[data-pub-target]').textContent = targets[form.querySelector<HTMLInputElement>('[name="pub-loudness"]:checked')!.value as keyof typeof targets];
+        const loudness = form.querySelector<HTMLInputElement>('[name="pub-loudness"]:checked')!.value as keyof typeof targets;
+        $('[data-pub-target]').textContent = targets[loudness];
+        // Stereo pads in a mono episode: say they're summed.
+        $('[data-pub-mono-note]').hidden = !(withPads && loudness === 'mono');
       };
       dim();
       form.addEventListener('change', dim);

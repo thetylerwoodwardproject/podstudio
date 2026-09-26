@@ -138,6 +138,7 @@ const toneSliders = [
       ]}
     />
     <p class="help">The usual podcast targets: stereo and mono sound equally loud at these. True peaks are kept under <span class="font-mono text-[12px] whitespace-nowrap">−1 dBTP</span> so MP3 encoding doesn't clip. Off only limits the peaks.</p>
+    <p class="help" data-publish-mono-note hidden>Pads are stereo. Mono sums left and right into one channel, at the same balance you hear in stereo.</p>
   </Block>
   <Row title="Level each speaker" data-publish-options>
     <Fragment slot="hint">Evens out each voice, by up to <span class="font-mono text-[12px] whitespace-nowrap">12 dB</span>, so nobody's quieter than the rest. Makes levelled copies; the originals are kept.</Fragment>
@@ -202,6 +203,7 @@ const toneSliders = [
         el.inert = !box('publish-mix').checked;
       });
       pub.querySelector('[data-publish-target]')!.textContent = targets[pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value as keyof typeof targets];
+      pub.querySelector<HTMLElement>('[data-publish-mono-note]')!.hidden = pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value !== 'mono';
     };
     dim();
     pub.addEventListener('change', () => {

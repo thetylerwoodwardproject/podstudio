@@ -100,6 +100,34 @@ test('a very quiet guest is brought at least 10 dB closer (the boost stops at +1
   assert.ok(r.before - r.after >= 10, `gap: ${r.before.toFixed(1)} dB before, ${r.after.toFixed(1)} dB after`);
 });
 
+test('mono sums a stereo pads track at the balance heard in stereo', async () => {
+  const rate = 16000;
+  const n = rate * 2;
+  const tone = (a: number, f: number) => Float32Array.from({ length: n }, (_, i) => a * Math.sin((2 * Math.PI * f * i) / rate));
+  const voice = encodeWav([tone(0.2, 300)], { sampleRate: rate, bitDepth: 24 });
+  // Pads: the same sound in both channels, and one only on the left
+  const padL = tone(0.2, 1000);
+  const padR = tone(0.2, 1000);
+  const hard = Float32Array.from(tone(0.4, 1000));
+  const rms = (x: Float32Array, ch: number, c: number) => {
+    let s = 0;
+    for (let i = rate / 2; i < n - rate / 2; i++) s += x[i * ch + c] ** 2;
+    return Math.sqrt(s / (n - rate));
+  };
+  for (const [l, r] of [[padL, padR], [hard, new Float32Array(n)]] as const) {
+    const lr = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) (lr[2 * i] = l[i]), (lr[2 * i + 1] = r[i]);
+    const pads = encodeWav([lr], { sampleRate: rate, bitDepth: 24, channels: 2 });
+    const mono = collect();
+    await renderMaster([{ wav: voice, level: false }, { wav: pads, level: false }], { rate, channels: 1, lufs: null, levelling: false }, mono.write);
+    const y = mono.all();
+    assert.equal(y.length, n);
+    // (L + R) ÷ 2: a centred sound keeps its level beside the voice, a hard-left one comes in at half.
+    const padOnly = Float32Array.from(y, (v, i) => v - 0.2 * Math.sin((2 * Math.PI * 300 * i) / rate));
+    assert.ok(Math.abs(rms(padOnly, 1, 0) - 0.2 / Math.SQRT2) < 0.005, `pad in mono: ${rms(padOnly, 1, 0)}`);
+  }
+});
+
 test('resampling 44.1 kHz to 48 kHz keeps the length and the tone', () => {
   const from = 44100;
   const x = Float32Array.from({ length: from * 2 }, (_, i) => Math.sin((2 * Math.PI * 1000 * i) / from) * 0.5);

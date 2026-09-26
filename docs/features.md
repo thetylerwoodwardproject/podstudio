@@ -140,7 +140,10 @@ Recording. Each switch is independent:
   ITU-R BS.1770-4 / EBU R128 (K-weighted, gated), the gain is set to reach the
   target, and a true-peak limiter keeps everything under −1 dBTP so encoding
   to MP3 or AAC doesn't clip. Off mixes and limits only, with no gain. In
-  stereo, voices sit in the centre.
+  stereo, voices sit in the centre and the pads keep their width. In mono,
+  stereo pads are summed to one channel, (L + R) ÷ 2, so they sit at the same
+  balance against the voices as in stereo; the export page says so when an
+  episode has pads.
 - **Level each speaker** (off by default). A slow leveler on each voice before
   the mix, so a quiet guest and a loud host come out even: it steers each
   voice toward the same speech level by up to ±12 dB, holds its gain through
