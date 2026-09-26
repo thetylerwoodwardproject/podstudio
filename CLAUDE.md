@@ -13,8 +13,8 @@ screenshot.
 
 ## Working here
 
-- `npm test` runs the unit and server tests; `npx astro check` and
-  `npm run build` must pass.
+- `npm test` runs the unit and server tests; `npx astro check`,
+  `npx svelte-check` and `npm run build` must pass.
 - Node 22.18+ (TypeScript runs directly).
 - Database changes are new numbered migrations in `server/migrations.ts`;
   never edit a released one (see docs/roadmap.md, lab environment: upgrades
