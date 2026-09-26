@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>html,body{margin:0;background:#0b0b0c;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color-scheme:dark}a{color:#ededea}a:hover{color:#b9bbc0}</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header style="height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #1c1d20;position:sticky;top:0;background:#0b0b0c;z-index:5">
+    <div style="display:flex;align-items:center;gap:22px"><div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px"><span style="width:9px;height:9px;border-radius:50%;background:#ff453a"></span>Podstudio</div><div style="font-size:15px;color:#8a8c91">UI framework</div></div>
+    <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#8a8c91;border:1px solid #26272b;border-radius:6px;padding:4px 8px">V1</span>
+  </header>
+  <div style="flex:1;display:grid;grid-template-columns:220px minmax(0,1fr)">
+    <nav style="border-right:1px solid #1c1d20;padding:24px 12px;display:flex;flex-direction:column;gap:2px;position:sticky;top:56px;align-self:start">
+      <a href="#principles" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Principles</a>
+      <a href="#color" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Color</a>
+      <a href="#type" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Type</a>
+      <a href="#space" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Spacing &amp; radius</a>
+      <a href="#controls" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Controls</a>
+      <a href="#buttons" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Buttons</a>
+      <a href="#surfaces" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Surfaces &amp; rows</a>
+      <a href="#status" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Status &amp; meters</a>
+      <a href="#shell" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">App shell</a>
+      <a href="#copy" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Writing</a>
+    </nav>
+    <main style="padding:40px 48px 120px;display:flex;justify-content:center">
+      <div style="width:100%;max-width:880px;display:flex;flex-direction:column;gap:56px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h1 style="margin:0;font-size:26px;font-weight:500;letter-spacing:-0.01em">UI framework</h1>
+          <p style="margin:0;font-size:14px;color:#8a8c91;line-height:1.5;max-width:620px">The tokens and parts every Podstudio screen is built from. The values on this page are the source of truth. When a screen needs something that isn't here, add it here first.</p>
+        </div>
+
+        <section id="principles" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Principles</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:6px"><span style="font-size:14px">Dark and quiet</span><span style="font-size:13px;color:#8a8c91;line-height:1.5">Near-black surfaces with neutral grey type. Color is only for meaning.</span></div>
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:6px"><span style="font-size:14px">White is the selection</span><span style="font-size:13px;color:#8a8c91;line-height:1.5">Selected, on and filled states use off-white with dark text. There is no brand accent.</span></div>
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:6px"><span style="font-size:14px">Mono for numbers</span><span style="font-size:13px;color:#8a8c91;line-height:1.5">Levels, times, rates, sizes and key hints use mono. Labels and sentences use sans.</span></div>
+          </div>
+        </section>
+
+        <section id="color" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Color · neutrals</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+            <sc-for list="{{ neutrals }}" as="c" hint-placeholder-count="11">
+              <div style="background:#141416;border-radius:14px;overflow:hidden;display:flex;flex-direction:column">
+                <div style="height:64px;border-bottom:1px solid #1c1d20;background:{{ c.hex }}"></div>
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">{{ c.name }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#8a8c91">{{ c.hex }}</span><span style="font-size:12px;color:#6a6c71;line-height:1.4">{{ c.use }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:13px;font-weight:500;color:#8a8c91;margin-top:12px">Color · signal</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+            <sc-for list="{{ signals }}" as="c" hint-placeholder-count="4">
+              <div style="background:#141416;border-radius:14px;overflow:hidden;display:flex;flex-direction:column">
+                <div style="height:64px;background:{{ c.hex }}"></div>
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">{{ c.name }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#8a8c91">{{ c.hex }}</span><span style="font-size:12px;color:#6a6c71;line-height:1.4">{{ c.use }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:13px;font-weight:500;color:#8a8c91;margin-top:12px">Color · speakers</div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-wrap:wrap;gap:20px 28px">
+            <sc-for list="{{ speakers }}" as="c" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:12px;height:12px;border-radius:50%;background:{{ c.hex }}"></span><span style="font-size:14px">{{ c.name }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71">{{ c.hex }}</span></div>
+            </sc-for>
+          </div>
+          <p style="margin:0;font-size:13px;color:#8a8c91;line-height:1.5">Speaker colors mark a person only: dots, meter rings, talk-time bars. Never use them on buttons or text.</p>
+        </section>
+
+        <section id="type" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Type</div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="padding:16px 20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;border-bottom:1px solid #1c1d20;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71"><span>SANS</span><span>-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui</span></div>
+            <div style="padding:16px 20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;border-bottom:1px solid #1c1d20;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71"><span>MONO</span><span>ui-monospace, 'SF Mono', Menlo, monospace</span></div>
+            <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="9">
+              <div style="padding:16px 20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:baseline;border-bottom:1px solid #1c1d20">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">{{ t.name }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71">{{ t.spec }}</span></div>
+                <span style="font-family:{{ t.ff }};font-size:{{ t.fs }};font-weight:{{ t.fw }};letter-spacing:{{ t.ls }};color:{{ t.color }}">{{ t.sample }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section id="space" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Spacing &amp; radius</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px">
+              <span style="font-size:14px">Spacing scale</span>
+              <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="9">
+                <div style="display:grid;grid-template-columns:36px minmax(0,1fr) 150px;gap:12px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px">{{ s.v }}</span><div style="height:8px;border-radius:2px;background:#ededea;width:{{ s.w }}"></div><span style="font-size:12px;color:#6a6c71">{{ s.use }}</span></div>
+              </sc-for>
+            </div>
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px">
+              <span style="font-size:14px">Radius</span>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+                <sc-for list="{{ radii }}" as="r" hint-placeholder-count="6">
+                  <div style="display:flex;flex-direction:column;gap:8px"><div style="height:56px;background:#1c1c1f;border:1px solid #3a3b3f;border-radius:{{ r.r }}"></div><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px">{{ r.v }}</span><span style="font-size:12px;color:#6a6c71;line-height:1.4">{{ r.use }}</span></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="controls" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Controls</div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Select</span><span style="font-size:12px;color:#6a6c71">40 h · r10 · bg page</span></div>
+              <div style="position:relative;max-width:420px">
+                <select style="width:100%;height:40px;appearance:none;-webkit-appearance:none;background:#0b0b0c;border:1px solid #26272b;border-radius:10px;color:#ededea;font:inherit;font-size:14px;padding:0 36px 0 12px"><option>MacBook Neo Microphone (Built-in)</option><option>Shure MV7+</option></select>
+                <svg width="10" height="6" viewBox="0 0 10 6" style="position:absolute;right:14px;top:17px;pointer-events:none"><path d="M1 1l4 4 4-4" stroke="#8a8c91" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Text input</span><span style="font-size:12px;color:#6a6c71">Same shell as select</span></div>
+              <input placeholder="podstudio.local" style="max-width:420px;height:40px;box-sizing:border-box;background:#0b0b0c;border:1px solid #26272b;border-radius:10px;color:#ededea;font:inherit;font-size:14px;padding:0 12px;outline:none" style-focus="border-color:#8a8c91"></input>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Segmented</span><span style="font-size:12px;color:#6a6c71">2–3 short options</span></div>
+              <div style="display:flex;padding:3px;gap:3px;background:#0b0b0c;border:1px solid #26272b;border-radius:10px;max-width:280px">
+                <sc-for list="{{ segOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="flex:1;height:32px;border:0;border-radius:7px;font:inherit;font-size:13px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }};font-weight:{{ o.fw }}">{{ o.label }}</button></sc-for>
+              </div>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Toggle</span><span style="font-size:12px;color:#6a6c71">On/off settings</span></div>
+              <button onClick="{{ flip }}" style="width:40px;height:24px;border:0;border-radius:999px;padding:3px;cursor:pointer;display:flex;background:{{ tg.bg }};justify-content:{{ tg.jc }}"><span style="width:18px;height:18px;border-radius:50%;background:{{ tg.knob }}"></span></button>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Slider</span><span style="font-size:12px;color:#6a6c71">4 track · 16 knob · mono value</span></div>
+              <div style="max-width:420px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px">Tone level</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">{{ sl.val }}</span></div>
+                <div onPointerDown="{{ sl.drag }}" style="height:20px;position:relative;cursor:pointer;touch-action:none">
+                  <div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div>
+                  <div style="position:absolute;left:0;top:8px;height:4px;border-radius:2px;background:#ededea;width:{{ sl.pct }}"></div>
+                  <div style="position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#ededea;box-shadow:0 1px 3px rgba(0,0,0,0.5);left:{{ sl.pct }}"></div>
+                </div>
+              </div>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Check chip</span><span style="font-size:12px;color:#6a6c71">Multi-select with a detail</span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <sc-for list="{{ chips }}" as="m" hint-placeholder-count="3">
+                  <button onClick="{{ m.pick }}" style="height:34px;padding:0 12px 0 10px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;color:#ededea;background:{{ m.bg }};border:1px solid {{ m.bd }}">
+                    <span style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#0b0b0c;background:{{ m.boxBg }};border:1px solid {{ m.boxBd }}">{{ m.check }}</span><span>{{ m.label }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71">{{ m.hz }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px">Tags</span><span style="font-size:12px;color:#6a6c71">Fixed states, key hints</span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#8a8c91;border:1px solid #26272b;border-radius:6px;padding:4px 8px">ALWAYS ON</span>
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#6a6c71">HOST</span>
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;border:1px solid rgba(237,237,234,0.35);border-radius:4px;padding:3px 6px;color:#ededea;opacity:0.8">HOLD C</span>
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;font-weight:500;background:#ededea;color:#0b0b0c;padding:3px 8px;border-radius:6px">2a</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="buttons" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Buttons</div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+              <button style="height:48px;padding:0 28px;border-radius:12px;border:0;background:#ff453a;color:#fff;font:inherit;font-size:16px;font-weight:500;display:flex;align-items:center;gap:10px;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:#fff"></span>Start recording</button>
+              <button style="height:48px;padding:0 20px;border-radius:12px;border:0;background:#ff9f0a;color:#0b0b0c;font:inherit;font-size:15px;font-weight:600;display:flex;align-items:center;gap:10px;cursor:pointer">Retake <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;border:1px solid rgba(11,11,12,0.35);border-radius:4px;padding:3px 6px;opacity:0.8">R</span></button>
+              <button style="height:48px;padding:0 20px;border-radius:12px;border:0;background:#1c1c1f;color:#ededea;font:inherit;font-size:15px;font-weight:500;display:flex;align-items:center;gap:10px;cursor:pointer" style-hover="background:#232327">Cough <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;border:1px solid rgba(237,237,234,0.35);border-radius:4px;padding:3px 6px;opacity:0.8">HOLD C</span></button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+              <button style="height:36px;padding:0 14px;border-radius:10px;border:0;background:#ededea;color:#0b0b0c;font:inherit;font-size:13px;font-weight:500;cursor:pointer">Save changes</button>
+              <button style="height:36px;padding:0 14px;border-radius:10px;border:1px solid #26272b;background:transparent;color:#ededea;font:inherit;font-size:13px;cursor:pointer" style-hover="border-color:#3a3b3f">Copy invite link</button>
+              <button style="height:36px;padding:0 14px;border-radius:10px;border:0;background:transparent;color:#8a8c91;font:inherit;font-size:13px;cursor:pointer" style-hover="color:#ededea">Cancel</button>
+              <button style="height:36px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,69,58,0.4);background:transparent;color:#ff453a;font:inherit;font-size:13px;cursor:pointer">Delete take</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;font-size:12px;color:#8a8c91;line-height:1.5">
+              <div><span style="color:#ededea">Large · 48</span><br></br>Studio actions. Red only for record, amber only for retake.</div>
+              <div><span style="color:#ededea">Primary · 36</span><br></br>One per view. Off-white fill.</div>
+              <div><span style="color:#ededea">Secondary / ghost</span><br></br>Outline for real actions, ghost for dismiss.</div>
+              <div><span style="color:#ededea">Destructive</span><br></br>Red outline. Confirm before acting.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="surfaces" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Surfaces &amp; rows</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:13px;font-weight:500;color:#8a8c91">Section label</div>
+              <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+                <div style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:20px"><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:14px">Setting row with toggle</span><span style="font-size:13px;color:#8a8c91">One line of help, no period</span></div><span style="flex:none;width:40px;height:24px;border-radius:999px;padding:3px;box-sizing:border-box;display:flex;justify-content:flex-end;background:#ededea"><span style="width:18px;height:18px;border-radius:50%;background:#0b0b0c"></span></span></div>
+                <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+                <div style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:20px"><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:14px">Setting row with tag</span><span style="font-size:13px;color:#8a8c91">For things that can't be changed</span></div><span style="flex:none;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#8a8c91;border:1px solid #26272b;border-radius:6px;padding:4px 8px">ALWAYS ON</span></div>
+                <div style="padding:14px 20px;border-top:1px solid #1c1d20;display:flex;justify-content:space-between;gap:16px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px">Mono WAV · 24-bit · 48 kHz</span><span style="font-size:12px;color:#6a6c71">Card footer</span></div>
+              </div>
+            </div>
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:10px;font-size:13px;color:#8a8c91;line-height:1.5">
+              <span style="font-size:14px;color:#ededea">Card rules</span>
+              <span>Surface #141416, radius 14, no border, no shadow. Padding is 20, or 18 top and bottom on a row.</span>
+              <span>Group related settings in one card. Split the rows with a 1px #1c1d20 divider inset 20 from each side.</span>
+              <span>Put a 13/500 grey section label above each card group, with 12 between label and card and 40 between sections.</span>
+              <span>Empty or waiting states use a 1px dashed #2a2b2f outline with no fill.</span>
+              <span>Overlays (sheets, docks) use #141416 with radius 22 on the top edge and a 36×4 grab handle.</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="status" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Status &amp; meters</div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+              <div style="display:flex;align-items:center;gap:8px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;font-weight:500;letter-spacing:0.04em;padding:6px 16px;border-radius:999px;background:rgba(255,69,58,0.15);color:#ff453a"><span style="width:8px;height:8px;border-radius:50%;background:#ff453a"></span>REC 04:31</div>
+              <div style="display:flex;align-items:center;gap:8px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;font-weight:500;letter-spacing:0.04em;padding:6px 16px;border-radius:999px;color:#8a8c91"><span style="width:8px;height:8px;border-radius:50%;background:#5a5c61"></span>READY</div>
+              <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8a8c91"><span style="width:6px;height:6px;border-radius:50%;background:#30d158"></span>Saved 3 s ago</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8a8c91"><span style="width:6px;height:6px;border-radius:50%;background:#ff9f0a"></span>Reconnecting</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:grid;grid-template-columns:64px minmax(0,1fr) 56px;gap:12px;align-items:center">
+                <span style="display:flex;align-items:center;gap:6px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(83.77% 0.148 81.72)"></span>Tyler</span>
+                <div style="display:flex;gap:3px"><sc-for list="{{ meter }}" as="s" hint-placeholder-count="30"><div style="flex:1;height:12px;border-radius:2px;background:{{ s.bg }}"></div></sc-for></div>
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;text-align:right">−11 dB</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71;padding-left:76px;padding-right:68px"><span>−60</span><span style="color:#ff9f0a">−18</span><span style="color:#ff453a">−6</span><span style="color:#ff453a">0</span></div>
+            </div>
+            <p style="margin:0;font-size:13px;color:#8a8c91;line-height:1.5">Meter zones are the same everywhere: green below −18, amber from −18 to −6 (the target), red above −6. Unlit segments are the zone color at 20% over #1f2023. The peak-hold segment is off-white. The recording state also shows as a 3px red bar across the top of the screen.</p>
+          </div>
+        </section>
+
+        <section id="shell" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">App shell</div>
+          <div style="border:1px solid #1c1d20;border-radius:14px;overflow:hidden;background:#0b0b0c">
+            <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #1c1d20">
+              <div style="display:flex;align-items:center;gap:22px"><div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px"><span style="width:9px;height:9px;border-radius:50%;background:#ff453a"></span>Podstudio</div><div style="font-size:15px;color:#8a8c91">Page name</div></div>
+              <span style="width:30px;height:30px;border-radius:50%;background:#1c1c1f;display:flex;align-items:center;justify-content:center;font-size:13px">T</span>
+            </div>
+            <div style="display:grid;grid-template-columns:200px minmax(0,1fr);height:200px">
+              <div style="border-right:1px solid #1c1d20;padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+                <div style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91">General</div>
+                <div style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;background:#16171a">Recording</div>
+                <div style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91">Prompter</div>
+              </div>
+              <div style="padding:24px 32px;display:flex;flex-direction:column;gap:6px"><span style="font-size:26px;font-weight:500">Page title</span><span style="font-size:14px;color:#8a8c91">One sentence on what this page controls.</span><div style="margin-top:14px;height:72px;border-radius:14px;background:#141416"></div></div>
+            </div>
+          </div>
+          <p style="margin:0;font-size:13px;color:#8a8c91;line-height:1.5">Header 56 tall with the brand, then the page name in grey, then the avatar on the right. Sidebar 220 wide, items 36 tall, active item #16171a. Content is centred at a max width of 720 for settings and 880 for reference pages, with 40 top padding.</p>
+        </section>
+
+        <section id="copy" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Writing</div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <sc-for list="{{ copy }}" as="c" hint-placeholder-count="5">
+              <div style="padding:16px 20px;display:grid;grid-template-columns:180px minmax(0,1fr) minmax(0,1fr);gap:16px;border-bottom:1px solid #1c1d20;font-size:13px;line-height:1.5">
+                <span>{{ c.rule }}</span><span style="color:#30d158">{{ c.yes }}</span><span style="color:#8a8c91;text-decoration:line-through;text-decoration-color:#5a5c61">{{ c.no }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { seg: 'Mono', on: true, lvl: -20, chips: { Retake: true, Cough: false, 'Ad-lib': false } };
+  renderVals() {
+    const s = this.state;
+    const zone = f => f < 0.375 ? '#30d158' : f < 0.75 ? '#ff9f0a' : '#ff453a';
+    const pct = (s.lvl + 40) / 40;
+    return {
+      neutrals: [
+        ['Page', '#0b0b0c', 'App background, input fill'], ['Surface', '#141416', 'Cards, sheets, docks'], ['Raised', '#16171a', 'Active nav item, meter card'], ['Control', '#1c1c1f', 'Secondary buttons, avatar, on-chip'],
+        ['Divider', '#1c1d20', 'Header, sidebar, row dividers'], ['Border', '#26272b', 'Inputs, segmented, tags, slider track'], ['Track off', '#2a2b2f', 'Toggle off, dashed empty'], ['Handle', '#3a3b3f', 'Grab handle, hover border'],
+        ['Text', '#ededea', 'Primary type, selected fill'], ['Text 2', '#8a8c91', 'Help, secondary labels'], ['Text 3', '#6a6c71', 'Meta, units, tags'],
+      ].map(([name, hex, use]) => ({ name, hex, use })),
+      signals: [['Record', '#ff453a', 'Recording, hot level, destructive'], ['Retake / warn', '#ff9f0a', 'Retake marker, target zone, reconnecting'], ['OK', '#30d158', 'Saved, connected, safe level'], ['Info', 'rgba(110,168,255,0.7)', 'Ad-lib ranges on timeline']].map(([name, hex, use]) => ({ name, hex, use })),
+      speakers: [['Yellow', 'oklch(83.77% 0.148 81.72)'], ['Teal', 'oklch(90.16% 0.173 188.71)'], ['Green', 'oklch(80% 0.18 145)'], ['Red', 'oklch(68% 0.2 25)'], ['Purple', 'oklch(70% 0.16 300)'], ['Black', '#3a3b3f']].map(([name, hex]) => ({ name, hex })),
+      typeScale: [
+        ['Page title', 'sans 26 / 500 / −0.01em', 'Recording', 26, 500, '-0.01em', '#ededea', 0],
+        ['Display number', 'mono 28 / 500', '−11 dB', 28, 500, '0', '#ededea', 1],
+        ['Brand', 'sans 17 / 600', 'Podstudio', 17, 600, '0', '#ededea', 0],
+        ['Body large', 'sans 15 / 400', 'Page name in header, large buttons', 15, 400, '0', '#ededea', 0],
+        ['Body', 'sans 14 / 400', 'Setting label, nav item', 14, 400, '0', '#ededea', 0],
+        ['Help', 'sans 13 / 400 · lh 1.5', 'A short beep at each marker so edit points can be heard.', 13, 400, '0', '#8a8c91', 0],
+        ['Section label', 'sans 13 / 500', 'Input', 13, 500, '0', '#8a8c91', 0],
+        ['Value', 'mono 13 / 400', '150 ms · 48 kHz · 25%', 13, 400, '0', '#ededea', 1],
+        ['Tag', 'mono 11 / 500 · caps · 0.06em', 'ALWAYS ON · HOST', 11, 500, '0.06em', '#6a6c71', 1],
+      ].map(([name, spec, sample, fs, fw, ls, color, mono]) => ({ name, spec, sample, fs: fs + 'px', fw, ls, color, ff: mono ? "ui-monospace,'SF Mono',Menlo,monospace" : 'inherit' })),
+      spacing: [[2, 'Meter segment gap'], [4, 'Label to help'], [8, 'Chip gap, label to control'], [12, 'Section label to card'], [16, 'Grid gap'], [20, 'Card padding'], [24, 'Page gutter (mobile)'], [40, 'Between sections'], [48, 'Page gutter']].map(([v, use]) => ({ v, use, w: Math.min(100, v * 2) + '%' })),
+      radii: [[4, 'Key hint, checkbox'], [7, 'Segment inside'], [10, 'Input, small button'], [12, 'Large button'], [14, 'Card'], [999, 'Pill, toggle']].map(([v, use]) => ({ v, use, r: v + 'px' })),
+      segOpts: ['Mono', 'Stereo'].map(o => ({ label: o, bg: s.seg === o ? '#ededea' : 'transparent', fg: s.seg === o ? '#0b0b0c' : '#8a8c91', fw: s.seg === o ? 500 : 400, pick: () => this.setState({ seg: o }) })),
+      tg: { bg: s.on ? '#ededea' : '#2a2b2f', knob: s.on ? '#0b0b0c' : '#8a8c91', jc: s.on ? 'flex-end' : 'flex-start' },
+      flip: () => this.setState(p => ({ on: !p.on })),
+      sl: {
+        val: (s.lvl < 0 ? '−' + Math.abs(s.lvl) : s.lvl) + ' dBFS', pct: pct * 100 + '%',
+        drag: e => { const el = e.currentTarget; el.setPointerCapture(e.pointerId); const u = ev => { const r = el.getBoundingClientRect(); const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)); this.setState({ lvl: Math.round(-40 + f * 40) }); }; u(e); el.onpointermove = u; el.onpointerup = () => { el.onpointermove = null; }; },
+      },
+      chips: Object.keys(s.chips).map((k, i) => { const on = s.chips[k]; return { label: k, hz: ['1 kHz', '600 Hz', '1.4 kHz'][i], check: on ? '✓' : '', bg: on ? '#1c1c1f' : 'transparent', bd: on ? '#3a3b3f' : '#26272b', boxBg: on ? '#ededea' : 'transparent', boxBd: on ? '#ededea' : '#4a4b50', pick: () => this.setState(p => ({ chips: { ...p.chips, [k]: !p.chips[k] } })) }; }),
+      meter: Array.from({ length: 30 }, (_, i) => { const f = (i + 0.5) / 30, c = zone(f); return { bg: i < 17 ? c : i === 19 ? '#ededea' : 'color-mix(in oklab, ' + c + ' 20%, #1f2023)' }; }),
+      copy: [
+        ['Sentence case', 'Mic check before every session', 'Mic Check Before Every Session'],
+        ['Plain words', 'The edit stays clean.', 'Non-destructive processing is applied.'],
+        ['Say what it does', 'Protects takes from crashes and closed tabs', 'Enables autosave functionality'],
+        ['Units in mono, with a space', '48 kHz · 150 ms · −20 dBFS', '48khz, 150MS, -20dbfs'],
+        ['Real minus sign', '−18 dB', '-18 dB'],
+      ].map(([rule, yes, no]) => ({ rule, yes, no })),
+    };
+  }
+}
+</script>
+</body>
+</html>

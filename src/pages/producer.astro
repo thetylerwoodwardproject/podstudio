@@ -7,7 +7,7 @@
  */
 import AppShell from '@/layouts/AppShell.astro';
 
-const btn = 'flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-[14px] font-medium transition-colors disabled:opacity-35';
+const btn = 'flex h-12 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-medium transition-colors disabled:opacity-35';
 const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono text-[10px] leading-none opacity-70';
 ---
 
@@ -20,7 +20,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     <section class="flex min-h-0 flex-col border-line lg:border-r">
       <div class="flex items-center justify-between gap-4 border-b border-line px-6 py-3 text-[13px] text-muted">
         <span data-mode-label>Script</span>
-        <span class="meta" data-edit-note>Click a line to move the reader there. Edit any line; it updates everyone.</span>
+        <span class="text-[13px] text-text-2" data-edit-note>Click a line to move the reader there. Edit any line; it updates everyone.</span>
       </div>
       <div class="mx-auto flex min-h-[50dvh] w-full max-w-[860px] flex-1 flex-col gap-1 overflow-auto px-6 py-6" data-lines>
         <p class="text-[14px] text-muted" data-empty>Waiting for the host’s screen…</p>
@@ -29,7 +29,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
 
     <aside class="flex min-h-0 flex-col gap-5 overflow-auto p-5">
       <div class="flex flex-col gap-2.5">
-        <h2 class="eyebrow">Session</h2>
+        <h2 class="section-label">Session</h2>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class:list={[btn, 'col-span-2 bg-rec text-white']} data-cmd="start">● Start recording</button>
           <button type="button" class:list={[btn, 'bg-raised text-fg']} data-cmd="pause" hidden>Pause <span class={kbd}>P</span></button>
@@ -40,7 +40,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
       </div>
 
       <div class="flex flex-col gap-2.5">
-        <h2 class="eyebrow">Markers</h2>
+        <h2 class="section-label">Markers</h2>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class:list={[btn, 'bg-warn px-2 font-semibold text-ink']} data-cmd="retake">Retake <span class={kbd}>R</span></button>
           <button type="button" class:list={[btn, 'bg-raised px-2 text-fg aria-pressed:bg-adlib aria-pressed:text-ink']} aria-pressed="false" data-cmd="adlib">Ad-lib <span class={kbd}>A</span></button>
@@ -51,7 +51,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
       </div>
 
       <div class="flex flex-col gap-2.5">
-        <h2 class="eyebrow">Reader</h2>
+        <h2 class="section-label">Reader</h2>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class:list={[btn, 'bg-raised text-fg']} data-cmd="prev">← Back</button>
           <button type="button" class:list={[btn, 'bg-raised text-fg']} data-cmd="next">Next →</button>
@@ -59,9 +59,9 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
         <div class="flex flex-col" data-sections></div>
       </div>
 
-      <div class="flex flex-col gap-2.5 rounded-xl border border-line p-4" data-guest-panel>
+      <div class="flex flex-col gap-2.5 rounded-[14px] bg-surface p-5" data-guest-panel>
         <div class="flex items-baseline justify-between">
-          <h2 class="eyebrow">Guest</h2>
+          <h2 class="section-label">Guest</h2>
           <span class="text-[12px] text-muted" data-guest-state>Not joined</span>
         </div>
         <div class="text-[15px]" data-guest-name>—</div>
@@ -130,7 +130,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
       ...lines.map((l, n) => {
         const row = document.createElement('div');
         row.dataset.line = String(n);
-        row.className = 'group grid grid-cols-[60px_1fr] items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface data-[now]:bg-raised data-[now]:shadow-[inset_2px_0_0_var(--color-rec)]';
+        row.className = 'group grid grid-cols-[60px_1fr] items-start gap-3 rounded-[10px] px-2 py-2 hover:bg-surface data-[now]:bg-raised data-[now]:shadow-[inset_2px_0_0_var(--color-rec)]';
         const who = document.createElement('button');
         who.type = 'button';
         who.className = 'mt-1 text-left font-mono text-[11px] font-medium tracking-[0.06em]';
@@ -188,7 +188,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
       ...(script?.sections ?? []).map((s, i) => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'flex justify-between rounded-lg px-3 py-2 text-left text-[13px] hover:bg-surface';
+        b.className = 'flex justify-between rounded-[10px] px-3 py-2 text-left text-[13px] hover:bg-surface';
         b.innerHTML = `<span></span><span class="font-mono text-[11px] text-subtle">Line ${s.line + 1}</span>`;
         b.firstElementChild!.textContent = s.title;
         b.addEventListener('click', () => send({ action: 'section', index: i }));

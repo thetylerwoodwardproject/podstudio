@@ -16,8 +16,8 @@ const { label, value, color, dense = false, ...rest } = Astro.props;
   class:list={['flex items-center justify-between gap-4 border-b border-divider text-[14px]', dense ? 'py-[11px]' : 'py-3']}
   {...rest}
 >
-  <span class="text-text-2">{label}</span>
-  <span class="flex items-center gap-2 text-right font-mono text-[13px] text-text">
+  <span class="flex-none text-text-2">{label}</span>
+  <span class="flex min-w-0 items-center gap-2 text-right font-mono text-[12px] text-text">
     <span class="inline-block size-1.5 flex-none rounded-full" style={{ background: color }} hidden={!color} data-dot></span>
     <span data-value>{value}</span>
   </span>

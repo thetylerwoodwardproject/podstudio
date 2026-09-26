@@ -28,7 +28,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
 
     <!-- Connecting / problems -->
     <section class="mx-auto flex w-full max-w-[520px] flex-1 flex-col justify-center gap-3 px-6 pb-16 group-data-[stage=connecting]/g:flex group-data-[stage=error]/g:flex hidden">
-      <h1 class="text-[24px] tracking-[-0.02em]" data-msg-title>Connecting…</h1>
+      <h1 class="page-title" data-msg-title>Connecting…</h1>
       <p class="text-[14px] leading-normal text-muted" data-msg-body></p>
       <a href="/join" class="mt-2 text-[14px] text-fg underline underline-offset-2" data-msg-join hidden>Enter a code</a>
     </section>
@@ -37,7 +37,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     <section class="mx-auto hidden min-h-0 w-full max-w-[980px] flex-1 grid-cols-1 content-start gap-8 overflow-auto px-6 pt-4 pb-10 group-data-[stage=green]/g:grid lg:grid-cols-[1fr_1fr] lg:gap-12 lg:pt-10">
       <div class="flex flex-col gap-6">
         <div>
-          <h1 class="text-[28px] leading-[1.15] tracking-[-0.02em]"><span data-host-name>The host</span> is recording with you</h1>
+          <h1 class="page-title"><span data-host-name>The host</span> is recording with you</h1>
           <p class="mt-2 text-[14px] leading-normal text-muted">
             You'll talk on your usual call. Podstudio records your voice here, at full quality, and sends it to the host as you go.
           </p>
@@ -49,14 +49,14 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
         </ol>
         <p class="text-[13px] text-subtle" data-guest-sees></p>
       </div>
-      <form class="flex flex-col gap-5 rounded-2xl border border-line p-5" data-green novalidate>
+      <form class="flex flex-col gap-5 rounded-[14px] bg-surface p-5" data-green novalidate>
         <label class="flex flex-col gap-1.5 text-[12px] text-muted">
           Your name
-          <input name="name" required autocomplete="given-name" class="h-11 rounded-lg border border-edge bg-surface px-3 text-[15px] text-fg focus:border-fg focus:outline-none" placeholder="Sam" />
+          <input name="name" required autocomplete="given-name" class="h-11 rounded-[10px] border border-edge bg-surface px-3 text-[15px] text-fg focus:border-fg focus:outline-none" placeholder="Sam" />
         </label>
         <label class="flex flex-col gap-1.5 text-[12px] text-muted">
           Microphone
-          <select name="mic" class="h-11 rounded-lg border border-edge bg-surface px-3 text-[14px] text-fg focus:border-fg focus:outline-none" data-mic></select>
+          <select name="mic" class="h-11 rounded-[10px] border border-edge bg-surface px-3 text-[14px] text-fg focus:border-fg focus:outline-none" data-mic></select>
         </label>
         <div class="flex flex-col gap-2">
           <LevelMeter compact />
@@ -77,11 +77,11 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
 
     <!-- Waiting, recording, done -->
     <section class="mx-auto hidden min-h-0 w-full max-w-[860px] flex-1 flex-col px-6 group-data-[stage=waiting]/g:flex group-data-[stage=rec]/g:flex group-data-[stage=done]/g:flex">
-      <div class="rounded-2xl bg-raised px-4 py-3.5" data-banner>
+      <div class="rounded-[14px] bg-raised px-4 py-3.5" data-banner>
         <div class="text-[15px]" data-banner-title>You're in</div>
         <p class="mt-0.5 text-[13px] leading-normal text-muted" data-banner-body></p>
       </div>
-      <div class="rounded-2xl bg-rec/12 px-4 py-3.5 mt-2" role="alert" data-warn hidden>
+      <div class="rounded-[14px] bg-rec/12 px-4 py-3.5 mt-2" role="alert" data-warn hidden>
         <div class="text-[15px]" data-warn-title></div>
         <p class="mt-0.5 text-[13px] text-muted" data-warn-body></p>
       </div>

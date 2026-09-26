@@ -85,11 +85,11 @@ const zones = [
     <div class="relative flex min-w-0 flex-1 flex-col">
     <!-- Notices above the script: paused, and the warnings (one at a time) -->
     <div class="flex-none px-4 empty:hidden lg:mx-auto lg:w-full lg:max-w-[820px] lg:px-6" data-notices>
-      <div class="mt-2 rounded-2xl bg-raised px-4 py-3.5" data-paused-card hidden>
+      <div class="mt-2 rounded-[14px] bg-raised px-4 py-3.5" data-paused-card hidden>
         <div class="text-[15px]">Paused · still recording</div>
         <p class="mt-1 text-[13px] leading-normal text-muted">This stretch is marked as a pause and left out of the edit. Have a drink.</p>
       </div>
-      <div class="mt-2 rounded-2xl bg-raised px-4 py-3.5 data-[strong]:shadow-[inset_0_0_0_1px_var(--color-warn)]" role="alert" data-warning hidden>
+      <div class="mt-2 rounded-[14px] bg-raised px-4 py-3.5 data-[strong]:shadow-[inset_0_0_0_1px_var(--color-warn)]" role="alert" data-warning hidden>
         <div class="flex items-start gap-3">
           <span class="mt-[7px] size-2 flex-none rounded-full" data-warning-dot></span>
           <div class="min-w-0 flex-1">
@@ -144,11 +144,11 @@ const zones = [
 
       <!-- Level details (click the meter): the mic check's numbers -->
       <div
-        class="absolute bottom-full left-4 mb-2 w-[min(320px,calc(100vw-32px))] rounded-2xl border border-edge bg-panel p-4 text-[13px] lg:left-8"
+        class="absolute bottom-full left-4 mb-2 w-[min(320px,calc(100vw-32px))] rounded-[14px] border border-edge bg-panel p-4 text-[13px] lg:left-8"
         data-level-details
         hidden
       >
-        <h2 class="eyebrow text-muted!">Level</h2>
+        <h2 class="section-label">Level</h2>
         <dl class="mt-2 flex flex-col font-mono text-[12px]" data-level-rows></dl>
       </div>
 
@@ -218,7 +218,7 @@ const zones = [
     <!-- More: a bottom sheet on a phone (1f), a popover above the bar on a laptop (2b) -->
     <div class="fixed inset-0 z-30 bg-black/55 lg:hidden" data-more-scrim hidden></div>
     <div
-      class="fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-auto overscroll-contain rounded-t-[22px] bg-panel px-4 pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:right-8 lg:bottom-[84px] lg:max-h-[calc(100dvh-150px)] lg:w-[372px] lg:rounded-2xl lg:border lg:border-edge lg:p-3"
+      class="fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-auto overscroll-contain rounded-t-[22px] bg-panel px-4 pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:right-8 lg:bottom-[84px] lg:max-h-[calc(100dvh-150px)] lg:w-[372px] lg:rounded-[14px] lg:border lg:border-edge lg:p-3"
       role="dialog"
       aria-label="More"
       data-more
@@ -234,7 +234,7 @@ const zones = [
       <div class="flex flex-col gap-2.5 lg:gap-2">
         <button
           type="button"
-          class="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-fg text-[17px] text-ink group-data-[state=ready]/r:hidden lg:h-11 lg:justify-between lg:rounded-xl lg:px-3.5 lg:text-[14px]"
+          class="flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-fg text-[17px] text-ink group-data-[state=ready]/r:hidden lg:h-11 lg:justify-between lg:rounded-xl lg:px-3.5 lg:text-[14px]"
           data-more-pause
         >
           <span class="flex items-center gap-3"><span class="font-semibold tracking-[-0.1em]" aria-hidden="true" data-pause-icon>❚❚</span><span data-pause-text>Pause</span></span>
@@ -288,9 +288,9 @@ const zones = [
           <div class="flex items-center justify-between gap-4 border-b border-line py-3 lg:py-2">
             <dt class="text-muted" id="retake-tone-label">Retake tone</dt>
             <dd>
-              <label class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
+              <label class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-track-off transition-colors has-checked:bg-text has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-text">
                 <input type="checkbox" role="switch" class="peer sr-only" aria-labelledby="retake-tone-label" data-retake-tone />
-                <span class="absolute top-0.5 left-0.5 size-5 rounded-full bg-subtle transition-all peer-checked:left-[18px] peer-checked:bg-white"></span>
+                <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
               </label>
             </dd>
           </div>
@@ -300,9 +300,9 @@ const zones = [
               <span class="block text-[12px] text-subtle" data-ios-voice-note>Needs Siri turned on in iOS Settings</span>
             </dt>
             <dd>
-              <label class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg">
+              <label class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-track-off transition-colors has-checked:bg-text has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-text">
                 <input type="checkbox" role="switch" class="peer sr-only" aria-labelledby="ios-voice-label" data-ios-voice />
-                <span class="absolute top-0.5 left-0.5 size-5 rounded-full bg-subtle transition-all peer-checked:left-[18px] peer-checked:bg-white"></span>
+                <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
               </label>
             </dd>
           </div>
@@ -310,7 +310,7 @@ const zones = [
 
         <button
           type="button"
-          class="mt-1 flex h-13 w-full items-center justify-center rounded-2xl border border-rec text-[15px] text-rec hover:bg-rec/10 group-data-[state=ready]/r:hidden lg:h-11 lg:rounded-xl lg:text-[14px]"
+          class="mt-1 flex h-13 w-full items-center justify-center rounded-[14px] border border-rec text-[15px] text-rec hover:bg-rec/10 group-data-[state=ready]/r:hidden lg:h-11 lg:rounded-xl lg:text-[14px]"
           data-end
         >
           End session
@@ -328,7 +328,7 @@ const zones = [
     </div>
 
     <dialog
-      class="m-auto w-[min(360px,calc(100vw-32px))] rounded-2xl border border-edge bg-panel p-5 text-fg backdrop:bg-black/60"
+      class="m-auto w-[min(360px,calc(100vw-32px))] rounded-[14px] border border-edge bg-panel p-5 text-fg backdrop:bg-black/60"
       aria-labelledby="end-title"
       data-end-dialog
     >

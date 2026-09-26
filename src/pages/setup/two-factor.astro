@@ -13,7 +13,7 @@ const current = 2;
   <form class="flex flex-1 flex-col gap-7" data-reset hidden>
     <div>
       <div class="eyebrow">Settings · Security</div>
-      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Reset two-factor</h1>
+      <h1 class="page-title mt-2">Reset two-factor</h1>
       <p class="mt-2 max-w-[460px] text-[14px] leading-[1.55] text-muted">
         Enter a code from your current authenticator app (or a recovery code) to set up a new one.
       </p>
@@ -29,7 +29,7 @@ const current = 2;
   <form class="flex flex-1 flex-col gap-7" data-totp hidden>
     <div>
       <div class="eyebrow">Step {current + 1} of {setupSteps.length}</div>
-      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Protect your account</h1>
+      <h1 class="page-title mt-2">Protect your account</h1>
       <p class="mt-2 max-w-[460px] text-[14px] leading-[1.55] text-muted">
         Scan this QR code with an authenticator app, such as 1Password, Authy or Google Authenticator, then enter the
         6-digit code it shows.
@@ -41,7 +41,7 @@ const current = 2;
       <div class="flex flex-col gap-4.5">
         <div class="flex flex-col gap-1.5">
           <div class="text-[12px] text-muted">Can't scan? Enter this key</div>
-          <code class="rounded-lg bg-raised px-3 py-2.5 font-mono text-[14px] font-medium tracking-[0.08em] select-all" data-secret>…</code>
+          <code class="rounded-[10px] bg-raised px-3 py-2.5 font-mono text-[14px] font-medium tracking-[0.08em] select-all" data-secret>…</code>
         </div>
         <div class="flex flex-col gap-2">
           <div class="text-[12px] text-muted">6-digit code</div>
@@ -60,7 +60,7 @@ const current = 2;
   <div class="flex flex-1 flex-col gap-7" data-codes hidden>
     <div>
       <div class="eyebrow">Two-factor is on</div>
-      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Save your recovery codes</h1>
+      <h1 class="page-title mt-2">Save your recovery codes</h1>
       <p class="mt-2 max-w-[480px] text-[14px] leading-[1.55] text-muted">
         If you lose your phone, each of these signs you in once instead of a code. Keep them somewhere safe, like your
         password manager. They won't be shown again.

@@ -26,12 +26,12 @@ const rows = [
   <dialog
     open
     aria-labelledby="recovered-title"
-    class="fixed inset-0 z-10 m-auto flex w-[min(540px,calc(100vw-32px))] flex-col gap-5 rounded-2xl border border-edge bg-panel p-7 text-fg"
+    class="fixed inset-0 z-10 m-auto flex w-[min(540px,calc(100vw-32px))] flex-col gap-5 rounded-[14px] border border-edge bg-panel p-7 text-fg"
     id="recovered"
     data-episode={episode.id}
     data-title={episode.fullTitle}
   >
-    <h1 id="recovered-title" class="flex items-center gap-2.5 text-[20px] tracking-[-0.02em]">
+    <h1 id="recovered-title" class="page-title flex items-center gap-2.5">
       <Dot color="var(--color-ok)" size={9} />
       We saved your session
     </h1>

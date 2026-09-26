@@ -18,7 +18,7 @@ import { inputClass } from '@/lib/ui';
   data-episode={episodeId}
   data-target={label}
   aria-labelledby="import-title"
-  class="m-auto w-[min(900px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-edge bg-panel p-0 text-fg backdrop:bg-black/60 md:h-[600px]"
+  class="m-auto w-[min(900px,calc(100vw-32px))] overflow-hidden rounded-[14px] border border-edge bg-panel p-0 text-fg backdrop:bg-black/60 md:h-[600px]"
 >
   <div class="grid h-full md:grid-cols-2">
     <div class="flex flex-col gap-4.5 border-line p-7 max-md:border-b md:border-r">
@@ -31,7 +31,7 @@ import { inputClass } from '@/lib/ui';
         <div class="text-[15px]">Drop a file or paste text</div>
         <div class="text-[12px] text-subtle" data-live-only>Click here, then press ⌘V or Ctrl+V</div>
         <div class="meta text-subtle">.txt · .md · .docx · .fdx</div>
-        <label class="inline-flex h-10 items-center rounded-lg border border-edge px-4 text-[14px] hover:bg-raised">
+        <label class="inline-flex h-10 items-center rounded-[10px] border border-edge px-4 text-[14px] hover:bg-raised">
           Choose file
           <input type="file" accept=".txt,.md,.docx,.fdx,text/plain,text/markdown" class="sr-only" data-file />
         </label>
@@ -56,7 +56,7 @@ import { inputClass } from '@/lib/ui';
         <div class="truncate text-[14px]" data-file-name>{importPreview.file}</div>
         <div class="meta flex-none text-muted" data-file-meta>{importPreview.meta}</div>
       </div>
-      <div class="flex min-h-40 flex-1 flex-col gap-3 overflow-hidden rounded-[10px] border border-line bg-void p-4" data-preview>
+      <div class="flex min-h-40 flex-1 flex-col gap-3 overflow-hidden rounded-[10px] border border-border bg-void p-4" data-preview>
         <div class="eyebrow">{importPreview.section}</div>
         {
           importPreview.lines.map((l) => (

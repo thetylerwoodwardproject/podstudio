@@ -17,7 +17,7 @@ const choices = [
   <form class="group flex flex-1 flex-col gap-6" data-next="/">
     <div>
       <div class="eyebrow">Step {current + 1} of {setupSteps.length} · Optional</div>
-      <h1 class="mt-2 text-[30px] tracking-[-0.03em]">Record from anywhere?</h1>
+      <h1 class="page-title mt-2">Record from anywhere?</h1>
       <p class="mt-2 max-w-[500px] text-[14px] leading-[1.55] text-muted">
         Phones and other computers can only record over HTTPS. If you want that, put Podstudio behind a reverse proxy
         on your domain. You can also do this later in Settings.
@@ -28,7 +28,7 @@ const choices = [
       <legend class="sr-only">How other devices reach Podstudio</legend>
       {
         choices.map((c, i) => (
-          <label class="flex flex-col gap-2 rounded-xl border border-line p-4.5 hover:border-edge has-checked:border-fg">
+          <label class="flex flex-col gap-2 rounded-[14px] border border-transparent bg-surface p-5 hover:border-border has-checked:border-text">
             <input type="radio" name="mode" value={c.value} checked={i === 0} class="sr-only" />
             <span class="text-[15px]">{c.title}</span>
             <span class="text-[13px] leading-normal text-muted">{c.body}</span>

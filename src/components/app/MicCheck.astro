@@ -32,7 +32,7 @@ const c = {
   checks: [
     ['Level', 'Right on target', ok],
     ['Clipping', 'None in the last 30 s', ok],
-    ['Noise floor', '-61 dBFS', ok],
+    ['Noise floor', '−61 dBFS', ok],
     ['Voice follow', 'Matched line 1', ok],
     ['Free space', '5.1 GB · about 9 h', 'var(--color-warn)'],
     ['Test recording', 'Played back · right on target', ok],
@@ -56,7 +56,7 @@ const c = {
     <section class="flex flex-col gap-6 border-line px-6 py-10 lg:border-r lg:px-14">
       <div>
         <div class="eyebrow">{c.eyebrow}</div>
-        <h1 class="mt-2 text-[28px] tracking-[-0.03em]">{c.title}</h1>
+        <h1 class="page-title mt-2">{c.title}</h1>
         <p class="mt-2 max-w-[520px] text-[14px] leading-[1.55] text-muted">{c.sub}</p>
       </div>
 
@@ -78,7 +78,7 @@ const c = {
       </ol>
 
 
-      <div class="rounded-xl bg-surface px-4 py-3 text-[14px] leading-normal">
+      <div class="rounded-[14px] bg-surface px-4 py-3 text-[14px] leading-normal">
         <span class="text-faint">Heard:</span>
         <span data-heard>{c.heard}</span>
       </div>
@@ -108,7 +108,7 @@ const c = {
         {c.checks.map(([k, v, color], i) => <StatusRow label={k!} value={v!} color={color} dense data-check={i} />)}
       </div>
 
-      <div class="flex flex-col gap-2.5 rounded-xl border border-line p-3.5" data-live-only data-test>
+      <div class="flex flex-col gap-2.5 rounded-[14px] bg-surface p-5" data-live-only data-test>
         <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
             <div class="text-[13px]">Test recording</div>
@@ -116,7 +116,7 @@ const c = {
           </div>
           <button
             type="button"
-            class="inline-flex h-8 flex-none items-center gap-2 rounded-lg bg-rec px-3 text-[12px] font-medium text-white disabled:opacity-50 data-[running]:bg-raised data-[running]:text-fg"
+            class="inline-flex h-8 flex-none items-center gap-2 rounded-[10px] bg-rec px-3 text-[12px] font-medium text-white disabled:opacity-50 data-[running]:bg-raised data-[running]:text-fg"
             data-test-btn
           >
             <span class="size-2 rounded-full bg-current" data-test-icon></span>
@@ -132,7 +132,7 @@ const c = {
               <div class="text-[13px]">Noise suppression</div>
               <div class="mt-0.5 text-[12px] leading-snug text-subtle" data-ns-suggest></div>
             </div>
-            <button type="button" class="inline-flex h-8 flex-none items-center rounded-lg border border-edge px-3 text-[12px] hover:bg-raised disabled:opacity-50" data-ns-hear>
+            <button type="button" class="inline-flex h-8 flex-none items-center rounded-[10px] border border-edge px-3 text-[12px] hover:bg-raised disabled:opacity-50" data-ns-hear>
               Hear it cleaned
             </button>
           </div>
@@ -145,7 +145,7 @@ const c = {
       </div>
 
       <!-- The numbers, for comparing with an interface's own meters -->
-      <details class="group rounded-xl border border-line" data-live-only>
+      <details class="group rounded-[14px] bg-surface" data-live-only>
         <summary class="flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 text-[13px] text-muted hover:text-fg">
           Advanced details
           <span class="text-faint transition-transform group-open:rotate-180">▾</span>
@@ -189,6 +189,9 @@ const c = {
   import { locate, normalize } from '@/lib/voice/match';
   import { loadScript } from '@/lib/script-store';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
+
+  /** A real minus sign in readouts. */
+  const minus = (v: number | string) => String(v).replace('-', '−');
 
   const form = document.getElementById('mic-check') as HTMLFormElement;
   const demo = new URL(location.href).searchParams.has('demo');
@@ -327,7 +330,7 @@ const c = {
               : verdict(max);
       $('[data-status]').textContent = text;
       $('[data-status-dot]').style.background = color;
-      $('[data-status-peak]').textContent = Number.isFinite(max) && max >= -45 ? `peaks ${Math.round(max) || 0} dBFS` : '';
+      $('[data-status-peak]').textContent = Number.isFinite(max) && max >= -45 ? `peaks ${minus(Math.round(max) || 0)} dBFS` : '';
       check('level', text === 'Talk at your normal volume' ? 'Waiting for your voice' : text, grade);
 
       if (lastClip && since < 30) check('clip', `Clipped ${since} s ago`, bad);
@@ -336,7 +339,7 @@ const c = {
       if (floors.length > 60) {
         const floor = [...floors].sort((a, b) => a - b)[Math.floor(floors.length * 0.1)];
         noiseFloor = floor;
-        check('noise', floor <= -90 ? 'Below -90 dBFS' : `${floor.toFixed(0)} dBFS`, floor <= -50 ? ok : floor <= -40 ? warn : bad);
+        check('noise', floor <= -90 ? 'Below −90 dBFS' : `${minus(floor.toFixed(0))} dBFS`, floor <= -50 ? ok : floor <= -40 ? warn : bad);
       }
     }, 500);
 
@@ -493,8 +496,8 @@ const c = {
       $('[data-ns-suggest]').textContent = !Number.isFinite(noiseFloor)
         ? 'Hear how it sounds with the room taken out.'
         : suggested
-          ? `Room noise ${Math.round(noiseFloor)} dBFS · try ${suggested}%`
-          : `Room noise ${Math.round(noiseFloor)} dBFS · quiet enough without it`;
+          ? `Room noise ${minus(Math.round(noiseFloor))} dBFS · try ${suggested}%`
+          : `Room noise ${minus(Math.round(noiseFloor))} dBFS · quiet enough without it`;
       $('[data-ns-test]').hidden = !joined.length;
       // What the file itself measures.
       let peak = 0;

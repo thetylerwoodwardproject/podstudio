@@ -16,8 +16,7 @@ const pauseModes = [
   { value: 'keep', title: 'Keep', body: 'Leave it in, marked.' },
   { value: 'split', title: 'Split', body: 'One file per segment between pauses.' },
 ];
-const greenSwitch =
-  'relative inline-flex h-5 w-[34px] flex-none items-center rounded-full bg-edge has-checked:bg-ok has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg';
+const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-track-off transition-colors has-checked:bg-text has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-text';
 ---
 
 <AppShell title="Session export" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Export' }]}>
@@ -30,7 +29,7 @@ const greenSwitch =
     data-lines={JSON.stringify(scriptLines.map((l) => l.text))}
   >
     <div>
-      <h1 class="text-[22px] tracking-[-0.02em]">Session · <span data-length><span data-demo-only>41:07</span></span></h1>
+      <h1 class="page-title">Session · <span data-length><span data-demo-only>41:07</span></span></h1>
       <p class="mt-1.5 text-[13px] text-muted" data-counts><span data-demo-only>18:42 · 14 retakes · 3 pauses</span></p>
     </div>
 
@@ -40,7 +39,7 @@ const greenSwitch =
         <div class="text-[14px]"><span data-guest-missing-name>The guest</span>'s track isn't here yet</div>
         <div class="mt-1 text-[12px] text-muted">Export waits for it, so both tracks come out lined up with the same cuts.</div>
       </div>
-      <a class="inline-flex h-9 items-center rounded-lg bg-fg px-3.5 text-[13px] font-medium text-ink hover:bg-white hover:text-ink" data-guest-missing-link>Get their track</a>
+      <a class="inline-flex h-9 items-center rounded-[10px] bg-fg px-3.5 text-[13px] font-medium text-ink hover:bg-white hover:text-ink" data-guest-missing-link>Get their track</a>
       <button type="button" class="text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline" data-guest-missing-skip>Export without them</button>
     </div>
 
@@ -49,7 +48,7 @@ const greenSwitch =
     </p>
 
     <section class="flex flex-col gap-2.5">
-      <h2 class="eyebrow text-muted!">Always included</h2>
+      <h2 class="section-label">Always included</h2>
       <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
         <div class="flex-1">
           <div class="text-[14px]">Raw WAV with markers</div>
@@ -72,8 +71,8 @@ const greenSwitch =
     </section>
 
     <section class="flex flex-col gap-2.5">
-      <h2 class="eyebrow text-muted!">Optional</h2>
-      <label class="flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg">
+      <h2 class="section-label">Optional</h2>
+      <label class="flex items-center gap-3.5 rounded-[10px] border border-border px-4 py-3.5 has-checked:border-handle has-checked:bg-control">
         <div class="flex-1">
           <div class="text-[14px]">Assembled edit</div>
           <div class="mt-1 text-[12px] text-muted">
@@ -81,12 +80,12 @@ const greenSwitch =
             is. <span data-removes><span data-demo-only>Removes 6:52.</span></span>
           </div>
         </div>
-        <span class={greenSwitch}>
+        <span class={switchTrack}>
           <input type="checkbox" role="switch" name="assembled" checked class="peer sr-only" aria-label="Assembled edit" />
-          <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+          <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
         </span>
       </label>
-      <label class="flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg">
+      <label class="flex items-center gap-3.5 rounded-[10px] border border-border px-4 py-3.5 has-checked:border-handle has-checked:bg-control">
         <div class="flex-1">
           <div class="text-[14px]">Marker tones in your full recording</div>
           <div class="mt-1 text-[12px] text-muted">
@@ -95,30 +94,30 @@ const greenSwitch =
             <a href="/settings/recording" class="underline underline-offset-2 hover:text-fg">Settings → Recording</a>.
           </div>
         </div>
-        <span class={greenSwitch}>
+        <span class={switchTrack}>
           <input type="checkbox" role="switch" name="tones" class="peer sr-only" aria-label="Marker tones in the full recording" />
-          <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+          <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
         </span>
       </label>
     </section>
 
-    <label class="-mt-3.5 flex items-center gap-3.5 rounded-[10px] border border-line px-4 py-3.5 has-checked:border-fg" data-mix-row hidden>
+    <label class="-mt-3.5 flex items-center gap-3.5 rounded-[10px] border border-border px-4 py-3.5 has-checked:border-handle has-checked:bg-control" data-mix-row hidden>
       <div class="flex-1">
         <div class="text-[14px]">Rough mix</div>
         <div class="mt-1 text-[12px] text-muted">Mic and pads in one file, limited to −1 dBFS, for a quick listen or an episode with no edit.</div>
       </div>
-      <span class={greenSwitch}>
+      <span class={switchTrack}>
         <input type="checkbox" role="switch" name="mix" class="peer sr-only" aria-label="Rough mix" />
-        <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-subtle transition-all peer-checked:left-4 peer-checked:bg-white"></span>
+        <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
       </span>
     </label>
 
     <section class="flex flex-col gap-2.5 transition-opacity group-has-[[name=assembled]:not(:checked)]/s:pointer-events-none group-has-[[name=assembled]:not(:checked)]/s:opacity-40">
-      <h2 class="eyebrow text-muted!">Pauses in the assembled edit</h2>
+      <h2 class="section-label">Pauses in the assembled edit</h2>
       <div class="grid gap-2.5 sm:grid-cols-3" role="radiogroup" aria-label="Pauses in the assembled edit">
         {
           pauseModes.map((m, i) => (
-            <label class="flex flex-col gap-1.5 rounded-[10px] border border-line p-3.5 hover:border-edge has-checked:border-fg has-focus-visible:outline-2 has-focus-visible:outline-fg">
+            <label class="flex flex-col gap-1.5 rounded-[10px] border border-border p-3.5 hover:border-handle has-checked:border-handle has-checked:bg-control has-focus-visible:outline-2 has-focus-visible:outline-fg">
               <input type="radio" name="pauses" value={m.value} checked={i === 0} class="sr-only" />
               <span class="text-[14px]">{m.title}</span>
               <span class="text-[12px] leading-[1.45] text-muted">{m.body}</span>
@@ -130,8 +129,8 @@ const greenSwitch =
     </section>
 
     <section class="flex flex-col gap-2.5" data-ns>
-      <h2 class="eyebrow text-muted!">Noise suppression</h2>
-      <div class="rounded-[10px] border border-line px-4 py-4">
+      <h2 class="section-label">Noise suppression</h2>
+      <div class="rounded-[14px] bg-surface p-5">
         <div class="flex items-center gap-4">
           <label for="ns-amount" class="flex-none text-[14px]">Suppression</label>
           <input id="ns-amount" name="ns" type="range" min="0" max="100" step="5" value="0" class="min-w-0 flex-1 accent-fg" data-ns-amount />
@@ -174,7 +173,7 @@ const greenSwitch =
   <dialog
     id="markers-dialog"
     aria-labelledby="markers-title"
-    class="m-auto w-[min(560px,calc(100vw-32px))] rounded-2xl border border-edge bg-panel p-0 text-fg backdrop:bg-black/60"
+    class="m-auto w-[min(560px,calc(100vw-32px))] rounded-[14px] border border-edge bg-panel p-0 text-fg backdrop:bg-black/60"
   >
     <div class="flex max-h-[80vh] flex-col gap-4 p-7">
       <div class="flex items-baseline justify-between">

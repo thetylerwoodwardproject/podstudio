@@ -16,11 +16,11 @@ const base = `/episodes/${episode.id}`;
 
 <AppShell title="Sessions" crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Sessions' }]}>
   <EpisodeData data={data} />
-  <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-6 py-8" id="sessions" data-episode={episode.id}>
+  <div class="mx-auto flex w-full max-w-[720px] flex-col gap-10 px-4 pt-10 pb-12 sm:px-6" id="sessions" data-episode={episode.id}>
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 class="text-[22px] tracking-[-0.02em]">Sessions</h1>
-        <p class="mt-1.5 text-[13px] text-muted">
+        <h1 class="page-title">Sessions</h1>
+        <p class="mt-1.5 text-[15px] leading-normal text-text-2">
           Every session is one WAV, with retakes, coughs, pauses and ad-libs as markers. Open one to export the edit.
         </p>
       </div>
@@ -30,32 +30,33 @@ const base = `/episodes/${episode.id}`;
       </Button>
     </div>
     <div class="flex flex-col gap-3.5" data-list>
-      <p class="rounded-xl bg-surface px-5 py-4 text-[13px] leading-normal text-subtle" data-empty>
+      <p class="rounded-[14px] border border-dashed border-track-off px-5 py-[18px] text-[14px] text-text-2" data-empty>
         No sessions yet. Start one from the studio.
       </p>
     </div>
-    <div class="flex flex-col gap-2.5" data-server-list hidden>
-      <h2 class="eyebrow text-muted!">On the server, not in this browser</h2>
-    </div>
-    <p class="text-[12px] leading-normal text-subtle" data-upload-note>
+    <section class="flex flex-col gap-3" data-server-list hidden>
+      <h2 class="section-label">On the server, not in this browser</h2>
+      <div class="rounded-[14px] bg-surface py-0.5" data-server-rows></div>
+    </section>
+    <p class="help" data-upload-note>
       Sessions are saved in this browser as you record and sent to the server, so they're safe if this browser's data is
       cleared, and you can export them from another computer.
     </p>
   </div>
 
   <template id="session-card">
-    <div class="flex flex-col gap-3 rounded-xl border border-line p-4.5 data-[selected]:border-fg">
+    <div class="flex flex-col gap-3 rounded-[14px] bg-surface p-5 data-[selected]:shadow-[inset_0_0_0_1px_var(--color-text)]">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <span class="text-[16px]" data-name></span>
-        <span class="meta text-muted" data-when></span>
+        <span class="text-[15px] text-text" data-name></span>
+        <span class="font-mono text-[13px] text-text-2" data-when></span>
       </div>
-      <div class="meta text-muted" data-summary></div>
+      <div class="font-mono text-[13px] text-text-3" data-summary></div>
       <audio controls preload="none" class="h-8 w-full [color-scheme:dark]" data-audio></audio>
       <div data-ns-slot></div>
       <div class="flex flex-wrap items-center gap-4 text-[13px]">
-        <a class="inline-flex h-8 items-center rounded-lg bg-fg px-3 font-medium text-ink hover:bg-white hover:text-ink" data-open>Open &amp; export →</a>
-        <button type="button" class="text-fg hover:text-white" data-download>↓ Raw WAV</button>
-        <button type="button" class="ml-auto text-muted hover:text-rec" data-delete>Delete</button>
+        <a class="inline-flex h-9 items-center rounded-[10px] bg-text px-3.5 text-[14px] font-medium text-page hover:text-page" data-open>Open &amp; export →</a>
+        <button type="button" class="inline-flex h-9 items-center rounded-[10px] border border-border px-3.5 text-[14px] text-text hover:border-handle" data-download>↓ Raw WAV</button>
+        <button type="button" class="ml-auto inline-flex h-9 items-center rounded-[10px] border border-rec/70 px-3.5 text-[14px] text-rec hover:border-rec" data-delete>Delete</button>
       </div>
     </div>
   </template>
@@ -86,15 +87,16 @@ const base = `/episodes/${episode.id}`;
   async function renderServerOnly() {
     const local = new Set((await listTakes(episodeId)).map((t) => t.id));
     const box = root.querySelector<HTMLElement>('[data-server-list]')!;
-    box.querySelectorAll('[data-server-take]').forEach((x) => x.remove());
+    const rows = box.querySelector<HTMLElement>('[data-server-rows]')!;
+    rows.replaceChildren();
     const missing = (await serverTakes(episodeId)).filter((t) => !local.has(t.id) && t.done && t.segments);
     box.hidden = !missing.length;
     for (const t of missing) {
       const m = t.meta;
       const row = document.createElement('div');
       row.dataset.serverTake = t.id;
-      row.className = 'flex flex-wrap items-center gap-3 rounded-xl border border-line px-4.5 py-3.5 text-[14px]';
-      row.innerHTML = `<span class="min-w-0 flex-1"><span data-t></span><span class="meta ml-2 text-muted" data-m></span></span><button type="button" class="inline-flex h-8 items-center rounded-lg bg-raised px-3 text-[13px] hover:bg-surface">Bring into this browser</button>`;
+      row.className = 'mx-5 flex flex-wrap items-center gap-3 border-t border-divider py-[14px] text-[14px] first:border-t-0';
+      row.innerHTML = `<span class="min-w-0 flex-1"><span class="text-text" data-t></span><span class="ml-2 font-mono text-[13px] text-text-2" data-m></span></span><button type="button" class="inline-flex h-9 items-center rounded-[10px] bg-control px-3.5 text-[14px] text-text hover:bg-nav">Bring into this browser</button>`;
       row.querySelector('[data-t]')!.textContent = new Date(m.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
       row.querySelector('[data-m]')!.textContent = `${formatDuration(m.samples / m.sampleRate)} · ${formatBytes(m.samples * (m.bitDepth / 8) * (m.channels ?? 1))}`;
       const btn = row.querySelector('button')!;
@@ -108,7 +110,7 @@ const base = `/episodes/${episode.id}`;
           btn.disabled = false;
         }
       });
-      box.append(row);
+      rows.append(row);
     }
   }
 

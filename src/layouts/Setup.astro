@@ -4,6 +4,7 @@ import Base from './Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import Dot from '@/components/ui/Dot.astro';
 import { server, setupSteps } from '@/data/mock';
+import { version } from '../../package.json';
 
 interface Props {
   title: string;
@@ -44,7 +45,7 @@ const { title, current } = Astro.props;
       </ol>
       <div class="mt-auto flex items-center gap-2 font-mono text-[11px] text-subtle max-lg:hidden">
         <Dot color="var(--color-ok)" />
-        {server.localAddress} · v0.1
+        {server.localAddress} · v{version}
       </div>
     </aside>
     <main class="flex flex-col gap-7 px-6 py-10 lg:px-18 lg:py-14">

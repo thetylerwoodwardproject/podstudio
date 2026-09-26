@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>html,body{margin:0;background:#0b0b0c;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color-scheme:dark}a{color:#ededea}a:hover{color:#b9bbc0}</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header style="height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #1c1d20">
+    <div style="display:flex;align-items:center;gap:22px"><div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px"><span style="width:9px;height:9px;border-radius:50%;background:#ff453a"></span>Podstudio</div><div style="font-size:15px;color:#8a8c91">Settings</div></div>
+    <span style="width:30px;height:30px;border-radius:50%;background:#1c1c1f;display:flex;align-items:center;justify-content:center;font-size:13px">T</span>
+  </header>
+  <div style="flex:1;display:grid;grid-template-columns:220px minmax(0,1fr)">
+    <nav style="border-right:1px solid #1c1d20;padding:24px 12px;display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="10">
+        <div style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;cursor:pointer;background:{{ n.bg }};color:{{ n.fg }}">{{ n.label }}</div>
+      </sc-for>
+    </nav>
+    <main style="padding:40px 48px 96px;display:flex;justify-content:center">
+      <div style="width:100%;max-width:720px;display:flex;flex-direction:column;gap:40px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h1 style="margin:0;font-size:26px;font-weight:500;letter-spacing:-0.01em">Recording</h1>
+          <p style="margin:0;font-size:14px;color:#8a8c91;line-height:1.5">Defaults for new sessions. The host can change them per session from the studio.</p>
+        </div>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Input</div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="padding:20px;display:flex;flex-direction:column;gap:8px">
+              <label style="font-size:14px">Microphone</label>
+              <div style="position:relative">
+                <select value="{{ mic }}" onChange="{{ setMic }}" style="width:100%;height:40px;appearance:none;-webkit-appearance:none;background:#0b0b0c;border:1px solid #26272b;border-radius:10px;color:#ededea;font:inherit;font-size:14px;padding:0 36px 0 12px;cursor:pointer">
+                  <option>System default</option>
+                  <option>MacBook Neo Microphone (Built-in)</option>
+                  <option>Shure MV7+</option>
+                </select>
+                <svg width="10" height="6" viewBox="0 0 10 6" style="position:absolute;right:14px;top:17px;pointer-events:none"><path d="M1 1l4 4 4-4" stroke="#8a8c91" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <p style="margin:0;font-size:13px;color:#8a8c91;line-height:1.5;text-wrap:pretty">Used for recording and voice follow. System default follows your computer's sound settings. On a multi-input interface, mono lists each input; stereo records inputs 1 and 2 as left and right.</p>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+              <sc-for list="{{ formats }}" as="f" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="font-size:14px">{{ f.label }}</span>
+                  <div style="display:flex;padding:3px;gap:3px;background:#0b0b0c;border:1px solid #26272b;border-radius:10px">
+                    <sc-for list="{{ f.opts }}" as="o" hint-placeholder-count="2">
+                      <button onClick="{{ o.pick }}" style="flex:1;height:32px;border:0;border-radius:7px;font:inherit;font-size:13px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }};font-weight:{{ o.fw }}">{{ o.label }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:14px 20px;border-top:1px solid #1c1d20;display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap">
+              <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#ededea">{{ summary }}</span>
+              <span style="font-size:12px;color:#6a6c71">If the device runs at another rate, Podstudio uses it. Nothing is resampled.</span>
+            </div>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Exports</div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px">Noise suppression</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">{{ noise.val }}</span></div>
+            <div onPointerDown="{{ noise.drag }}" style="height:20px;position:relative;cursor:pointer;touch-action:none">
+              <div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div>
+              <div style="position:absolute;left:0;top:8px;height:4px;border-radius:2px;background:#ededea;width:{{ noise.pct }}"></div>
+              <div style="position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#ededea;box-shadow:0 1px 3px rgba(0,0,0,0.5);left:{{ noise.pct }}"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71"><span>Off</span><span>Light</span><span>Medium</span><span>Strong</span></div>
+            <p style="margin:0;font-size:13px;color:#8a8c91;line-height:1.5;text-wrap:pretty">Starting point for the export fader. Higher removes more room sound. Exports include both the raw and cleaned versions, and the mic check suggests a value for your room. Powered by DeepFilterNet3.</p>
+          </div>
+
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="padding:20px;display:flex;justify-content:space-between;align-items:center;gap:20px">
+              <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:14px">Marker tones on the full recording</span><span style="font-size:13px;color:#8a8c91;line-height:1.5">A short beep at each marker so edit points can be heard. The edit stays clean.</span></div>
+              <button onClick="{{ toggleTones }}" style="flex:none;width:40px;height:24px;border:0;border-radius:999px;padding:3px;cursor:pointer;display:flex;background:{{ tonesT.bg }};justify-content:{{ tonesT.jc }}"><span style="width:18px;height:18px;border-radius:50%;background:{{ tonesT.knob }}"></span></button>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:flex;flex-direction:column;gap:12px;opacity:{{ tonesOpacity }}">
+              <span style="font-size:14px">Markers that beep</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <sc-for list="{{ markers }}" as="m" hint-placeholder-count="5">
+                  <button onClick="{{ m.pick }}" style="height:34px;padding:0 12px 0 10px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;color:#ededea;background:{{ m.bg }};border:1px solid {{ m.bd }}">
+                    <span style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:{{ m.boxBg }};border:1px solid {{ m.boxBd }};color:#0b0b0c">{{ m.check }}</span>
+                    <span>{{ m.label }}</span>
+                    <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71">{{ m.hz }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 32px;opacity:{{ tonesOpacity }}">
+              <sc-for list="{{ toneSliders }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px">{{ s.label }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">{{ s.val }}</span></div>
+                  <div onPointerDown="{{ s.drag }}" style="height:20px;position:relative;cursor:pointer;touch-action:none">
+                    <div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div>
+                    <div style="position:absolute;left:0;top:8px;height:4px;border-radius:2px;background:#ededea;width:{{ s.pct }}"></div>
+                    <div style="position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#ededea;box-shadow:0 1px 3px rgba(0,0,0,0.5);left:{{ s.pct }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:0;padding:0 20px 20px;font-size:13px;color:#8a8c91;line-height:1.5;text-wrap:pretty">Tones duck under your voice by the duck amount. Attack sets how fast they drop when you start talking; release sets how fast they return.</p>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Session</div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:20px">
+              <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:14px">Mic check before every session</span><span style="font-size:13px;color:#8a8c91">Level, clipping, room noise and voice follow</span></div>
+              <button onClick="{{ toggleCheck }}" style="flex:none;width:40px;height:24px;border:0;border-radius:999px;padding:3px;cursor:pointer;display:flex;background:{{ checkT.bg }};justify-content:{{ checkT.jc }}"><span style="width:18px;height:18px;border-radius:50%;background:{{ checkT.knob }}"></span></button>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:20px">
+              <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:14px">Save audio every 5 seconds</span><span style="font-size:13px;color:#8a8c91">Protects takes from crashes and closed tabs</span></div>
+              <span style="flex:none;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#8a8c91;border:1px solid #26272b;border-radius:6px;padding:4px 8px">ALWAYS ON</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    mic: 'MacBook Neo Microphone (Built-in)', ch: 'Mono', bits: '24-bit', rate: '48 kHz',
+    noise: 25, level: -20, duck: 12, attack: 10, release: 150,
+    tones: false, check: true,
+    marks: { Retake: true, Cough: false, 'Ad-lib': false, Pause: false, 'Mic stopped': false },
+  };
+  slider(key, min, max, step, fmt) {
+    const v = this.state[key];
+    return {
+      val: fmt(v), pct: ((v - min) / (max - min)) * 100 + '%',
+      drag: (e) => {
+        const el = e.currentTarget; el.setPointerCapture(e.pointerId);
+        const upd = (ev) => {
+          const r = el.getBoundingClientRect();
+          const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+          this.setState({ [key]: Math.round((min + f * (max - min)) / step) * step });
+        };
+        upd(e); el.onpointermove = upd; el.onpointerup = () => { el.onpointermove = null; };
+      },
+    };
+  }
+  toggle(on) { return { bg: on ? '#ededea' : '#2a2b2f', knob: on ? '#0b0b0c' : '#8a8c91', jc: on ? 'flex-end' : 'flex-start' }; }
+  renderVals() {
+    const s = this.state;
+    const seg = (label, key, opts) => ({ label, opts: opts.map(o => ({ label: o, bg: s[key] === o ? '#ededea' : 'transparent', fg: s[key] === o ? '#0b0b0c' : '#8a8c91', fw: s[key] === o ? 500 : 400, pick: () => this.setState({ [key]: o }) })) });
+    const chn = s.ch === 'Mono' ? 1 : 2, b = parseInt(s.bits) / 8, hz = parseFloat(s.rate) * 1000;
+    const mb = (hz * b * chn * 60 / 1e6).toFixed(1);
+    const hzMap = { Retake: '1 kHz', Cough: '600 Hz', 'Ad-lib': '1.4 kHz', Pause: '800 Hz', 'Mic stopped': '400 Hz' };
+    const minus = n => (n < 0 ? '−' + Math.abs(n) : n);
+    return {
+      nav: ['General', 'Recording', 'Hotkey pads', 'Prompter', 'Controls', 'Transcription & AI', 'Security', 'Domain & HTTPS', 'Server', 'About & credits'].map(l => ({ label: l, bg: l === 'Recording' ? '#16171a' : 'transparent', fg: l === 'Recording' ? '#ededea' : '#8a8c91' })),
+      mic: s.mic, setMic: e => this.setState({ mic: e.target.value }),
+      formats: [seg('Channels', 'ch', ['Mono', 'Stereo']), seg('Bit depth', 'bits', ['16-bit', '24-bit']), seg('Sample rate', 'rate', ['44.1 kHz', '48 kHz'])],
+      summary: s.ch + ' WAV · ' + s.bits + ' · ' + s.rate + ' · ' + mb + ' MB/min per speaker',
+      noise: this.slider('noise', 0, 100, 1, v => v + '%'),
+      toneSliders: [
+        { label: 'Tone level', ...this.slider('level', -40, 0, 1, v => minus(v) + ' dBFS') },
+        { label: 'Duck under voice', ...this.slider('duck', 0, 24, 1, v => v + ' dB') },
+        { label: 'Attack', ...this.slider('attack', 1, 100, 1, v => v + ' ms') },
+        { label: 'Release', ...this.slider('release', 20, 500, 10, v => v + ' ms') },
+      ],
+      markers: Object.keys(s.marks).map(k => { const on = s.marks[k]; return { label: k, hz: hzMap[k], check: on ? '✓' : '', bg: on ? '#1c1c1f' : 'transparent', bd: on ? '#3a3b3f' : '#26272b', boxBg: on ? '#ededea' : 'transparent', boxBd: on ? '#ededea' : '#4a4b50', pick: () => this.setState(p => ({ marks: { ...p.marks, [k]: !p.marks[k] } })) }; }),
+      tonesT: this.toggle(s.tones), toggleTones: () => this.setState(p => ({ tones: !p.tones })),
+      tonesOpacity: s.tones ? 1 : 0.45,
+      checkT: this.toggle(s.check), toggleCheck: () => this.setState(p => ({ check: !p.check })),
+    };
+  }
+}
+</script>
+</body>
+</html>

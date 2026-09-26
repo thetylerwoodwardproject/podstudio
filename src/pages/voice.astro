@@ -9,7 +9,7 @@ import StatusRow from '@/components/ui/StatusRow.astro';
 <AppShell title="Voice check" crumbs={[{ label: 'Settings', href: '/settings/prompter' }, { label: 'Voice check' }]}>
   <form class="mx-auto flex max-w-[760px] flex-col gap-6 px-6 py-8" id="voice-check" onsubmit="return false">
     <div>
-      <h1 class="text-[22px] tracking-[-0.02em]">Voice check</h1>
+      <h1 class="page-title">Voice check</h1>
       <p class="mt-1.5 max-w-[600px] text-[13px] leading-[1.55] text-muted">
         Voice follow turns your speech into words, then matches them to the script. This page tests the first part on its
         own, so you can see where it stops.
@@ -17,7 +17,7 @@ import StatusRow from '@/components/ui/StatusRow.astro';
     </div>
 
     <section class="flex flex-col">
-      <h2 class="eyebrow mb-1">This browser</h2>
+      <h2 class="section-label mb-1">This browser</h2>
       <StatusRow label="Browser" value="…" data-row="browser" />
       <StatusRow label="Speech recognition" value="…" data-row="api" />
       <StatusRow label="Microphone permission" value="…" data-row="mic" />
@@ -31,7 +31,7 @@ import StatusRow from '@/components/ui/StatusRow.astro';
     </div>
 
     <section class="flex flex-col gap-2">
-      <h2 class="eyebrow">Speech engine</h2>
+      <h2 class="section-label">Speech engine</h2>
       <Segmented
         name="engine"
         label="Speech engine"
@@ -50,14 +50,14 @@ import StatusRow from '@/components/ui/StatusRow.astro';
 
     <section class="flex flex-col gap-3">
       <div class="flex items-center justify-between">
-        <h2 class="eyebrow">Live test</h2>
+        <h2 class="section-label">Live test</h2>
         <Button variant="record" size="sm" data-test>● Start listening</Button>
       </div>
-      <div class="rounded-xl bg-surface px-4 py-3.5 text-[17px] leading-normal">
+      <div class="rounded-[14px] bg-surface px-4 py-3.5 text-[17px] leading-normal">
         <span class="text-faint">Heard:</span> <span data-heard>—</span>
       </div>
       <ol class="flex flex-col font-mono text-[12px] text-muted" data-log></ol>
-      <p class="rounded-xl bg-surface px-4 py-3.5 text-[13px] leading-normal text-fg-soft" data-verdict hidden></p>
+      <p class="rounded-[14px] bg-surface px-4 py-3.5 text-[13px] leading-normal text-fg-soft" data-verdict hidden></p>
     </section>
   </form>
 </AppShell>

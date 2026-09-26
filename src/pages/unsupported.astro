@@ -12,7 +12,7 @@ import Button from '@/components/ui/Button.astro';
     <!-- Computers: Firefox, Safari on the Mac -->
     <div class="flex max-w-[400px] flex-col gap-3.5" data-reason="">
       <Logo />
-      <h1 class="text-[26px] leading-[1.2] tracking-[-0.02em]">Podstudio runs in Chrome-based browsers on computers.</h1>
+      <h1 class="page-title">Podstudio runs in Chrome-based browsers on computers.</h1>
       <p class="text-[14px] leading-[1.6] text-muted">
         Voice follow and WAV recording rely on features Firefox and Safari on the Mac don't ship. Open this link in Chrome
         or Edge. On an iPhone or iPad (iOS 17 or later) any browser works.
@@ -27,7 +27,7 @@ import Button from '@/components/ui/Button.astro';
     <!-- Plain http: browsers only allow the mic and storage on https:// or localhost -->
     <div class="flex max-w-[420px] flex-col gap-3.5" data-reason="insecure" hidden>
       <Logo />
-      <h1 class="mt-4 text-[26px] leading-[1.2] tracking-[-0.02em]">Podstudio needs HTTPS</h1>
+      <h1 class="page-title mt-4">Podstudio needs HTTPS</h1>
       <p class="text-[14px] leading-[1.55] text-muted">
         Browsers only allow the microphone, recording storage and audio processing on pages opened over
         <span class="font-mono text-fg">https://</span> (or on this computer as <span class="font-mono text-fg">localhost</span>).
@@ -45,7 +45,7 @@ import Button from '@/components/ui/Button.astro';
     <!-- A WebKit (iPhone, iPad) without AudioWorklet or OPFS -->
     <div class="flex max-w-[400px] flex-col gap-3.5" data-reason="ios-old" hidden>
       <Logo />
-      <h1 class="mt-4 text-[26px] leading-[1.2] tracking-[-0.02em]">Update iOS to use Podstudio</h1>
+      <h1 class="page-title mt-4">Update iOS to use Podstudio</h1>
       <p class="text-[14px] leading-[1.55] text-muted">
         Recording on an iPhone or iPad needs iOS 17 or later. Update in Settings → General → Software Update, then open
         the link again. If it's already up to date, the details below say what's missing.
@@ -54,7 +54,7 @@ import Button from '@/components/ui/Button.astro';
         <Button variant="primary" data-copy-link>Copy link</Button>
       </div>
     </div>
-    <details class="fixed inset-x-4 bottom-4 mx-auto max-w-[420px] rounded-xl border border-line bg-panel text-[12px]" data-details>
+    <details class="fixed inset-x-4 bottom-4 mx-auto max-w-[420px] rounded-[14px] bg-surface bg-panel text-[12px]" data-details>
       <summary class="cursor-pointer px-3.5 py-2.5 text-muted hover:text-fg">Details</summary>
       <dl class="flex flex-col gap-1 px-3.5 pb-3 font-mono text-[11px]" data-details-rows></dl>
       <button type="button" class="mx-3.5 mb-3 text-muted underline-offset-2 hover:text-fg hover:underline" data-copy-details>Copy details</button>

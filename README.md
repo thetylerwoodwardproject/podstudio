@@ -160,7 +160,8 @@ Nine sounds on the number keys: soundbites, clips, music and sound effects (Hotk
 
 - **Astro 7** with the Node adapter: pages are built ahead of time, and `server/main.ts` serves them with the API. **node:sqlite** (built into Node 22.13+) for the database, **ws** for the live room: the only runtime dependencies besides Astro and Tailwind. Interactive parts are small vanilla TypeScript `<script>` modules, not framework islands.
 - **Tailwind CSS 4** via `@tailwindcss/vite`. The design tokens are in `src/styles/global.css`.
-- **Fonts** (Geist, Geist Mono, Atkinson Hyperlegible) are self-hosted from `@fontsource`, so nothing loads from Google.
+- **UI framework:** every screen follows [docs/ui-framework.md](docs/ui-framework.md) (tokens, components, type, writing); the full reference is `docs/design/Podstudio_UI_Framework.dc.html`.
+- **Fonts:** the system sans and mono stacks for the app; the prompter's Atkinson Hyperlegible is self-hosted from `@fontsource`, so nothing loads from Google.
 
 ## Layout
 
@@ -251,10 +252,10 @@ In `npm run dev`, screens with several states show a small switcher in the botto
 
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
-- **Needs the server:** sign-in and 2FA, Whisper transcripts, titles/chapters/soundbites (those screens show mock data), and episodes and scripts on the server (still in this browser).
+- **Still mock data:** Whisper transcripts, titles/chapters/soundbites, the Domain & HTTPS checks, and the Controls remotes. Sign-in, episodes, scripts, pads and recordings are on the server.
 - **Zips** are limited to 4 GB.
 - **Setup wizard:** the Server check, Admin account, OpenAI key and Done steps have no designs yet, so "Verify and continue" goes straight to the Domain step.
 - **OpenDyslexic** is listed as a prompter font, but the font isn't bundled yet, so it falls back to Atkinson Hyperlegible.
-- **Mock values:** model names, versions and the installer URL are placeholders.
-- **Planned next** (designs in hand, not built yet): see `docs/roadmap.md`. It covers the mixer view on a phone (Mixer View 2a–2b) and riding a pad's level by pressing and sliding it (Hotkey Pads 2c).
+- **Mock values:** model names are placeholders. The version (Settings → About and Server, `/api/health`) comes from `package.json`.
+- **Planned next** (designs in hand, not built yet): see `docs/roadmap.md`. It covers the next stage (a lab environment on a real VPS, with versioned releases and upgrade paths), the mixer view on a phone (Mixer View 2a–2b) and riding a pad's level by pressing and sliding it (Hotkey Pads 2c).
 - **One guest per session**, by design. Video isn't part of it: the call app carries video if you want it.
