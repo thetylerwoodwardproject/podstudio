@@ -54,6 +54,11 @@ PODSTUDIO_ORIGIN=https://$DOMAIN
 HOST=127.0.0.1
 PORT=4321
 ENV
+elif ! grep -q "^PODSTUDIO_ORIGIN=.*https://$DOMAIN" /etc/podstudio.env; then
+  # Installed before under another address: point it at this one.
+  sed -i '/^PODSTUDIO_ORIGIN=/d' /etc/podstudio.env
+  echo "PODSTUDIO_ORIGIN=https://$DOMAIN" >> /etc/podstudio.env
+  echo "   PODSTUDIO_ORIGIN set to https://$DOMAIN"
 fi
 install -m 644 "$APP/deploy/podstudio.service" /etc/systemd/system/podstudio.service
 systemctl daemon-reload

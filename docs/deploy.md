@@ -95,6 +95,23 @@ sudo -u podstudio env $(cat /etc/podstudio.env | xargs) npm run reset-password -
 sudo -u podstudio env $(cat /etc/podstudio.env | xargs) npm run reset-2fa -- tyler   # lost phone and codes
 ```
 
+## "Not from this server"
+
+Changes (signing up, saving a script) are only accepted from Podstudio's own
+pages. The error says which address the page was on and which ones the server
+answers to. Usually one of these:
+
+- **You opened it at another address** (the IP, `www.`, an old domain). Use the
+  domain you installed with, or list every address you use, comma-separated:
+  `PODSTUDIO_ORIGIN=https://podcast.example.com,https://www.example.com` in
+  `/etc/podstudio.env`, then `sudo systemctl restart podstudio`.
+- **Another proxy or a tunnel in front** (Nginx, Cloudflare Tunnel, ngrok) that
+  rewrites the Host header. Podstudio also trusts `X-Forwarded-Host` and
+  `Forwarded: host=`, so have the proxy send one of them (Nginx:
+  `proxy_set_header Host $host;`), or set `PODSTUDIO_ORIGIN` as above.
+
+`journalctl -u podstudio` logs each refusal with the headers it got.
+
 ## Without a domain
 
 Browsers only allow the microphone on HTTPS, so another device can't record from

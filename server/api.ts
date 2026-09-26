@@ -11,6 +11,7 @@ import { isPage, redirectFor } from './guard.ts';
 import { HttpError, json } from './http.ts';
 import { LiveRooms } from './live.ts';
 import { migrations } from './migrations.ts';
+import { checkOrigin } from './origin.ts';
 import pkg from '../package.json' with { type: 'json' };
 
 export interface Api {
@@ -64,13 +65,10 @@ export function createApi(ctx: Context): Api {
       if (!url.pathname.startsWith('/api/') || url.pathname === '/api/ws') return next();
       const p = url.pathname.split('/').filter(Boolean).slice(1);
       // Changes only from pages on this server (cookies are SameSite=Lax too).
-      if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin) {
-        let from = '';
-        try {
-          from = new URL(req.headers.origin).host;
-        } catch {}
-        const allowed = [req.headers.host, ctx.config.origin && new URL(ctx.config.origin).host].filter(Boolean);
-        if (!allowed.includes(from)) return json(res, 403, { error: 'Not from this server' });
+      const refused = checkOrigin(req, ctx.config.origins);
+      if (refused) {
+        console.warn(`Refused ${req.method} ${url.pathname}: origin ${req.headers.origin}, host ${req.headers.host}, x-forwarded-host ${req.headers['x-forwarded-host'] ?? '-'}`);
+        return json(res, 403, { error: refused });
       }
       route(req, res, url, p).catch((err) => {
         if (res.headersSent) return res.destroy();
