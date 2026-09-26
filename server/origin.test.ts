@@ -11,6 +11,11 @@ test('a page on the same host may make changes', () => {
   assert.equal(checkOrigin(req({ host: '192.168.1.20:4321', origin: 'https://192.168.1.20:4321' }), []), null, 'LAN address');
 });
 
+test('HTTP/2 (npm run dev): the address is the :authority pseudo-header, not Host', () => {
+  assert.equal(checkOrigin(req({ ':authority': 'localhost:4321', origin: 'https://localhost:4321' }), []), null);
+  assert.match(checkOrigin(req({ ':authority': 'localhost:4321', origin: 'https://evil.example' }), []) ?? '', /evil\.example.*localhost:4321/);
+});
+
 test('a proxy that rewrites Host is trusted by its forwarded host', () => {
   assert.equal(checkOrigin(req({ host: '127.0.0.1:4321', 'x-forwarded-host': 'podcast.example.com', origin: 'https://podcast.example.com' }), []), null);
   assert.equal(checkOrigin(req({ host: 'localhost:4321', forwarded: 'for=1.2.3.4;proto=https;host=podcast.example.com', origin: 'https://podcast.example.com' }), []), null);

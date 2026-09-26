@@ -2,7 +2,8 @@
  * Changes (POST, PUT, DELETE) are accepted only from Podstudio's own pages:
  * the browser's Origin header must name this server. "This server" is any of
  *
- *   - the Host the request arrived with,
+ *   - the Host the request arrived with (over HTTP/2, which `npm run dev`
+ *     speaks, that's the `:authority` pseudo-header: there's no Host),
  *   - the host a proxy says it forwarded (X-Forwarded-Host, Forwarded: host=),
  *     for proxies and tunnels that rewrite Host (ngrok, some Nginx setups),
  *   - each origin in PODSTUDIO_ORIGIN (comma-separated).
@@ -27,7 +28,7 @@ const first = (h: string | string[] | undefined) => String(Array.isArray(h) ? h[
 /** Hosts this request may come from. */
 export function allowedHosts(req: IncomingMessage, origins: string[]): string[] {
   const forwarded = /(?:^|[;,\s])host="?([^";,\s]+)/i.exec(first(req.headers.forwarded))?.[1] ?? '';
-  const hosts = [first(req.headers.host), first(req.headers['x-forwarded-host']), forwarded, ...origins].map(hostOf).filter(Boolean);
+  const hosts = [first(req.headers.host), first(req.headers[':authority']), first(req.headers['x-forwarded-host']), forwarded, ...origins].map(hostOf).filter(Boolean);
   // Default ports: https://example.com and example.com:443 are the same place.
   return [...new Set(hosts.flatMap((h) => [h, h.replace(/:(443|80)$/, '')]))];
 }

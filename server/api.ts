@@ -67,7 +67,7 @@ export function createApi(ctx: Context): Api {
       // Changes only from pages on this server (cookies are SameSite=Lax too).
       const refused = checkOrigin(req, ctx.config.origins);
       if (refused) {
-        console.warn(`Refused ${req.method} ${url.pathname}: origin ${req.headers.origin}, host ${req.headers.host}, x-forwarded-host ${req.headers['x-forwarded-host'] ?? '-'}`);
+        console.warn(`Refused ${req.method} ${url.pathname}: origin ${req.headers.origin}, host ${req.headers.host ?? req.headers[':authority'] ?? '-'}, x-forwarded-host ${req.headers['x-forwarded-host'] ?? '-'}`);
         return json(res, 403, { error: refused });
       }
       route(req, res, url, p).catch((err) => {
