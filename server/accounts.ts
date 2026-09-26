@@ -24,6 +24,7 @@ import {
 import type { Context } from './context.ts';
 import { tx } from './db.ts';
 import { HttpError, RateLimit, clientIp, cookies, json, readJson, setCookie } from './http.ts';
+import { clearSetupToken, setupTokenOk, setupTokenRequired } from './setup-token.ts';
 
 export const SESSION_COOKIE = 'ps_session';
 export const TRUST_COOKIE = 'ps_trust';
@@ -68,6 +69,7 @@ export class Accounts {
   private ctx: Context;
   private signins = new RateLimit(10, 15 * 60_000);
   private codes = new RateLimit(10, 15 * 60_000);
+  private setupLimit = new RateLimit(10, 15 * 60_000);
 
   constructor(ctx: Context) {
     this.ctx = ctx;
@@ -181,13 +183,17 @@ export class Accounts {
 
     if (req.method === 'GET' && action === 'state') {
       const w = this.who(req);
-      json(res, 200, { needsSetup: w.needsSetup, user: w.user, verified: w.verified });
+      json(res, 200, { needsSetup: w.needsSetup, setupToken: w.needsSetup && setupTokenRequired(this.ctx.config.data) ? 'required' : null, user: w.user, verified: w.verified });
       return true;
     }
 
-    // First run: the admin account. Only while there are no accounts at all.
+    // First run: the admin account. Only while there are no accounts at all,
+    // and with the one-time setup link's token (server/setup-token.ts).
     if (post && action === 'setup') {
-      const { username, password } = await readJson<{ username?: string; password?: string }>(req);
+      const { username, password, token } = await readJson<{ username?: string; password?: string; token?: string }>(req);
+      if (!this.setupLimit.hit(clientIp(req))) throw new HttpError(429, 'Too many tries. Wait a few minutes.');
+      if (!setupTokenOk(this.ctx.config.data, token))
+        throw new HttpError(403, 'Open the setup link that install.sh printed. Lost it? Run sudo cat /var/lib/podstudio/setup-token on the server.');
       const name = String(username ?? '').trim();
       if (!/^[a-z0-9._-]{2,32}$/i.test(name)) throw new HttpError(400, 'Use 2–32 letters, numbers, dots, dashes or underscores');
       const problem = passwordProblem(String(password ?? ''));
@@ -197,6 +203,7 @@ export class Accounts {
         if (!this.needsSetup()) throw new HttpError(409, 'This server already has an account. Sign in instead.');
         return Number(this.db.prepare('INSERT INTO users (username, pass_hash, created_at) VALUES (?, ?, ?)').run(name, hash, Date.now()).lastInsertRowid);
       });
+      clearSetupToken(this.ctx.config.data);
       // Signed in with the password; two-factor comes next.
       this.startSession(res, req, id, true, false);
       json(res, 200, { next: '/setup/two-factor' });

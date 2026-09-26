@@ -8,6 +8,8 @@ import { createApi } from './api.ts';
 import { base32Decode, totpAt } from './auth.ts';
 import { loadConfig } from './config.ts';
 import { createContext } from './context.ts';
+import { ensureSetupToken, tokenFile } from './setup-token.ts';
+import { existsSync } from 'node:fs';
 
 /** The API on a random port, over a fresh data folder; pages answer "page". */
 async function serve() {
@@ -46,7 +48,7 @@ async function serve() {
     ctx.db.close();
     rmSync(data, { recursive: true, force: true });
   };
-  return { call, done, base, setCookie: (c: string) => (cookie = c), getCookie: () => cookie };
+  return { call, done, base, data, setCookie: (c: string) => (cookie = c), getCookie: () => cookie };
 }
 
 const codeFor = (secret: string, offset = 0) => totpAt(base32Decode(secret), Math.floor(Date.now() / 30000) + offset);
@@ -153,6 +155,24 @@ test('changes from another site are refused', async () => {
       return { status: res.status };
     })();
     assert.equal(status, 403);
+  } finally {
+    s.done();
+  }
+});
+
+test('the one-time setup link: needed once written, then gone', async () => {
+  const s = await serve();
+  try {
+    assert.equal((await s.call('/api/auth/state')).body.setupToken, null, 'no token until the production server writes one');
+    const token = ensureSetupToken(s.data);
+    assert.equal(ensureSetupToken(s.data), token, 'the same link on every start');
+    assert.equal((await s.call('/api/auth/state')).body.setupToken, 'required');
+    const account = { username: 'tyler', password: 'the transmitter arrived' };
+    assert.equal((await s.call('/api/auth/setup', { body: account })).status, 403, 'no token');
+    assert.equal((await s.call('/api/auth/setup', { body: { ...account, token: 'guess' } })).status, 403, 'wrong token');
+    assert.equal((await s.call('/api/auth/setup', { body: { ...account, token } })).status, 200);
+    assert.ok(!existsSync(tokenFile(s.data)), 'the token is deleted once used');
+    assert.equal((await s.call('/api/auth/setup', { body: { ...account, username: 'someone', token } })).status, 409, 'and setup is over');
   } finally {
     s.done();
   }

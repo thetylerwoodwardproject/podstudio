@@ -3,6 +3,7 @@
 import Setup from '@/layouts/Setup.astro';
 import Field from '@/components/ui/Field.astro';
 import Button from '@/components/ui/Button.astro';
+import Callout from '@/components/ui/Callout.astro';
 import { inputClass } from '@/lib/ui';
 import { setupSteps } from '@/data/mock';
 
@@ -14,11 +15,17 @@ const current = 1;
     <div>
       <div class="eyebrow">Step {current + 1} of {setupSteps.length}</div>
       <h1 class="page-title mt-2">Create your account</h1>
-      <p class="mt-2 max-w-[460px] text-[14px] leading-[1.55] text-muted">
+      <p class="mt-2 max-w-[460px] text-[15px] leading-normal text-text-2">
         This is the admin account for this Podstudio server. Guests and producers don't need one: they join a session
         with a 6-digit code.
       </p>
     </div>
+    <Callout title="Open the setup link" color="var(--color-warn)" class="max-w-[520px]" data-need-token hidden>
+      Creating the admin account needs the one-time link that <span class="font-mono text-[12px]">install.sh</span> printed,
+      so nobody else can claim this server first. Lost it? On the server, run
+      <span class="font-mono text-[12px]">cd /opt/podstudio &amp;&amp; sudo -u podstudio env $(cat /etc/podstudio.env | xargs) npm run setup-link</span>.
+    </Callout>
+    <input type="hidden" name="token" />
     <div class="flex max-w-[360px] flex-col gap-4.5">
       <Field label="Username" for="username">
         <input id="username" name="username" class={inputClass} autocomplete="username" required pattern="[A-Za-z0-9._\-]{2,32}" />
@@ -29,7 +36,7 @@ const current = 1;
       <Field label="Password again" for="password2">
         <input id="password2" name="password2" type="password" class={inputClass} autocomplete="new-password" minlength="10" required />
       </Field>
-      <p class="text-[12px] text-subtle">At least 10 characters. A few random words works well.</p>
+      <p class="help">At least 10 characters. A few random words works well.</p>
       <p class="text-[13px] text-rec" role="alert" data-error hidden></p>
     </div>
     <div class="mt-auto flex items-center justify-end">
@@ -42,6 +49,17 @@ const current = 1;
   import { api, showError } from '@/lib/api';
 
   const form = document.querySelector<HTMLFormElement>('[data-account]')!;
+  // The one-time setup link carries ?token=; keep it out of the address bar and history.
+  const url = new URL(location.href);
+  const tokenInput = form.querySelector<HTMLInputElement>('[name=token]')!;
+  tokenInput.value = url.searchParams.get('token') ?? '';
+  if (url.searchParams.has('token')) {
+    url.searchParams.delete('token');
+    history.replaceState(null, '', url);
+  }
+  api<{ setupToken: string | null }>('auth/state').then((s) => {
+    if (s.setupToken === 'required' && !tokenInput.value) form.querySelector<HTMLElement>('[data-need-token]')!.hidden = false;
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(form);
@@ -49,7 +67,7 @@ const current = 1;
     const btn = form.querySelector<HTMLButtonElement>('[type=submit]')!;
     btn.disabled = true;
     try {
-      const r = await api<{ next: string }>('auth/setup', { body: { username: data.get('username'), password: data.get('password') } });
+      const r = await api<{ next: string }>('auth/setup', { body: { username: data.get('username'), password: data.get('password'), token: data.get('token') } });
       location.href = r.next;
     } catch (err) {
       showError(form, (err as Error).message);

@@ -50,14 +50,16 @@ Open `/screens` to see every screen, listed by its id from the design file. Link
 
 ## Deploy
 
-On a VPS with a domain pointing at it (Debian 12 or Ubuntu 22.04+, ports 80 and 443 open):
+On a VPS (Debian 12 or Ubuntu 22.04+) with a domain:
 
 ```sh
-sudo ./deploy/install.sh podcast.example.com
+sudo ./deploy/install.sh
 ```
 
-It installs Node 24 and Caddy (HTTPS with automatic certificates), runs Podstudio as a systemd service with
-its data in `/var/lib/podstudio`, and puts Caddy in front. It idles at about 120 MB of RAM. Backups,
+It guides you through the whole setup: it checks the server and your domain's DNS, offers the firewall and
+nightly backups, installs Node 24 and Caddy (HTTPS with automatic certificates), runs Podstudio as a systemd
+service with its data in `/var/lib/podstudio`, checks HTTPS works, and prints a one-time link to create your
+admin account. Run it again to upgrade; it backs up the database first. It idles at about 120 MB of RAM. Backups,
 upgrades and getting back in if you're locked out are in [`docs/deploy.md`](docs/deploy.md).
 
 ## Browsers

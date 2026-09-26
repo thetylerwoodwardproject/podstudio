@@ -18,9 +18,9 @@ something you can install over a running copy without losing data.
     new, what changed, anything to do by hand when upgrading;
 - **Upgrade paths.** Going from any released version to the next must work:
   - `install.sh` detects an existing install and upgrades in place: backup,
-    copy, `npm ci`, build, restart, health check;
+    copy, `npm ci`, build, restart, health check (done: the guided installer);
   - a backup of `podstudio.db` (`VACUUM INTO`) before migrations run, kept
-    with the version it came from;
+    with the version it came from (done: `/var/backups/podstudio/pre-<version>-<date>.db`);
   - migrations only move forward and are tested from each released schema,
     not only from an empty database;
   - rollback: reinstall the previous tag and restore that backup;

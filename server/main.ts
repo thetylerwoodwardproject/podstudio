@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { createApi } from './api.ts';
 import { loadConfig } from './config.ts';
 import { createContext } from './context.ts';
+import { ensureSetupToken, setupLink } from './setup-token.ts';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -23,6 +24,12 @@ const opt = (name: string) => {
 const config = loadConfig({ ...process.env, ...(opt('port') ? { PORT: opt('port') } : {}), ...(opt('host') ? { HOST: opt('host') } : {}) });
 const ctx = createContext(config);
 const api = createApi(ctx);
+
+// No account yet: making the admin account needs the one-time setup link.
+if (!ctx.db.prepare('SELECT 1 FROM users LIMIT 1').get()) {
+  const token = ensureSetupToken(config.data);
+  console.log(`No account yet. Create the admin account at ${setupLink(config.origin, token)}`);
+}
 
 // Astro's built handler (pages and static files), started by us rather than by itself.
 process.env.ASTRO_NODE_AUTOSTART = 'disabled';

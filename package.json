@@ -13,7 +13,8 @@
     "check": "astro check",
     "test": "node --test 'src/**/*.test.ts' 'server/**/*.test.ts'",
     "reset-password": "node --disable-warning=ExperimentalWarning server/cli.ts reset-password",
-    "reset-2fa": "node --disable-warning=ExperimentalWarning server/cli.ts reset-2fa"
+    "reset-2fa": "node --disable-warning=ExperimentalWarning server/cli.ts reset-2fa",
+    "setup-link": "node --disable-warning=ExperimentalWarning server/cli.ts setup-link"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.6",

@@ -40,10 +40,10 @@ const value = 'font-mono text-[13px] text-text';
 <Card label="Upgrading" rows>
   <Block>
     <p class="help">
-      Back up first. Then, from your copy of Podstudio, pull the new version and run the installer again. It builds,
+      From your copy of Podstudio, pull the new version and run the installer again. It backs up the database, builds,
       migrates the database on start, and restarts; guests who are connected reconnect on their own.
     </p>
-    <CodeBlock code={'cd podstudio && git pull\nsudo ./deploy/install.sh podcast.example.com'} />
+    <CodeBlock code={'cd podstudio && git pull\nsudo ./deploy/install.sh'} />
     <p class="help">Full steps, restoring and rollback: <span class="font-mono text-[12px]">docs/deploy.md</span>.</p>
   </Block>
 </Card>

@@ -8,31 +8,57 @@ disk for your audio (24-bit / 48 kHz mono is about 520 MB an hour per speaker).
 ## Before you start
 
 - A server running Debian 12 or Ubuntu 22.04 or later, with a public IP.
-- A domain (or subdomain) with an **A record** (and AAAA, if you use IPv6)
-  pointing at it. Caddy gets the certificate from Let's Encrypt, which needs it.
-- Ports **80** and **443** open. With `ufw`:
-
-  ```sh
-  sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable
-  ```
+- A domain (or subdomain) with an **A record** pointing at the server. The
+  installer checks it and tells you what to set if it doesn't.
 
 ## Install
 
 ```sh
 git clone <your copy of Podstudio> podstudio && cd podstudio
-sudo ./deploy/install.sh podcast.example.com
+sudo ./deploy/install.sh
 ```
 
-That installs Node 24 and Caddy, creates a `podstudio` system user, copies the
-app to `/opt/podstudio`, builds it, and starts two services:
+It walks you through eight steps, checking each one:
 
-| | |
-|---|---|
-| `podstudio` | the app, on `127.0.0.1:4321` (systemd unit: `deploy/podstudio.service`) |
-| `caddy` | HTTPS on your domain, in front of it (`/etc/caddy/Caddyfile`, from `deploy/Caddyfile`) |
+1. **This server:** the OS, memory, and how many hours of audio fit on the disk.
+   If Podstudio is already installed, it offers to upgrade it instead.
+2. **Your domain.**
+3. **DNS:** whether the domain points at this server. If it doesn't, it says
+   which A record to add and can wait while you fix it.
+4. **Certificate:** an optional email for Let's Encrypt notices. Caddy gets and
+   renews the certificate itself.
+5. **Firewall:** offers to turn on `ufw` with SSH, 80 and 443 open (SSH first,
+   so your session stays up). If your VPS provider has a firewall panel, open
+   80 and 443 there too.
+6. **Install:** Node 24 and Caddy, a `podstudio` system user, the app in
+   `/opt/podstudio`, built, and two services:
 
-Then open `https://podcast.example.com`: the first visit asks you to create the
-admin account and turn on two-factor authentication. Save the recovery codes.
+   | | |
+   |---|---|
+   | `podstudio` | the app, on `127.0.0.1:4321` (systemd unit: `deploy/podstudio.service`) |
+   | `caddy` | HTTPS on your domain, in front of it (`/etc/caddy/Caddyfile`, from `deploy/Caddyfile`) |
+
+7. **Backups:** offers a nightly backup to `/var/backups/podstudio` (see below).
+8. **HTTPS:** waits for the certificate and checks the site answers. If it
+   doesn't, it says what's usually wrong (DNS, or port 80/443 closed).
+
+Last, it prints a **one-time setup link**. Open it to create the admin account,
+then set up two-factor authentication and save the recovery codes. The link is
+what stops anyone else who finds the site first from making themselves admin:
+without it, the account page won't create an account. Lost it?
+
+```sh
+cd /opt/podstudio && sudo -u podstudio env $(cat /etc/podstudio.env | xargs) npm run setup-link
+```
+
+For an unattended install (cloud-init, a script), pass everything and it asks
+nothing:
+
+```sh
+sudo ./deploy/install.sh --domain podcast.example.com --email you@example.com --yes
+```
+
+`--no-firewall` and `--no-backups` skip those steps; `--help` lists the options.
 
 Settings are in `/etc/podstudio.env`:
 
@@ -56,7 +82,8 @@ PORT=4321
 ## Backups
 
 The database can be copied safely while it runs with SQLite's backup command;
-the audio is plain files. A nightly job (`sudo crontab -e`):
+the audio is plain files. The installer offers to set this up as
+`/etc/cron.d/podstudio-backup`; to do it by hand (`sudo crontab -e`):
 
 ```sh
 15 3 * * * sqlite3 /var/lib/podstudio/podstudio.db ".backup '/var/backups/podstudio.db'" && rsync -a --delete /var/lib/podstudio/takes /var/lib/podstudio/live /var/lib/podstudio/media /var/backups/podstudio/
@@ -71,16 +98,19 @@ podstudio:podstudio`, start it.
 
 ```sh
 cd podstudio && git pull
-sudo ./deploy/install.sh podcast.example.com
+sudo ./deploy/install.sh
 ```
 
-It copies the new version, builds it, and restarts. The database is migrated on
-start; your data folder isn't touched otherwise. Sessions and invite codes
-survive a restart, so a guest who's connected reconnects on their own.
+It sees the existing install, shows the version you have and the one you're
+installing, and asks before going on. The database is copied to
+`/var/backups/podstudio/pre-<old version>-<date>.db` first, then the new version
+is built, migrated on start and restarted. Your recordings and settings aren't
+touched. Sessions and invite codes survive a restart, so a guest who's connected
+reconnects on their own.
 
-Take a backup first (see above). Versioned releases, a backup made
-automatically before migrations, and a documented rollback are planned for the
-lab stage; see `docs/roadmap.md`.
+To roll back: check out the previous version and run the installer again, then
+`sudo systemctl stop podstudio`, copy that `pre-…db` file to
+`/var/lib/podstudio/podstudio.db`, `chown podstudio:podstudio` it, and start it.
 
 ## Day to day
 
