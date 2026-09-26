@@ -9,7 +9,6 @@ import Card from '@/components/ui/Card.astro';
 import Row from '@/components/ui/Row.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Switch from '@/components/ui/Switch.astro';
-import ToneCard from '@/components/app/ToneCard.astro';
 import LoudnessCard from '@/components/app/LoudnessCard.astro';
 import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
@@ -209,7 +208,8 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       </Row>
     </Card>
 
-    <ToneCard />
+    <!-- Tone: a Svelte component, mounted by the script below once the takes are loaded -->
+    <div data-tone-mount data-pub-options></div>
     <LoudnessCard />
 
     <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
@@ -254,7 +254,8 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
   import { flatTone, toneActive, toneSummary, type VoiceTone } from '@/lib/audio/tone';
   import { longTermSpectrum } from '@/lib/audio/spectrum';
   import { TonePreview } from '@/lib/audio/tone-preview';
-  import { mountTone } from '@/lib/tone-view';
+  import { flushSync, mount } from 'svelte';
+  import ToneCard from '@/components/app/ToneCard.svelte';
   import { mountLoudness } from '@/lib/loudness-view';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadScript } from '@/lib/script-store';
@@ -592,20 +593,22 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         saveSettings('recording', { publish: { ...p, voices: { ...p.voices, ...structuredClone(tones) } } });
       }, 300);
     };
-    const toneView = mountTone(
-      $('[data-tone]'),
-      tracks.map((t) => ({ key: voiceKey(t), name: cap(t.speaker), role: t === take ? 'Host' : 'Guest', color: t === take ? 'var(--color-spk-yellow)' : 'var(--color-spk-teal)' })),
-      tones,
-      {
+    const toneView = mount(ToneCard, {
+      target: $('[data-tone-mount]'),
+      props: {
+        voices: tracks.map((t) => ({ key: voiceKey(t), name: cap(t.speaker), role: t === take ? 'Host' : 'Guest', color: t === take ? 'var(--color-spk-yellow)' : 'var(--color-spk-teal)' })),
+        tones,
         rate: take.sampleRate,
-        spectrum: async (k) => longTermSpectrum(await takeWav(tracks.find((t) => voiceKey(t) === k)!)),
-        onChange: () => {
+        spectrum: async (k: string) => longTermSpectrum(await takeWav(tracks.find((t) => voiceKey(t) === k)!)),
+        onchange: (k: string, tone: VoiceTone) => {
+          tones[k] = tone;
           rememberTones();
           refresh();
           previewChanged();
         },
       },
-    );
+    });
+    flushSync(); // its buttons exist now, for the preview wiring below
     const loudRoot = $('[data-loudness]');
     const meterOn = loadSettings().recording.publish.meter;
     loudRoot.hidden = !meterOn;
@@ -679,7 +682,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
     function stopPreview(text = '') {
       tonePreview?.stop();
       pBtn.textContent = 'Preview 30 s';
-      toneView.live(null, null);
+      toneView.preview(null, null);
       pStatus.textContent = text;
     }
     let frame = 0;
@@ -689,8 +692,8 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       const t = tonePreview.position();
       if (meterOn && tonePreview.meter) loud.show(tonePreview.loudnessAt(t));
       if (frame++ % 2 === 0) {
-        const v = tonePreview.voiceAt(toneView.key, t);
-        toneView.live(v.spectrum, v.level);
+        const v = tonePreview.voiceAt(toneView.currentKey(), t);
+        toneView.preview(v.spectrum, v.level);
       }
     }
     pBtn.addEventListener('click', async () => {
