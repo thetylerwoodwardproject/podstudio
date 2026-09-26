@@ -21,7 +21,7 @@ const ok = 'var(--color-ok)';
 const warn = 'var(--color-warn)';
 const proxies = [
   { value: 'caddy', label: 'Caddy', hint: 'No Certbot needed. Caddy gets and renews certificates for you.' },
-  { value: 'nginx', label: 'Nginx', hint: 'Nginx needs Certbot to get and renew certificates.' },
+  { value: 'nginx', label: 'Nginx', hint: 'Certbot gets and renews certificates. The installer sets it up with --proxy nginx.' },
   { value: 'none', label: 'None (local only)', hint: 'Self-signed HTTPS on your local network: each device accepts a certificate warning once.' },
 ];
 const states = [
@@ -55,7 +55,7 @@ const checks = {
 <div id="domain" class="flex flex-col gap-10" data-states="ok,warn,local" data-state="ok">
   <Section
     title="Domain & HTTPS"
-    description="Browsers only allow the microphone over HTTPS. Put Podstudio behind Caddy on your own domain so any device can record. deploy/install.sh sets it up."
+    description="Browsers only allow the microphone over HTTPS. Put Podstudio behind Caddy (or Nginx) on your own domain so any device can record. deploy/install.sh sets it up."
   />
 
   <Callout data-when="ok" size="lg" title="Secure and reachable" color={ok}>

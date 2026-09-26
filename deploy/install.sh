@@ -4,7 +4,8 @@
 #   sudo ./deploy/install.sh
 #
 # It asks for what it needs and checks each step: the server, your domain's
-# DNS, the firewall, then installs Node 24 and Caddy, builds the app into
+# DNS, the firewall, then installs Node 24 and a web server for HTTPS (Caddy by
+# default, or Nginx with Certbot), builds the app into
 # /opt/podstudio, sets up nightly backups, checks HTTPS works, and prints a
 # one-time link to create your admin account. Run it again to upgrade: it
 # backs up the database first.
@@ -12,6 +13,7 @@
 # Unattended:  sudo ./deploy/install.sh --domain podcast.example.com --email you@example.com --yes
 #   --domain <d>     the domain (or give it as the first argument)
 #   --email <e>      for Let's Encrypt expiry notices (optional)
+#   --proxy <p>      caddy (default: automatic HTTPS) or nginx (with Certbot)
 #   --yes            accept every default, ask nothing
 #   --no-firewall    leave the firewall alone
 #   --no-backups     don't install the nightly backup
@@ -24,16 +26,17 @@ DATA=/var/lib/podstudio
 ENV_FILE=/etc/podstudio.env
 BACKUPS=/var/backups/podstudio
 
-DOMAIN="" EMAIL="" YES=0 FIREWALL=1 BACKUP=1 START=1
+DOMAIN="" EMAIL="" PROXY="" YES=0 FIREWALL=1 BACKUP=1 START=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --domain) DOMAIN="${2:-}"; shift 2 ;;
     --email) EMAIL="${2:-}"; shift 2 ;;
+    --proxy) PROXY="${2:-}"; shift 2 ;;
     --yes|-y) YES=1; shift ;;
     --no-firewall) FIREWALL=0; shift ;;
     --no-backups) BACKUP=0; shift ;;
     --no-start) START=0; shift ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "Unknown option $1 (see --help)" >&2; exit 2 ;;
     *) DOMAIN="$1"; shift ;;
   esac
@@ -62,6 +65,83 @@ confirm() {
 }
 version_of() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -1; }
 
+# ---- Web servers: Caddy (default) or Nginx + Certbot ----------------------------------
+install_caddy() {
+  if ! command -v caddy >/dev/null; then
+    if curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg &&
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list; then
+      apt-get update -qq || true
+    else
+      rm -f /etc/apt/sources.list.d/caddy-stable.list
+      warn "Couldn't reach Caddy's own package repository: using $ID's Caddy package instead."
+    fi
+    apt-get install -y -qq caddy >/dev/null || fail "Couldn't install Caddy (apt-get install caddy)."
+  fi
+  ok "Caddy $(caddy version | cut -d' ' -f1)"
+}
+configure_caddy() {
+  {
+    if [[ -n "$EMAIL" ]]; then printf '{\n\temail %s\n}\n\n' "$EMAIL"; fi
+    sed "s/{\$DOMAIN}/$DOMAIN/" "$APP/deploy/Caddyfile"
+  } > /etc/caddy/Caddyfile
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || fail "The Caddyfile doesn't validate: caddy validate --config /etc/caddy/Caddyfile"
+  ok "Caddy set up for $DOMAIN"
+}
+install_nginx() {
+  apt-get install -y -qq nginx certbot python3-certbot-nginx >/dev/null || fail "Couldn't install Nginx and Certbot (apt-get install nginx certbot python3-certbot-nginx)."
+  local cb; cb=$(certbot --version 2>/dev/null | awk '{print $2}' || true)
+  ok "$(nginx -v 2>&1 | sed 's#nginx version: ##')"
+  if [[ -n "$cb" ]]; then ok "Certbot $cb"; else warn "Certbot is installed but doesn't run (certbot --version): the certificate step will fail until it does."; fi
+}
+NGINX_SITE=/etc/nginx/sites-available/podstudio
+configure_nginx() {
+  local no6=""; [[ -f /proc/net/if_inet6 ]] || no6='/# IPv6/d'
+  sed -e "s/{\$DOMAIN}/$DOMAIN/" -e "$no6" "$APP/deploy/nginx.conf" > "$NGINX_SITE"
+  ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/podstudio
+  # The stock welcome page would also answer on port 80.
+  if [[ -L /etc/nginx/sites-enabled/default ]] && grep -q "Welcome to nginx\|/var/www/html" /etc/nginx/sites-available/default 2>/dev/null; then
+    rm /etc/nginx/sites-enabled/default
+    note "Turned off Nginx's default welcome site."
+  fi
+  nginx -t 2>/tmp/nginx-test.log || { cat /tmp/nginx-test.log >&2; fail "Nginx's configuration doesn't check out (nginx -t, above)."; }
+  ok "Nginx set up for $DOMAIN ($NGINX_SITE)"
+}
+# Start the chosen web server and stop the other, so they don't fight over 80 and 443.
+start_proxy() {
+  if [[ "$PROXY" == caddy ]]; then
+    if systemctl is-active --quiet nginx 2>/dev/null; then systemctl disable --now nginx >/dev/null 2>&1; note "Stopped Nginx: Caddy serves ports 80 and 443 now."; fi
+    systemctl enable caddy >/dev/null 2>&1 || true
+    systemctl reload caddy 2>/dev/null || systemctl restart caddy
+  else
+    if systemctl is-active --quiet caddy 2>/dev/null; then systemctl disable --now caddy >/dev/null 2>&1; note "Stopped Caddy: Nginx serves ports 80 and 443 now."; fi
+    systemctl enable nginx >/dev/null 2>&1 || true
+    systemctl reload nginx 2>/dev/null || systemctl restart nginx
+    [[ "$DOMAIN" == "localhost" ]] || certify_nginx
+  fi
+}
+certify_nginx() {
+  local mail=(--register-unsafely-without-email)
+  [[ -n "$EMAIL" ]] && mail=(-m "$EMAIL")
+  CERTBOT_CMD="certbot --nginx -d $DOMAIN --non-interactive --agree-tos --redirect --keep-until-expiring ${mail[*]}"
+  echo "   Getting the certificate from Let's Encrypt…"
+  if $CERTBOT_CMD >/tmp/certbot.log 2>&1; then
+    ok "Certificate for $DOMAIN; Certbot's timer renews it"
+  else
+    warn "Certbot couldn't get the certificate yet (usually DNS not pointing here, or port 80 closed)."
+    note "Its log: /var/log/letsencrypt/letsencrypt.log. Once that's fixed, run:"
+    note "  sudo $CERTBOT_CMD"
+  fi
+}
+proxy_facts() {
+  SCHEME=https
+  [[ "$PROXY" == nginx && "$DOMAIN" == localhost ]] && SCHEME=http
+  if [[ "$PROXY" == nginx ]]; then
+    PROXY_NAME="Nginx + Certbot" PROXY_CONF="$NGINX_SITE" PROXY_LOG="journalctl -u nginx -n 30, /var/log/letsencrypt/letsencrypt.log"
+  else
+    PROXY_NAME="Caddy" PROXY_CONF=/etc/caddy/Caddyfile PROXY_LOG="journalctl -u caddy -n 30"
+  fi
+}
+
 echo "${B}Podstudio installer${N} ${DIM}· $(version_of "$SRC/package.json")${N}"
 
 # ---- 1. The server ------------------------------------------------------------
@@ -87,12 +167,14 @@ if [[ -f "$ENV_FILE" && -d "$APP" ]]; then
   [[ "$OLD_VERSION" == "$NEW_VERSION" ]] && note "Same version: it reinstalls it."
   confirm "Upgrade now?" y || exit 0
   [[ -z "$DOMAIN" ]] && DOMAIN=$(sed -n 's#^PODSTUDIO_ORIGIN=https://\([^,]*\).*#\1#p' "$ENV_FILE")
+  [[ -z "$PROXY" ]] && PROXY=$(sed -n 's/^PODSTUDIO_PROXY=//p' "$ENV_FILE")
+  [[ -z "$PROXY" ]] && PROXY=caddy # installed before there was a choice
 fi
 
 # ---- 2. Domain ------------------------------------------------------------------
 step "Your domain"
 note "Browsers only allow the microphone over HTTPS, so Podstudio needs a domain"
-note "(or a subdomain, like podcast.example.com) for Caddy to get a certificate for."
+note "(or a subdomain, like podcast.example.com) to get a certificate for."
 while [[ -z "$DOMAIN" ]]; do
   [[ $YES -eq 1 ]] && fail "Give the domain: sudo $0 --domain podcast.example.com"
   ask "Domain:" ""
@@ -112,7 +194,7 @@ dns_ok() {
   [[ -n "$MY_IP" && " $DNS_IPS " == *" $MY_IP "* ]]
 }
 if [[ "$DOMAIN" == "localhost" ]]; then
-  warn "localhost: Caddy uses its own certificate; only this machine can record."
+  warn "localhost: no public certificate; only this machine can record (Caddy uses its own certificate)."
 elif dns_ok; then
   ok "$DOMAIN points here ($MY_IP)"
 else
@@ -132,14 +214,27 @@ else
   fi
 fi
 
-# ---- 4. Certificate email -----------------------------------------------------------
-step "Certificate"
-note "Caddy gets and renews the certificate from Let's Encrypt on its own."
+# ---- 4. Web server and certificate -------------------------------------------------
+step "Web server and certificate"
+if [[ -z "$PROXY" ]]; then
+  note "Caddy is recommended: it gets and renews the certificate on its own."
+  note "Pick Nginx if you already run it or prefer it: Certbot handles the certificate."
+  ask "Web server: caddy or nginx?" caddy
+  PROXY="$REPLY"
+fi
+PROXY=$(echo "$PROXY" | tr '[:upper:]' '[:lower:]')
+case "$PROXY" in
+  caddy) ok "Caddy, with automatic HTTPS from Let's Encrypt" ;;
+  nginx) ok "Nginx, with a Let's Encrypt certificate from Certbot (renewed by its timer)"
+    [[ "$DOMAIN" == "localhost" ]] && warn "Certbot can't certify localhost: Nginx serves plain http here. Use --proxy caddy for HTTPS on localhost." ;;
+  *) fail "--proxy is caddy or nginx, not \"$PROXY\"." ;;
+esac
 if [[ -z "$EMAIL" ]]; then
-  ask "Email for expiry notices (optional, Enter to skip):" ""
+  ask "Email for certificate expiry notices (optional, Enter to skip):" ""
   EMAIL="$REPLY"
 fi
 if [[ -n "$EMAIL" ]]; then ok "Notices go to $EMAIL"; else ok "No email: fine, renewals are automatic"; fi
+proxy_facts
 
 # ---- 5. Firewall ----------------------------------------------------------------------
 step "Firewall"
@@ -167,17 +262,7 @@ if ! node_ok; then
     fail "Couldn't install Node 24 from deb.nodesource.com. Check this server can reach it, or install Node 22.18+ as /usr/bin/node and run this again."
 fi
 ok "Node $(/usr/bin/node -v)"
-if ! command -v caddy >/dev/null; then
-  if curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg &&
-    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list; then
-    apt-get update -qq || true
-  else
-    rm -f /etc/apt/sources.list.d/caddy-stable.list
-    warn "Couldn't reach Caddy's own package repository: using $ID's Caddy package instead."
-  fi
-  apt-get install -y -qq caddy >/dev/null || fail "Couldn't install Caddy (apt-get install caddy)."
-fi
-ok "Caddy $(caddy version | cut -d' ' -f1)"
+if [[ "$PROXY" == caddy ]]; then install_caddy; else install_nginx; fi
 
 id podstudio >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin podstudio
 mkdir -p "$DATA" "$APP" "$BACKUPS"
@@ -212,19 +297,16 @@ elif ! grep -q "^PODSTUDIO_ORIGIN=.*https://$DOMAIN" "$ENV_FILE"; then
 fi
 ok "Settings in $ENV_FILE"
 
-{
-  if [[ -n "$EMAIL" ]]; then printf '{\n\temail %s\n}\n\n' "$EMAIL"; fi
-  sed "s/{\$DOMAIN}/$DOMAIN/" "$APP/deploy/Caddyfile"
-} > /etc/caddy/Caddyfile
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || fail "The Caddyfile doesn't validate: caddy validate --config /etc/caddy/Caddyfile"
-ok "Caddy set up for $DOMAIN"
+if [[ "$PROXY" == caddy ]]; then configure_caddy; else configure_nginx; fi
+sed -i '/^PODSTUDIO_PROXY=/d' "$ENV_FILE"
+echo "PODSTUDIO_PROXY=$PROXY" >> "$ENV_FILE"
 
 install -m 644 "$APP/deploy/podstudio.service" /etc/systemd/system/podstudio.service
 if [[ $START -eq 1 ]]; then
   systemctl daemon-reload
   systemctl enable podstudio >/dev/null 2>&1
   systemctl restart podstudio
-  systemctl reload caddy 2>/dev/null || systemctl restart caddy
+  start_proxy
   for _ in $(seq 1 30); do curl -fs http://127.0.0.1:4321/api/health >/dev/null && break; sleep 1; done
   curl -fs http://127.0.0.1:4321/api/health >/dev/null || fail "Podstudio didn't start. Its log: journalctl -u podstudio -n 50"
   ok "Podstudio is running"
@@ -254,7 +336,8 @@ step "Checking HTTPS"
 if [[ $START -eq 0 ]]; then
   note "Skipped: nothing is running (--no-start)."
 elif [[ "$DOMAIN" == "localhost" ]]; then
-  curl -fsk --max-time 10 https://localhost/api/health >/dev/null && ok "https://localhost answers" || warn "https://localhost doesn't answer yet: journalctl -u caddy -n 20"
+  if [[ "$PROXY" == nginx ]]; then URL=http://localhost; else URL=https://localhost; fi
+  curl -fsk --max-time 10 "$URL/api/health" >/dev/null && ok "$URL answers" || warn "$URL doesn't answer yet: $PROXY_LOG"
 else
   echo "   Waiting for the certificate (up to 90 s)…"
   HTTPS=0
@@ -268,14 +351,14 @@ else
     warn "https://$DOMAIN doesn't answer yet. Usually one of:"
     note "- DNS doesn't point here yet (step 3): it starts working on its own once it does"
     note "- port 80 or 443 is closed, here or in your provider's firewall panel"
-    note "Caddy's log: journalctl -u caddy -n 30"
+    note "Log: $PROXY_LOG"
   fi
 fi
 
 TOKEN_FILE="$DATA/setup-token"
 echo
 if [[ -f "$TOKEN_FILE" ]]; then
-  LINK="https://$DOMAIN/setup/account?token=$(cat "$TOKEN_FILE")"
+  LINK="$SCHEME://$DOMAIN/setup/account?token=$(cat "$TOKEN_FILE")"
   echo "   ${B}┌──────────────────────────────────────────────────────────────${N}"
   echo "   ${B}│${N} Create your admin account: open this link"
   echo "   ${B}│${N}"
@@ -285,13 +368,14 @@ if [[ -f "$TOKEN_FILE" ]]; then
   echo "   ${B}│${N} app and save the recovery codes it shows."
   echo "   ${B}└──────────────────────────────────────────────────────────────${N}"
 elif [[ $START -eq 1 ]]; then
-  ok "Your account is already set up: sign in at https://$DOMAIN"
+  ok "Your account is already set up: sign in at $SCHEME://$DOMAIN"
 fi
 
 echo
-echo "${B}Done.${N} Podstudio $(version_of "$APP/package.json") at https://$DOMAIN"
+echo "${B}Done.${N} Podstudio $(version_of "$APP/package.json") at $SCHEME://$DOMAIN"
 note "Recordings and database  $DATA"
 note "Settings                 $ENV_FILE (restart after editing: systemctl restart podstudio)"
+note "Web server               $PROXY_NAME ($PROXY_CONF)"
 note "Logs                     journalctl -u podstudio -f"
 note "Upgrade                  git pull, then run this again"
 note "Lost the setup link      cd $APP && sudo -u podstudio env \$(cat $ENV_FILE | xargs) npm run setup-link"

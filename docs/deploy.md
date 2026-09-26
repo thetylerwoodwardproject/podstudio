@@ -1,7 +1,7 @@
 # Running Podstudio on a VPS
 
 Podstudio is one Node process with a SQLite database and a data folder, behind
-Caddy for HTTPS. A 1 GB VPS is plenty: the server idles around 100 MB of RAM.
+Caddy for HTTPS (or Nginx with Certbot, if you prefer). A 1 GB VPS is plenty: the server idles around 100 MB of RAM.
 Recording is done in the browser; the server stores what's uploaded, so size the
 disk for your audio (24-bit / 48 kHz mono is about 520 MB an hour per speaker).
 
@@ -25,18 +25,20 @@ It walks you through eight steps, checking each one:
 2. **Your domain.**
 3. **DNS:** whether the domain points at this server. If it doesn't, it says
    which A record to add and can wait while you fix it.
-4. **Certificate:** an optional email for Let's Encrypt notices. Caddy gets and
-   renews the certificate itself.
+4. **Web server and certificate:** Caddy (the default: it gets and renews the
+   certificate itself) or Nginx with Certbot, and an optional email for Let's
+   Encrypt notices. See [Using Nginx instead](#using-nginx-instead).
 5. **Firewall:** offers to turn on `ufw` with SSH, 80 and 443 open (SSH first,
    so your session stays up). If your VPS provider has a firewall panel, open
    80 and 443 there too.
-6. **Install:** Node 24 and Caddy, a `podstudio` system user, the app in
+6. **Install:** Node 24 and the web server, a `podstudio` system user, the app in
    `/opt/podstudio`, built, and two services:
 
    | | |
    |---|---|
    | `podstudio` | the app, on `127.0.0.1:4321` (systemd unit: `deploy/podstudio.service`) |
    | `caddy` | HTTPS on your domain, in front of it (`/etc/caddy/Caddyfile`, from `deploy/Caddyfile`) |
+   | or `nginx` | the same with `--proxy nginx` (`/etc/nginx/sites-available/podstudio`, from `deploy/nginx.conf`; Certbot adds HTTPS) |
 
 7. **Backups:** offers a nightly backup to `/var/backups/podstudio` (see below).
 8. **HTTPS:** waits for the certificate and checks the site answers. If it
@@ -58,7 +60,36 @@ nothing:
 sudo ./deploy/install.sh --domain podcast.example.com --email you@example.com --yes
 ```
 
-`--no-firewall` and `--no-backups` skip those steps; `--help` lists the options.
+`--proxy nginx` picks Nginx; `--no-firewall` and `--no-backups` skip those
+steps; `--help` lists the options.
+
+## Using Nginx instead
+
+Caddy is the default because it needs no setup: HTTPS just works and renews
+itself. If you already run Nginx, or prefer it:
+
+```sh
+sudo ./deploy/install.sh --proxy nginx
+```
+
+(or answer `nginx` at step 4). The installer then:
+
+- installs `nginx`, `certbot` and `python3-certbot-nginx`;
+- writes `/etc/nginx/sites-available/podstudio` from `deploy/nginx.conf` and
+  enables it. That config passes WebSockets through for the live room, keeps
+  the `Host` header (Podstudio checks it, see "Not from this server" below),
+  allows 210 MB uploads and streams them instead of buffering them;
+- turns off Nginx's stock welcome site if it's still enabled;
+- runs `certbot --nginx`, which adds the HTTPS server block and the redirect
+  from http. Certbot's systemd timer renews the certificate
+  (`systemctl list-timers | grep certbot`). If it can't get one yet (DNS, or
+  port 80 closed), the installer prints the exact command to run once that's
+  fixed.
+
+The choice is saved as `PODSTUDIO_PROXY` in `/etc/podstudio.env`, so upgrades
+keep it. To switch later, run the installer again with `--proxy caddy` or
+`--proxy nginx`: it sets up the new one and stops the other, so they don't
+both try to use ports 80 and 443.
 
 Settings are in `/etc/podstudio.env`:
 
@@ -136,7 +167,7 @@ answers to. Usually one of these:
   `PODSTUDIO_ORIGIN=https://podcast.example.com,https://www.example.com` in
   `/etc/podstudio.env`, then `sudo systemctl restart podstudio`.
 - **Another proxy or a tunnel in front** (Nginx, Cloudflare Tunnel, ngrok) that
-  rewrites the Host header. Podstudio also trusts `X-Forwarded-Host` and
+  rewrites the Host header (the installer's Nginx config doesn't). Podstudio also trusts `X-Forwarded-Host` and
   `Forwarded: host=`, so have the proxy send one of them (Nginx:
   `proxy_set_header Host $host;`), or set `PODSTUDIO_ORIGIN` as above.
 

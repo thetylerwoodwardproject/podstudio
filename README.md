@@ -57,7 +57,7 @@ sudo ./deploy/install.sh
 ```
 
 It guides you through the whole setup: it checks the server and your domain's DNS, offers the firewall and
-nightly backups, installs Node 24 and Caddy (HTTPS with automatic certificates), runs Podstudio as a systemd
+nightly backups, installs Node 24 and Caddy (HTTPS with automatic certificates; or Nginx with Certbot, `--proxy nginx`), runs Podstudio as a systemd
 service with its data in `/var/lib/podstudio`, checks HTTPS works, and prints a one-time link to create your
 admin account. Run it again to upgrade; it backs up the database first. It idles at about 120 MB of RAM. Backups,
 upgrades and getting back in if you're locked out are in [`docs/deploy.md`](docs/deploy.md).
