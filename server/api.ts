@@ -3,18 +3,31 @@
  * same handler runs in production (server/main.ts) and under `npm run dev`
  * (the Vite plugin in dev/server-plugin.ts). It also guards pages (guard.ts).
  */
+import { statfsSync } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { Accounts } from './accounts.ts';
 import type { Context } from './context.ts';
 import { isPage, redirectFor } from './guard.ts';
 import { HttpError, json } from './http.ts';
 import { LiveRooms } from './live.ts';
+import { migrations } from './migrations.ts';
+import pkg from '../package.json' with { type: 'json' };
 
 export interface Api {
   handle(req: IncomingMessage, res: ServerResponse, next: () => void): void;
   attach(server: Server | null | undefined): void;
   live: LiveRooms;
   accounts: Accounts;
+}
+
+/** Settings → Server: what's running and how full the data folder's disk is. */
+export function serverStatus(ctx: Context) {
+  let disk: { total: number; free: number } | null = null;
+  try {
+    const fs = statfsSync(ctx.config.data);
+    disk = { total: fs.blocks * fs.bsize, free: fs.bavail * fs.bsize };
+  } catch {}
+  return { version: pkg.version, schema: migrations.length, node: process.versions.node, data: ctx.config.data, uptime: Math.round(process.uptime()), disk };
 }
 
 export function createApi(ctx: Context): Api {
@@ -24,11 +37,12 @@ export function createApi(ctx: Context): Api {
   live.canHost = (req) => accounts.allowed(req);
 
   const route = async (req: IncomingMessage, res: ServerResponse, url: URL, p: string[]) => {
-    if (req.method === 'GET' && p[0] === 'health' && p.length === 1) return json(res, 200, { ok: true, server: 'podstudio', time: Date.now() });
+    if (req.method === 'GET' && p[0] === 'health' && p.length === 1) return json(res, 200, { ok: true, server: 'podstudio', version: pkg.version, schema: migrations.length, time: Date.now() });
     if (await accounts.handle(req, res, p)) return;
     // Guests and producers use their session token, not an account.
     if (await live.handle(req, res, url, p)) return;
     if (!accounts.allowed(req)) throw new HttpError(401, 'Sign in first');
+    if (req.method === 'GET' && p[0] === 'server' && p.length === 1) return json(res, 200, serverStatus(ctx));
     if (await ctx.library.handle(req, res, url, p)) return;
     if (await ctx.takes.handle(req, res, url, p)) return;
     throw new HttpError(404, 'Not found');

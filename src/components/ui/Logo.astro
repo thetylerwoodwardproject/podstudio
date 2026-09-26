@@ -10,8 +10,8 @@ const { size = 'md', href = '/' } = Astro.props;
 <a
   href={href}
   class:list={[
-    'flex items-center font-semibold text-fg hover:text-fg',
-    size === 'lg' ? 'gap-2.5 text-[15px] tracking-[-0.01em]' : 'gap-2',
+    'flex items-center text-[17px] font-semibold text-text hover:text-text',
+    size === 'lg' ? 'gap-2.5' : 'gap-2',
   ]}
 >
   <span class:list={['inline-block flex-none rounded-full bg-rec', size === 'lg' ? 'size-2.5' : 'size-[9px]']}></span>

@@ -37,22 +37,24 @@ const View = current.view;
 
 <AppShell title={current.label} crumbs={[{ label: 'Settings' }]}>
   <div class="grid lg:h-full lg:grid-cols-[220px_1fr]">
-    <nav aria-label="Settings" class="flex gap-0.5 overflow-x-auto border-line px-3 py-5 max-lg:border-b lg:flex-col lg:border-r">
+    <nav aria-label="Settings" class="flex gap-1 overflow-x-auto border-divider px-3 py-5 max-lg:border-b lg:flex-col lg:overflow-y-auto lg:border-r">
       {
         sections.map((s) => (
           <a
             href={`/settings/${s.key}`}
             aria-current={s.key === section ? 'page' : undefined}
-            class="rounded-lg px-3 py-[9px] text-[14px] whitespace-nowrap text-muted hover:text-fg aria-[current]:bg-raised aria-[current]:text-fg"
+            class="flex h-9 flex-none items-center rounded-[8px] px-3 text-[14px] whitespace-nowrap text-text-2 hover:text-text aria-[current]:bg-nav aria-[current]:text-text"
           >
             {s.label}
           </a>
         ))
       }
-      <button type="button" class="rounded-lg px-3 py-[9px] text-left text-[14px] whitespace-nowrap text-muted hover:text-fg lg:mt-auto" data-signout>Sign out</button>
+      <button type="button" class="flex h-9 flex-none items-center rounded-[8px] px-3 text-left text-[14px] whitespace-nowrap text-text-2 hover:text-text lg:mt-auto" data-signout>Sign out</button>
     </nav>
-    <form class="flex min-w-0 flex-col gap-5.5 overflow-auto px-6 py-8 lg:px-11" data-settings>
+    <form class="min-w-0 overflow-auto px-6 pt-10 pb-16" data-settings>
+      <div class="mx-auto flex w-full max-w-[720px] flex-col gap-10">
       <View />
+      </div>
     </form>
   </div>
 </AppShell>

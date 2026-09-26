@@ -1,0 +1,23 @@
+---
+/*
+ * Card (framework): surface, radius 14, no border or shadow. `rows` drops the
+ * padding for a list of setting rows (ToggleRow, SettingRow), which bring
+ * their own 18 / 20 padding and inset dividers. An optional section label sits
+ * 12 above it.
+ */
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = {
+  label?: string;
+  rows?: boolean;
+  class?: string;
+} & Omit<HTMLAttributes<'section'>, 'class'>;
+const { label, rows = false, class: cls, ...rest } = Astro.props;
+---
+
+<section class="flex flex-col gap-3" {...rest}>
+  {label && <h2 class="section-label">{label}</h2>}
+  <div class:list={['rounded-[14px] bg-surface', rows ? 'py-0.5' : 'p-5', cls]}>
+    <slot />
+  </div>
+</section>

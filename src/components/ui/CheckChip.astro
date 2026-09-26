@@ -1,0 +1,35 @@
+---
+/*
+ * Check chip (framework): multi-select with a detail. Height 34, radius 9, 1 px
+ * border; selected: control fill, handle border and a filled 14 px checkbox.
+ */
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = {
+  name?: string;
+  value?: string;
+  label: string;
+  /** Mono detail after the label ("1 kHz") */
+  detail?: string;
+  checked?: boolean;
+  class?: string;
+} & Omit<HTMLAttributes<'input'>, 'class' | 'type'>;
+const { name, value, label, detail, checked = false, class: cls, ...rest } = Astro.props;
+---
+
+<label
+  class:list={[
+    'inline-flex h-[34px] items-center gap-2 rounded-[9px] border border-border px-3 text-[14px] text-text transition-colors',
+    'has-checked:border-handle has-checked:bg-control has-disabled:opacity-40 has-focus-visible:outline-2 has-focus-visible:outline-text',
+    cls,
+  ]}
+>
+  <input type="checkbox" class="peer sr-only" name={name} value={value} checked={checked} {...rest} />
+  <span
+    aria-hidden="true"
+    class="flex size-3.5 flex-none items-center justify-center rounded-[4px] border border-handle text-[9px] leading-none font-bold text-transparent peer-checked:border-text peer-checked:bg-text peer-checked:text-page"
+    >✓</span
+  >
+  {label}
+  {detail && <span class="font-mono text-[12px] text-text-3">{detail}</span>}
+</label>

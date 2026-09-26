@@ -1,25 +1,30 @@
 ---
+/*
+ * A setting row inside a card (framework): title in body 14, one line of help
+ * in text-2 (no period), a toggle, or a tag for things that can't change.
+ * Rows are 18 / 20 with dividers inset 20 from each side; put them in <Card>.
+ */
 import Switch from '@/components/ui/Switch.astro';
 interface Props {
   title: string;
   hint: string;
   name: string;
   checked?: boolean;
-  /** Show a fixed label instead of a switch */
+  /** Show a fixed tag instead of a toggle */
   locked?: string;
   monoHint?: boolean;
 }
 const { title, hint, name, checked = false, locked, monoHint = false } = Astro.props;
 ---
 
-<div class="flex items-center justify-between gap-4 rounded-[10px] bg-surface px-4 py-3.5">
+<div class="mx-5 flex items-center justify-between gap-4 border-t border-divider py-[18px] first:border-t-0">
   <div>
-    <div class="text-[14px]" id={`${name}-label`}>{title}</div>
-    <div class:list={["text-subtle", monoHint ? "mt-1 font-mono text-[11px]" : "mt-[3px] text-[12px]"]}>{hint}</div>
+    <div class="text-[14px] text-text" id={`${name}-label`}>{title}</div>
+    <div class:list={['mt-0.5 text-text-2', monoHint ? 'font-mono text-[12px]' : 'text-[13px]']}>{hint}</div>
   </div>
   {
     locked ? (
-      <span class="font-mono text-[10px] font-medium tracking-[0.06em] text-subtle">{locked}</span>
+      <span class="rounded-[4px] border border-border px-2 py-1 font-mono text-[11px] font-medium tracking-[0.06em] text-text-2 uppercase">{locked}</span>
     ) : (
       <Switch name={name} checked={checked} label={title} />
     )

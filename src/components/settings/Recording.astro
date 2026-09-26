@@ -1,90 +1,128 @@
 ---
+/*
+ * Settings → Recording (Settings_Recording.dc.html): input, export defaults
+ * (noise suppression, marker tones) and session behaviour, in framework cards.
+ */
 import Section from './Section.astro';
 import ToggleRow from './ToggleRow.astro';
+import Card from '@/components/ui/Card.astro';
+import CheckChip from '@/components/ui/CheckChip.astro';
 import Segmented from '@/components/ui/Segmented.astro';
-import { mbPerMinute } from '@/lib/audio/format';
 import Select from '@/components/ui/Select.astro';
+import Switch from '@/components/ui/Switch.astro';
+import { mbPerMinute } from '@/lib/audio/format';
+
+const label = 'text-[14px] text-text';
+const kinds = [
+  ['retake', 'Retake', '1 kHz'],
+  ['cut', 'Cough', '600 Hz'],
+  ['adlib', 'Ad-lib', '1.4 kHz'],
+  ['pause', 'Pause', '800 Hz'],
+  ['gap', 'Mic stopped', '400 Hz'],
+];
+const toneSliders = [
+  ['level', 'Tone level', -30, -6, 1, 'dBFS'],
+  ['duck', 'Duck under voice', 0, 24, 1, 'dB'],
+  ['attackMs', 'Attack', 1, 100, 1, 'ms'],
+  ['releaseMs', 'Release', 20, 1000, 10, 'ms'],
+] as const;
 ---
 
-<Section title="Recording" description="Defaults for new sessions. The host can change them per session from the studio screen." />
-<div class="flex flex-col gap-2" data-live-only>
-  <label for="rec-mic" class="text-[12px] text-muted">Microphone</label>
-  <Select id="rec-mic" options={['System default']} data-rec-mic />
-  <p class="text-[12px] text-subtle">
-    Recording and voice follow both use this input. “System default” follows your computer’s sound settings. In mono,
-    an interface with several inputs lists each one; stereo records inputs 1 and 2 as left and right.
-  </p>
-</div>
-<div class="grid gap-4 sm:grid-cols-3" data-format>
-  <div class="flex flex-col gap-2">
-    <div class="text-[12px] text-muted">Channels</div>
-    <Segmented name="channels" label="Channels" value="1" options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} />
+<Section title="Recording" description="Defaults for new sessions. The host can change them per session from the studio." />
+
+<Card label="Input" class="flex flex-col p-0!">
+  <div class="flex flex-col gap-2 p-5" data-live-only>
+    <label for="rec-mic" class={label}>Microphone</label>
+    <Select id="rec-mic" options={['System default']} data-rec-mic />
+    <p class="help">
+      Used for recording and voice follow. System default follows your computer's sound settings. On a multi-input
+      interface, mono lists each input; stereo records inputs 1 and 2 as left and right.
+    </p>
   </div>
-  <div class="flex flex-col gap-2">
-    <div class="text-[12px] text-muted">Bit depth</div>
-    <Segmented name="depth" label="Bit depth" value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
+  <div class="mx-5 grid gap-4 border-t border-divider py-5 sm:grid-cols-3" data-format>
+    <div class="flex flex-col gap-2">
+      <div class={label}>Channels</div>
+      <Segmented name="channels" label="Channels" value="1" options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} />
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class={label}>Bit depth</div>
+      <Segmented name="depth" label="Bit depth" value="24" options={[{ value: '16', label: '16-bit' }, { value: '24', label: '24-bit' }]} />
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class={label}>Sample rate</div>
+      <Segmented name="rate" label="Sample rate" value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
+    </div>
   </div>
-  <div class="flex flex-col gap-2">
-    <div class="text-[12px] text-muted">Sample rate</div>
-    <Segmented name="rate" label="Sample rate" value="48" options={[{ value: '44.1', label: '44.1 kHz' }, { value: '48', label: '48 kHz' }]} />
+  <div class="flex flex-col gap-1.5 border-t border-divider px-5 py-4">
+    <div class="font-mono text-[13px] text-text">
+      <span data-channels-label>Mono</span> WAV · <span data-depth-label>24-bit</span> · <span data-rate-label>48 kHz</span> ·
+      <span data-size>{mbPerMinute(24, 48)}</span> MB/min per speaker
+    </div>
+    <p class="text-[13px] text-text-3">If the device runs at another rate, Podstudio uses it. Nothing is resampled.</p>
   </div>
-</div>
-<p class="-mt-2 text-[12px] text-subtle">If the mic or interface runs at a different rate, Podstudio records at its rate instead, so nothing is resampled.</p>
-<div class="meta -mt-2 text-subtle"><span data-channels-label>Mono</span> WAV · <span data-size>{mbPerMinute(24, 48)}</span> MB per minute per speaker</div>
-<div class="flex flex-col gap-2">
-  <div class="flex items-center justify-between">
-    <label for="rec-ns" class="text-[12px] text-muted">Noise suppression for exports</label>
-    <span class="font-mono text-[12px]" data-ns-value>Off</span>
+</Card>
+
+<section class="flex flex-col gap-3">
+  <h2 class="section-label">Exports</h2>
+  <div class="rounded-[14px] bg-surface p-5">
+    <div class="flex items-center justify-between">
+      <label for="rec-ns" class={label}>Noise suppression</label>
+      <span class="font-mono text-[13px] text-text" data-ns-value>Off</span>
+    </div>
+    <input id="rec-ns" type="range" min="0" max="100" step="5" value="0" class="mt-4 w-full" data-ns />
+    <div class="mt-2 flex justify-between font-mono text-[11px] text-text-3" aria-hidden="true">
+      <span>Off</span><span>Light</span><span>Medium</span><span>Strong</span>
+    </div>
+    <p class="help mt-4">
+      Starting point for the export fader. Higher removes more room sound. Exports include both the raw and cleaned
+      versions, and the mic check suggests a value for your room. Powered by
+      <a href="/settings/about" class="underline-offset-2 hover:text-text hover:underline">DeepFilterNet3</a>.
+    </p>
   </div>
-  <input id="rec-ns" type="range" min="0" max="100" step="5" value="0" class="w-full accent-fg" data-ns />
-  <p class="text-[12px] text-subtle">
-    Where the fader starts on the export screen. Adaptive, like Waves NS1: higher takes away more of the room. Exports
-    then include both versions, unprocessed and cleaned. The mic check suggests a setting for your room. By
-    <a href="/settings/about" class="underline-offset-2 hover:text-fg hover:underline">DeepFilterNet3</a>.
-  </p>
-</div>
-<fieldset class="flex flex-col gap-3 rounded-xl border border-line p-4" data-tones>
-  <legend class="px-1 text-[12px] text-muted">Marker tones in exports</legend>
-  <label class="flex items-center justify-between gap-4 text-[13px]">
-    <span>Add tones to the full recording by default
-      <span class="block text-[12px] text-subtle">A short beep at each marker, so the places to edit can be heard. The edit stays clean.</span>
-    </span>
-    <input type="checkbox" class="size-4 flex-none accent-fg" data-tone-default />
-  </label>
-  <div class="flex flex-wrap gap-x-5 gap-y-2 text-[13px]" role="group" aria-label="Which markers get a tone">
-    {[
-      ['retake', 'Retake', '1 kHz'],
-      ['cut', 'Cough', '600 Hz'],
-      ['adlib', 'Ad-lib', '1.4 kHz'],
-      ['pause', 'Pause', '800 Hz'],
-      ['gap', 'Mic stopped', '400 Hz'],
-    ].map(([k, label, hz]) => (
-      <label class="flex items-center gap-2">
-        <input type="checkbox" class="size-4 accent-fg" data-tone-kind={k} />
-        {label} <span class="font-mono text-[11px] text-subtle">{hz}</span>
+
+  <div class="rounded-[14px] bg-surface" data-tones>
+    <div class="flex items-center justify-between gap-4 p-5">
+      <div>
+        <div class={label} id="tone-default-label">Marker tones on the full recording</div>
+        <div class="mt-0.5 text-[13px] text-text-2">A short beep at each marker so edit points can be heard. The edit stays clean.</div>
+      </div>
+      <label
+        class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-track-off transition-colors has-checked:bg-text has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-text"
+      >
+        <input type="checkbox" role="switch" class="peer sr-only" aria-labelledby="tone-default-label" data-tone-default />
+        <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
       </label>
-    ))}
+    </div>
+    <!-- Dimmed while tones are off; they can still be set up -->
+    <div class="mx-5 flex flex-col gap-5 border-t border-divider pt-5 pb-5 transition-opacity" data-tone-options>
+      <div class="flex flex-col gap-3">
+        <div class={label}>Markers that beep</div>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Markers that beep">
+          {kinds.map(([k, text, hz]) => <CheckChip label={text} detail={hz} data-tone-kind={k} />)}
+        </div>
+      </div>
+      <div class="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        {
+          toneSliders.map(([k, text, min, max, step, unit]) => (
+            <label class="flex flex-col gap-3">
+              <span class="flex justify-between text-[14px] text-text">
+                {text}
+                <span class="font-mono text-[13px]" data-tone-value={k} />
+              </span>
+              <input type="range" min={min} max={max} step={step} class="w-full" data-tone-range={k} data-unit={unit} />
+            </label>
+          ))
+        }
+      </div>
+      <p class="help">Tones duck under your voice by the duck amount. Attack sets how fast they drop when you start talking; release sets how fast they return.</p>
+    </div>
   </div>
-  <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-    {[
-      ['level', 'Tone level', -30, -6, 1, 'dBFS'],
-      ['duck', 'Duck under the voice', 0, 24, 1, 'dB'],
-      ['attackMs', 'Attack', 1, 100, 1, 'ms'],
-      ['releaseMs', 'Release', 20, 1000, 10, 'ms'],
-    ].map(([k, label, min, max, step, unit]) => (
-      <label class="flex flex-col gap-1.5 text-[12px] text-muted">
-        <span class="flex justify-between">{label}<span class="font-mono text-fg" data-tone-value={k}></span></span>
-        <input type="range" min={min} max={max} step={step} class="w-full accent-fg" data-tone-range={k} data-unit={unit} />
-      </label>
-    ))}
-  </div>
-  <p class="text-[12px] text-subtle">
-    Ducking puts the tones under your voice: while you're talking they drop by the duck amount. Attack is how fast they
-    drop when you start, release how fast they come back when you stop.
-  </p>
-</fieldset>
-<ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
-<ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="ALWAYS ON" />
+</section>
+
+<Card label="Session" rows>
+  <ToggleRow name="mic-check" checked title="Mic check before every session" hint="Level, clipping, room noise and voice follow" />
+  <ToggleRow name="autosave" title="Save audio every 5 seconds" hint="Protects takes from crashes and closed tabs" locked="Always on" />
+</Card>
 
 <script>
   import { channelsLabel, mbPerMinute } from '@/lib/audio/format';
@@ -98,7 +136,10 @@ import Select from '@/components/ui/Select.astro';
     const save = () => saveSettings('recording', { tones: t });
     const def = tonesBox.querySelector<HTMLInputElement>('[data-tone-default]')!;
     def.checked = t.inExports;
-    def.addEventListener('change', () => ((t.inExports = def.checked), save()));
+    const options = tonesBox.querySelector<HTMLElement>('[data-tone-options]')!;
+    const dim = () => options.classList.toggle('opacity-40', !def.checked);
+    dim();
+    def.addEventListener('change', () => ((t.inExports = def.checked), dim(), save()));
     tonesBox.querySelectorAll<HTMLInputElement>('[data-tone-kind]').forEach((box) => {
       const k = box.dataset.toneKind as keyof typeof t.kinds;
       box.checked = t.kinds[k];
@@ -158,6 +199,8 @@ import Select from '@/components/ui/Select.astro';
       const channels = Number(data.get('channels') ?? 1);
       size.textContent = mbPerMinute(Number(data.get('depth')), Number(data.get('rate')), channels);
       form.querySelector('[data-channels-label]')!.textContent = channelsLabel(channels);
+      form.querySelector('[data-depth-label]')!.textContent = `${data.get('depth')}-bit`;
+      form.querySelector('[data-rate-label]')!.textContent = `${data.get('rate')} kHz`;
     };
     if (!demo) {
       const r = loadSettings().recording;

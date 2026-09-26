@@ -75,13 +75,14 @@ export function segmentMeter(segs: HTMLElement[]) {
     const f = (i + 1) / segs.length;
     return f > toFraction(-6) ? BAD : f > toFraction(-18) ? WARN : OK;
   });
-  const unlit = zones.map((z) => `color-mix(in oklab, ${z} 20%, var(--color-line))`);
+  // Unlit: the zone color at 20 % over the meter background; the held peak is off-white (framework).
+  const unlit = zones.map((z) => `color-mix(in oklab, ${z} 20%, var(--color-meter-off))`);
   segs.forEach((s, i) => (s.style.background = unlit[i]));
   const meter = new PeakMeter();
   return (peakDb: number) => {
     const m = meter.update(peakDb, performance.now());
     const lit = Math.round(m.fraction * segs.length);
     const hold = Math.ceil(m.holdFraction * segs.length) - 1;
-    segs.forEach((s, i) => (s.style.background = i < lit || (i === hold && m.holdFraction > 0) ? zones[i] : unlit[i]));
+    segs.forEach((s, i) => (s.style.background = i === hold && m.holdFraction > 0 && i >= lit ? 'var(--color-text)' : i < lit ? zones[i] : unlit[i]));
   };
 }

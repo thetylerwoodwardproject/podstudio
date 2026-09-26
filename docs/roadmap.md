@@ -12,11 +12,10 @@ something you can install over a running copy without losing data.
   `/var/lib/podstudio`), used as the reference install. New slices are tried
   there — a real domain, real phones, real network — before they count as done.
 - **Versions.** Releases get a semver number, set once in `package.json`:
-  - shown in Settings → About (today it reads a mock value) and in
-    `GET /api/health`;
+  - shown in Settings → About and in `GET /api/health` (both done, with the
+    schema version: the number of migrations);
   - tagged in git (`v0.2.0` …) with a short changelog (`CHANGELOG.md`): what's
     new, what changed, anything to do by hand when upgrading;
-  - the database's schema version (the migration count) reported next to it.
 - **Upgrade paths.** Going from any released version to the next must work:
   - `install.sh` detects an existing install and upgrades in place: backup,
     copy, `npm ci`, build, restart, health check;

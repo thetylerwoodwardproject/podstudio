@@ -1,55 +1,79 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
 @import '@fontsource/atkinson-hyperlegible/400.css';
 @import '@fontsource/atkinson-hyperlegible/700.css';
 
 /*
- * Podstudio design tokens, taken from the Claude Design handoff
- * (project/Teleprompter.dc.html). Everything is dark: one red accent for
- * recording, green for healthy, amber for attention.
+ * Podstudio design tokens: the UI framework (docs/ui-framework.md, from
+ * "Podstudio UI Framework.dc.html"). Dark and quiet: near-black surfaces,
+ * neutral grey type, color only for meaning. White is the selection; mono is
+ * for numbers.
+ *
+ * The framework's names (page, surface, control, divider, border, track-off,
+ * handle, text, text-2, text-3) are defined below, and the older names used
+ * across the screens point at the same values.
  */
 @theme {
-  --font-sans: 'Geist Variable', 'Geist', system-ui, sans-serif;
-  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, monospace;
-  --font-readable: 'Atkinson Hyperlegible', 'Geist Variable', sans-serif;
+  /* Type: the system fonts. Mono for numbers, units, times, key hints and caps tags. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Prompter reading fonts (Settings → Prompter), not for the interface */
+  --font-readable: 'Atkinson Hyperlegible', system-ui, sans-serif;
   --font-dyslexic: 'OpenDyslexic', 'Atkinson Hyperlegible', sans-serif;
 
-  /* Surfaces, darkest to lightest */
-  --color-void: #000000;
+  /* Neutrals (framework) */
+  --color-page: #0b0b0c; /* app background, input fill */
+  --color-surface: #141416; /* cards, sheets, docks */
+  --color-nav: #16171a; /* active nav item ("raised" in the framework) */
+  --color-control: #1c1c1f; /* secondary buttons, avatar, selected chip */
+  --color-divider: #1c1d20; /* header, sidebar, row dividers */
+  --color-border: #26272b; /* inputs, segmented, tags, slider track */
+  --color-track-off: #2a2b2f; /* toggle off, dashed empty state */
+  --color-handle: #3a3b3f; /* grab handle, hover border */
+  --color-text: #ededea; /* primary type, selected fill */
+  --color-text-2: #8a8c91; /* help, secondary */
+  --color-text-3: #6a6c71; /* meta, units, tags */
+
+  /* The same values under the names the screens already use */
+  --color-void: #0b0b0c;
   --color-ink: #0b0b0c;
-  --color-panel: #0f0f11;
-  --color-surface: #121214;
-  --color-raised: #16171a;
-
-  /* Lines */
-  --color-line-soft: #151517;
-  --color-line: #1f2023;
-  --color-edge: #2a2b2f;
+  --color-panel: #141416;
+  --color-raised: #1c1c1f;
+  --color-line-soft: #1c1d20;
+  --color-line: #1c1d20;
+  --color-edge: #26272b;
   --color-edge-strong: #3a3b3f;
-
-  /* Text, brightest to dimmest */
   --color-fg: #ededea;
-  --color-fg-dim: #b9bbc0;
-  --color-fg-soft: #c9cbcf;
+  --color-fg-soft: #ededea;
+  --color-fg-dim: #8a8c91;
   --color-muted: #8a8c91;
   --color-subtle: #6a6c71;
-  --color-faint: #5a5c61;
+  --color-faint: #6a6c71;
+  /* Prompter only: lines already read */
   --color-ghost: #4a4c51;
+  /* Meter: unlit segments are the zone color at 20 % over this */
+  --color-meter-off: #1f2023;
 
-  /* Status */
-  --color-rec: #ff453a;
-  --color-ok: #30d158;
-  --color-warn: #ff9f0a;
-  --color-adlib: #6ea8ff;
+  /* Signal */
+  --color-rec: #ff453a; /* recording, hot level, destructive */
+  --color-warn: #ff9f0a; /* retake, target zone, reconnecting */
+  --color-ok: #30d158; /* saved, connected, safe level */
+  --color-adlib: #6ea8ff; /* ad-lib (the timeline uses it at 70 %) */
+  --color-info: rgba(110, 168, 255, 0.7);
 
-  /* Speaker presets (Syntax color scales, brightened for dark screens) */
+  /* Speakers (syntaxfm variables.css): dots, meter rings and talk-time bars only, never buttons or text */
   --color-spk-yellow: oklch(83.77% 0.148 81.72);
   --color-spk-teal: oklch(90.16% 0.173 188.71);
-  --color-spk-green: oklch(92.06% 0.269 124.67);
-  --color-spk-red: oklch(72% 0.221 23.68);
-  --color-spk-purple: oklch(72% 0.1 291.04);
-  --color-spk-black: oklch(83% 0 0);
+  --color-spk-green: oklch(80% 0.18 145);
+  --color-spk-red: oklch(68% 0.2 25);
+  --color-spk-purple: oklch(70% 0.16 300);
+  --color-spk-black: #3a3b3f;
+
+  /* Radius: 4 key hint and checkbox, 7 segment inside, 10 input and small button, 12 large button, 14 card */
+  --radius-hint: 4px;
+  --radius-seg: 7px;
+  --radius-input: 10px;
+  --radius-button: 12px;
+  --radius-card: 14px;
 
   --animate-pulse-rec: pulse-rec 1.4s infinite;
 
@@ -101,6 +125,51 @@
     outline: 2px solid var(--color-fg);
     outline-offset: 2px;
   }
+
+  /* Slider: 4 px border track filled in text up to the value, 16 px text knob.
+     --pct is kept up to date by lib/range-fill.ts. */
+  input[type='range'] {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 16px;
+    background: transparent;
+    cursor: pointer;
+  }
+  input[type='range']:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--color-text) var(--pct, 0%), var(--color-border) var(--pct, 0%));
+  }
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--color-text);
+    border: 0;
+  }
+  input[type='range']::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border);
+  }
+  input[type='range']::-moz-range-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-text);
+  }
+  input[type='range']::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-text);
+    border: 0;
+  }
 }
 
 /*
@@ -112,14 +181,36 @@ html[data-demo] [data-live-only] {
   display: none !important;
 }
 
-/* Mono uppercase section label: "LIVE NOW", "CHECKS", "STEP 3 OF 5" */
+/* Tag: mono 11 / 500 / caps / 0.06em, text-3 ("ALWAYS ON", "STEP 3 OF 6", "HOST") */
 @utility eyebrow {
   font-family: var(--font-mono);
   font-weight: 500;
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-faint);
+  color: var(--color-text-3);
+}
+
+/* Section label above a card group: sans 13 / 500, text-2, 12 above the card */
+@utility section-label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-2);
+}
+
+/* Help under a setting: 13 / lh 1.5, text-2 */
+@utility help {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-2);
+}
+
+/* Card: surface, radius 14, no border or shadow, padding 20 */
+@utility card {
+  background: var(--color-surface);
+  border-radius: 14px;
+  padding: 20px;
 }
 
 /* Small mono metadata: sizes, timestamps, device details */

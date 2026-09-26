@@ -1,39 +1,78 @@
 ---
+/*
+ * Settings → Server: the running version, the data folder and its disk, and
+ * how to back up and upgrade (docs/deploy.md). Filled from GET /api/server.
+ */
 import Section from './Section.astro';
-import ToggleRow from './ToggleRow.astro';
-import Callout from '@/components/ui/Callout.astro';
-import Button from '@/components/ui/Button.astro';
+import Block from '@/components/ui/Block.astro';
+import Card from '@/components/ui/Card.astro';
 import CodeBlock from '@/components/ui/CodeBlock.astro';
-import StatusRow from '@/components/ui/StatusRow.astro';
-import { server, storage } from '@/data/mock';
+import Dot from '@/components/ui/Dot.astro';
+import Row from '@/components/ui/Row.astro';
+import { version } from '../../../package.json';
+
+const value = 'font-mono text-[13px] text-text';
 ---
 
-<Section title="Server" />
-<Callout title={`Podstudio ${server.latest} is available`} color="var(--color-spk-teal)">
-  You’re on {server.version}. New in this version: continuous sessions with retake markers, faster Whisper uploads, and a Podcasting 2.0 chapters
-  export.
-  <Button slot="action">Changelog</Button>
-</Callout>
-<CodeBlock code="curl -fsSL https://podstudio.dev/install.sh | bash -s -- --upgrade" />
-<div class="-mt-2.5 text-[12px] text-subtle">
-  Docker: <span class="font-mono text-muted">docker pull podstudio/podstudio &amp;&amp; docker restart podstudio</span>
-</div>
-<div class="flex flex-col gap-2.5">
-  <h2 class="eyebrow">Backups</h2>
-  <ToggleRow name="backups" checked monoHint title="Nightly backup" hint="/data/backups · keeps the last 7 · last run 3:00 AM ✓" />
-  <div class="flex flex-wrap gap-2.5">
-    <Button>↓ Export everything (.tar.gz · 3.2 GB)</Button>
-    <label class="inline-flex h-10 items-center rounded-lg border border-edge px-4 text-[14px] hover:bg-raised">
-      Import a backup
-      <input type="file" accept=".tar.gz,.tgz" class="sr-only" />
-    </label>
-  </div>
-  <p class="text-[12px] text-subtle">
-    Backups include scripts, takes, transcripts, users and settings. Your OpenAI key is included in encrypted form.
-  </p>
-</div>
-<div class="flex flex-col">
-  <StatusRow label="Version" value={server.version} />
-  <StatusRow label="Storage" value={`${storage.usedGb} of ${storage.totalGb} GB`} color="var(--color-warn)" />
-  <StatusRow label="Uptime" value="12 days" color="var(--color-ok)" />
-</div>
+<Section title="Server" description="What's running, where your recordings are kept, and how to back up and upgrade." />
+<Card label="Status" rows>
+  <Row title="Version" hint="Database schema —" data-srv-schema-row><span class={value} data-srv-version>{version}</span></Row>
+  <Row title="Storage" hint="—" data-srv-storage-row>
+    <span class="flex items-center gap-2"><Dot color="var(--color-ok)" data-srv-dot /><span class={value} data-srv-storage>—</span></span>
+  </Row>
+  <Row title="Data folder" hint="—" monoHint data-srv-data />
+  <Row title="Up for"><span class={value} data-srv-uptime>—</span></Row>
+</Card>
+
+<Card label="Backups" rows>
+  <Block>
+    <p class="text-[14px] text-text">Nightly, from cron</p>
+    <p class="help">
+      The database copies safely while it runs; the recordings are plain files. Add this with
+      <span class="font-mono text-[12px]">sudo crontab -e</span>, then copy <span class="font-mono text-[12px]">/var/backups</span> off the server.
+    </p>
+    <CodeBlock
+      code={`15 3 * * * sqlite3 /var/lib/podstudio/podstudio.db ".backup '/var/backups/podstudio.db'" && rsync -a --delete /var/lib/podstudio/{takes,live,media} /var/backups/podstudio/`}
+    />
+  </Block>
+</Card>
+
+<Card label="Upgrading" rows>
+  <Block>
+    <p class="help">
+      Back up first. Then, from your copy of Podstudio, pull the new version and run the installer again. It builds,
+      migrates the database on start, and restarts; guests who are connected reconnect on their own.
+    </p>
+    <CodeBlock code={'cd podstudio && git pull\nsudo ./deploy/install.sh podcast.example.com'} />
+    <p class="help">Full steps, restoring and rollback: <span class="font-mono text-[12px]">docs/deploy.md</span>.</p>
+  </Block>
+</Card>
+
+<script>
+  import { api } from '@/lib/api';
+
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+  const gb = (n: number) => `${(n / 1e9).toFixed(n < 1e10 ? 1 : 0)} GB`;
+  const since = (s: number) =>
+    s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} days`;
+
+  type Status = { version: string; schema: number; node: string; data: string; uptime: number; disk: { total: number; free: number } | null };
+  api<Status>('server')
+    .then((s) => {
+      $('[data-srv-version]').textContent = s.version;
+      $('[data-srv-schema-row] [data-row-hint]').textContent = `Database schema ${s.schema} · Node ${s.node}`;
+      $('[data-srv-data] [data-row-hint]').textContent = s.data;
+      $('[data-srv-uptime]').textContent = since(s.uptime);
+      if (s.disk) {
+        const used = s.disk.total - s.disk.free;
+        const pct = Math.round((used / s.disk.total) * 100);
+        $('[data-srv-storage]').textContent = `${gb(used)} of ${gb(s.disk.total)}`;
+        // 24-bit / 48 kHz mono is about 518 MB an hour per speaker.
+        $('[data-srv-storage-row] [data-row-hint]').textContent = `${pct}% used · about ${Math.floor(s.disk.free / 518e6)} hours of audio left`;
+        $('[data-srv-dot]').style.background = pct >= 90 ? 'var(--color-rec)' : pct >= 80 ? 'var(--color-warn)' : 'var(--color-ok)';
+      }
+    })
+    .catch(() => {
+      $('[data-srv-storage-row] [data-row-hint]').textContent = 'Couldn’t reach the server';
+    });
+</script>

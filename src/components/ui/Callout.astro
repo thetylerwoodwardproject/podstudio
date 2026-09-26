@@ -14,7 +14,7 @@ const { title, color, size = 'md', class: cls, ...rest } = Astro.props;
 ---
 
 <div
-  class:list={['flex items-center gap-4 rounded-xl bg-surface px-4.5 max-sm:flex-col max-sm:items-start', size === 'lg' ? 'py-4' : 'py-3.5', cls]}
+  class:list={['flex items-center gap-4 rounded-[14px] bg-surface px-5 max-sm:flex-col max-sm:items-start', size === 'lg' ? 'py-4' : 'py-3.5', cls]}
   style={{ boxShadow: `inset 2px 0 0 ${color}` }}
   {...rest}
 >
@@ -23,7 +23,7 @@ const { title, color, size = 'md', class: cls, ...rest } = Astro.props;
       <Dot color={color} size={8} />
       {title}
     </div>
-    <div class="mt-1 text-[13px] leading-normal text-muted"><slot /></div>
+    <div class="mt-1 text-[13px] leading-normal text-text-2"><slot /></div>
   </div>
   <slot name="action" />
 </div>

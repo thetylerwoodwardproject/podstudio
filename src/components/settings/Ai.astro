@@ -1,7 +1,8 @@
 ---
 import Section from './Section.astro';
-import Field from '@/components/ui/Field.astro';
+import Block from '@/components/ui/Block.astro';
 import Button from '@/components/ui/Button.astro';
+import Card from '@/components/ui/Card.astro';
 import Dot from '@/components/ui/Dot.astro';
 import Select from '@/components/ui/Select.astro';
 import { inputClass } from '@/lib/ui';
@@ -10,87 +11,85 @@ import { inputClass } from '@/lib/ui';
 const transcriptionModels = ['whisper-1'];
 const writingModels = ['gpt-4o-mini'];
 const banned = ['game-changer', 'unleash', 'dive in', '🚀'];
-const chip = 'flex h-6.5 items-center gap-1 rounded-[13px] bg-line px-2.5 text-[12px]';
+const chip = 'flex h-7 items-center gap-1 rounded-[999px] bg-control px-2.5 text-[13px] text-text';
+const label = 'text-[14px] text-text';
+const area = 'w-full resize-y rounded-[10px] border border-border bg-page p-3 text-[14px] leading-[1.6] text-text focus:border-handle focus:outline-none';
 ---
 
 <Section
   title="Transcription & AI"
   description="Uses your own OpenAI key. You pay OpenAI directly, and the key is stored encrypted on your server."
 />
-<Field label="OpenAI API key" for="openai-key">
-  <div class="relative">
-    <input
-      id="openai-key"
-      name="openai-key"
-      type="password"
-      autocomplete="off"
-      class:list={[inputClass, 'pr-28 font-mono text-[13px]']}
-      value="sk-proj-000000000000000000004f2a"
-    />
-    <span class="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1.5 text-[12px] text-ok">
-      <Dot color="var(--color-ok)" />Connected
-    </span>
-  </div>
-</Field>
-<div class="grid gap-4 sm:grid-cols-2">
-  <Field label="Transcription model" for="tx-model">
-    <Select id="tx-model" name="tx-model" options={transcriptionModels} />
-  </Field>
-  <Field label="Writing model" for="gen-model">
-    <Select id="gen-model" name="gen-model" options={writingModels} />
-  </Field>
-</div>
-
-<div class="h-px bg-line"></div>
-<div>
-  <h2 class="text-[16px] tracking-[-0.01em]">Show voice</h2>
-  <p class="mt-1.5 max-w-[560px] text-[13px] leading-[1.55] text-muted">
-    This guides every title, description and social post Podstudio writes, so the drafts sound like your show.
-  </p>
-</div>
-<Field label="Describe your show’s tone" for="tone">
-  <textarea
-    id="tone"
-    name="tone"
-    rows="3"
-    class="min-h-24 w-full resize-y rounded-lg border border-edge bg-surface p-3 text-[14px] leading-[1.6] focus:border-fg focus:outline-none"
-  >Casual and technical. Broadcast engineering for people who actually do the work. Dry humor, no hype. Short sentences.</textarea>
-</Field>
-<div class="grid gap-4 sm:grid-cols-2">
-  <div class="flex flex-col gap-2">
-    <label for="banned-input" class="text-[12px] text-muted">Never use these words</label>
-    <div class="flex min-h-[42px] flex-wrap gap-1.5 rounded-lg border border-edge bg-surface p-2 focus-within:border-fg" data-chips>
-      {
-        banned.map((w) => (
-          <span class={chip}>
-            {w}
-            <button type="button" aria-label={`Remove ${w}`} class="text-muted hover:text-fg" data-remove>×</button>
-          </span>
-        ))
-      }
-      <input id="banned-input" class="min-w-20 flex-1 bg-transparent px-1 text-[12px] focus:outline-none" placeholder="Add…" data-chip-input />
+<Card label="OpenAI" rows>
+  <Block>
+    <label for="openai-key" class={label}>API key</label>
+    <div class="relative">
+      <input
+        id="openai-key"
+        name="openai-key"
+        type="password"
+        autocomplete="off"
+        class:list={[inputClass, 'pr-28 font-mono text-[13px]']}
+        value="sk-proj-000000000000000000004f2a"
+      />
+      <span class="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-ok uppercase">
+        <Dot color="var(--color-ok)" />Connected
+      </span>
     </div>
-  </div>
-  <Field label="Hashtags to include" for="hashtags">
-    <input id="hashtags" name="hashtags" class={inputClass} value="#broadcast #radioengineering" />
-  </Field>
-</div>
-<div class="flex flex-col gap-2" data-examples>
-  <div class="text-[12px] text-muted">Example posts (paste 2–3 you liked)</div>
-  <textarea
-    rows="2"
-    aria-label="Example post 1"
-    class="w-full resize-y rounded-lg border border-edge bg-surface p-3 text-[13px] leading-[1.6] text-fg-soft focus:border-fg focus:outline-none"
-  >New episode: we rebuilt Studio B in a weekend and only broke one thing. Mostly.</textarea>
-  <button type="button" class="self-start text-[13px] text-muted hover:text-fg" data-add-example>+ Add another</button>
-</div>
-<div class="mt-auto flex justify-end gap-2.5">
+  </Block>
+  <Block class="grid gap-4 sm:grid-cols-2">
+    <div class="flex flex-col gap-2">
+      <label for="tx-model" class={label}>Transcription model</label>
+      <Select id="tx-model" name="tx-model" options={transcriptionModels} />
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="gen-model" class={label}>Writing model</label>
+      <Select id="gen-model" name="gen-model" options={writingModels} />
+    </div>
+  </Block>
+</Card>
+
+<Card label="Show voice" rows>
+  <Block>
+    <label for="tone" class={label}>Describe your show’s tone</label>
+    <textarea id="tone" name="tone" rows="3" class:list={[area, 'min-h-24']}>Casual and technical. Broadcast engineering for people who actually do the work. Dry humor, no hype. Short sentences.</textarea>
+    <p class="help">Guides every title, description and social post Podstudio writes, so the drafts sound like your show.</p>
+  </Block>
+  <Block class="grid gap-4 sm:grid-cols-2">
+    <div class="flex flex-col gap-2">
+      <label for="banned-input" class={label}>Never use these words</label>
+      <div class="flex min-h-10 flex-wrap items-center gap-1.5 rounded-[10px] border border-border bg-page p-1.5 focus-within:border-handle" data-chips>
+        {
+          banned.map((w) => (
+            <span class={chip}>
+              {w}
+              <button type="button" aria-label={`Remove ${w}`} class="text-text-2 hover:text-text" data-remove>×</button>
+            </span>
+          ))
+        }
+        <input id="banned-input" class="min-w-20 flex-1 bg-transparent px-1 text-[14px] placeholder:text-text-3 focus:outline-none" placeholder="Add…" data-chip-input />
+      </div>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="hashtags" class={label}>Hashtags to include</label>
+      <input id="hashtags" name="hashtags" class={inputClass} value="#broadcast #radioengineering" />
+    </div>
+  </Block>
+  <Block data-examples>
+    <div class={label}>Example posts</div>
+    <textarea rows="2" aria-label="Example post 1" class={area}>New episode: we rebuilt Studio B in a weekend and only broke one thing. Mostly.</textarea>
+    <p class="help">Paste two or three you liked.</p>
+    <Button size="sm" variant="ghost" class="self-start" data-add-example>+ Add another</Button>
+  </Block>
+</Card>
+
+<div class="flex justify-end gap-2">
   <Button href="/episodes/142/package">Test on Ep. 142</Button>
   <Button type="submit" variant="primary">Save</Button>
 </div>
 
 <template id="chip-tpl">
-  <span class={chip}><span data-text></span><button type="button" class="text-muted hover:text-fg" data-remove>×</button></span>
+  <span class={chip}><span data-text></span><button type="button" class="text-text-2 hover:text-text" data-remove>×</button></span>
 </template>
 
 <script>
@@ -120,7 +119,7 @@ const chip = 'flex h-6.5 items-center gap-1 rounded-[13px] bg-line px-2.5 text-[
       const next = areas[0].cloneNode() as HTMLTextAreaElement;
       next.value = '';
       next.setAttribute('aria-label', `Example post ${areas.length + 1}`);
-      (e.currentTarget as HTMLElement).before(next);
+      examples.querySelector('.help')!.before(next);
       next.focus();
     });
   }

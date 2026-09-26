@@ -8,7 +8,12 @@ import Section from './Section.astro';
 import Callout from '@/components/ui/Callout.astro';
 import Button from '@/components/ui/Button.astro';
 import CodeBlock from '@/components/ui/CodeBlock.astro';
-import StatusRow from '@/components/ui/StatusRow.astro';
+import Block from '@/components/ui/Block.astro';
+import Card from '@/components/ui/Card.astro';
+import Dot from '@/components/ui/Dot.astro';
+import Row from '@/components/ui/Row.astro';
+import Segmented from '@/components/ui/Segmented.astro';
+import { inputClass } from '@/lib/ui';
 import PreviewStates from '@/components/app/PreviewStates.astro';
 import { server } from '@/data/mock';
 
@@ -28,106 +33,123 @@ const address = `https://${server.address}`;
 const caddyfile = `${server.address} {
     reverse_proxy localhost:4321
 }`;
-const segBtn =
-  'flex h-8 items-center justify-center rounded-md text-[13px] text-muted hover:text-fg has-checked:bg-fg has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-fg';
+const label = 'text-[14px] text-text';
+const value = 'flex items-center gap-2 text-right font-mono text-[13px] text-text';
+const checks = {
+  ok: [
+    ['HTTPS', 'Active', ok],
+    ['Certificate', 'Let’s Encrypt · auto-renews · valid to Dec 18', ok],
+    ['WebSockets', 'Connected through proxy', ok],
+    ['Port 4321', 'Closed to the internet', ok],
+    ['Forwarded headers', 'X-Forwarded-Proto: https', ok],
+  ],
+  warn: [
+    ['HTTPS', 'Active', ok],
+    ['Certificate', 'Let’s Encrypt via Certbot · expires Sep 30', warn],
+    ['WebSockets', 'Connected through proxy', ok],
+    ['Port 4321', 'Closed to the internet', ok],
+  ],
+};
 ---
 
-<div id="domain" class="flex flex-col gap-5.5" data-states="ok,warn,local" data-state="ok">
+<div id="domain" class="flex flex-col gap-10" data-states="ok,warn,local" data-state="ok">
   <Section
     title="Domain & HTTPS"
-    description="Chrome only allows microphone access over HTTPS. Put Podstudio behind a reverse proxy on your own domain so any device can record."
+    description="Browsers only allow the microphone over HTTPS. Put Podstudio behind Caddy on your own domain so any device can record. deploy/install.sh sets it up."
   />
 
   <Callout data-when="ok" size="lg" title="Secure and reachable" color={ok}>
     Every signed-in device can record at {server.address}. Last checked 2 minutes ago.
-    <Button slot="action" class="h-9 px-3.5 text-[13px]">Re-check</Button>
+    <Button slot="action" size="sm">Re-check</Button>
   </Callout>
   <Callout data-when="warn" size="lg" title="Certificate expires in 6 days" color={warn}>
     Certbot’s last automatic renewal failed. If the certificate expires, devices won’t be able to connect or record.
-    <Button slot="action" href="#fix" class="h-9 px-3.5 text-[13px]">How to fix</Button>
+    <Button slot="action" size="sm" href="#fix">How to fix</Button>
   </Callout>
-  <Callout data-when="local" size="lg" title="Local only" color="var(--color-muted)">
+  <Callout data-when="local" size="lg" title="Local only" color="var(--color-text-3)">
     Podstudio serves HTTPS with a self-signed certificate until a domain is set up, so phones, guests and your
     producer on this network can connect. Each device shows a certificate warning the first time: accept it once.
     Add a domain below to get a real certificate from Caddy or Nginx with Certbot.
   </Callout>
 
-  <div class="flex flex-col gap-2" data-when="ok warn">
-    <label for="public-address" class="text-[12px] text-muted">Public address</label>
-    <div class="relative">
-      <input id="public-address" class="min-h-[42px] w-full rounded-lg border border-edge bg-surface px-3 pr-14 font-mono text-[13px] focus:border-fg focus:outline-none" value={address} />
-      <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[12px] text-muted">Edit</span>
-    </div>
-  </div>
-  <div class="flex flex-col gap-2" data-when="local">
-    <label for="your-domain" class="text-[12px] text-muted">Your domain</label>
-    <div class="relative">
-      <input id="your-domain" class="min-h-[42px] w-full rounded-lg border border-edge bg-surface px-3 pr-52 font-mono text-[13px] focus:border-fg focus:outline-none" value={server.address} />
-      <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[12px] text-subtle">A record → 203.0.113.24 ✓</span>
-    </div>
-  </div>
-
-  <div class="flex flex-col gap-2">
-    <div class="text-[12px] text-muted">Reverse proxy</div>
-    {
-      [
-        ['ok', 'caddy'],
-        ['warn', 'nginx'],
-        ['local', 'caddy'],
-      ].map(([state, selected]) => (
-        <div data-when={state} role="radiogroup" aria-label="Reverse proxy" class="grid grid-cols-3 gap-[3px] rounded-lg bg-raised p-[3px]" data-proxy>
-          {proxies.map((p) => (
-            <label class={segBtn}>
-              <input type="radio" name={`proxy-${state}`} value={p.value} checked={p.value === selected} class="sr-only" />
-              {p.label}
-            </label>
-          ))}
-        </div>
-      ))
-    }
-    <div class="text-[12px] text-subtle" data-when="ok warn" data-proxy-hint data-hints={JSON.stringify(Object.fromEntries(proxies.map((p) => [p.value, p.hint])))}></div>
-  </div>
-
-  <div id="fix" class="flex flex-col gap-2" data-when="warn">
-    <div class="flex justify-between font-mono text-[11px] text-faint">
-      <span>Run on your server, then re-check</span>
-      <button type="button" class="font-sans text-[12px] text-muted hover:text-fg" data-copy-code>Copy</button>
-    </div>
-    <CodeBlock code={'sudo certbot renew --dry-run\nsudo systemctl reload nginx'} class="rounded-[10px] px-4 py-3.5" />
-  </div>
-
-  <div class="flex flex-col" data-when="ok">
-    <StatusRow label="HTTPS" value="Active" color={ok} />
-    <StatusRow label="Certificate" value="Let’s Encrypt · auto-renews · valid to Dec 18" color={ok} />
-    <StatusRow label="WebSockets" value="Connected through proxy" color={ok} />
-    <StatusRow label="Port 4321" value="Closed to the internet" color={ok} />
-    <StatusRow label="Forwarded headers" value="X-Forwarded-Proto: https" color={ok} />
-  </div>
-  <div class="flex flex-col" data-when="warn">
-    <StatusRow label="HTTPS" value="Active" color={ok} />
-    <StatusRow label="Certificate" value="Let’s Encrypt via Certbot · expires Sep 30" color={warn} />
-    <StatusRow label="WebSockets" value="Connected through proxy" color={ok} />
-    <StatusRow label="Port 4321" value="Closed to the internet" color={ok} />
-  </div>
-
-  <ol class="flex flex-col gap-3.5" data-when="local">
-    <li class="grid grid-cols-[24px_1fr] gap-3 text-[14px] leading-normal">
-      <span class="font-mono text-[12px] font-medium text-faint">01</span>
-      <div>Install Caddy<div class="meta mt-1 text-muted">sudo apt install caddy</div></div>
-    </li>
-    <li class="grid grid-cols-[24px_1fr] gap-3 text-[14px] leading-normal">
-      <span class="font-mono text-[12px] font-medium text-faint">02</span>
-      <div class="min-w-0">
-        Add this to /etc/caddy/Caddyfile, then run <span class="font-mono text-[12px]">sudo systemctl reload caddy</span>
-        <CodeBlock code={caddyfile} class="mt-2" />
+  <Card label="Address" rows>
+    <Block>
+      <div class="flex flex-col gap-2" data-when="ok warn">
+        <label for="public-address" class={label}>Public address</label>
+        <input id="public-address" class:list={[inputClass, 'font-mono text-[13px]']} value={address} />
       </div>
-    </li>
-    <li class="grid grid-cols-[24px_1fr] gap-3 text-[14px] leading-normal">
-      <span class="font-mono text-[12px] font-medium text-faint">03</span>
-      <div>Open ports 80 and 443 on your router or firewall. Keep 4321 closed.</div>
-    </li>
-  </ol>
-  <div class="mt-auto flex gap-2.5" data-when="local">
+      <div class="flex flex-col gap-2" data-when="local">
+        <label for="your-domain" class={label}>Your domain</label>
+        <input id="your-domain" class:list={[inputClass, 'font-mono text-[13px]']} value={server.address} />
+        <p class="help">A record → <span class="font-mono text-[12px]">203.0.113.24</span> ✓</p>
+      </div>
+    </Block>
+    <Block>
+      <div class={label}>Reverse proxy</div>
+      {
+        [
+          ['ok', 'caddy'],
+          ['warn', 'nginx'],
+          ['local', 'caddy'],
+        ].map(([state, selected]) => (
+          <div data-when={state} data-proxy>
+            <Segmented name={`proxy-${state}`} label="Reverse proxy" value={selected} options={proxies} />
+          </div>
+        ))
+      }
+      <p class="help" data-when="ok warn" data-proxy-hint data-hints={JSON.stringify(Object.fromEntries(proxies.map((p) => [p.value, p.hint])))}></p>
+    </Block>
+  </Card>
+
+  <Card label="Fix it" rows data-when="warn">
+    <Block class="scroll-mt-20" id="fix">
+      <div class="flex items-center justify-between">
+        <span class="help">Run on your server, then re-check</span>
+        <button type="button" class="text-[13px] text-text-2 hover:text-text" data-copy-code>Copy</button>
+      </div>
+      <CodeBlock code={'sudo certbot renew --dry-run\nsudo systemctl reload nginx'} />
+    </Block>
+  </Card>
+
+  {
+    (['ok', 'warn'] as const).map((state) => (
+      <div data-when={state}>
+        <Card label="Checks" rows>
+          {checks[state].map(([title, v, color]) => (
+            <Row title={title}>
+              <span class={value}>
+                <Dot color={color} />
+                {v}
+              </span>
+            </Row>
+          ))}
+        </Card>
+      </div>
+    ))
+  }
+
+  <div data-when="local">
+    <Card label="Set up Caddy" rows>
+      <ol>
+        <li class="mx-5 grid grid-cols-[28px_1fr] gap-3 border-t border-divider py-[18px] text-[14px] leading-normal first:border-t-0">
+          <span class="font-mono text-[13px] text-text-3">01</span>
+          <div>Install Caddy<div class="mt-1 font-mono text-[12px] text-text-2">sudo apt install caddy</div></div>
+        </li>
+        <li class="mx-5 grid grid-cols-[28px_1fr] gap-3 border-t border-divider py-[18px] text-[14px] leading-normal">
+          <span class="font-mono text-[13px] text-text-3">02</span>
+          <div class="min-w-0">
+            Add this to <span class="font-mono text-[12px]">/etc/caddy/Caddyfile</span>, then run <span class="font-mono text-[12px]">sudo systemctl reload caddy</span>
+            <CodeBlock code={caddyfile} class="mt-2" />
+          </div>
+        </li>
+        <li class="mx-5 grid grid-cols-[28px_1fr] gap-3 border-t border-divider py-[18px] text-[14px] leading-normal">
+          <span class="font-mono text-[13px] text-text-3">03</span>
+          <div>Open ports 80 and 443 on your router or firewall. Keep 4321 closed.</div>
+        </li>
+      </ol>
+    </Card>
+  </div>
+  <div class="flex gap-2" data-when="local">
     <Button variant="primary">Check connection</Button>
     <Button href="/settings/general">Skip for now</Button>
   </div>

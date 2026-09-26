@@ -15,9 +15,9 @@ const { name, checked = false, label, size = 16, class: cls } = Astro.props;
   <span
     aria-hidden="true"
     class:list={[
-      'flex flex-none items-center justify-center border border-edge-strong leading-none font-bold text-transparent',
-      'peer-checked:border-fg peer-checked:bg-fg peer-checked:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-fg',
-      { 14: 'mt-px size-3.5 rounded text-[9px]', 16: 'mt-px size-4 rounded text-[11px]', 18: 'size-4.5 rounded-[5px] text-[12px]' }[size],
+      'flex flex-none items-center justify-center border border-handle leading-none font-bold text-transparent',
+      'peer-checked:border-text peer-checked:bg-text peer-checked:text-page peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-fg',
+      { 14: 'mt-px size-3.5 rounded-[4px] text-[9px]', 16: 'mt-px size-4 rounded-[4px] text-[11px]', 18: 'size-4.5 rounded-[4px] text-[12px]' }[size],
     ]}>✓</span
   >
   {label ? <span>{label}</span> : <slot />}

@@ -1,0 +1,14 @@
+---
+/*
+ * A padded block inside a <Card rows>: a field with its label and help, or
+ * anything that isn't a one-line row. Same inset dividers as Row.
+ */
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = { class?: string } & Omit<HTMLAttributes<'div'>, 'class'>;
+const { class: cls, ...rest } = Astro.props;
+---
+
+<div class:list={['mx-5 flex flex-col gap-2 border-t border-divider py-5 first:border-t-0', cls]} {...rest}>
+  <slot />
+</div>

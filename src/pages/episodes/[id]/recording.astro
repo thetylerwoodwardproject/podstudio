@@ -159,7 +159,7 @@ const zones = [
         <span class="w-9 flex-none font-mono text-[10px] tracking-[0.06em] text-subtle" data-mic-tag hidden>MIC</span>
         <span class="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-line" data-level-track>
           {zones.map(([left, width, color]) => (
-            <span class="absolute inset-y-0" style={{ left, width, background: `color-mix(in oklab, ${color} 18%, transparent)` }} />
+            <span class="absolute inset-y-0" style={{ left, width, background: `color-mix(in oklab, ${color} 20%, var(--color-meter-off))` }} />
           ))}
           <span class="absolute inset-y-0 left-0 w-0 rounded-full" data-level-fill></span>
         </span>
@@ -607,7 +607,7 @@ const zones = [
     for (const t of ticks) {
       t.hidden = !m.holdFraction || !!cough;
       t.style.left = `calc(${m.holdFraction * 100}% - 2px)`;
-      t.style.background = clipping ? 'var(--color-rec)' : zone(m.holdDb);
+      t.style.background = clipping ? 'var(--color-rec)' : 'var(--color-text)';
     }
     if (detailsOpen) renderDetails();
     mixer?.host(l.peak);

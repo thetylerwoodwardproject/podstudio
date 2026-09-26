@@ -1,51 +1,46 @@
 ---
 import Section from './Section.astro';
+import Block from '@/components/ui/Block.astro';
 import Button from '@/components/ui/Button.astro';
+import Card from '@/components/ui/Card.astro';
+import Row from '@/components/ui/Row.astro';
 import { inputClass } from '@/lib/ui';
+
+const tag = 'rounded-[4px] border border-border px-2 py-1 font-mono text-[11px] font-medium tracking-[0.06em] uppercase';
 ---
 
 <Section title="Security" description="Two-factor authentication is required for every account on this server." />
-<div data-security>
-  <div class="flex flex-col gap-5.5">
-    <div class="flex items-center justify-between rounded-[10px] border border-line p-4">
-      <div>
-        <div class="flex items-center gap-2 text-[14px]">
-          Authenticator app
-          <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
-        </div>
-        <div class="mt-[3px] text-[12px] text-subtle" data-totp-added>—</div>
+<div class="flex flex-col gap-10" data-security>
+  <Card label="Two-factor" rows>
+    <Row title="Authenticator app" hint="—" data-totp>
+      <span class:list={[tag, 'text-ok']}>On</span>
+      <Button size="sm" variant="ghost" href="/setup/two-factor">Reset</Button>
+    </Row>
+    <Row title="Recovery codes" hint="—" data-recovery>
+      <Button size="sm" data-regenerate>Regenerate</Button>
+      <div slot="below" class="mt-3" data-new-codes hidden>
+        <p class="help">New codes. The old ones no longer work. Save these now; they won't be shown again.</p>
+        <ol class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-[10px] border border-border bg-page p-3 font-mono text-[14px] sm:grid-cols-5" data-code-list></ol>
       </div>
-      <a href="/setup/two-factor" class="text-[13px] text-muted hover:text-fg">Reset</a>
-    </div>
-    <div class="rounded-[10px] border border-line p-4">
-      <div class="flex items-center justify-between">
-        <div>
-          <div class="text-[14px]">Recovery codes</div>
-          <div class="mt-[3px] text-[12px] text-subtle" data-recovery-count>—</div>
-        </div>
-        <button type="button" class="text-[13px] text-muted hover:text-fg" data-regenerate>Regenerate</button>
-      </div>
-      <div class="mt-3" data-new-codes hidden>
-        <p class="text-[12px] text-muted">New codes. The old ones no longer work. Save these now; they won't be shown again.</p>
-        <ol class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-lg bg-raised p-3 font-mono text-[14px] sm:grid-cols-5" data-code-list></ol>
-      </div>
-    </div>
-    <div class="flex flex-col gap-2">
-      <div class="text-[12px] text-muted">Trusted devices <span class="text-subtle">· skip the code at sign-in for 30 days</span></div>
-      <div data-devices><p class="py-3 text-[13px] text-subtle">None</p></div>
-    </div>
-    <details class="group rounded-[10px] border border-line p-4">
-      <summary class="flex cursor-pointer list-none items-center justify-between text-[14px]">
-        Change password <span class="text-[13px] text-muted group-open:hidden">Update</span>
-      </summary>
-      <div class="mt-4 flex max-w-[360px] flex-col gap-3" data-password>
-        <input type="password" name="current" class={inputClass} placeholder="Current password" autocomplete="current-password" aria-label="Current password" />
-        <input type="password" name="new" class={inputClass} placeholder="New password (10+ characters)" autocomplete="new-password" aria-label="New password" />
-        <p class="text-[13px]" role="status" data-password-msg hidden></p>
-        <Button type="button" class="self-start" data-password-save>Save password</Button>
-      </div>
-    </details>
-  </div>
+    </Row>
+  </Card>
+
+  <Card label="Trusted devices" rows>
+    <div data-devices><p class="mx-5 py-[18px] text-[14px] text-text-2">None</p></div>
+  </Card>
+  <p class="help -mt-7">A trusted device skips the code at sign-in for 30 days.</p>
+
+  <Card label="Password" rows>
+    <Block data-password>
+      <label for="pw-current" class="text-[14px] text-text">Current password</label>
+      <input id="pw-current" type="password" name="current" class={inputClass} autocomplete="current-password" />
+      <label for="pw-new" class="mt-2 text-[14px] text-text">New password</label>
+      <input id="pw-new" type="password" name="new" class={inputClass} autocomplete="new-password" />
+      <p class="help">At least 10 characters. Every other browser is signed out when you change it.</p>
+      <p class="text-[13px]" role="status" data-password-msg hidden></p>
+      <Button type="button" size="sm" variant="primary" class="self-start" data-password-save>Save password</Button>
+    </Block>
+  </Card>
 </div>
 
 <script>
@@ -59,23 +54,23 @@ import { inputClass } from '@/lib/ui';
     type Info = { totpAddedAt: number | null; recovery: { unused: number; total: number }; devices: { id: string; label: string; last_used: number }[] };
     const date = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     const render = (s: Info) => {
-      $('[data-totp-added]').textContent = s.totpAddedAt ? `Added ${date(s.totpAddedAt)}` : '';
-      $('[data-recovery-count]').textContent = `${s.recovery.unused} of ${s.recovery.total} unused`;
+      $('[data-totp] [data-row-hint]').textContent = s.totpAddedAt ? `Added ${date(s.totpAddedAt)}` : 'Required for every account';
+      $('[data-recovery] [data-row-hint]').textContent = `${s.recovery.unused} of ${s.recovery.total} unused`;
       $('[data-devices]').replaceChildren(
         ...(s.devices.length
           ? s.devices.map((d) => {
               const row = document.createElement('div');
-              row.className = 'flex items-center justify-between border-b border-line py-3 text-[14px]';
-              row.innerHTML = `<div><span></span><div class="mt-[3px] font-mono text-[11px] text-subtle"></div></div><button type="button" class="text-[13px] text-muted hover:text-fg">Revoke</button>`;
-              row.querySelector('span')!.textContent = d.label;
-              row.querySelector('div > div')!.textContent = `Last used ${date(d.last_used)}`;
+              row.className = 'mx-5 flex items-center justify-between gap-4 border-t border-divider py-[18px] first:border-t-0';
+              row.innerHTML = `<div><div class="text-[14px] text-text" data-d-label></div><div class="mt-0.5 text-[13px] text-text-2" data-d-used></div></div><button type="button" class="h-9 rounded-[10px] border border-rec/70 px-3 text-[14px] text-rec hover:border-rec">Revoke</button>`;
+              row.querySelector('[data-d-label]')!.textContent = d.label;
+              row.querySelector('[data-d-used]')!.textContent = `Last used ${date(d.last_used)}`;
               row.querySelector('button')!.addEventListener('click', async () => {
                 await api(`auth/devices/${d.id}`, { method: 'DELETE' });
                 row.remove();
               });
               return row;
             })
-          : [Object.assign(document.createElement('p'), { className: 'py-3 text-[13px] text-subtle', textContent: 'None' })]),
+          : [Object.assign(document.createElement('p'), { className: 'mx-5 py-[18px] text-[14px] text-text-2', textContent: 'None' })]),
       );
     };
     render(await api<Info>('auth/security'));

@@ -1,8 +1,15 @@
 ---
+/*
+ * Buttons (framework): large 48 / radius 12 for studio actions (Record red,
+ * Retake amber, everything else the control fill); small 36 / radius 10 with
+ * primary (text fill, one per view), secondary (outline), ghost (text-2) and
+ * destructive (red outline).
+ */
 import type { HTMLAttributes } from 'astro/types';
 
 type Props = {
-  variant?: 'primary' | 'secondary' | 'record';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive' | 'record' | 'retake';
+  /** sm and md are the small button (36); lg and xl the large one (48) */
   size?: 'sm' | 'md' | 'lg' | 'xl';
   href?: string;
   class?: string;
@@ -10,20 +17,20 @@ type Props = {
   Omit<HTMLAttributes<'a'>, 'class' | 'type'>;
 
 const { variant = 'secondary', size = 'md', href, class: cls, type = 'button', ...rest } = Astro.props;
+const large = size === 'lg' || size === 'xl';
 
 const classes = [
-  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors disabled:opacity-50',
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors disabled:opacity-40',
+  large ? 'h-12 rounded-[12px] px-5 text-[15px] font-medium' : 'h-9 rounded-[10px] px-3.5 text-[14px]',
   {
-    primary: 'bg-fg font-medium text-ink hover:bg-white hover:text-ink',
-    secondary: 'border border-edge text-fg hover:border-edge-strong hover:bg-raised hover:text-fg',
+    primary: 'bg-text font-medium text-page hover:bg-white hover:text-page',
+    // Large secondary buttons are the control fill; small ones an outline.
+    secondary: large ? 'bg-control text-text hover:bg-[#232326] hover:text-text' : 'border border-border text-text hover:border-handle hover:text-text',
+    ghost: 'text-text-2 hover:text-text',
+    destructive: 'border border-rec/70 text-rec hover:border-rec hover:text-rec',
     record: 'bg-rec font-medium text-white hover:bg-[#ff5a50] hover:text-white',
+    retake: 'bg-warn font-semibold text-page hover:bg-[#ffaa2a] hover:text-page',
   }[variant],
-  {
-    sm: 'h-8 rounded-lg px-3 text-[12px]',
-    md: 'h-10 rounded-lg px-4 text-[14px]',
-    lg: 'h-11 rounded-[10px] px-5.5 text-[14px]',
-    xl: 'h-12 rounded-[10px] px-5 text-[15px]',
-  }[size],
   cls,
 ];
 ---

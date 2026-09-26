@@ -15,20 +15,20 @@ interface Props {
 const { crumbs, avatar = true } = Astro.props;
 ---
 
-<header class="flex h-14 flex-none items-center justify-between gap-4 border-b border-line px-5">
+<header class="flex h-14 flex-none items-center justify-between gap-4 border-b border-divider px-5">
   <div class="flex min-w-0 items-center gap-5.5">
     <Logo />
-    <nav aria-label="Breadcrumb" class="min-w-0 truncate text-[14px] whitespace-nowrap text-muted">
+    <nav aria-label="Breadcrumb" class="min-w-0 truncate text-[15px] whitespace-nowrap text-text-3">
       {
         crumbs.map((c, i) => {
           const last = i === crumbs.length - 1;
           return (
             <>
-              {i > 0 && <span class="mx-1.5 text-edge-strong max-sm:hidden">/</span>}
+              {i > 0 && <span class="mx-1.5 text-handle max-sm:hidden">/</span>}
               {last ? (
-                <span class="text-fg" aria-current="page">{c.label}</span>
+                <span class="text-text-2" aria-current="page">{c.label}</span>
               ) : c.href ? (
-                <a href={c.href} class="text-muted hover:text-fg max-sm:hidden">{c.label}</a>
+                <a href={c.href} class="text-text-3 hover:text-text max-sm:hidden">{c.label}</a>
               ) : (
                 <span class="max-sm:hidden">{c.label}</span>
               )}

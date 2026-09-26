@@ -1,3 +1,3 @@
-/** Shared class string for native inputs styled like the design's fields. */
+/** Input and select (framework): height 40, radius 10, page fill, 1 px border. */
 export const inputClass =
-  'min-h-[42px] w-full rounded-lg border border-edge bg-surface px-3 text-[14px] text-fg placeholder:text-faint focus:border-fg focus:outline-none';
+  'h-10 w-full rounded-[10px] border border-border bg-page px-3 text-[14px] text-text placeholder:text-text-3 focus:border-handle focus:outline-none';

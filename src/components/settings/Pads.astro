@@ -2,16 +2,19 @@
 /*
  * Hotkey pads 1b · Settings → Hotkey pads (or Edit on the rail): the show set,
  * an episode's overrides, and the selected pad's sound, colour and behaviour.
- * Everything is kept in this browser until the server exists (lib/pads.ts).
+ * Stored on the server per show (lib/pads.ts, server/library.ts).
  */
 import Section from './Section.astro';
 import { episode, pkg } from '@/data/mock';
 
+// Framework controls: 40-tall inputs, segmented tracks, 14 labels, 13 help.
 const field = 'flex flex-col gap-2';
-const label = 'text-[12px] text-muted';
-const input = 'h-9 rounded-lg border border-edge bg-surface px-2.5 text-[13px] focus:border-fg focus:outline-none';
-const seg = 'grid gap-[3px] rounded-lg bg-raised p-[3px]';
-const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pressed:bg-fg aria-pressed:text-ink';
+const label = 'text-[14px] text-text';
+const input = 'h-10 rounded-[10px] border border-border bg-page px-3 text-[14px] text-text focus:border-handle focus:outline-none';
+const seg = 'grid gap-[3px] rounded-[10px] border border-border bg-page p-[3px]';
+const segBtn = 'h-8 rounded-[7px] px-2 text-[14px] text-text-2 hover:text-text aria-pressed:bg-text aria-pressed:font-medium aria-pressed:text-page';
+const help = 'text-[13px] leading-normal text-text-2';
+const smallBtn = 'flex h-9 flex-none items-center rounded-[10px] bg-control px-3 text-[14px] text-text hover:bg-nav disabled:opacity-40';
 ---
 
 <Section
@@ -19,42 +22,46 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
   description="Nine sounds on the number keys, for recording on a laptop. They play in your headphones, go under your voice if you want, and are saved as their own Pads track with a marker per press. Wear headphones, so the mic doesn't pick them up."
 />
 <div
-  class="grid gap-8 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]"
+  class="flex flex-col gap-10"
   data-pads-editor
   data-episode={episode.id}
   data-episode-label={episode.label}
   data-bites={JSON.stringify(pkg.soundbites)}
 >
   <div class="flex flex-col gap-3">
+    <h2 class="section-label">Pads</h2>
     <div class:list={[seg, 'grid-cols-2']} role="group" aria-label="Which set">
       <button type="button" class={segBtn} aria-pressed="true" data-layer="show">Show set</button>
       <button type="button" class={segBtn} aria-pressed="false" data-layer="episode">{episode.label} only</button>
     </div>
-    <div class="grid grid-cols-3 gap-2" data-grid></div>
-    <p class="text-[12px] leading-normal text-subtle" data-grid-note>
+    <div class="grid grid-cols-3 gap-2 sm:max-w-[420px]" data-grid></div>
+    <p class={help} data-grid-note>
       Drag to swap keys. The show set is used for every episode, and an episode can override single pads without changing the set.
     </p>
-    <fieldset class="mt-2 flex flex-col gap-3 rounded-xl border border-line p-4">
-      <legend class="px-1 text-[12px] text-muted">Ducking, for every pad that ducks</legend>
+    <h2 class="section-label mt-7">Ducking, for every pad that ducks</h2>
+    <fieldset class="flex flex-col gap-3 rounded-[14px] bg-surface p-5">
+      <legend class="sr-only">Ducking, for every pad that ducks</legend>
       <div class="grid grid-cols-3 gap-3">
-        <label class={field}><span class={label}>Attack, ms</span><input type="number" min="1" max="1000" class={input} data-g="duckAttackMs" /></label>
-        <label class={field}><span class={label}>Release, ms</span><input type="number" min="10" max="5000" class={input} data-g="duckReleaseMs" /></label>
-        <label class={field}><span class={label}>Voice above, dBFS</span><input type="number" min="-70" max="-10" class={input} data-g="threshold" /></label>
+        <label class={field}><span class={label}>Attack <span class="font-mono text-[13px] text-text-3">ms</span></span><input type="number" min="1" max="1000" class:list={[input, 'font-mono text-[13px]']} data-g="duckAttackMs" /></label>
+        <label class={field}><span class={label}>Release <span class="font-mono text-[13px] text-text-3">ms</span></span><input type="number" min="10" max="5000" class:list={[input, 'font-mono text-[13px]']} data-g="duckReleaseMs" /></label>
+        <label class={field}><span class={label}>Voice above <span class="font-mono text-[13px] text-text-3">dBFS</span></span><input type="number" min="-70" max="-10" class:list={[input, 'font-mono text-[13px]']} data-g="threshold" /></label>
       </div>
-      <p class="text-[12px] leading-normal text-subtle">Attack is how fast the pads drop when you start talking, release how fast they come back when you stop. The Pads track is ducked the same way, as you heard it.</p>
+      <p class={help}>Attack is how fast the pads drop when you start talking, release how fast they come back when you stop. The Pads track is ducked the same way, as you heard it.</p>
     </fieldset>
   </div>
 
-  <div class="flex min-w-0 flex-col gap-5 rounded-2xl border border-line p-5" data-detail>
+  <div class="flex min-w-0 flex-col gap-3">
+  <h2 class="section-label">Selected pad</h2>
+  <div class="flex min-w-0 flex-col gap-5 rounded-[14px] bg-surface p-5" data-detail>
     <div class="flex items-start gap-4">
-      <span class="flex size-12 flex-none items-center justify-center rounded-xl font-mono text-[20px] font-medium" data-d-key>1</span>
+      <span class="flex size-12 flex-none items-center justify-center rounded-[12px] font-mono text-[20px] font-medium" data-d-key>1</span>
       <div class="min-w-0 flex-1">
         <input class="w-full bg-transparent text-[18px] focus:outline-none" aria-label="Pad name" placeholder="Name this pad" data-d-name />
-        <p class="mt-0.5 truncate text-[12px] text-muted" data-d-source>No sound yet</p>
+        <p class="mt-0.5 truncate text-[13px] text-text-2" data-d-source>No sound yet</p>
       </div>
-      <button type="button" class="h-9 flex-none rounded-lg border border-edge px-3 text-[13px] hover:bg-raised disabled:opacity-40" data-d-preview disabled>Preview</button>
+      <button type="button" class="h-9 flex-none rounded-[10px] border border-border px-3 text-[14px] text-text hover:border-handle disabled:opacity-40" data-d-preview disabled>Preview</button>
     </div>
-    <canvas class="h-16 w-full rounded-lg bg-raised" height="64" data-d-wave></canvas>
+    <canvas class="h-16 w-full rounded-[10px] bg-page" height="64" data-d-wave></canvas>
 
     <div class={field}>
       <span class={label}>Sound</span>
@@ -66,27 +73,27 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
       </div>
       <div class="flex flex-col gap-2" data-src="bite" hidden>
         <select class={input} aria-label="Soundbite" data-bite></select>
-        <p class="text-[12px] text-subtle" data-bite-note></p>
+        <p class={help} data-bite-note></p>
       </div>
       <div class="flex flex-col gap-2" data-src="clip" hidden>
         <select class={input} aria-label="Session" data-clip-take></select>
         <div class="flex items-center gap-2">
-          <input class:list={[input, 'w-24 font-mono']} placeholder="0:00" aria-label="Clip start" data-clip-from />
-          <span class="text-muted">–</span>
-          <input class:list={[input, 'w-24 font-mono']} placeholder="0:10" aria-label="Clip end" data-clip-to />
-          <button type="button" class="h-9 rounded-lg bg-raised px-3 text-[13px] hover:bg-surface" data-clip-use>Use this range</button>
+          <input class:list={[input, 'w-24 font-mono text-[13px]']} placeholder="0:00" aria-label="Clip start" data-clip-from />
+          <span class="text-text-3">–</span>
+          <input class:list={[input, 'w-24 font-mono text-[13px]']} placeholder="0:10" aria-label="Clip end" data-clip-to />
+          <button type="button" class={smallBtn} data-clip-use>Use this range</button>
         </div>
       </div>
       <div class="flex flex-col gap-2" data-src="upload" hidden>
         <div class="flex flex-wrap items-center gap-2">
-          <label class="flex h-9 cursor-pointer items-center rounded-lg bg-raised px-3 text-[13px] hover:bg-surface">
+          <label class:list={[smallBtn, 'cursor-pointer']}>
             Upload a file
             <input type="file" accept=".wav,.mp3,.m4a,.flac,audio/*" class="sr-only" data-upload />
           </label>
           <select class:list={[input, 'min-w-0 flex-1']} aria-label="From the library" data-library></select>
         </div>
       </div>
-      <p class="text-[12px] text-subtle" data-kind-note>
+      <p class={help} data-kind-note>
         Pick from past episodes' soundbites and clips, or upload WAV, MP3, M4A or FLAC.
       </p>
     </div>
@@ -103,50 +110,51 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
         <button type="button" class={segBtn} aria-pressed="false" data-mode="loop">Loop</button>
         <button type="button" class={segBtn} aria-pressed="false" data-mode="hold">Hold</button>
       </div>
-      <p class="text-[12px] text-subtle" data-mode-note></p>
+      <p class={help} data-mode-note></p>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2">
       <label class={field}>
-        <span class="flex justify-between"><span class={label}>Volume</span><span class="font-mono text-[12px]" data-d-gain-text></span></span>
-        <input type="range" min="-24" max="6" step="1" class="w-full accent-fg" data-d-gain />
+        <span class="flex justify-between"><span class={label}>Volume</span><span class="font-mono text-[13px] text-text" data-d-gain-text></span></span>
+        <input type="range" min="-24" max="6" step="1" class="mt-2 w-full" data-d-gain />
       </label>
       <div class={field}>
-        <span class={label}>Fade in / out, ms</span>
+        <span class={label}>Fade in / out <span class="font-mono text-[13px] text-text-3">ms</span></span>
         <div class="flex gap-2">
-          <input type="number" min="0" max="10000" step="10" class:list={[input, 'w-full']} aria-label="Fade in" data-d-fadein />
-          <input type="number" min="0" max="10000" step="10" class:list={[input, 'w-full']} aria-label="Fade out" data-d-fadeout />
+          <input type="number" min="0" max="10000" step="10" class:list={[input, 'w-full font-mono text-[13px]']} aria-label="Fade in" data-d-fadein />
+          <input type="number" min="0" max="10000" step="10" class:list={[input, 'w-full font-mono text-[13px]']} aria-label="Fade out" data-d-fadeout />
         </div>
       </div>
       <div class={field}>
-        <span class={label}>Trim, seconds</span>
+        <span class={label}>Trim <span class="font-mono text-[13px] text-text-3">s</span></span>
         <div class="flex gap-2">
-          <input type="number" min="0" step="0.1" class:list={[input, 'w-full']} aria-label="Trim start" data-d-trimstart />
-          <input type="number" min="0" step="0.1" class:list={[input, 'w-full']} aria-label="Trim end (0 = end)" placeholder="end" data-d-trimend />
+          <input type="number" min="0" step="0.1" class:list={[input, 'w-full font-mono text-[13px]']} aria-label="Trim start" data-d-trimstart />
+          <input type="number" min="0" step="0.1" class:list={[input, 'w-full font-mono text-[13px]']} aria-label="Trim end (0 = end)" placeholder="end" data-d-trimend />
         </div>
       </div>
       <div class={field}>
         <span class={label}>Duck under your voice</span>
         <div class="flex items-center gap-2">
-          <label class="flex h-9 items-center gap-2 text-[13px]"><input type="checkbox" class="size-4 accent-fg" data-d-duck /> On</label>
-          <input type="number" min="1" max="40" class:list={[input, 'w-20']} aria-label="Duck amount, dB" data-d-duckdb />
-          <span class="text-[12px] text-muted">dB</span>
+          <label class="flex h-10 items-center gap-2 text-[14px]"><input type="checkbox" class="size-4 accent-[var(--color-text)]" data-d-duck /> On</label>
+          <input type="number" min="1" max="40" class:list={[input, 'w-20 font-mono text-[13px]']} aria-label="Duck amount, dB" data-d-duckdb />
+          <span class="font-mono text-[13px] text-text-3">dB</span>
         </div>
       </div>
     </div>
 
-    <div class="flex items-center justify-between gap-3 border-t border-line pt-4">
-      <button type="button" class="text-[13px] text-muted hover:text-rec disabled:opacity-40" data-d-clear>Clear pad</button>
+    <div class="flex items-center justify-between gap-3 border-t border-divider pt-4">
+      <button type="button" class="h-9 rounded-[10px] border border-rec/70 px-3 text-[14px] text-rec hover:border-rec disabled:opacity-40" data-d-clear>Clear pad</button>
       <span class="flex items-center gap-3">
-        <span class="text-[12px] text-subtle" data-d-status></span>
-        <button type="button" class="h-9 rounded-lg bg-fg px-4 text-[13px] font-medium text-ink disabled:opacity-40" data-d-save disabled>Save</button>
+        <span class="text-[13px] text-text-2" data-d-status></span>
+        <button type="button" class="h-9 rounded-[10px] bg-text px-4 text-[14px] font-medium text-page disabled:opacity-40" data-d-save disabled>Save</button>
       </span>
     </div>
   </div>
+  </div>
 </div>
-<p class="text-[12px] leading-normal text-subtle">
-  Kept in this browser until the Podstudio server is set up, then stored per show. Sounds are converted to 48 kHz when
-  added, so a press plays with no delay. Clearing a pad keeps its sound in the library. Put <span class="font-mono">[pad 3]</span>
+<p class="help">
+  Stored per show on the server. Sounds are converted to 48 kHz when
+  added, so a press plays with no delay. Clearing a pad keeps its sound in the library. Put <span class="font-mono text-[12px]">[pad 3]</span>
   on its own line in a script to show a reminder chip there; it never fires by itself.
 </p>
 
@@ -219,8 +227,8 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
           b.type = 'button';
           b.dataset.gridKey = String(k);
           b.draggable = !!p;
-          b.className = 'relative flex aspect-[1.05] min-w-0 flex-col justify-between overflow-hidden rounded-xl p-2.5 text-left transition-shadow';
-          if (k === key) b.style.boxShadow = '0 0 0 2px var(--color-panel), 0 0 0 4px var(--color-fg)';
+          b.className = 'relative flex aspect-[1.05] min-w-0 flex-col justify-between overflow-hidden rounded-[12px] p-2.5 text-left transition-shadow';
+          if (k === key) b.style.boxShadow = '0 0 0 2px var(--color-page), 0 0 0 4px var(--color-text)';
           const pad = p ?? from;
           if (pad) {
             b.style.background = padColor(pad.color);
@@ -231,7 +239,7 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
             b.children[1].textContent = pad.name;
             if (from) b.title = 'From the show set · click to override for this episode';
           } else {
-            b.className += ' border border-dashed border-edge-strong text-subtle hover:border-fg';
+            b.className += ' border border-dashed border-track-off text-text-3 hover:border-handle';
             b.innerHTML = `<span class="font-mono text-[18px] leading-none font-medium">${k}</span><span class="text-[12px] leading-tight">Empty · click to assign</span>`;
           }
           b.addEventListener('click', () => select(k));
@@ -293,7 +301,7 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
       const d = draft;
       const keyEl = $('[data-d-key]');
       keyEl.textContent = String(key);
-      keyEl.style.background = d ? padColor(d.color) : 'var(--color-raised)';
+      keyEl.style.background = d ? padColor(d.color) : 'var(--color-control)';
       keyEl.style.color = d ? PAD_INK : '';
       $<HTMLInputElement>('[data-d-name]').value = d?.name ?? '';
       $('[data-d-source]').textContent = d
@@ -344,7 +352,7 @@ const segBtn = 'h-8 rounded-md px-2 text-[13px] text-muted hover:text-fg aria-pr
         b.role = 'radio';
         b.dataset.color = c;
         b.ariaLabel = c;
-        b.className = 'size-8 rounded-lg aria-checked:shadow-[0_0_0_2px_var(--color-panel),0_0_0_4px_var(--color-fg)] disabled:opacity-40';
+        b.className = 'size-8 rounded-lg aria-checked:shadow-[0_0_0_2px_var(--color-surface),0_0_0_4px_var(--color-text)] disabled:opacity-40';
         b.style.background = padColor(c);
         b.addEventListener('click', () => change({ color: c }));
         return b;

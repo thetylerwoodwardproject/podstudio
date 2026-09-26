@@ -208,7 +208,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     const tick = $('[data-level-hold]');
     tick.hidden = !m.holdFraction;
     tick.style.left = `calc(${m.holdFraction * 100}% - 2px)`;
-    tick.style.background = clipping ? 'var(--color-rec)' : zone(m.holdDb);
+    tick.style.background = clipping ? 'var(--color-rec)' : 'var(--color-text)';
   });
   setInterval(() => {
     peakHold = [...peakHold.slice(-5), windowPeak];

@@ -1,5 +1,5 @@
 ---
-/* Native select styled like the design's fields, with the ▾ marker. */
+/* Select (framework): the input shell (40 / radius 10 / page fill / border) with a chevron. */
 import type { HTMLAttributes } from 'astro/types';
 import { inputClass } from '@/lib/ui';
 
@@ -11,5 +11,7 @@ const { options, class: cls, ...rest } = Astro.props;
   <select class:list={[inputClass, 'appearance-none pr-8']} {...rest}>
     {options.map((o) => <option class="bg-surface">{o}</option>)}
   </select>
-  <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-faint" aria-hidden="true">▾</span>
+  <svg class="pointer-events-none absolute top-1/2 right-3.5 size-3 -translate-y-1/2 text-text-2" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
 </div>
