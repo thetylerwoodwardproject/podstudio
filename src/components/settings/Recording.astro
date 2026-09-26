@@ -126,23 +126,25 @@ const toneSliders = [
     <Switch name="publish-mix" label="Episode file" />
   </Row>
   <Block data-publish-options>
-    <div class={label}>Loudness, <span class="font-mono text-[13px]">LUFS</span></div>
+    <div class="flex items-center justify-between"><span class={label}>Loudness</span><span class="font-mono text-[13px] text-text" data-publish-target>−16 LUFS</span></div>
     <Segmented
       name="publish-loudness"
       label="Loudness"
       value="stereo"
       options={[
-        { value: 'stereo', label: 'Stereo −16' },
-        { value: 'mono', label: 'Mono −19' },
+        { value: 'stereo', label: 'Stereo' },
+        { value: 'mono', label: 'Mono' },
         { value: 'off', label: 'Off' },
       ]}
     />
-    <p class="help">The usual podcast targets: the two sound equally loud. True peaks are kept under <span class="font-mono text-[12px]">−1 dBTP</span> so MP3 encoding doesn't clip. Off only limits the peaks.</p>
+    <p class="help">The usual podcast targets: stereo and mono sound equally loud at these. True peaks are kept under <span class="font-mono text-[12px] whitespace-nowrap">−1 dBTP</span> so MP3 encoding doesn't clip. Off only limits the peaks.</p>
   </Block>
-  <Row title="Level each speaker" hint="Evens out each voice, up to 12 dB, so nobody's quieter than the rest. Makes levelled copies; the originals are kept." data-publish-options>
+  <Row title="Level each speaker" data-publish-options>
+    <Fragment slot="hint">Evens out each voice, by up to <span class="font-mono text-[12px] whitespace-nowrap">12 dB</span>, so nobody's quieter than the rest. Makes levelled copies; the originals are kept.</Fragment>
     <Switch name="publish-level" label="Level each speaker" />
   </Row>
-  <Row title="MP3 too" hint="128 kbps mono or 192 kbps stereo, beside the WAV" data-publish-options>
+  <Row title="MP3 too" data-publish-options>
+    <Fragment slot="hint"><span class="font-mono text-[12px] whitespace-nowrap">128 kbps</span> mono or <span class="font-mono text-[12px] whitespace-nowrap">192 kbps</span> stereo, beside the WAV</Fragment>
     <Switch name="publish-mp3" label="MP3 too" />
   </Row>
 </Card>
@@ -193,7 +195,14 @@ const toneSliders = [
     box('publish-level').checked = p.level;
     box('publish-mp3').checked = p.mp3;
     pub.querySelector<HTMLInputElement>(`[name="publish-loudness"][value="${p.loudness}"]`)!.checked = true;
-    const dim = () => pub.querySelectorAll('[data-publish-options]').forEach((el) => el.classList.toggle('opacity-40', !box('publish-mix').checked));
+    const targets = { stereo: '−16 LUFS', mono: '−19 LUFS', off: 'Off' };
+    const dim = () => {
+      pub.querySelectorAll<HTMLElement>('[data-publish-options]').forEach((el) => {
+        el.classList.toggle('opacity-40', !box('publish-mix').checked);
+        el.inert = !box('publish-mix').checked;
+      });
+      pub.querySelector('[data-publish-target]')!.textContent = targets[pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value as keyof typeof targets];
+    };
     dim();
     pub.addEventListener('change', () => {
       saveSettings('recording', {

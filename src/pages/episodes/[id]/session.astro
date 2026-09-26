@@ -183,23 +183,25 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         <Switch name="pub-mix" label="Episode file" />
       </Row>
       <Block data-pub-options>
-        <div class="text-[14px] text-text">Loudness, <span class="font-mono text-[13px]">LUFS</span></div>
+        <div class="flex items-center justify-between"><span class="text-[14px] text-text">Loudness</span><span class="font-mono text-[13px] text-text" data-pub-target>−16 LUFS</span></div>
         <Segmented
           name="pub-loudness"
           label="Loudness"
           value="stereo"
           options={[
-            { value: 'stereo', label: 'Stereo −16' },
-            { value: 'mono', label: 'Mono −19' },
+            { value: 'stereo', label: 'Stereo' },
+            { value: 'mono', label: 'Mono' },
             { value: 'off', label: 'Off' },
           ]}
         />
-        <p class="help">True peaks stay under <span class="font-mono text-[12px]">−1 dBTP</span>, so encoding doesn't clip. Off only limits the peaks.</p>
+        <p class="help">The usual podcast targets. True peaks stay under <span class="font-mono text-[12px] whitespace-nowrap">−1 dBTP</span>, so encoding doesn't clip. Off only limits the peaks.</p>
       </Block>
-      <Row title="Level each speaker" hint="Evens out each voice, up to 12 dB. Adds a levelled copy of each person's edit; the originals are kept." data-pub-options>
+      <Row title="Level each speaker" data-pub-options>
+        <Fragment slot="hint">Evens out each voice, by up to <span class="font-mono text-[12px] whitespace-nowrap">12 dB</span>. Adds a levelled copy of each person's edit; the originals are kept.</Fragment>
         <Switch name="pub-level" label="Level each speaker" />
       </Row>
-      <Row title="MP3 too" hint="128 kbps mono or 192 kbps stereo" data-pub-options>
+      <Row title="MP3 too" data-pub-options>
+        <Fragment slot="hint"><span class="font-mono text-[12px] whitespace-nowrap">128 kbps</span> mono or <span class="font-mono text-[12px] whitespace-nowrap">192 kbps</span> stereo</Fragment>
         <Switch name="pub-mp3" label="MP3 too" />
       </Row>
     </Card>
@@ -513,7 +515,14 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       box('pub-level').checked = p.level;
       box('pub-mp3').checked = p.mp3;
       form.querySelector<HTMLInputElement>(`[name="pub-loudness"][value="${p.loudness}"]`)!.checked = true;
-      const dim = () => form.querySelectorAll('[data-pub-options]').forEach((el) => el.classList.toggle('opacity-40', !box('pub-mix').checked));
+      const targets = { stereo: '−16 LUFS', mono: '−19 LUFS', off: 'Off' };
+      const dim = () => {
+        form.querySelectorAll<HTMLElement>('[data-pub-options]').forEach((el) => {
+          el.classList.toggle('opacity-40', !box('pub-mix').checked);
+          el.inert = !box('pub-mix').checked;
+        });
+        $('[data-pub-target]').textContent = targets[form.querySelector<HTMLInputElement>('[name="pub-loudness"]:checked')!.value as keyof typeof targets];
+      };
       dim();
       form.addEventListener('change', dim);
     }

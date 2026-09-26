@@ -135,8 +135,8 @@ Recording. Each switch is independent:
 - **Episode file** (on by default). Everyone's edit, and the Pads track if you
   used pads, mixed into `…_Episode.wav`. If pauses are set to split, there's
   one per part (`…_Episode_part2.wav`).
-- **Loudness.** **Stereo −16 LUFS** (the default), **Mono −19 LUFS** (the
-  same loudness heard on one channel), or **Off**. Loudness is measured to
+- **Loudness.** **Stereo** at −16 LUFS (the default), **Mono** at −19 LUFS
+  (the same loudness heard on one channel), or **Off**. Loudness is measured to
   ITU-R BS.1770-4 / EBU R128 (K-weighted, gated), the gain is set to reach the
   target, and a true-peak limiter keeps everything under −1 dBTP so encoding
   to MP3 or AAC doesn't clip. Off mixes and limits only, with no gain. In
@@ -158,6 +158,10 @@ corrected, coughs muted, and cleaned when noise suppression is on. The
 originals are never changed. `…_export.txt` in the zip gives the result,
 for example "Episode: −16.0 LUFS integrated (−21.3 before, gain +5.3 dB),
 stereo, true peak under −1 dBTP; levelling on".
+
+It all runs in your browser, like noise suppression, so the server does no
+extra work. On a recent laptop an hour with two speakers takes about 4
+minutes to mix and level, and about 5 more for the MP3.
 
 ## Hotkey pads
 

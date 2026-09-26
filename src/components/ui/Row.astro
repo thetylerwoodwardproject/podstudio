@@ -3,6 +3,7 @@
  * A row inside a <Card rows> (framework): title in body 14 with optional help
  * in text-2 on the left, whatever's in the slot on the right (a value, a
  * button, a key hint). Rows are 18 / 20 with dividers inset 20 from each side.
+ * The help can be a slot (`slot="hint"`) when it needs markup, like units in mono.
  */
 import type { HTMLAttributes } from 'astro/types';
 
@@ -18,6 +19,7 @@ const { title, hint, monoHint = false, class: cls, ...rest } = Astro.props;
 <div class:list={['mx-5 flex items-center justify-between gap-4 border-t border-divider py-[18px] first:border-t-0', cls]} {...rest}>
   <div class="min-w-0 flex-1">
     <div class="text-[14px] text-text" data-row-title>{title}</div>
+    {Astro.slots.has('hint') && <div class="mt-0.5 text-[13px] text-text-2" data-row-hint><slot name="hint" /></div>}
     {hint && <div class:list={['mt-0.5 text-text-2', monoHint ? 'font-mono text-[12px] break-all' : 'text-[13px]']} data-row-hint>{hint}</div>}
     <slot name="below" />
   </div>
