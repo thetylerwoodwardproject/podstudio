@@ -24,6 +24,7 @@
   --color-page: #0b0b0c; /* app background, input fill */
   --color-surface: #141416; /* cards, sheets, docks */
   --color-nav: #16171a; /* active nav item ("raised" in the framework) */
+  --color-plot: #16171a; /* graph plot area, a step above the card */
   --color-control: #1c1c1f; /* secondary buttons, avatar, selected chip */
   --color-divider: #1c1d20; /* header, sidebar, row dividers */
   --color-border: #26272b; /* inputs, segmented, tags, slider track */
@@ -67,6 +68,7 @@
   --color-spk-red: oklch(68% 0.2 25);
   --color-spk-purple: oklch(70% 0.16 300);
   --color-spk-black: #3a3b3f;
+  --color-spk-pink: oklch(78% 0.13 330); /* graphs: a right channel (framework) */
 
   /* Radius: 4 key hint and checkbox, 7 segment inside, 10 input and small button, 12 large button, 14 card */
   --radius-hint: 4px;

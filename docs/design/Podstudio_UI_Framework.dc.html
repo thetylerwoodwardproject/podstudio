@@ -8,7 +8,8 @@
 <body>
 <x-dc>
 <helmet>
-<style>html,body{margin:0;background:#0b0b0c;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color-scheme:dark}a{color:#ededea}a:hover{color:#b9bbc0}</style>
+<template id="__bundler_thumbnail" data-bg-color="#0b0b0c"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#0b0b0c"></rect><rect x="30" y="30" width="40" height="40" rx="8" fill="#141416"></rect><circle cx="50" cy="50" r="7" fill="#ff453a"></circle></svg></template>
+<style>@keyframes pspin{to{transform:rotate(360deg)}}html,body{margin:0;background:#0b0b0c;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color-scheme:dark}a{color:#ededea}a:hover{color:#b9bbc0}</style>
 </helmet>
 <div style="min-height:100vh;display:flex;flex-direction:column">
   <header style="height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #1c1d20;position:sticky;top:0;background:#0b0b0c;z-index:5">
@@ -25,6 +26,7 @@
       <a href="#buttons" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Buttons</a>
       <a href="#surfaces" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Surfaces &amp; rows</a>
       <a href="#status" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Status &amp; meters</a>
+      <a href="#graphs" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Graphs &amp; calibration</a>
       <a href="#shell" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">App shell</a>
       <a href="#copy" style="height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;font-size:14px;color:#8a8c91;text-decoration:none">Writing</a>
     </nav>
@@ -236,6 +238,64 @@
           </div>
         </section>
 
+        <section id="graphs" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
+          <div style="font-size:13px;font-weight:500;color:#8a8c91">Graphs &amp; calibration</div>
+          <div style="background:#141416;border-radius:14px;padding:14px 20px;display:flex;align-items:center;gap:14px">
+            <span style="width:16px;height:16px;flex:none;border-radius:50%;border:2px solid #2a2b2f;border-top-color:#ff9f0a;box-sizing:border-box;animation:pspin 0.9s linear infinite"></span>
+            <div style="display:flex;flex-direction:column;gap:2px;flex:1"><span style="font-size:14px">Measuring your room</span><span style="font-size:13px;color:#8a8c91">Playing test tones through each speaker. Keep the room quiet while it runs.</span></div>
+            <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#6a6c71">GEN 0</span>
+          </div>
+          <div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:12px">
+            <div style="background:#141416;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:3px"><span style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="width:8px;height:8px;border-radius:50%;background:{{ chColor }}"></span>{{ chName }}</span><span style="font-size:12px;color:#6a6c71">Speaker {{ chIndex }} of 2</span></div>
+              <div style="display:flex;gap:14px;align-items:flex-end;flex:1">
+                <div style="width:14px;height:140px;border-radius:4px;background:#1f2023;position:relative;overflow:hidden;flex:none"><div style="position:absolute;left:0;right:0;bottom:0;background:{{ chColor }};height:{{ lvlPct }}"></div></div>
+                <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:0.06em;color:#6a6c71">LEVEL</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:28px;font-weight:500">{{ lvlText }}<span style="font-size:13px;color:#8a8c91"> dB</span></span><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8a8c91"><span style="width:6px;height:6px;border-radius:50%;background:#ff9f0a"></span>Measuring this speaker</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:#8a8c91"><span>Measuring</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace">{{ progText }}</span></div>
+                <div style="height:4px;border-radius:2px;background:#26272b;overflow:hidden"><div style="height:100%;border-radius:2px;background:#ff9f0a;width:{{ progPct }}"></div></div>
+              </div>
+              <button style="height:36px;border-radius:10px;border:1px solid rgba(255,69,58,0.4);background:transparent;color:#ff453a;font:inherit;font-size:13px;cursor:pointer">Stop calibration</button>
+            </div>
+            <div style="background:#16171a;border-radius:14px;padding:16px 16px 28px 44px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-left:-28px">
+                <div style="display:flex;padding:3px;gap:3px;background:#0b0b0c;border:1px solid #26272b;border-radius:10px">
+                  <sc-for list="{{ chOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:28px;padding:0 12px;border:0;border-radius:7px;font:inherit;font-size:12px;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }};font-weight:{{ o.fw }}">{{ o.label }}</button></sc-for>
+                </div>
+                <div style="display:flex;gap:16px;font-size:12px;color:#8a8c91">
+                  <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:2px;background:#ededea"></span>Target</span>
+                  <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:2px;background:{{ chColor }}"></span>Measured</span>
+                  <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:2px;background:linear-gradient(90deg,#ff9f0a,#ff453a)"></span>Spectrum</span>
+                </div>
+              </div>
+              <div style="position:relative;height:260px">
+                <sc-for list="{{ hLines }}" as="g" hint-placeholder-count="7">
+                  <div style="position:absolute;left:0;right:0;height:1px;top:{{ g.top }};background:{{ g.c }}"></div>
+                  <span style="position:absolute;left:-40px;width:34px;text-align:right;transform:translateY(-50%);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;color:#6a6c71;top:{{ g.top }}">{{ g.label }}</span>
+                </sc-for>
+                <sc-for list="{{ vLines }}" as="g" hint-placeholder-count="20">
+                  <div style="position:absolute;top:0;bottom:0;width:1px;left:{{ g.left }};background:{{ g.c }}"></div>
+                  <span style="position:absolute;bottom:-20px;transform:translateX(-50%);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;color:#6a6c71;left:{{ g.left }}">{{ g.label }}</span>
+                </sc-for>
+                <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:hidden">
+                  <defs><linearGradient id="specGrad" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#ff453a"></stop><stop offset="0.12" stop-color="#ff9f0a"></stop><stop offset="0.75" stop-color="#ff9f0a"></stop><stop offset="1" stop-color="#ff453a"></stop></linearGradient></defs>
+                  <path d="{{ specPath }}" fill="none" stroke="url(#specGrad)" stroke-width="1.25" vector-effect="non-scaling-stroke" opacity="0.85"></path>
+                  <path d="{{ targetPath }}" fill="none" stroke="#ededea" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+                  <path d="{{ measPath }}" fill="none" stroke="{{ chColor }}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:10px;font-size:13px;color:#8a8c91;line-height:1.5">
+            <span style="font-size:14px;color:#ededea">Graph rules</span>
+            <span>The plot area is #16171a, a step above the card. The frequency axis is logarithmic from 20 Hz to 20 kHz; the dB axis runs ±24 with a line every 6 dB. Axis labels are mono 10 in text-3.</span>
+            <span>Major grid lines (decades, 1-2-5 steps) are #26272b and minor lines are #1c1d20. The 0 dB line is #3a3b3f.</span>
+            <span>The target curve is always text (#ededea) at 2px. The measured curve takes the channel's speaker color at 2px. The live spectrum is a thin amber line that turns red at the extremes, at 85% opacity, and always sits behind the curves.</span>
+            <span>Channel level uses a 14px vertical bar in the speaker color. Progress bars are amber, 4px tall. Stop is a destructive outline button, never a solid red fill.</span>
+          </div>
+        </section>
+
         <section id="shell" style="display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px">
           <div style="font-size:13px;font-weight:500;color:#8a8c91">App shell</div>
           <div style="border:1px solid #1c1d20;border-radius:14px;overflow:hidden;background:#0b0b0c">
@@ -272,12 +332,34 @@
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { seg: 'Mono', on: true, lvl: -20, chips: { Retake: true, Cough: false, 'Ad-lib': false } };
+  state = { ch: 'Left', seg: 'Mono', on: true, lvl: -20, chips: { Retake: true, Cough: false, 'Ad-lib': false } };
   renderVals() {
     const s = this.state;
+    const X = f => Math.log10(f / 20) / 3 * 1000, Y = db => (24 - db) / 48 * 300;
+    const fs = Array.from({ length: 240 }, (_, i) => 20 * Math.pow(1000, i / 239));
+    const path = fn => fs.map((f, i) => (i ? 'L' : 'M') + X(f).toFixed(1) + ' ' + Y(Math.max(-24, Math.min(24, fn(f)))).toFixed(1)).join(' ');
+    const g = (f, c, w, a) => a * Math.exp(-Math.pow(Math.log2(f / c) / w, 2));
+    const left = s.ch === 'Left';
+    const hp = f => f < 60 ? -24 * Math.log2(60 / f) : 0;
+    const target = f => f < 70 ? 6 - 24 * Math.log2(70 / f) : f < 1000 ? 6 * (1 - Math.log2(f / 70) / Math.log2(1000 / 70)) : 0;
+    const meas = left
+      ? f => hp(f) + 5 + g(f, 180, 0.6, 2) - g(f, 900, 0.4, 7) - g(f, 1300, 0.3, 9) + g(f, 4500, 0.7, 7) - g(f, 12000, 0.6, 9) - Math.max(0, Math.log2(f / 9000)) * 8
+      : f => hp(f) + g(f, 120, 0.5, 2) - g(f, 500, 0.4, 5) - g(f, 1100, 0.3, 8) + g(f, 3500, 0.9, 5) - g(f, 6800, 0.3, 4) - Math.max(0, Math.log2(f / 8000)) * 10;
+    const rnd = i => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+    const spec = f => { const i = fs.indexOf(f); return 20 + (rnd(i) - 0.5) * (f < 400 ? 4 : 1.5) - (f < 40 ? 6 : 0) - Math.max(0, Math.log2(f / 10000)) * 4; };
+    const chColor = left ? 'oklch(90.16% 0.173 188.71)' : 'oklch(78% 0.13 330)';
+    const major = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const minor = [30, 40, 60, 70, 80, 90, 300, 400, 600, 700, 800, 900, 3000, 4000, 6000, 7000, 8000, 9000];
+    const fl = f => f >= 1000 ? f / 1000 + 'k' : f + '';
     const zone = f => f < 0.375 ? '#30d158' : f < 0.75 ? '#ff9f0a' : '#ff453a';
     const pct = (s.lvl + 40) / 40;
     return {
+      ch: s.ch, chColor, chName: s.ch + ' channel', chIndex: left ? 1 : 2,
+      chOpts: ['Left', 'Right'].map(o => ({ label: o, bg: s.ch === o ? '#ededea' : 'transparent', fg: s.ch === o ? '#0b0b0c' : '#8a8c91', fw: s.ch === o ? 500 : 400, pick: () => this.setState({ ch: o }) })),
+      lvlText: left ? '−38.2' : '−40.7', lvlPct: left ? '48%' : '40%', progText: left ? '64%' : '3%', progPct: left ? '64%' : '3%',
+      targetPath: path(target), measPath: path(meas), specPath: path(spec),
+      hLines: [18, 12, 6, 0, -6, -12, -18].map(d => ({ top: Y(d) / 3 + '%', label: (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d), c: d === 0 ? '#3a3b3f' : '#1c1d20' })),
+      vLines: [...major.map(f => ({ left: X(f) / 10 + '%', label: fl(f), c: '#26272b' })), ...minor.map(f => ({ left: X(f) / 10 + '%', label: '', c: '#1c1d20' }))],
       neutrals: [
         ['Page', '#0b0b0c', 'App background, input fill'], ['Surface', '#141416', 'Cards, sheets, docks'], ['Raised', '#16171a', 'Active nav item, meter card'], ['Control', '#1c1c1f', 'Secondary buttons, avatar, on-chip'],
         ['Divider', '#1c1d20', 'Header, sidebar, row dividers'], ['Border', '#26272b', 'Inputs, segmented, tags, slider track'], ['Track off', '#2a2b2f', 'Toggle off, dashed empty'], ['Handle', '#3a3b3f', 'Grab handle, hover border'],

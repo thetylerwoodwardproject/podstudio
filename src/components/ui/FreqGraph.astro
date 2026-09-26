@@ -1,0 +1,49 @@
+---
+/*
+ * Frequency graph (framework: Graphs & calibration): a card with an optional
+ * channel switch and a legend, and the plot below, drawn by lib/graph-view.ts
+ * (mountGraph). Log frequency 20 Hz to 20 kHz, ±24 dB with a line every 6.
+ */
+import Segmented from './Segmented.astro';
+
+interface Props {
+  /** Channel names for a switch above the plot (e.g. Left, Right); its radios are named `${name}-channel` */
+  channels?: string[];
+  name?: string;
+  /** Which curves the legend lists */
+  legend?: ('target' | 'measured' | 'spectrum')[];
+  /** Colour of the measured curve in the legend */
+  measuredColor?: string;
+  label?: string;
+  class?: string;
+}
+const { channels, name = 'graph', legend = ['target', 'measured', 'spectrum'], measuredColor = 'var(--color-spk-teal)', label = 'Frequency response', class: cls } = Astro.props;
+const keys = {
+  target: { text: 'Target', color: 'var(--color-text)' },
+  measured: { text: 'Measured', color: measuredColor },
+  spectrum: { text: 'Spectrum', color: 'var(--color-warn)' },
+};
+---
+
+<div class:list={['flex min-w-0 flex-col gap-4 rounded-[14px] bg-surface p-5', cls]} data-graph data-graph-label={label}>
+  {
+    (channels || legend.length > 0) && (
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        {channels ? (
+          <Segmented class="w-auto" name={`${name}-channel`} label="Channel" value={channels[0].toLowerCase()} options={channels.map((c) => ({ value: c.toLowerCase(), label: c }))} />
+        ) : (
+          <span />
+        )}
+        <ul class="flex flex-wrap items-center gap-4 text-[12px] text-text-2">
+          {legend.map((k) => (
+            <li class="flex items-center gap-2">
+              <span class="h-0.5 w-4 rounded-full" style={{ background: keys[k].color }} data-legend={k} />
+              {keys[k].text}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+  <div class="h-[280px] min-w-0" data-graph-plot></div>
+</div>

@@ -1,0 +1,97 @@
+---
+/*
+ * The framework's graph parts, live (Graphs & calibration): a status card, a
+ * channel panel and a frequency graph with example curves and a moving
+ * spectrum. For review, like /screens; nothing in the app uses them yet.
+ */
+import Base from '@/layouts/Base.astro';
+import Logo from '@/components/ui/Logo.astro';
+import FreqGraph from '@/components/ui/FreqGraph.astro';
+import StatusCard from '@/components/ui/StatusCard.astro';
+---
+
+<Base title="Graphs">
+  <main class="mx-auto flex max-w-[960px] flex-col gap-10 px-4 py-12 lg:px-6">
+    <div class="flex flex-col gap-3">
+      <Logo />
+      <h1 class="page-title">Graphs &amp; calibration</h1>
+      <p class="help">The framework's graph parts with example data. See docs/ui-framework.md.</p>
+    </div>
+    <section class="flex flex-col gap-3">
+      <StatusCard title="Measuring your room" help="Playing test tones through each speaker. Keep the room quiet while it runs." tag="Gen 0" />
+      <div class="grid gap-3 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <!-- Channel panel -->
+        <div class="flex flex-col gap-4 rounded-[14px] bg-surface p-[18px]" data-channel-panel>
+          <div class="flex flex-col gap-0.5">
+            <span class="flex items-center gap-2 text-[14px] text-text"><span class="size-2 rounded-full" data-ch-dot></span><span data-ch-name>Left channel</span></span>
+            <span class="text-[12px] text-text-3" data-ch-index>Speaker 1 of 2</span>
+          </div>
+          <div class="flex flex-1 items-end gap-3.5">
+            <div class="relative h-[140px] w-3.5 flex-none overflow-hidden rounded-[4px] bg-meter-off">
+              <div class="absolute inset-x-0 bottom-0" data-ch-bar></div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-text-3">LEVEL</span>
+              <span class="font-mono text-[28px] leading-none font-medium text-text"><span data-ch-db>−38.2</span><span class="text-[13px] text-text-2"> dB</span></span>
+              <span class="flex items-center gap-1.5 text-[12px] text-text-2"><span class="size-1.5 rounded-full bg-warn"></span>Measuring this speaker</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <div class="flex justify-between text-[12px] text-text-2"><span>Measuring</span><span class="font-mono" data-ch-progress-text>64%</span></div>
+            <span class="h-1 overflow-hidden rounded-full bg-border"><span class="block h-full rounded-full bg-warn" style="width:64%" data-ch-progress></span></span>
+          </div>
+          <button type="button" class="h-9 rounded-[10px] border border-rec/70 text-[14px] text-rec hover:border-rec">Stop calibration</button>
+        </div>
+        <FreqGraph channels={['Left', 'Right']} name="demo" />
+      </div>
+    </section>
+  </main>
+</Base>
+
+<script>
+  import { mountGraph } from '@/lib/graph-view';
+  import type { Point } from '@/lib/graph';
+
+  const graph = mountGraph(document.querySelector<HTMLElement>('[data-graph]')!);
+  // Example curves: a target with a bass shelf, and each speaker's measured response.
+  const freqs = Array.from({ length: 200 }, (_, i) => 20 * 1000 ** (i / 199));
+  const target: Point[] = freqs.map((f) => [f, f < 45 ? -30 + (Math.log2(f / 20) / Math.log2(45 / 20)) * 35 : f < 1000 ? 5 - (Math.log10(f / 45) / Math.log10(1000 / 45)) * 5 : 0]);
+  const bump = (f: number, at: number, width: number, db: number) => db * Math.exp(-((Math.log2(f / at) / width) ** 2));
+  const shapes = {
+    left: { color: 'var(--color-spk-teal)', name: 'Left channel', index: 1, f: (f: number) => (f < 50 ? -30 + (f - 20) : 0) + bump(f, 100, 0.8, 5) + bump(f, 1300, 0.4, -5) + bump(f, 4200, 0.5, 12) + bump(f, 14000, 0.6, -8) },
+    right: { color: 'var(--color-spk-pink)', name: 'Right channel', index: 2, f: (f: number) => (f < 55 ? -30 + (f - 20) * 0.9 : 0) + bump(f, 110, 0.7, 3) + bump(f, 800, 0.5, -6) + bump(f, 3000, 0.6, 5) + bump(f, 7000, 0.5, 3) - (f > 9000 ? (f - 9000) / 700 : 0) },
+  };
+  const panel = document.querySelector<HTMLElement>('[data-channel-panel]')!;
+  let channel: keyof typeof shapes = 'left';
+  const show = () => {
+    const s = shapes[channel];
+    graph.set({ target, measured: [{ points: freqs.map((f) => [f, s.f(f)]), color: s.color }] });
+    panel.querySelector<HTMLElement>('[data-ch-dot]')!.style.background = s.color;
+    panel.querySelector('[data-ch-name]')!.textContent = s.name;
+    panel.querySelector('[data-ch-index]')!.textContent = `Speaker ${s.index} of 2`;
+    document.querySelector<HTMLElement>('[data-legend=measured]')!.style.background = s.color;
+  };
+  document.querySelectorAll<HTMLInputElement>('[name="demo-channel"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      channel = r.value as keyof typeof shapes;
+      show();
+    }),
+  );
+  show();
+  // A moving spectrum, like pink noise through a room, with the level bar.
+  const tick = () => {
+    const pts: Point[] = [];
+    for (let i = 0; i < 160; i++) {
+      const f = 20 * 1000 ** (i / 159);
+      pts.push([f, 16 - (f < 50 ? (50 - f) / 4 : 0) - (f > 8000 ? (f - 8000) / 2500 : 0) + (Math.random() - 0.5) * 2.5]);
+    }
+    graph.set({ spectrum: pts });
+    const db = -38 + (Math.random() - 0.5) * 3;
+    panel.querySelector('[data-ch-db]')!.textContent = db.toFixed(1).replace('-', '−');
+    const bar = panel.querySelector<HTMLElement>('[data-ch-bar]')!;
+    bar.style.height = `${Math.max(0, (db + 60) / 60) * 100}%`;
+    bar.style.background = shapes[channel].color;
+  };
+  tick();
+  setInterval(tick, 150);
+</script>

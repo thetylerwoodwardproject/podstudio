@@ -1,0 +1,29 @@
+---
+/*
+ * Status card (framework: Graphs & calibration): a 16 px spinner (track-off
+ * ring, amber arc) while something runs, the title with help under it, and
+ * an optional mono caps tag on the right. `done` swaps the spinner for a dot.
+ */
+interface Props {
+  title: string;
+  help?: string;
+  tag?: string;
+  done?: boolean;
+  class?: string;
+}
+const { title, help, tag, done = false, class: cls } = Astro.props;
+---
+
+<div class:list={['flex items-center gap-3.5 rounded-[14px] bg-surface px-5 py-3.5', cls]} role="status" data-status-card>
+  <span
+    class="size-4 flex-none animate-[spin_0.9s_linear_infinite] rounded-full border-2 border-track-off border-t-warn data-[done]:animate-none data-[done]:border-ok data-[done]:bg-ok"
+    aria-hidden="true"
+    data-status-spinner
+    data-done={done ? '' : undefined}
+  ></span>
+  <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+    <span class="text-[14px] text-text" data-status-title>{title}</span>
+    {help && <span class="help" data-status-help>{help}</span>}
+  </div>
+  {tag && <span class="flex-none font-mono text-[11px] font-medium tracking-[0.06em] text-text-3 uppercase" data-status-tag>{tag}</span>}
+</div>
