@@ -76,11 +76,11 @@ Every feature in detail: [docs/features.md](docs/features.md).
 <table>
   <tr>
     <td width="50%"><img src="docs/images/recording-more.png" alt="The More panel while recording: pause, text size, sections, the mic and what's saved"></td>
-    <td width="50%"><img src="docs/images/export.png" alt="Export: the raw WAV with markers, the assembled edit, marker tones and noise suppression"></td>
+    <td width="50%"><img src="docs/images/export.png" alt="Export as steps: Edit, Noise, Tone, Loudness, Export, with a preview at the bottom"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>More</b>: pause, text size, jump to a section, the mic and what's saved</sub></td>
-    <td align="center"><sub><b>Export</b>: raw WAV with markers, the assembled edit, noise suppression</sub></td>
+    <td align="center"><sub><b>Export</b>: one step at a time, with a before-and-after preview of each</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/script.png" alt="The script editor, with sections and the running word count"></td>
@@ -99,8 +99,8 @@ Every feature in detail: [docs/features.md](docs/features.md).
       <h3>On a phone, too</h3>
       <p>The same control bar works on a phone: Cough, Retake and Ad-lib under your thumb, the level meter above them, and the script taking the rest of the screen. iPhones and iPads with iOS 17 or later record through Safari or any other browser; Android works in Chrome.</p>
       <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
-      <img src="docs/images/saved.png" alt="Session saved: length, markers, size and format">
-      <p><sub><b>Session saved</b>: length, markers, file size, and how much is already on the server</sub></p>
+      <img src="docs/images/saved.png" alt="Session saved: the raw WAV and edit, with a player and Export">
+      <p><sub><b>Session saved</b>: length, markers, file size, what's on the server, and a player (original or cleaned)</sub></p>
     </td>
   </tr>
 </table>

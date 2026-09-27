@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><style>body{margin:0;background:#070708;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif}a{color:#ededea}a:hover{color:#8a8c91}</style></helmet>
+<section style="padding:48px;display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:760px">
+    <div style="font-size:20px;font-weight:500">Export, step by step</div>
+    <div style="font-size:14px;line-height:1.5;color:#8a8c91;text-wrap:pretty">Five steps in processing order: Edit, Noise, Tone, Loudness, Export. Noise now comes before tone, since EQ and compression can't remove it. The preview bar on every step plays 30 s through the chain so far, with a before/after switch for that step. On Noise, "Removed" plays only what's being taken out. Tabs let you go back to any step you've reached.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+    <div id="1a" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1a</span><span style="font-size:13px;color:#8a8c91">Desktop</span></div>
+      <div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #26272b">
+        <dc-import name="Export Flow" hint-size="1280px,860px" style="width:100%;height:100%"></dc-import>
+      </div>
+    </div>
+    <div id="1b" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1b</span><span style="font-size:13px;color:#8a8c91">Mobile</span></div>
+      <div style="width:390px;height:844px;border-radius:40px;overflow:hidden;border:8px solid #1c1c1f">
+        <dc-import name="Export Flow" mobile="{{ true }}" hint-size="374px,828px" style="width:100%;height:100%"></dc-import>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

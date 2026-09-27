@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><style>body{margin:0;background:#070708;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased}a{color:#ededea}a:hover{color:#8a8c91}*{box-sizing:border-box}</style></helmet>
+<section style="padding:48px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:760px">
+    <div style="font-size:20px;font-weight:500">Step flow, applied elsewhere</div>
+    <div style="font-size:14px;line-height:1.5;color:#8a8c91;text-wrap:pretty">These use the same tabs, before/after switch and bottom bar as <a href="Export Steps.dc.html">Export Steps</a>. The mockups are static. Mic check (1a) also has a mobile version (1b).</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+
+    <div id="1a" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1a</span><span style="font-size:13px;color:#8a8c91">Mic check · step 04 Noise</span></div>
+      <div style="width:760px;height:640px;border-radius:14px;overflow:hidden;border:1px solid #26272b;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span><span style="font-size:14px;color:#6a6c71">Mic check</span></div>
+        <div style="flex:none;border-bottom:1px solid #1c1d20;padding:0 20px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px">
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">01</span><span style="font-size:14px;color:#8a8c91">Input</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">02</span><span style="font-size:14px;color:#8a8c91">Level</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">03</span><span style="font-size:14px;color:#8a8c91">Test</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px;border-bottom:2px solid #ededea"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#ededea">04</span><span style="font-size:14px">Noise</span></div>
+        </div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:26px;font-weight:500;letter-spacing:-.01em">Room noise</div><div style="font-size:14px;line-height:1.5;color:#8a8c91">Measured from your 10-second test. The setting you pick here carries over to Export.</div></div>
+          <div style="background:#141416;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+            <div style="flex:1"><div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:14px">Noise floor</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:#ff9f0a">−47 dBFS</span></div><div style="font-size:13px;color:#8a8c91;margin-top:2px">Audible fan and hum. Suggested: 40 %.</div></div>
+            <div style="height:36px;padding:0 14px;border-radius:10px;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;display:flex;align-items:center">Using 40 %</div>
+          </div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between"><span style="font-size:14px">Suppression</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">40 %</span></div>
+            <div style="height:20px;position:relative"><div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div><div style="position:absolute;left:0;top:8px;height:4px;width:40%;border-radius:2px;background:#ededea"></div><div style="position:absolute;top:2px;left:40%;margin-left:-8px;width:16px;height:16px;border-radius:999px;background:#ededea"></div></div>
+            <div style="font-size:13px;color:#8a8c91">Background −16 dB</div>
+          </div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="width:40px;height:40px;flex:none;border-radius:999px;background:#ededea;display:flex;align-items:center;justify-content:center;padding-left:3px"><span style="border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:12px"><span style="flex:1;font-size:13px;color:#8a8c91">Test recording → Noise 40 %</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">0:03 / 0:10</span></div><div style="height:3px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:30%;border-radius:2px;background:#ededea"></div></div></div>
+          <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Original</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">Cleaned</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Removed</span></div>
+          <div style="width:1px;height:28px;background:#26272b"></div>
+          <div style="height:36px;padding:0 16px;border-radius:10px;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;display:flex;align-items:center">Start recording</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1b" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1b</span><span style="font-size:13px;color:#8a8c91">Mic check · mobile</span></div>
+      <div style="width:390px;height:844px;border-radius:40px;overflow:hidden;border:8px solid #1c1c1f;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Mic check</span></div>
+        <div style="flex:none;border-bottom:1px solid #1c1d20;padding:0 12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))">
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">01</span><span style="font-size:13px;color:#8a8c91">Input</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">02</span><span style="font-size:13px;color:#8a8c91">Level</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">03</span><span style="font-size:13px;color:#8a8c91">Test</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px;border-bottom:2px solid #ededea"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500">04</span><span style="font-size:13px">Noise</span></div>
+        </div>
+        <div style="flex:1;padding:24px 16px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:24px;font-weight:500">Room noise</div><div style="font-size:14px;line-height:1.5;color:#8a8c91">Carries over to Export.</div></div>
+          <div style="background:#141416;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:14px">Noise floor</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:#ff9f0a">−47 dBFS</span></div>
+            <div style="font-size:13px;color:#8a8c91">Audible fan and hum. Suggested: 40 %.</div>
+          </div>
+          <div style="background:#141416;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between"><span style="font-size:14px">Suppression</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">40 %</span></div>
+            <div style="height:20px;position:relative"><div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div><div style="position:absolute;left:0;top:8px;height:4px;width:40%;border-radius:2px;background:#ededea"></div><div style="position:absolute;top:2px;left:40%;margin-left:-8px;width:16px;height:16px;border-radius:999px;background:#ededea"></div></div>
+          </div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:14px 16px 20px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;flex:none;border-radius:999px;background:#ededea;display:flex;align-items:center;justify-content:center;padding-left:3px"><span style="border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:8px"><span style="flex:1;font-size:13px;color:#8a8c91">Test → Noise 40 %</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">0:03</span></div><div style="height:3px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:30%;border-radius:2px;background:#ededea"></div></div></div></div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8a8c91">Original</span><span style="height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">Cleaned</span><span style="height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8a8c91">Removed</span></div>
+          <div style="display:flex;gap:8px"><div style="height:48px;padding:0 20px;border-radius:12px;background:#1c1c1f;font-size:15px;display:flex;align-items:center">Back</div><div style="flex:1;height:48px;border-radius:12px;background:#ededea;color:#0b0b0c;font-size:15px;font-weight:500;display:flex;align-items:center;justify-content:center">Start recording</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1c" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1c</span><span style="font-size:13px;color:#8a8c91">Wrapping up · step 02 Line up</span></div>
+      <div style="width:760px;height:640px;border-radius:14px;overflow:hidden;border:1px solid #26272b;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span><span style="font-size:14px;color:#6a6c71">Ep. 142 / Wrapping up</span></div>
+        <div style="flex:none;border-bottom:1px solid #1c1d20;padding:0 20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px">
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">01</span><span style="font-size:14px;color:#8a8c91">Uploads</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px;border-bottom:2px solid #ededea"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500">02</span><span style="font-size:14px">Line up</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#6a6c71">03</span><span style="font-size:14px;color:#8a8c91">Review</span></div>
+        </div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:26px;font-weight:500;letter-spacing:-.01em">Line up tracks</div><div style="font-size:14px;line-height:1.5;color:#8a8c91">Aligned using the clap at 0:04. Listen to Both; if the voices echo, nudge the guest.</div></div>
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px"><span style="width:8px;height:8px;border-radius:999px;background:oklch(85% 0.17 90)"></span><span style="font-size:14px;width:90px">Tyler</span><div style="flex:1;height:32px;border-radius:6px;background:#1c1c1f"></div></div>
+            <div style="display:flex;align-items:center;gap:12px"><span style="width:8px;height:8px;border-radius:999px;background:oklch(78% 0.12 230)"></span><span style="font-size:14px;width:90px">Guest</span><div style="flex:1;height:32px;border-radius:6px;background:#1c1c1f;margin-left:14px"></div></div>
+            <div style="height:1px;background:#1c1d20"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:14px">Guest offset</span><div style="display:flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:8px;border:1px solid #26272b;display:flex;align-items:center;justify-content:center;font-size:14px">−</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;width:64px;text-align:center">+38 ms</span><span style="width:32px;height:32px;border-radius:8px;border:1px solid #26272b;display:flex;align-items:center;justify-content:center;font-size:14px">+</span></div></div>
+          </div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="width:40px;height:40px;flex:none;border-radius:999px;background:#ededea;display:flex;align-items:center;justify-content:center;padding-left:3px"><span style="border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:12px"><span style="flex:1;font-size:13px;color:#8a8c91">Host + guest, offset +38 ms</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">0:00 / 0:30</span></div><div style="height:3px;border-radius:2px;background:#26272b"></div></div>
+          <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Host</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Guest</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">Both</span></div>
+          <div style="width:1px;height:28px;background:#26272b"></div>
+          <div style="display:flex;gap:8px"><span style="height:36px;padding:0 14px;display:flex;align-items:center;font-size:14px;color:#8a8c91">Back</span><span style="height:36px;padding:0 16px;border-radius:10px;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;display:flex;align-items:center">Next: Review</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1d" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1d</span><span style="font-size:13px;color:#8a8c91">Calibration · step 03 Result</span></div>
+      <div style="width:760px;height:640px;border-radius:14px;overflow:hidden;border:1px solid #26272b;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span><span style="font-size:14px;color:#6a6c71">Calibration</span></div>
+        <div style="flex:none;border-bottom:1px solid #1c1d20;padding:0 20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px">
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">01</span><span style="font-size:14px;color:#8a8c91">Tyler</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">02</span><span style="font-size:14px;color:#8a8c91">Guest</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px;border-bottom:2px solid #ededea"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500">03</span><span style="font-size:14px">Result</span></div>
+        </div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:26px;font-weight:500;letter-spacing:-.01em">Result</div><div style="font-size:14px;line-height:1.5;color:#8a8c91">Both voices matched to −19 LUFS and one tonal curve.</div></div>
+          <div style="position:relative;height:180px;border-radius:14px;background:#141416;overflow:hidden">
+            <svg viewBox="0 0 600 180" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><line x1="0" x2="600" y1="90" y2="90" stroke="#3a3b3f" vector-effect="non-scaling-stroke"></line><path d="M0 110 C80 100 140 70 220 80 S380 60 440 85 S560 120 600 118" fill="none" stroke="oklch(85% 0.17 90)" stroke-width="2" vector-effect="non-scaling-stroke"></path><path d="M0 70 C90 80 160 110 240 100 S400 95 460 80 S560 70 600 74" fill="none" stroke="oklch(78% 0.12 230)" stroke-width="2" vector-effect="non-scaling-stroke"></path></svg>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+            <div style="background:#141416;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;letter-spacing:.06em;color:#6a6c71">TYLER</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:22px">+2.1 <span style="font-size:12px;color:#6a6c71">dB</span></span></div>
+            <div style="background:#141416;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;letter-spacing:.06em;color:#6a6c71">GUEST</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:22px">−3.4 <span style="font-size:12px;color:#6a6c71">dB</span></span></div>
+          </div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="width:40px;height:40px;flex:none;border-radius:999px;background:#ededea;display:flex;align-items:center;justify-content:center;gap:4px"><span style="width:4px;height:14px;border-radius:1px;background:#0b0b0c"></span><span style="width:4px;height:14px;border-radius:1px;background:#0b0b0c"></span></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:12px"><span style="flex:1;font-size:13px;color:#8a8c91">Both speakers, corrected</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">0:12 / 0:20</span></div><div style="height:3px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:60%;border-radius:2px;background:#ededea"></div></div></div>
+          <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Before</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">Corrected</span></div>
+          <div style="width:1px;height:28px;background:#26272b"></div>
+          <div style="display:flex;gap:8px"><span style="height:36px;padding:0 14px;display:flex;align-items:center;font-size:14px;color:#8a8c91">Back</span><span style="height:36px;padding:0 16px;border-radius:10px;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;display:flex;align-items:center">Save</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1e" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1e</span><span style="font-size:13px;color:#8a8c91">Session saved · shared player</span></div>
+      <div style="width:760px;height:640px;border-radius:14px;overflow:hidden;border:1px solid #26272b;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span><span style="font-size:14px;color:#6a6c71">Ep. 142 / Saved</span></div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:26px;font-weight:500;letter-spacing:-.01em">Session saved</div><div style="font-size:14px;line-height:1.5;color:#8a8c91">18:42 recorded · 7 retakes marked</div></div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;padding:14px 20px;gap:12px"><span style="font-size:14px;color:#8a8c91;width:140px">Raw WAV</span><span style="font-size:14px">18:42</span></div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;padding:14px 20px;gap:12px"><span style="font-size:14px;color:#8a8c91;width:140px">Assembled edit</span><span style="font-size:14px">14:05</span></div>
+          </div>
+          <div style="font-size:13px;line-height:1.5;color:#6a6c71;text-wrap:pretty">Without its own on/off switch, noise suppression is just a listening option in the player below. You set it for real in Export.</div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="width:40px;height:40px;flex:none;border-radius:999px;background:#ededea;display:flex;align-items:center;justify-content:center;padding-left:3px"><span style="border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:12px"><span style="flex:1;font-size:13px;color:#8a8c91">Assembled edit → Noise 40 %</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">2:14 / 14:05</span></div><div style="height:3px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:16%;border-radius:2px;background:#ededea"></div></div></div>
+          <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Original</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">Cleaned</span></div>
+          <div style="width:1px;height:28px;background:#26272b"></div>
+          <a href="Export Steps.dc.html" style="height:36px;padding:0 16px;border-radius:10px;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;display:flex;align-items:center;text-decoration:none">Export</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="1f" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1f</span><span style="font-size:13px;color:#8a8c91">Settings → Recording · marker tones</span></div>
+      <div style="width:760px;height:640px;border-radius:14px;overflow:hidden;border:1px solid #26272b;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span><span style="font-size:14px;color:#6a6c71">Settings / Recording</span></div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:26px;font-weight:500;letter-spacing:-.01em">Marker tones</div><div style="font-size:14px;line-height:1.5;color:#8a8c91;text-wrap:pretty">A short beep at each retake in the full recording, so you can find it by ear. The assembled edit never has them.</div></div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:16px;padding:18px 20px"><div style="flex:1"><div style="font-size:14px">Add tones</div><div style="font-size:13px;color:#8a8c91;margin-top:2px">Off by default.</div></div><div style="width:40px;height:24px;border-radius:999px;padding:3px;display:flex;justify-content:flex-end;background:#ededea"><span style="width:18px;height:18px;border-radius:999px;background:#0b0b0c"></span></div></div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;align-items:center;gap:16px;padding:18px 20px"><span style="flex:1;font-size:14px">Pitch</span><div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Low</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">1 kHz</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">High</span></div></div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;flex-direction:column;gap:12px;padding:18px 20px">
+              <div style="display:flex;justify-content:space-between"><span style="font-size:14px">Under your voice</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">−18 dB</span></div>
+              <div style="height:20px;position:relative"><div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div><div style="position:absolute;left:0;top:8px;height:4px;width:60%;border-radius:2px;background:#ededea"></div><div style="position:absolute;top:2px;left:60%;margin-left:-8px;width:16px;height:16px;border-radius:999px;background:#ededea"></div></div>
+              <div style="font-size:13px;color:#8a8c91">How far the tone drops when you're talking over it.</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="width:40px;height:40px;flex:none;border-radius:999px;background:#ededea;display:flex;align-items:center;justify-content:center;padding-left:3px"><span style="border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:12px"><span style="flex:1;font-size:13px;color:#8a8c91">Sample retake with 1 kHz tone, −18 dB</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">0:00 / 0:08</span></div><div style="height:3px;border-radius:2px;background:#26272b"></div></div>
+          <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c"><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;color:#8a8c91">Without</span><span style="height:30px;padding:0 12px;display:flex;align-items:center;font-size:13px;border-radius:7px;background:#ededea;color:#0b0b0c;font-weight:500">With tone</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1g" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;padding:3px 7px;border-radius:4px;background:#ededea;color:#0b0b0c">1g</span><span style="font-size:13px;color:#8a8c91">Script import · step 02 Sections</span></div>
+      <div style="width:760px;height:640px;border-radius:14px;overflow:hidden;border:1px solid #26272b;background:#0b0b0c;display:flex;flex-direction:column">
+        <div style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span><span style="font-size:14px;color:#6a6c71">Ep. 143 / Import script</span></div>
+        <div style="flex:none;border-bottom:1px solid #1c1d20;padding:0 20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px">
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#30d158">01</span><span style="font-size:14px;color:#8a8c91">Paste</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px;border-bottom:2px solid #ededea"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500">02</span><span style="font-size:14px">Sections</span></div>
+          <div style="padding:12px 0 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;color:#3a3b3f">03</span><span style="font-size:14px;color:#3a3b3f">Review</span></div>
+        </div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:24px;min-height:0">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:26px;font-weight:500;letter-spacing:-.01em">Sections</div><div style="font-size:14px;line-height:1.5;color:#8a8c91">Found from your headings. Each becomes a jump point on the teleprompter.</div></div>
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 20px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71;width:18px">01</span><span style="flex:1;font-size:14px">Cold open</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">6 lines · ~0:40</span></div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 20px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71;width:18px">02</span><span style="flex:1;font-size:14px">The story</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">38 lines · ~5:10</span></div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 20px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71;width:18px">03</span><span style="flex:1;font-size:14px">Sponsor read</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">9 lines · ~1:05</span></div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 20px"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71;width:18px">04</span><span style="flex:1;font-size:14px">Wrap and voicemail</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">11 lines · ~1:20</span></div>
+          </div>
+          <div style="font-size:13px;color:#6a6c71">Drag to reorder. Click a name to rename it.</div>
+        </div>
+        <div style="flex:none;border-top:1px solid #1c1d20;background:#141416;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:12px"><span style="font-size:14px">4 sections</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">64 lines · ~8:15 read time</span></div>
+          <div style="display:flex;gap:8px"><span style="height:36px;padding:0 14px;display:flex;align-items:center;font-size:14px;color:#8a8c91">Back</span><span style="height:36px;padding:0 16px;border-radius:10px;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;display:flex;align-items:center">Next: Review</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

@@ -29,3 +29,19 @@ something you can install over a running copy without losing data.
 - **Lab checks for each release:** fresh install, upgrade from the previous
   release with real recordings in place, restart during a live session (guests
   reconnect), and idle memory.
+
+## Calibration (step flow mockup 1d)
+
+Designed in `design/step-flow/` (1d), not built: a step flow of **Speaker 1 →
+Speaker 2 → Result** that plays a test signal through each monitor speaker,
+measures it with the mic, and shows each speaker's curve in its colour (the
+framework's graph) with a gain readout. Result compares **Before / Corrected**
+in the bar; the last button is **Save**. It needs:
+
+- a measurement signal and capture (sweep or pink noise) and the averaged
+  response per speaker (`lib/audio/spectrum.ts` has the long-term spectrum);
+- a correction per speaker: gain and a few EQ bands toward the target, stored
+  in Settings;
+- somewhere the correction applies (the monitor path during recording and
+  playback), which doesn't exist yet: Podstudio doesn't route monitoring
+  today.

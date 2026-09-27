@@ -113,6 +113,37 @@ Speaker colours (oklch) are only for dots, meter rings, talk-time bars and a cha
   - Amber 4px progress bar.
   - "Stop calibration" as a destructive outline button, never solid red.
 
+## Step flow
+For a screen with several decisions that build on each other (Export, Mic
+check, Wrapping up, Script import). Design: `design/step-flow/`.
+
+- **One decision per step**, in the order things happen. The title (26/500)
+  and a one-line lede say what the step is for.
+- **Tabs** (`steps/StepTabs.svelte`): a mono number over the label. Current is
+  text with a 2px underline, done has a green number, reached is text-3 and
+  clickable, not yet reached is handle and disabled. A screen that checks
+  rather than gates (Mic check) leaves every tab open.
+- **Bar** (`steps/StepPlayer.svelte`), pinned at the bottom on surface:
+  - the preview: a play circle, what's playing ("Edit → Noise 40 % → Tone")
+    with the time and a 3px progress line;
+  - the step's before and after as a segmented control (Raw / Edit, Original /
+    Cleaned / Removed, Before / With tone …). Switching keeps the playhead; a
+    new step starts on "after", at 0;
+  - Back (ghost) and Next (primary), "Next: Tone". The last step's button says
+    what it does: "Export 11 files", "Start recording", "Import to Ep. 142";
+  - no player where there's nothing to hear: a summary instead ("4 sections ·
+    64 lines · ~8:15 read time").
+  - One row on a laptop; on a phone the player, the choice at full width, then
+    Back and Next at 48.
+- **Page** (`steps/StepPage.svelte`): tabs, a scrolling column (760 max,
+  28/20/40 padding, 28 between blocks), the bar.
+- **The preview plays everything up to the step.** Audio work stays in
+  `lib/audio` (`chain-preview.ts` for Export, `preview-player.ts` to play).
+- **Settings survive going back** and a reload (Export keeps them per take for
+  the browser tab).
+- Screens that are Astro markup with a script use `lib/step-shell.svelte.ts`,
+  which mounts the same tabs and bar and hands back their state.
+
 ## Shell
 - Header: 56 tall. Brand, then the page name in text-2, then the avatar on the right.
 - Sidebar: 220 wide, items 36 tall, radius 8.
