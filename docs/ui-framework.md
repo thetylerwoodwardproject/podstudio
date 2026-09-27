@@ -50,7 +50,8 @@ graphs that follow the settings) is a Svelte 5 component in
 | Token | Hex | Use |
 |---|---|---|
 | page | #0b0b0c | App background, input fill |
-| surface | #141416 | Cards, sheets, docks |
+| surface | #141416 | Cards, docks, a dialog's footer |
+| sheet | #0f0f11 | A dialog or bottom sheet over the page |
 | raised (`nav`) | #16171a | Active nav item |
 | control | #1c1c1f | Secondary buttons, avatar, selected chip |
 | divider | #1c1d20 | Header, sidebar, row dividers |
@@ -112,6 +113,16 @@ Speaker colours (oklch) are only for dots, meter rings, talk-time bars and a cha
   - Mono 28 dB readout.
   - Amber 4px progress bar.
   - "Stop calibration" as a destructive outline button, never solid red.
+
+## Dialogs
+`ui/Sheet.svelte`: a dialog over the page on `sheet` (#0f0f11), 1px border,
+radius 16, 640 max, with a fixed header (title 18/500, a mono summary under
+it, × to close) and footer on surface, and a body that scrolls. On a phone
+it's a bottom sheet (full width, 88 % high at most, radius on top only,
+buttons 44). Esc and a click outside close it; focus stays inside and goes
+back to what opened it, and the page behind doesn't scroll. A row you tick is
+the whole row (`role="checkbox"`): an 18px box (radius 5, text fill when
+ticked), and unticked rows drop to 45 %. Design: `design/export-files/`.
 
 ## Step flow
 For a screen with several decisions that build on each other (Export, Mic

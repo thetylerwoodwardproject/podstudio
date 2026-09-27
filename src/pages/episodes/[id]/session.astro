@@ -66,6 +66,7 @@ const episode = { ...mockEpisode, ...data.episode };
   import { longTermSpectrum } from '@/lib/audio/spectrum';
   import { ChainPreview, type ChainTrack } from '@/lib/audio/chain-preview';
   import { download, zip, type ZipEntry } from '@/lib/zip';
+  import { missingNotes, planFiles, type PlanInput } from '@/lib/export-files';
   import { loadScript } from '@/lib/script-store';
   import type { ExportSettings, FlowState, Measured } from '@/components/app/ExportFlow.svelte';
 
@@ -100,17 +101,36 @@ const episode = { ...mockEpisode, ...data.episode };
   /** The design's example, for reviewing the screen (?demo): nothing plays or exports. */
   function showDemo() {
     lengthEl.textContent = '41:07';
-    const settings: ExportSettings = { assembled: true, tones: false, pauses: 'cut', mix: false, ns: 0, voices: { TYLER: cleanTone(undefined) }, loudness: 'mono', level: false, episode: true, mp3: true };
+    const settings: ExportSettings = { assembled: true, tones: false, pauses: 'cut', mix: false, ns: 0, voices: { TYLER: cleanTone(undefined) }, loudness: 'mono', level: false };
     mountFlow({
       initial: { settings, step: 0, reached: 0 },
       info: { counts: '14 retakes · 3 pauses', tonesAvailable: true, toneKinds: 'retake', pads: null, sync: '', guestMissing: null, meter: true, demo: true },
       voices: [{ key: 'TYLER', name: 'Tyler', role: 'Host', color: 'var(--color-spk-yellow)' }],
       rate: 48000,
       removes: () => 'Removes 6:52.',
-      files: (s: ExportSettings) => {
-        const count = 3 + (s.assembled ? 1 : 0) + (s.ns ? 2 : 0) + (s.episode ? 1 : 0) + (s.episode && s.mp3 ? 1 : 0);
-        return { count, text: `${count} files · 1.4 GB` };
+      plan: (s: ExportSettings) => {
+        const input: PlanInput = {
+          label: 'Ep142',
+          people: [{ name: 'Tyler', host: true, rate: 48000, frameBytes: 3, copy: s.level ? 'levelled' : null }],
+          duration: 2467,
+          rate: 48000,
+          bitDepth: 24,
+          assembled: s.assembled,
+          pauses: s.pauses,
+          editParts: [2055],
+          ns: s.ns,
+          markerTones: s.tones,
+          pads: false,
+          roughMix: false,
+          loudness: s.loudness,
+          toned: false,
+          markers: 17,
+          voiceLog: 0,
+        };
+        return { files: planFiles(input), notes: missingNotes(input) };
       },
+      saved: null,
+      onsave: () => {},
       spectrum: async () => [],
       floor: async () => -47,
       chain: () => {
@@ -238,7 +258,7 @@ const episode = { ...mockEpisode, ...data.episode };
       ns: s.ns,
       tones: s.tones && toneKinds.length > 0,
       mix: withPads && s.mix,
-      pub: { mix: s.episode, loudness: s.loudness, level: s.level, mp3: s.episode && s.mp3 },
+      pub: { loudness: s.loudness, level: s.level },
     });
     type Options = ReturnType<typeof optionsOf>;
     /** A processed copy of someone's edit: levelled (and toned), or toned only. */
@@ -246,30 +266,29 @@ const episode = { ...mockEpisode, ...data.episode };
     // The ranges each episode file (and levelled copy) is made from: the edit's, or the whole session.
     const pubParts = (o: Options) => (o.assembled ? assemble(duration, wallMarkers, lineLog, o.pauses).files : [[[0, duration]] as [number, number][]]);
 
-    /** How many files the zip will have, and roughly how big it is. */
-    const files = (s: ExportSettings) => {
+    /** Every file these settings make, for the picker and the zip (lib/export-files.ts). */
+    const planOf = (s: ExportSettings) => {
       const o = optionsOf(s);
       const a = assemble(duration, wallMarkers, lineLog, o.pauses);
-      const raw = tracks.reduce((n, t) => n + takeBytes(t), 0);
-      const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0);
-      // Noise suppression on: every audio file comes twice, unprocessed and cleaned.
-      const copies = o.ns ? 2 : 1;
-      const padTracks = withPads ? 1 : 0;
-      // The episode: a file per part (and its MP3), and a levelled or toned copy of each person's edit.
-      const parts = o.pub.mix ? pubParts(o).length : 0;
-      const pubLen = o.assembled ? duration - a.removed : duration;
-      const pubCh = o.pub.loudness === 'mono' ? 1 : 2;
-      const withCopy = o.pub.mix ? tracks.filter((t) => copyOf(o, s.voices, t)) : [];
-      const pubFiles = parts * (1 + (o.pub.mp3 ? 1 : 0)) + parts * withCopy.length;
-      const pubBytes = o.pub.mix
-        ? pubLen * take.sampleRate * (take.bitDepth / 8) * pubCh +
-          (o.pub.mp3 ? (pubLen * (pubCh === 2 ? 192 : 128) * 1000) / 8 : 0) +
-          withCopy.reduce((n, t) => n + pubLen * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0)
-        : 0;
-      const count =
-        (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0) + (take.voiceLog?.length ? 1 : 0) + pubFiles;
-      const padBytes = withPads ? duration * take.sampleRate * (take.bitDepth / 8) * 2 * (1 + (o.assembled ? 1 : 0) + (o.mix ? 1 : 0)) : 0;
-      return { count, text: `${count} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes + pubBytes)}` };
+      const input: PlanInput = {
+        label,
+        people: tracks.map((t) => ({ name: cap(t.speaker), host: t === take, rate: t.sampleRate, frameBytes: (t.bitDepth / 8) * (t.channels ?? 1), copy: copyOf(o, s.voices, t) })),
+        duration,
+        rate: take.sampleRate,
+        bitDepth: take.bitDepth,
+        assembled: o.assembled,
+        pauses: o.pauses,
+        editParts: a.files.map((r) => r.reduce((n, [x, y]) => n + y - x, 0)),
+        ns: o.ns,
+        markerTones: o.tones,
+        pads: withPads,
+        roughMix: o.mix,
+        loudness: o.pub.loudness,
+        toned: tracks.some((t) => toneActive(s.voices[voiceKey(t)])),
+        markers: markers.length,
+        voiceLog: take.voiceLog?.length ?? 0,
+      };
+      return { files: planFiles(input), notes: missingNotes(input) };
     };
 
     // The preview's 30 s: from about a third of the way into the edit (or the session), for each edit setting.
@@ -342,8 +361,6 @@ const episode = { ...mockEpisode, ...data.episode };
       voices: Object.fromEntries(tracks.map((t) => [voiceKey(t), cleanTone(rec.publish.voices[voiceKey(t)])])),
       loudness: rec.publish.loudness,
       level: rec.publish.level,
-      episode: rec.publish.mix,
-      mp3: rec.publish.mp3,
     };
     let initial: FlowState = { settings: defaults, step: 0, reached: 0 };
     try {
@@ -380,9 +397,15 @@ const episode = { ...mockEpisode, ...data.episode };
       }
     };
 
-    const exportZip = async (s: ExportSettings, progress: (text: string) => void): Promise<Measured | null> => {
+    const exportZip = async (s: ExportSettings, names: string[], progress: (text: string) => void): Promise<Measured | null> => {
       const o = optionsOf(s);
       const tones = s.voices;
+      // Only the files picked (lib/export-files.ts), and only the work they need.
+      const picked = new Set(names);
+      const want = (file: string) => picked.has(file);
+      const kinds = new Set(planOf(s).files.filter((f) => picked.has(f.name)).map((f) => f.kind));
+      const needMaster = ['episode.wav', 'episode.mp3', 'voice_edit_toned.wav', 'voice_edit_levelled.wav', 'voice_toned.wav', 'voice_levelled.wav'].some((k) => kinds.has(k));
+      const needClean = [...kinds].some((k) => k.includes('_clean')) || (needMaster && o.ns > 0);
       {
         const name = (t: TakeMeta) => `${label}_Session_${t.speaker.charAt(0)}${t.speaker.slice(1).toLowerCase()}`;
         const endLabel: Partial<Record<SessionMarker['kind'], string>> = { adlib: 'Script resumes', cut: 'Cough ends' };
@@ -390,6 +413,7 @@ const episode = { ...mockEpisode, ...data.episode };
         const entries: ZipEntry[] = [];
         // Raw: untouched, with a cue at every retake and gap, and at both ends of each pause, cut and ad-lib.
         for (const t of tracks) {
+          if (!want(`${name(t)}.wav`)) continue;
           const len = t.samples / t.sampleRate;
           const cues = markers.flatMap((m) =>
             m.kind !== 'retake' && m.end != null
@@ -409,17 +433,17 @@ const episode = { ...mockEpisode, ...data.episode };
           });
         }
         // The Pads track: rebuilt from the press log on your mic's clock, and the optional rough mix.
-        if (withPads) {
+        if (withPads && (kinds.has('pads.wav') || kinds.has('pads_edit.wav') || kinds.has('roughmix.wav') || needMaster)) {
           await renderPads(take, (d) => progress(`Pads track… ${Math.round(d * 100)}%`));
           const cues = markers.filter((m) => m.kind === 'pad').map((m) => cue(m, take.sampleRate));
-          entries.push({ name: `${label}_Session_Pads.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'pads', [], tc(take)) });
-          if (o.mix) {
+          if (want(`${label}_Session_Pads.wav`)) entries.push({ name: `${label}_Session_Pads.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'pads', [], tc(take)) });
+          if (o.mix && want(`${label}_Session_RoughMix.wav`)) {
             await renderRoughMix(take, (d) => progress(`Rough mix… ${Math.round(d * 100)}%`));
             entries.push({ name: `${label}_Session_RoughMix.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'mix', [], tc(take)) });
           }
           progress('Preparing…');
         }
-        entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
+        if (want(`${label}_Session_markers.txt`)) entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
         const csv = [
           'time,end,kind,line,attempt,first words or pad',
           ...markers.map((m) =>
@@ -433,9 +457,9 @@ const episode = { ...mockEpisode, ...data.episode };
             ].join(','),
           ),
         ].join('\n');
-        entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
+        if (want(`${label}_Session_markers.csv`)) entries.push({ name: `${label}_Session_markers.csv`, data: csv + '\n' });
         // What voice follow did during the session, for tracking down a dropout.
-        if (take.voiceLog?.length) {
+        if (take.voiceLog?.length && want(`${label}_Session_voice-log.txt`)) {
           const log = take.voiceLog.map((v) => `${clock(v.t)}\t${v.at}\t${v.event}${v.detail ? `\t${v.detail}` : ''}`).join('\n');
           entries.push({ name: `${label}_Session_voice-log.txt`, data: `session time\twall clock\tevent\tdetail\n${log}\n` });
         }
@@ -444,7 +468,7 @@ const episode = { ...mockEpisode, ...data.episode };
         // gets both versions: the unprocessed files, and _clean copies cut the same way from the
         // cleaned audio, so markers line up in both.
         let variant: string | null = null;
-        if (o.ns) {
+        if (o.ns && needClean) {
           const began = Date.now();
           for (const t of tracks) {
             variant = await denoiseTake(t, o.ns, (done) => {
@@ -456,6 +480,7 @@ const episode = { ...mockEpisode, ...data.episode };
         }
         if (variant) {
           for (const t of tracks) {
+            if (!want(`${name(t)}_clean.wav`)) continue;
             const len = t.samples / t.sampleRate;
             const cues = markers.map((m) => cue(m, t.sampleRate));
             entries.push({
@@ -484,8 +509,8 @@ const episode = { ...mockEpisode, ...data.episode };
               // Their own coughs are muted; nothing is cut for a cough, so every edit keeps the same length.
               // Every track's edit starts at the same moment, so they share a timecode.
               const at = tc(t, ranges[0]?.[0] ?? 0);
-              entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept, undefined, mutedFor(t), at) });
-              if (variant) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant, mutedFor(t), at) });
+              if (want(`${file}.wav`)) entries.push({ name: `${file}.wav`, data: await rangesWav(t, aligned(t, ranges), kept, undefined, mutedFor(t), at) });
+              if (variant && want(`${file}_clean.wav`)) entries.push({ name: `${file}_clean.wav`, data: await rangesWav(t, aligned(t, ranges), kept, variant, mutedFor(t), at) });
             }
           }
           // The Pads edit: the same cuts as the mic edit; a cough never mutes the pads.
@@ -497,7 +522,7 @@ const episode = { ...mockEpisode, ...data.episode };
                 .filter((x): x is { m: SessionMarker; at: number } => x.at != null)
                 .map((x) => cue(x.m, take.sampleRate, x.at));
               const file = a.files.length > 1 ? `${label}_Session_Pads_edit_part${i + 1}` : `${label}_Session_Pads_edit`;
-              entries.push({ name: `${file}.wav`, data: await rangesWav(stereoOf(take), ranges, kept, 'pads', [], tc(take, ranges[0]?.[0] ?? 0)) });
+              if (want(`${file}.wav`)) entries.push({ name: `${file}.wav`, data: await rangesWav(stereoOf(take), ranges, kept, 'pads', [], tc(take, ranges[0]?.[0] ?? 0)) });
             }
           }
         }
@@ -505,7 +530,7 @@ const episode = { ...mockEpisode, ...data.episode };
         // Ready to publish: everyone mixed at the loudness target, peaks under −1 dBTP.
         const pubLines: string[] = [];
         const results: { r: Awaited<ReturnType<typeof renderMaster>>; seconds: number; parts: number }[] = [];
-        if (o.pub.mix) {
+        if (needMaster) {
           const target = o.pub.loudness === 'off' ? null : TARGETS[o.pub.loudness];
           const outCh: 1 | 2 = o.pub.loudness === 'mono' ? 1 : 2;
           const master = { ...take, channels: outCh };
@@ -516,11 +541,13 @@ const episode = { ...mockEpisode, ...data.episode };
             const at = ranges[0]?.[0] ?? 0;
             const writers: VariantWriter[] = [];
             const inputs: MasterTrack[] = [];
+            const copyName = (t: TakeMeta, copy: string) => `${o.assembled ? `${name(t)}_edit${parts.length > 1 ? `_part${i + 1}` : ''}` : name(t)}_${copy}.wav`;
             for (const t of tracks) {
               const wav = await rangesWav(t, aligned(t, ranges), [], variant ?? undefined, mutedFor(t), null);
               const tone = tones[voiceKey(t)];
               const input: MasterTrack = { wav, level: true, tone: toneActive(tone) ? tone : undefined };
-              if (copyOf(o, tones, t)) {
+              const copy = copyOf(o, tones, t);
+              if (copy && want(copyName(t, copy))) {
                 const w = await VariantWriter.open(t, `level-${i + 1}`);
                 writers.push(w);
                 input.levelled = (x) => w.write(x);
@@ -535,17 +562,16 @@ const episode = { ...mockEpisode, ...data.episode };
             await out.done();
             for (const w of writers) await w.done();
             const episodeWav = await takeWav(master, `master-${i + 1}`, tc(take, at));
-            entries.push({ name: `${label}_Episode${suffix}.wav`, data: episodeWav });
-            if (o.pub.mp3)
+            if (want(`${label}_Episode${suffix}.wav`)) entries.push({ name: `${label}_Episode${suffix}.wav`, data: episodeWav });
+            if (want(`${label}_Episode${suffix}.mp3`))
               entries.push({
                 name: `${label}_Episode${suffix}.mp3`,
                 data: await encodeMp3(episodeWav, `${title}${suffix ? ` (part ${i + 1})` : ''}`, (d) => progress(`MP3${suffix ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`)),
               });
             for (const t of tracks) {
               const copy = copyOf(o, tones, t);
-              if (!copy) continue;
-              const file = o.assembled ? `${name(t)}_edit${parts.length > 1 ? `_part${i + 1}` : ''}_${copy}` : `${name(t)}_${copy}`;
-              entries.push({ name: `${file}.wav`, data: await takeWav(t, `level-${i + 1}`, tc(t, at)) });
+              if (!copy || !want(copyName(t, copy))) continue;
+              entries.push({ name: copyName(t, copy), data: await takeWav(t, `level-${i + 1}`, tc(t, at)) });
             }
             const f = (x: number) => (Number.isFinite(x) ? x.toFixed(1).replace('-', '−') : '—');
             pubLines.push(
@@ -555,7 +581,7 @@ const episode = { ...mockEpisode, ...data.episode };
           }
           progress('Preparing…');
         }
-        entries.push({ name: `${label}_Session_export.txt`, data: syncReport() + (pubLines.length ? `\n${pubLines.join('\n')}\n` : '') });
+        if (want(`${label}_Session_export.txt`)) entries.push({ name: `${label}_Session_export.txt`, data: syncReport() + (pubLines.length ? `\n${pubLines.join('\n')}\n` : '') });
         download(await zip(entries), `${label}_Session.zip`);
         // What the finished episode measured, for the Export step.
         const first = results[0];
@@ -581,7 +607,9 @@ const episode = { ...mockEpisode, ...data.episode };
         const a = assemble(duration, wallMarkers, lineLog, s.pauses);
         return a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
       },
-      files,
+      plan: planOf,
+      saved: rec.exportFiles,
+      onsave: (kinds: string[] | null) => saveSettings('recording', { exportFiles: kinds }),
       spectrum: async (k: string) => longTermSpectrum(await takeWav(tracks.find((t) => voiceKey(t) === k)!)),
       floor,
       chain,

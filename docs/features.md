@@ -40,7 +40,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 - **Crash recovery**: if the tab closes mid-session, the next visit to the studio, library or sessions page opens the recovered-session screen. At most the last 5 seconds are lost.
 - **Your own script**: on the script page, **Import or paste** opens three steps. **Paste**: pasted text or a .txt/.md file (`## Heading` lines become sections). **Sections**: each with its lines and read time at your prompter speed; click a name to rename it, drag the handle (or Alt+↑/↓) to reorder, and its lines move with it. **Review**: the script as it will read, then Import. The bar at the bottom sums it up ("4 sections · 64 lines · ~8:15 read time"). Full-screen on a phone. Every screen uses the script, and lines can be edited in place.
 - **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, mutes coughs on the cougher's track, and cuts, keeps or splits at pauses.
-- **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
+- **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. With noise under speech the model's per-frequency gain jumps about from one 10 ms frame to the next, which made voices sound fluttery (and quieter, so compression and levelling pumped them back up); its gains are steadied (they rise at once and fall over 80 ms) before they're applied, which takes that wobble from 1.4 to 0.5 dB at 70 % on a noisy test recording while the background still drops 20 dB. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
   - **Export** (step 02, Noise): the room's noise floor, measured in the quiet between lines, with a suggested setting ("Use 40 %"), the fader, and how far the background comes down ("Background −24 dB"). The preview plays **Original / Cleaned / Removed**; Removed is only what's being taken away, so you can hear whether it's eating into words. Tone and loudness come after it and are heard on the cleaned audio. With it on, the zip has both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
   - **Credits**: Settings → About & credits lists DeepFilterNet3 and everything else Podstudio ships, with licences.
   - **Listen** (Session saved's Cleaned, and the switch on every card on the Sessions list): it plays a cleaned 12 s from where you are within a few seconds, cleans the whole session in the background, then carries on with it from the same moment. The cleaned copy is kept and shared with Export.
@@ -48,7 +48,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
   - Cost: about 19 MB downloaded once (the 11 MB engine, 2 MB gzipped, and the 8 MB model), then cached. It runs at 2–4× real time on a laptop, so a 30-minute episode takes around 10 minutes to clean, and longer on a phone. The server could run the native `deep-filter` binary instead, which is much faster (planned).
   - `scripts/build-deepfilter.sh` rebuilds the engine from a pinned upstream commit.
 - **Sessions list** (`/episodes/142/sessions`): play, open to export, download or delete.
-- **Settings are saved**: recording format, mic, the mic-check toggle, scrolling mode, and the prompter font.
+- **Settings are saved on the server** (`/api/me/settings`): recording format, the mic-check toggle, exports, scrolling mode, the prompter font and the rest follow you to any browser you sign in on. Each browser keeps a copy, so pages open with them straight away; a newer copy from the server is taken when a page opens, and a change made offline goes up on the next page load. The microphone stays per device.
 
 ## With a guest and a producer
 
@@ -151,18 +151,36 @@ tone and loudness, boosting a voice doesn't bring the room back up.
    preview, the loudness over those 30 s against the target, and Level each
    speaker.
 5. **Export**: your chain (each stage with a Change link back to it) and what
-   goes in the zip. The button says how many files it makes ("Export 11
-   files"); afterwards the page shows what the finished episode measured.
+   goes in the zip (below). Afterwards the page shows what the finished
+   episode measured.
+
+### Choosing the files
+
+**Export…** (or **Choose files**) opens a list of every file your chain makes,
+in four groups: your recording untouched, the assembled edit, ready to
+publish, and markers and reports. Each says what it is and how big it'll be;
+tick just the ones you want. **Everything**, **To publish** (the episode and
+its MP3) and **For my DAW** (the edit files and the markers) pick a set in one
+go, and each group has All / None. The zip has exactly the ticked files, and
+only the work they need is done (no cleaning if no cleaned file is ticked, no
+mastering without an episode or a processed copy). A note says why a file
+isn't offered (the edit off, noise suppression off).
+
+**Use this selection every time** saves the kinds of file you ticked ("each
+voice's edit, cleaned"), not their names, so it applies to the next episode, a
+guest's files and split parts. Next time the saved ones start ticked and any
+other kind starts unticked; **Forget saved** (here or in Settings → Recording)
+goes back to everything.
 
 ## Ready to publish
 
 Every export gives you two ways out: the files for your own post-production
 (an untouched WAV and an edit per person, lined up, with timecode), and an
 episode you can upload to your podcast host as is. The episode is set in the
-Tone, Loudness and Export steps, with the defaults in Settings → Recording.
-Each switch is independent:
+Tone and Loudness steps, with the defaults in Settings → Recording, and picked
+(or not) in Export's file list:
 
-- **Episode file** (on by default). Everyone's edit, and the Pads track if you
+- **Episode file.** Everyone's edit, and the Pads track if you
   used pads, mixed into `…_Episode.wav`. If pauses are set to split, there's
   one per part (`…_Episode_part2.wav`).
 - **Loudness.** **Stereo** at −16 LUFS (the default), **Mono** at −19 LUFS
@@ -181,7 +199,7 @@ Each switch is independent:
   compressor catches laughs and shouts. It also puts a levelled copy of each
   person's edit in the zip (`…_edit_levelled.wav`) for your DAW. The Pads
   track isn't levelled.
-- **MP3 too** (on by default). `…_Episode.mp3` beside the WAV: 192 kbps
+- **MP3.** `…_Episode.mp3` beside the WAV: 192 kbps
   stereo or 128 kbps mono, with an ID3 tag carrying the episode's name.
   Encoded in the browser by LAME (lamejs, LGPL), which loads only when an MP3
   is made.
@@ -281,7 +299,8 @@ authentication (an authenticator app, plus ten one-time recovery codes). After t
 
 **What's on the server:** episodes (the home page lists them; **+ New episode** takes the next number), each
 episode's script, show setup (solo or with a guest, script mode, talking points) and hotkey pads, and the pad
-sound library. Pages are rendered with the server's copy and it's kept in this browser too, so the recording
+sound library, and your settings (recording, export, prompter, and the files you save to export), so
+they follow you to any browser you sign in on; the microphone choice stays per device. Pages are rendered with the server's copy and it's kept in this browser too, so the recording
 screen works offline; a change made offline goes up on the next page load. Scripts carry a version, so a tab
 with an old copy can't overwrite a newer one (it takes the newer copy instead).
 

@@ -25,13 +25,13 @@
     voices: Record<string, VoiceTone>;
     loudness: Loudness;
     level: boolean;
-    episode: boolean;
-    mp3: boolean;
   }
   export interface FlowState {
     settings: ExportSettings;
     step: number;
     reached: number;
+    /** Files ticked or unticked in the picker this visit, by name */
+    picks?: Record<string, boolean>;
   }
   export interface ExportInfo {
     /** Marker counts, "3 retakes · 1 pause" */
@@ -70,6 +70,8 @@
   import { PreviewPlayer } from '@/lib/audio/preview-player';
   import { suggestAmount } from '@/lib/audio/denoise-core';
   import type { Point } from '@/lib/graph';
+  import ExportPicker from '@/components/app/ExportPicker.svelte';
+  import { formatSize, picked, type ExportFile } from '@/lib/export-files';
 
   interface Props {
     initial: FlowState;
@@ -78,25 +80,29 @@
     rate: number;
     /** "Removes 6:52." for the edit's switch */
     removes: (s: ExportSettings) => string;
-    /** How many files the zip will have, and "9 files · 1.2 GB" */
-    files: (s: ExportSettings) => { count: number; text: string };
+    /** Every file these settings make (lib/export-files.ts), and why some aren't there */
+    plan: (s: ExportSettings) => { files: ExportFile[]; notes: string[] };
+    /** The kinds of file saved with "Use this selection every time", or none */
+    saved: string[] | null;
+    onsave: (kinds: string[] | null) => void;
     spectrum: (key: string) => Promise<Point[]>;
     /** The room's noise floor, dBFS */
     floor: () => Promise<number>;
     /** The preview for the edit these settings make */
     chain: (s: ExportSettings) => ChainPreview;
     onchange: (state: FlowState) => void;
-    onexport: (s: ExportSettings, progress: (text: string) => void) => Promise<Measured | null>;
+    /** Make the zip with just these files */
+    onexport: (s: ExportSettings, names: string[], progress: (text: string) => void) => Promise<Measured | null>;
     onmarkers: () => void;
   }
-  let { initial, info, voices, rate, removes, files, spectrum, floor, chain, onchange, onexport, onmarkers }: Props = $props();
+  let { initial, info, voices, rate, removes, plan, saved: savedKinds, onsave, spectrum, floor, chain, onchange, onexport, onmarkers }: Props = $props();
 
   const STEPS: { id: StepId; label: string; title: string; lede: string }[] = [
     { id: 'edit', label: 'Edit', title: 'Edit', lede: 'Choose what the assembled edit keeps. The raw WAV always goes in the zip untouched.' },
     { id: 'noise', label: 'Noise', title: 'Background noise', lede: 'Clean the room first. EQ and compression shape your voice, but they can’t take out fans, hum or traffic.' },
     { id: 'tone', label: 'Tone', title: 'Tone', lede: 'Shape each voice. You’re hearing it on the cleaned audio, so boosts won’t bring the noise back up.' },
     { id: 'loud', label: 'Loudness', title: 'Loudness', lede: 'Set the episode to podcast level, measured on everything before it.' },
-    { id: 'export', label: 'Export', title: 'Export', lede: 'Check the chain and what goes in the zip.' },
+    { id: 'export', label: 'Export', title: 'Export', lede: 'Check the chain, then pick what goes in the zip.' },
   ];
 
   // The saved state to start from; from here the flow keeps its own and reports changes.
@@ -107,7 +113,7 @@
   // svelte-ignore state_referenced_locally
   let reached = $state(Math.max(initial.reached, initial.step));
   const id = $derived(STEPS[step].id);
-  $effect(() => onchange({ settings: $state.snapshot(settings) as ExportSettings, step, reached }));
+  $effect(() => onchange({ settings: $state.snapshot(settings) as ExportSettings, step, reached, picks: $state.snapshot(picks) }));
 
   const M = '−';
   const minus = (s: string) => s.replace(/-/g, M);
@@ -282,21 +288,40 @@
     {
       label: 'Tone',
       value: voices.length > 1 ? voices.map((v) => `${v.name}: ${toneShort(settings.voices[v.key])}`).join(' · ') : toneShort(settings.voices[voices[0].key]),
-      off: !settings.episode,
     },
     {
       label: 'Loudness',
       value: `${{ stereo: 'Stereo', mono: 'Mono', off: 'Off' }[settings.loudness]}, ${TARGET_TEXT[settings.loudness]}${settings.level ? ', speakers levelled' : ''}`,
-      off: !settings.episode,
     },
   ]);
-  const zipFiles = $derived(files(settings));
-  async function exportNow() {
+
+  // ── The files: every one the chain makes, ticked or not (ExportPicker) ──
+  // svelte-ignore state_referenced_locally
+  let picks = $state<Record<string, boolean>>(initial.picks ?? {});
+  // svelte-ignore state_referenced_locally
+  let saved = $state<string[] | null>(savedKinds);
+  let picking = $state(false);
+  const planned = $derived(plan(settings));
+  const chosen = $derived(planned.files.filter((f) => picked(f, picks, saved)));
+  const zipTitle = $derived(
+    saved && planned.files.every((f) => saved!.includes(f.kind) === picked(f, picks, saved))
+      ? 'Your saved selection'
+      : chosen.length === planned.files.length
+        ? 'Every file from your chain'
+        : chosen.length
+          ? `${chosen.length} of ${planned.files.length} files picked`
+          : 'No files picked',
+  );
+  async function exportNow(names: string[], remember: boolean) {
+    // Saved as kinds, so it applies to the next episode, a guest's files and split parts too
+    saved = remember ? [...new Set(planned.files.filter((f) => names.includes(f.name)).map((f) => f.kind))] : null;
+    onsave(saved);
+    picking = false;
     player.pause();
     playing = false;
     exporting = 'Preparing…';
     try {
-      measured = await onexport($state.snapshot(settings) as ExportSettings, (t) => (exporting = t));
+      measured = await onexport($state.snapshot(settings) as ExportSettings, names, (t) => (exporting = t));
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -304,10 +329,17 @@
     }
   }
 
+  const toNext = (): void => {
+    reached = Math.max(reached, step + 1);
+    go(step + 1);
+  };
+  const pick = (): void => {
+    picking = true;
+  };
   const next = $derived(
     step < STEPS.length - 1
-      ? { label: `Next: ${STEPS[step + 1].label}`, onclick: () => ((reached = Math.max(reached, step + 1)), go(step + 1)) }
-      : { label: exporting ?? `Export ${zipFiles.count} files`, onclick: exportNow, disabled: !!exporting || waiting || info.demo, attrs: { 'data-export': '' } },
+      ? { label: `Next: ${STEPS[step + 1].label}`, onclick: toNext }
+      : { label: exporting ?? 'Export…', onclick: pick, disabled: !!exporting || waiting || info.demo, attrs: { 'data-export': '' } },
   );
 
   const card = 'flex flex-col rounded-[14px] bg-surface';
@@ -482,7 +514,7 @@
           <div class="flex items-center gap-3 px-5 py-3.5" class:border-t={i > 0} class:border-divider={i > 0}>
             <span class="w-[18px] flex-none font-mono text-[11px] text-text-3">{String(i + 1).padStart(2, '0')}</span>
             <span class="w-[90px] flex-none text-[14px]">{s.label}</span>
-            <span class="min-w-0 flex-1 truncate text-[13px] {s.off ? 'text-text-3' : 'text-text-2'}">{s.off ? 'Only for the episode file, which is off' : s.value}</span>
+            <span class="min-w-0 flex-1 truncate text-[13px] text-text-2">{s.value}</span>
             <button type="button" class="flex-none py-1.5 text-[13px] text-text-2 hover:text-text" data-change={STEPS[i].id} onclick={() => go(i)}>Change</button>
           </div>
         {/each}
@@ -507,37 +539,19 @@
     {/if}
 
     <div class="flex flex-col gap-3">
-      <div class="flex items-baseline justify-between gap-3">
-        <h2 class="section-label">In the zip</h2>
-        <span class="meta text-text-3" data-summary>{zipFiles.text}</span>
+      <h2 class="section-label">In the zip</h2>
+      <div class="flex flex-wrap items-center gap-4 rounded-[14px] bg-surface px-5 py-[18px]" data-zip>
+        <div class="min-w-0 flex-1">
+          <div class="text-[14px]" data-zip-title>{zipTitle}</div>
+          <div class="mt-0.5 font-mono text-[12px] text-text-2" data-summary>{chosen.length} of {planned.files.length} · {formatSize(chosen.reduce((n, f) => n + f.bytes, 0))}</div>
+        </div>
+        <button type="button" class="h-9 rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle" data-choose-files onclick={() => (picking = true)}>Choose files</button>
       </div>
-      <div class={card}>
-        <div class={row}>
-          <div class="min-w-0 flex-1">
-            <div class="text-[14px]">Episode file</div>
-            <div class="help mt-0.5">Everything above, mixed and ready for your podcast host.</div>
-          </div>
-          <Switch name="pub-mix" label="Episode file" bind:checked={settings.episode} />
-        </div>
-        <div class={rule}></div>
-        <div class={row}>
-          <div class="min-w-0 flex-1">
-            <div class="text-[14px]">MP3 too</div>
-            <div class="mt-0.5 font-mono text-[12px] text-text-2">128 kbps mono · 192 kbps stereo</div>
-          </div>
-          <Switch name="pub-mp3" label="MP3 too" bind:checked={settings.mp3} disabled={!settings.episode} />
-        </div>
-        <div class={rule}></div>
-        <div class={row}>
-          <div class="min-w-0 flex-1">
-            <div class="text-[14px]">Raw WAV with markers</div>
-            <div class="help mt-0.5" data-sync-note>Untouched, with Broadcast WAV timecode, Audacity labels and a CSV.{info.sync ? ` ${info.sync}` : ''}</div>
-          </div>
-          <span class="rounded border border-border px-[7px] py-[3px] {tag} text-ok">Always</span>
-        </div>
-      </div>
+      <p class="help" data-sync-note>Every WAV carries Broadcast WAV timecode, so editors can line the files up.{info.sync ? ` ${info.sync}` : ''}</p>
     </div>
   {/if}
+
+  <ExportPicker bind:open={picking} files={planned.files} bind:picks {saved} notes={planned.notes} ondownload={exportNow} onforget={() => ((saved = null), onsave(null))} />
 
   {#snippet player()}
     <StepPlayer

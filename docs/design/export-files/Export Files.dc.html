@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0;background:#0b0b0c;color:#ededea;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased}a{color:#ededea;text-underline-offset:2px}a:hover{color:#8a8c91}*{box-sizing:border-box}button{font-family:inherit;color:inherit}</style></helmet>
+<div style="height:100%;min-height:100%;display:flex;flex-direction:column;background:#0b0b0c;color:#ededea;overflow:hidden">
+  <header style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid #1c1d20">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:999px;background:#ff453a"></span><span style="font-size:17px;font-weight:600">Podstudio</span></div>
+    <div style="font-size:14px;color:#6a6c71;display:flex;gap:8px;min-width:0"><span>Ep. 142</span><span>/</span><span style="color:#8a8c91">Export</span></div>
+    <div style="flex:1"></div>
+    <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:#8a8c91">0:19</span>
+  </header>
+
+  <nav style="flex:none;border-bottom:1px solid #1c1d20">
+    <div style="max-width:760px;margin:0 auto;padding:0 {{ navPad }}px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <button onClick="{{ t.go }}" disabled="{{ t.locked }}" style="background:none;border:none;border-bottom:2px solid {{ t.line }};padding:12px 0 10px;display:flex;flex-direction:column;align-items:{{ tabAlign }};gap:3px;cursor:{{ t.cursor }};min-width:0">
+          <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;letter-spacing:.06em;color:{{ t.numColor }}">{{ t.num }}</span>
+          <span style="font-size:{{ tabSize }}px;color:{{ t.color }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{ t.label }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </nav>
+
+  <main style="flex:1;min-height:0;overflow-y:auto">
+    <div style="max-width:760px;margin:0 auto;padding:28px 20px 40px;display:flex;flex-direction:column;gap:28px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:26px;font-weight:500;letter-spacing:-.01em">{{ cur.title }}</div>
+        <div style="font-size:14px;line-height:1.5;color:#8a8c91;text-wrap:pretty">{{ cur.lede }}</div>
+      </div>
+
+      <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:28px">
+          <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:16px;padding:18px 20px">
+              <div style="flex:1;min-width:0"><div style="font-size:14px">Assembled edit</div><div style="font-size:13px;line-height:1.5;color:#8a8c91;margin-top:2px;text-wrap:pretty">Keeps the last attempt of each line and cuts the rest. Saved as its own file; the raw WAV stays as it is.</div></div>
+              <button onClick="{{ tg.assembled }}" aria-label="Assembled edit" style="width:40px;height:24px;flex:none;border:none;border-radius:999px;padding:3px;cursor:pointer;display:flex;justify-content:{{ sw.assembled.j }};background:{{ sw.assembled.bg }}"><span style="width:18px;height:18px;border-radius:999px;background:{{ sw.assembled.knob }}"></span></button>
+            </div>
+            <div style="height:1px;background:#1c1d20;margin:0 20px"></div>
+            <div style="display:flex;align-items:center;gap:16px;padding:18px 20px">
+              <div style="flex:1;min-width:0"><div style="font-size:14px">Marker tones in the full recording</div><div style="font-size:13px;line-height:1.5;color:#8a8c91;margin-top:2px;text-wrap:pretty">A short beep at each retake, ducked under your voice. The edit stays clean. Set up in <a href="Settings Recording.dc.html">Settings → Recording</a>.</div></div>
+              <button onClick="{{ tg.tones }}" aria-label="Marker tones" style="width:40px;height:24px;flex:none;border:none;border-radius:999px;padding:3px;cursor:pointer;display:flex;justify-content:{{ sw.tones.j }};background:{{ sw.tones.bg }}"><span style="width:18px;height:18px;border-radius:999px;background:{{ sw.tones.knob }}"></span></button>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;opacity:{{ pauseOpacity }}">
+            <div style="font-size:13px;font-weight:500;color:#8a8c91">Pauses in the edit</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+              <sc-for list="{{ pauses }}" as="p" hint-placeholder-count="3">
+                <button onClick="{{ p.pick }}" style="text-align:left;background:{{ p.bg }};border:1px solid {{ p.border }};border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:4px">
+                  <span style="font-size:14px">{{ p.name }}</span><span style="font-size:13px;line-height:1.45;color:#8a8c91">{{ p.help }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="font-size:13px;color:#6a6c71">Recording keeps running while paused, so markers stay lined up with the audio.</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isNoise }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:28px">
+          <div style="background:#141416;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:14px">Room noise</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:#ff9f0a">−47 dBFS</span></div>
+              <div style="font-size:13px;line-height:1.5;color:#8a8c91;margin-top:2px;text-wrap:pretty">Measured in the quiet stretches between lines. That's audible fan and hum, so 40 % is a good start.</div>
+            </div>
+            <button onClick="{{ useSuggested }}" style="height:36px;padding:0 14px;border-radius:10px;border:1px solid #26272b;background:transparent;font-size:14px;cursor:pointer">Use 40 %</button>
+          </div>
+
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px">Suppression</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">{{ nsLabel }}</span></div>
+            <div onPointerDown="{{ nsDrag }}" style="height:20px;position:relative;cursor:pointer;touch-action:none">
+              <div style="position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#26272b"></div>
+              <div style="position:absolute;left:0;top:8px;height:4px;border-radius:2px;background:#ededea;width:{{ nsPct }}"></div>
+              <div style="position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;border-radius:999px;background:#ededea;left:{{ nsPct }}"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71"><span>Off</span><span>Gentle</span><span>Strong</span></div>
+            <div style="height:1px;background:#1c1d20"></div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-size:13px;color:#8a8c91;flex:none">Background</span>
+              <div style="flex:1;height:4px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#30d158;width:{{ nsPct }}"></div></div>
+              <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;flex:none">{{ nsReduction }}</span>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:13px;font-weight:500;color:#8a8c91">How to judge it</div>
+            <div style="font-size:13px;line-height:1.6;color:#8a8c91;text-wrap:pretty">Play the preview below and switch to <span style="color:#ededea">Removed</span> to hear only what's being taken out. Hiss and hum there is right. If you hear words or the ends of breaths, turn it down.</div>
+          </div>
+          <div style="font-size:13px;color:#6a6c71;line-height:1.5">The zip keeps the unprocessed WAV and edit too, plus cleaned copies ending in _clean. Noise suppression by DeepFilterNet3 · <a href="#" style="color:#6a6c71">Credits</a></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTone }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:9px;border:1px solid #3a3b3f;background:#1c1c1f"><span style="width:8px;height:8px;border-radius:999px;background:oklch(85% 0.17 90)"></span><span style="font-size:14px">Tyler</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;letter-spacing:.06em;color:#6a6c71">HOST</span></div>
+            <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c">
+              <sc-for list="{{ toneTabs }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:30px;padding:0 14px;border:none;border-radius:7px;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};font-weight:{{ o.weight }}">{{ o.label }}</button></sc-for>
+            </div>
+          </div>
+
+          <sc-if value="{{ isEq }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:18px">
+              <div style="position:relative;height:150px;border-radius:8px;background:#16171a;overflow:hidden">
+                <svg viewBox="0 0 600 150" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                  <line x1="0" x2="600" y1="37.5" y2="37.5" stroke="#1c1d20" vector-effect="non-scaling-stroke"></line>
+                  <line x1="0" x2="600" y1="75" y2="75" stroke="#3a3b3f" vector-effect="non-scaling-stroke"></line>
+                  <line x1="0" x2="600" y1="112.5" y2="112.5" stroke="#1c1d20" vector-effect="non-scaling-stroke"></line>
+                  <path d="{{ eqPath }}" fill="none" stroke="#ededea" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+                </svg>
+                <span style="position:absolute;left:8px;top:6px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;color:#6a6c71">+12</span>
+                <span style="position:absolute;left:8px;bottom:6px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;color:#6a6c71">−12</span>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <div style="display:flex;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c;flex-wrap:wrap">
+                  <sc-for list="{{ presets }}" as="o" hint-placeholder-count="5"><button onClick="{{ o.pick }}" style="height:30px;padding:0 12px;border:none;border-radius:7px;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};font-weight:{{ o.weight }}">{{ o.label }}</button></sc-for>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:2px">
+                <sc-for list="{{ bands }}" as="b" hint-placeholder-count="10">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                    <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:{{ b.valColor }}">{{ b.val }}</span>
+                    <div onPointerDown="{{ b.drag }}" onDoubleClick="{{ b.reset }}" style="position:relative;width:24px;height:120px;cursor:ns-resize;touch-action:none">
+                      <div style="position:absolute;left:10px;width:4px;top:0;bottom:0;border-radius:2px;background:#26272b"></div>
+                      <div style="position:absolute;left:10px;width:4px;border-radius:2px;background:#ededea;top:{{ b.fillTop }};height:{{ b.fillH }}"></div>
+                      <div style="position:absolute;left:4px;width:16px;height:16px;margin-top:-8px;border-radius:999px;background:#ededea;top:{{ b.knob }}"></div>
+                    </div>
+                    <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71">{{ b.f }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:13px;line-height:1.5;color:#8a8c91">Drag a band; double-click to reset it.</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isComp }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px">
+              <div style="font-size:14px">Compression</div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c">
+                <sc-for list="{{ comps }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.pick }}" style="height:32px;border:none;border-radius:7px;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};font-weight:{{ o.weight }}">{{ o.label }}</button></sc-for>
+              </div>
+              <div style="font-size:13px;line-height:1.5;color:#8a8c91;text-wrap:pretty">{{ compHelp }}</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isLoud }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:28px">
+          <div style="background:#141416;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px">Target</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px">{{ targetLabel }}</span></div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c">
+              <sc-for list="{{ targets }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.pick }}" style="height:32px;border:none;border-radius:7px;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};font-weight:{{ o.weight }}">{{ o.label }}</button></sc-for>
+            </div>
+            <div style="font-size:13px;line-height:1.5;color:#8a8c91;text-wrap:pretty">The usual podcast targets. True peaks stay under −1 dBTP so encoding doesn't clip. Off only limits the peaks.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+            <sc-for list="{{ readouts }}" as="r" hint-placeholder-count="3">
+              <div style="background:#141416;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px">
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;font-weight:500;letter-spacing:.06em;color:#6a6c71">{{ r.k }}</span>
+                <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:22px">{{ r.v }} <span style="font-size:12px;color:#6a6c71">{{ r.u }}</span></span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#141416;border-radius:14px;display:flex;align-items:center;gap:16px;padding:18px 20px">
+            <div style="flex:1;min-width:0"><div style="font-size:14px">Level each speaker</div><div style="font-size:13px;line-height:1.5;color:#8a8c91;margin-top:2px;text-wrap:pretty">Evens out each voice by up to 12 dB before the episode is set to target.</div></div>
+            <button onClick="{{ tg.level }}" aria-label="Level each speaker" style="width:40px;height:24px;flex:none;border:none;border-radius:999px;padding:3px;cursor:pointer;display:flex;justify-content:{{ sw.level.j }};background:{{ sw.level.bg }}"><span style="width:18px;height:18px;border-radius:999px;background:{{ sw.level.knob }}"></span></button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isExport }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:28px">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:13px;font-weight:500;color:#8a8c91">Your chain</div>
+            <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column">
+              <sc-for list="{{ summary }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-top:1px solid {{ s.divider }}">
+                  <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6a6c71;width:18px">{{ s.num }}</span>
+                  <span style="font-size:14px;width:90px;flex:none">{{ s.label }}</span>
+                  <span style="flex:1;min-width:0;font-size:13px;color:#8a8c91;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.value }}</span>
+                  <button onClick="{{ s.go }}" style="background:none;border:none;font-size:13px;color:#8a8c91;cursor:pointer;padding:6px 0">Change</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:13px;font-weight:500;color:#8a8c91">In the zip</div>
+            <div style="background:#141416;border-radius:14px;display:flex;align-items:center;gap:16px;padding:18px 20px">
+              <div style="flex:1;min-width:0"><div style="font-size:14px">{{ zipTitle }}</div><div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#8a8c91;margin-top:4px">{{ zipSummary }}</div></div>
+              <button onClick="{{ openPicker }}" style="height:36px;padding:0 14px;border-radius:10px;border:1px solid #26272b;background:transparent;font-size:14px;cursor:pointer;flex:none">Choose files</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </main>
+
+  <div style="flex:none;border-top:1px solid #1c1d20;background:#141416">
+    <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+      <div style="max-width:760px;margin:0 auto;padding:16px 20px;display:flex;align-items:center;gap:16px">
+        <button onClick="{{ togglePlay }}" aria-label="{{ playAria }}" style="width:40px;height:40px;flex:none;border-radius:999px;border:none;background:#ededea;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:0 0 0 {{ playNudge }}px">
+          <sc-if value="{{ playing }}" hint-placeholder-val="{{ false }}"><span style="width:4px;height:14px;border-radius:1px;background:#0b0b0c"></span><span style="width:4px;height:14px;border-radius:1px;background:#0b0b0c"></span></sc-if>
+          <sc-if value="{{ paused }}" hint-placeholder-val="{{ true }}"><span style="width:0;height:0;border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></sc-if>
+        </button>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <span style="flex:1;min-width:0;font-size:13px;color:#8a8c91;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ chainText }}</span>
+            <span style="flex:none;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">{{ playTime }}</span>
+          </div>
+          <div style="height:3px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ededea;width:{{ playPct }}"></div></div>
+        </div>
+        <div style="display:flex;flex:none;padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c">
+          <sc-for list="{{ abOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:30px;padding:0 12px;border:none;border-radius:7px;font-size:13px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};font-weight:{{ o.weight }}">{{ o.label }}</button></sc-for>
+        </div>
+        <div style="width:1px;height:28px;background:#26272b;flex:none"></div>
+        <div style="display:flex;gap:8px;flex:none">
+          <sc-if value="{{ hasBack }}" hint-placeholder-val="{{ false }}"><button onClick="{{ back }}" style="height:36px;padding:0 14px;border-radius:10px;border:none;background:transparent;color:#8a8c91;font-size:14px;cursor:pointer">Back</button></sc-if>
+          <button onClick="{{ next }}" style="height:36px;padding:0 16px;border-radius:10px;border:none;background:#ededea;color:#0b0b0c;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">{{ nextLabel }}</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:14px 16px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button onClick="{{ togglePlay }}" aria-label="{{ playAria }}" style="width:44px;height:44px;flex:none;border-radius:999px;border:none;background:#ededea;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:0 0 0 {{ playNudge }}px">
+            <sc-if value="{{ playing }}" hint-placeholder-val="{{ false }}"><span style="width:4px;height:14px;border-radius:1px;background:#0b0b0c"></span><span style="width:4px;height:14px;border-radius:1px;background:#0b0b0c"></span></sc-if>
+            <sc-if value="{{ paused }}" hint-placeholder-val="{{ true }}"><span style="width:0;height:0;border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #0b0b0c"></span></sc-if>
+          </button>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span style="flex:1;min-width:0;font-size:13px;color:#8a8c91;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ chainText }}</span>
+              <span style="flex:none;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">{{ playTime }}</span>
+            </div>
+            <div style="height:3px;border-radius:2px;background:#26272b;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ededea;width:{{ playPct }}"></div></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);padding:3px;border-radius:10px;border:1px solid #26272b;background:#0b0b0c">
+          <sc-for list="{{ abOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:32px;border:none;border-radius:7px;font-size:14px;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};font-weight:{{ o.weight }}">{{ o.label }}</button></sc-for>
+        </div>
+        <div style="display:flex;gap:8px">
+          <sc-if value="{{ hasBack }}" hint-placeholder-val="{{ false }}"><button onClick="{{ back }}" style="height:48px;padding:0 20px;border-radius:12px;border:none;background:#1c1c1f;font-size:15px;cursor:pointer">Back</button></sc-if>
+          <button onClick="{{ next }}" style="flex:1;height:48px;border-radius:12px;border:none;background:#ededea;color:#0b0b0c;font-size:15px;font-weight:500;cursor:pointer">{{ nextLabel }}</button>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ pickerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePicker }}" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;align-items:{{ modalAlign }};justify-content:center;padding:{{ modalPad }}">
+      <div onClick="{{ stop }}" role="dialog" aria-label="Choose files to export" style="width:100%;max-width:640px;max-height:{{ modalMaxH }};background:#0f0f11;border:1px solid #26272b;border-radius:{{ modalRadius }};display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.5)">
+        <div style="flex:none;display:flex;align-items:flex-start;gap:12px;padding:20px 20px 16px;border-bottom:1px solid #1c1d20">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:18px;font-weight:500">Choose files</div>
+            <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">{{ zipSummary }}</div>
+          </div>
+          <button onClick="{{ closePicker }}" aria-label="Close" style="width:32px;height:32px;flex:none;border-radius:8px;border:none;background:transparent;color:#8a8c91;font-size:20px;line-height:1;cursor:pointer">×</button>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:16px 20px 20px">
+          <div style="display:flex;flex-direction:column;gap:12px">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sc-for list="{{ quick }}" as="q" hint-placeholder-count="3"><button onClick="{{ q.pick }}" style="height:32px;padding:0 12px;border-radius:999px;border:1px solid {{ q.border }};background:{{ q.bg }};color:{{ q.color }};font-size:13px;cursor:pointer">{{ q.label }}</button></sc-for>
+              <sc-if value="{{ hasSaved }}" hint-placeholder-val="{{ false }}"><button onClick="{{ forget }}" style="height:32px;padding:0 4px;border:none;background:none;color:#6a6c71;font-size:13px;cursor:pointer;margin-left:auto">Forget saved</button></sc-if>
+            </div>
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+              <div style="background:#141416;border-radius:14px;display:flex;flex-direction:column;padding-bottom:4px">
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 20px 8px">
+                  <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#8a8c91">{{ g.name }}</span>
+                  <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71">{{ g.count }}</span>
+                  <button onClick="{{ g.toggle }}" style="background:none;border:none;font-size:13px;color:#8a8c91;cursor:pointer;padding:4px 0">{{ g.toggleLabel }}</button>
+                </div>
+                <sc-for list="{{ g.files }}" as="f" hint-placeholder-count="2">
+                  <button onClick="{{ f.toggle }}" role="checkbox" aria-checked="{{ f.on }}" style="text-align:left;background:none;border:none;border-top:1px solid #1c1d20;margin:0 20px;padding:12px 0;display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+                    <span style="width:18px;height:18px;flex:none;margin-top:1px;border-radius:5px;border:1.5px solid {{ f.boxBorder }};background:{{ f.boxBg }};display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" style="opacity:{{ f.checkOp }}"><path d="M2.5 6.2l2.4 2.4 4.6-5" fill="none" stroke="#0b0b0c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                    <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;opacity:{{ f.op }}">
+                      <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:#ededea;overflow-wrap:anywhere">{{ f.name }}</span>
+                      <span style="font-size:13px;line-height:1.45;color:#8a8c91;text-wrap:pretty">{{ f.desc }}</span>
+                    </span>
+                    <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6a6c71;flex:none;margin-top:2px;opacity:{{ f.op }}">{{ f.size }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-for>
+            <sc-if value="{{ hasFootnote }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#6a6c71;line-height:1.5;text-wrap:pretty">{{ footnote }}</div></sc-if>
+          </div>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid #1c1d20;background:#141416;flex-wrap:wrap">
+          <button onClick="{{ toggleRemember }}" role="checkbox" aria-checked="{{ remember }}" style="flex:1;min-width:180px;display:flex;align-items:center;gap:10px;background:none;border:none;padding:8px 0;cursor:pointer;text-align:left">
+            <span style="width:18px;height:18px;flex:none;border-radius:5px;border:1.5px solid {{ remBorder }};background:{{ remBg }};display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" style="opacity:{{ remCheck }}"><path d="M2.5 6.2l2.4 2.4 4.6-5" fill="none" stroke="#0b0b0c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="font-size:14px;color:#ededea">Use this selection every time</span>
+          </button>
+          <button onClick="{{ closePicker }}" style="height:{{ modalBtnH }}px;padding:0 14px;border-radius:10px;border:none;background:transparent;color:#8a8c91;font-size:14px;cursor:pointer">Cancel</button>
+          <button onClick="{{ download }}" style="height:{{ modalBtnH }}px;padding:0 16px;border-radius:10px;border:none;background:{{ dlBg }};color:{{ dlColor }};font-size:14px;font-weight:500;cursor:{{ dlCursor }};white-space:nowrap">{{ dlLabel }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:860},&quot;mobile&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;guest&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;pads&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;voiceLog&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const STEPS = [
+  { id: 'edit', label: 'Edit', title: 'Edit', lede: 'Choose what the assembled edit keeps. The raw WAV always goes in the zip untouched.' },
+  { id: 'noise', label: 'Noise', title: 'Background noise', lede: 'Clean the room first. EQ and compression shape your voice, but they can\u2019t take out fans, hum or traffic.' },
+  { id: 'tone', label: 'Tone', title: 'Tone', lede: 'Shape each voice. You\u2019re hearing it on the cleaned audio, so boosts won\u2019t bring the noise back up.' },
+  { id: 'loud', label: 'Loudness', title: 'Loudness', lede: 'Set the episode to podcast level, measured on everything before it.' },
+  { id: 'export', label: 'Export', title: 'Export', lede: 'Check the chain, then pick what goes in the zip.' },
+];
+const AB = { edit: ['Raw', 'Edit'], noise: ['Original', 'Cleaned', 'Removed'], tone: ['Before', 'With tone'], loud: ['Before', 'Levelled'], export: ['Raw', 'Final'] };
+const FREQS = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+const PRESETS = { Flat: [0,0,0,0,0,0,0,0,0,0], Warm: [2,3,2,0,-1,0,0,-1,-2,-3], Clear: [-6,-3,-1,-2,0,1,2,3,2,0], 'De-mud': [-4,-2,0,-4,-2,0,1,1,0,0], Radio: [-12,-6,2,-2,0,2,3,3,-4,-10] };
+const COMP = { Off: 'No compression.', Light: 'Evens out peaks by about 3 dB. Sounds natural.', Medium: 'About 6 dB on loud words. The usual spoken-word setting.', Heavy: 'Up to 10 dB. Dense and upfront, like radio.' };
+const TARGETS = [{ label: 'Stereo', v: '\u221216 LUFS' }, { label: 'Mono', v: '\u221219 LUFS' }, { label: 'Off', v: 'Peaks only' }];
+const M = '\u2212';
+const SAVE_KEY = 'podstudio-export-saved';
+const kindOf = n => n.replace(/^Ep142_(Session_)?/, '').replace(/_part\d+/, '').replace(/^(Tyler|Sam)(_|\.)/, 'voice$2');
+const sgn = v => (v > 0 ? '+' : v < 0 ? M : '') + Math.abs(v);
+const sw = on => ({ bg: on ? '#ededea' : '#2a2b2f', knob: on ? '#0b0b0c' : '#8a8c91', j: on ? 'flex-end' : 'flex-start' });
+const seg = (label, on, pick) => ({ label, pick, bg: on ? '#ededea' : 'transparent', color: on ? '#0b0b0c' : '#8a8c91', weight: on ? 500 : 400 });
+
+class Component extends DCLogic {
+  state = { step: 4, reached: 4, assembled: true, tones: false, pause: 0, ns: 45, toneTab: 'eq', preset: 'Warm', bands: PRESETS.Warm.slice(), comp: 'Light', target: 1, level: false, off: {}, picker: false, saved: null, remember: false, playing: false, t: 0, ab: 1 };
+  buildGroups() {
+    const s = this.state, p = this.props, E = 'Ep142_', S = 'Ep142_Session_';
+    const people = ['Tyler'].concat(p.guest ? ['Sam'] : []);
+    const toned = s.preset !== 'Flat' || s.comp !== 'Off';
+    const parts = s.assembled && s.pause === 2 ? ['_part1', '_part2'] : [''];
+    const pl = x => x ? ' Part ' + x.slice(5) + '.' : '';
+    const g = [['raw', 'Your recording, untouched'], ['edit', 'The assembled edit'], ['pub', 'Ready to publish'], ['rep', 'Markers and reports']].map(([id, name]) => ({ id, name, files: [] }));
+    const add = (i, name, desc, kb) => g[i].files.push({ name, desc, kb });
+    people.forEach(n => {
+      add(0, S + n + '.wav', n === 'Tyler' ? 'The whole raw recording, with retake and pause cues and Broadcast WAV timecode.' : 'Sam\u2019s whole raw recording, lined up to yours.', 1640);
+      if (s.ns) add(0, S + n + '_clean.wav', 'The same recording with noise suppression applied.', 1640);
+    });
+    if (p.pads) { add(0, S + 'Pads.wav', 'Everything played from the hotkey pads.', 1640); add(0, S + 'RoughMix.wav', 'Voices and pads mixed as you heard them.', 1640); }
+    const pz = ['pauses cut and coughs muted', 'pauses kept and marked', 'split at each pause'][s.pause];
+    if (s.assembled) parts.forEach(pt => {
+      people.forEach(n => {
+        add(1, S + n + '_edit' + pt + '.wav', 'The last attempt of each line, ' + pz + '.' + pl(pt), 1230);
+        if (s.ns) add(1, S + n + '_edit_clean' + pt + '.wav', 'The same edit, cut from the cleaned audio.' + pl(pt), 1230);
+        if (s.level || toned) add(1, S + n + '_edit_' + (s.level ? 'levelled' : 'toned') + pt + '.wav', (s.level ? 'The edit with tone and levelling applied, for your DAW.' : 'The edit with your EQ and compressor, for your DAW.') + pl(pt), 1230);
+      });
+      if (p.pads) add(1, S + 'Pads_edit' + pt + '.wav', 'The pads, cut to match the edit.' + pl(pt), 1230);
+    });
+    const ch = [s.ns && 'cleaned', toned && 'toned', s.target < 2 ? 'set to ' + TARGETS[s.target].v : null].filter(Boolean).join(', ');
+    parts.forEach(pt => {
+      add(2, E + 'Episode' + pt + '.wav', 'The finished episode' + (ch ? ': ' + ch : '') + ', peaks under \u22121 dBTP.' + pl(pt), 1230);
+      add(2, E + 'Episode' + pt + '.mp3', 'The same episode as an MP3 with an ID3 tag, ' + (s.target === 0 ? '192 kbps stereo' : '128 kbps mono') + '.' + pl(pt), 150);
+    });
+    add(3, S + 'markers.txt', 'Markers as Audacity labels.', 2);
+    add(3, S + 'markers.csv', 'Markers as a spreadsheet: time, kind, line, attempt and first words.', 3);
+    add(3, S + 'export.txt', 'Export report: timecode, how any guest was lined up, what the episode measured, and the chain used.', 2);
+    if (p.voiceLog ?? true) add(3, S + 'voice-log.txt', 'What voice follow did during the session, for tracking down a dropout.', 4);
+    return g.filter(x => x.files.length);
+  }
+  componentDidMount() {
+    try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (v) this.setState({ saved: v, remember: true }, () => this.applySaved()); } catch (e) {}
+  }
+  applySaved() {
+    const kinds = this.state.saved; if (!kinds) return;
+    const off = {}; this.buildGroups().flatMap(g => g.files).forEach(f => { if (!kinds.includes(kindOf(f.name))) off[f.name] = true; });
+    this.setState({ off });
+  }
+  componentWillUnmount() { clearInterval(this.iv); }
+  go(i) { this.setState(s => ({ step: i, reached: Math.max(s.reached, i), ab: 1, t: 0 })); }
+  togglePlay = () => {
+    if (this.state.playing) { clearInterval(this.iv); this.setState({ playing: false }); return; }
+    this.setState(s => ({ playing: true, t: s.t >= 30 ? 0 : s.t }));
+    this.iv = setInterval(() => this.setState(s => s.t + 0.25 >= 30 ? (clearInterval(this.iv), { t: 30, playing: false }) : { t: s.t + 0.25 }), 250);
+  };
+  nsDrag = e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const set = x => this.setState({ ns: Math.round(Math.max(0, Math.min(1, (x - r.left) / r.width)) * 20) * 5 });
+    set(e.clientX);
+    const mv = ev => set(ev.clientX), up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  };
+  bandDrag(i, e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const set = y => this.setState(s => { const b = s.bands.slice(); b[i] = Math.round(12 - Math.max(0, Math.min(1, (y - r.top) / r.height)) * 24); return { bands: b, preset: null }; });
+    set(e.clientY);
+    const mv = ev => set(ev.clientY), up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  }
+  eqPath(b) {
+    const pts = [];
+    for (let x = 0; x <= 600; x += 6) {
+      const lf = Math.log10(20) + (x / 600) * 3;
+      let g = 0;
+      FREQS.forEach((f, i) => { const d = (lf - Math.log10(f)) / 0.18; g += b[i] * Math.exp(-d * d / 2); });
+      g = Math.max(-12, Math.min(12, g * 0.8));
+      pts.push((x ? 'L' : 'M') + x + ' ' + (75 - g * 6.25).toFixed(1));
+    }
+    return pts.join(' ');
+  }
+  chain(upto) {
+    const s = this.state, parts = [];
+    if (upto >= 0) parts.push(s.assembled ? 'Edit' : 'Raw');
+    if (upto >= 1 && s.ns) parts.push('Noise ' + s.ns + ' %');
+    if (upto >= 2) parts.push('Tone');
+    if (upto >= 3) parts.push(TARGETS[s.target].v);
+    return parts.join(' \u2192 ');
+  }
+  renderVals() {
+    const s = this.state, mobile = !!this.props.mobile, cur = STEPS[s.step];
+    const tabs = STEPS.map((st, i) => {
+      const active = i === s.step, locked = i > s.reached;
+      return { label: st.label, num: String(i + 1).padStart(2, '0'), go: () => !locked && this.go(i), locked,
+        line: active ? '#ededea' : 'transparent', color: active ? '#ededea' : locked ? '#3a3b3f' : '#8a8c91',
+        numColor: active ? '#ededea' : i < s.reached ? '#30d158' : locked ? '#3a3b3f' : '#6a6c71', cursor: locked ? 'default' : 'pointer' };
+    });
+    const abLabels = AB[cur.id];
+    const after = s.ab >= 1;
+    let chainText = (after ? this.chain(s.step) : this.chain(s.step - 1) || 'Raw');
+    if (cur.id === 'noise' && s.ab === 2) chainText = 'Only the removed noise';
+    if (cur.id === 'export') chainText = after ? this.chain(3) : 'Raw WAV';
+    const G = this.buildGroups(), all = G.flatMap(x => x.files), isOn = f => !s.off[f.name];
+    const sel = all.filter(isOn), files = sel.length;
+    const fmt = kb => kb >= 1000 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB';
+    const setOnly = pred => { const off = {}; all.forEach(f => { if (!pred(f)) off[f.name] = true; }); this.setState({ off }); };
+    const inG = id => f => (G.find(x => x.id === id) || { files: [] }).files.includes(f);
+    const QUICK = [['Everything', () => true], ['To publish', inG('pub')], ['For my DAW', f => inG('edit')(f) || /markers/.test(f.name)]];
+    if (s.saved) QUICK.unshift(['Saved', f => s.saved.includes(kindOf(f.name))]);
+    const quick = QUICK.map(([label, pred]) => { const on = all.every(f => pred(f) === isOn(f)); return { label, pick: () => setOnly(pred), bg: on ? '#ededea' : 'transparent', color: on ? '#0b0b0c' : '#8a8c91', border: on ? '#ededea' : '#26272b' }; });
+    const groups = G.map(x => {
+      const n = x.files.filter(isOn).length, full = n === x.files.length;
+      return { name: x.name, count: n + '/' + x.files.length, toggleLabel: full ? 'None' : 'All',
+        toggle: () => this.setState(p => { const off = { ...p.off }; x.files.forEach(f => { if (full) off[f.name] = true; else delete off[f.name]; }); return { off }; }),
+        files: x.files.map(f => { const on = isOn(f); return { name: f.name, desc: f.desc, size: fmt(f.kb), on,
+          toggle: () => this.setState(p => { const off = { ...p.off }; if (off[f.name]) delete off[f.name]; else off[f.name] = true; return { off }; }),
+          boxBg: on ? '#ededea' : 'transparent', boxBorder: on ? '#ededea' : '#3a3b3f', checkOp: on ? 1 : 0, op: on ? 1 : 0.45 }; }) };
+    });
+    const tonedOn = s.preset !== 'Flat' || s.comp !== 'Off';
+    const notes = [!s.assembled && 'No edit files: the assembled edit is off.', !s.ns && 'No _clean copies: noise suppression is off.', s.assembled && !tonedOn && !s.level && 'No toned copy of the edit: tone and levelling are off.'].filter(Boolean);
+    const tg = {}; ['assembled', 'tones', 'level'].forEach(k => tg[k] = () => this.setState(p => ({ [k]: !p[k] })));
+    const mm = t => '0:' + String(Math.floor(t)).padStart(2, '0');
+    const integ = s.target === 2 ? 23.4 : s.target === 0 ? 16.1 : 19.0;
+    return {
+      tabs, cur, navPad: mobile ? 12 : 20, tabAlign: mobile ? 'center' : 'flex-start', tabSize: mobile ? 13 : 14,
+      isEdit: cur.id === 'edit', isNoise: cur.id === 'noise', isTone: cur.id === 'tone', isLoud: cur.id === 'loud', isExport: cur.id === 'export',
+      tg, sw: { assembled: sw(s.assembled), tones: sw(s.tones), level: sw(s.level) },
+      pickerOpen: s.picker, openPicker: () => this.setState({ picker: true }), closePicker: () => this.setState({ picker: false }), stop: e => e.stopPropagation(),
+      download: () => {
+        if (!files) return;
+        if (s.remember) { const kinds = [...new Set(sel.map(f => kindOf(f.name)))]; try { localStorage.setItem(SAVE_KEY, JSON.stringify(kinds)); } catch (e) {} this.setState({ picker: false, saved: kinds }); }
+        else { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} this.setState({ picker: false, saved: null }); }
+      },
+      remember: s.remember, toggleRemember: () => this.setState(p => ({ remember: !p.remember })),
+      remBg: s.remember ? '#ededea' : 'transparent', remBorder: s.remember ? '#ededea' : '#3a3b3f', remCheck: s.remember ? 1 : 0,
+      hasSaved: !!s.saved, forget: () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} this.setState({ saved: null, remember: false }); },
+      dlLabel: files ? 'Download ' + files + (files === 1 ? ' file' : ' files') : 'Pick a file', dlBg: files ? '#ededea' : '#26272b', dlColor: files ? '#0b0b0c' : '#6a6c71', dlCursor: files ? 'pointer' : 'default',
+      zipTitle: s.saved && all.every(f => s.saved.includes(kindOf(f.name)) === isOn(f)) ? 'Your saved selection' : files === all.length ? 'Every file from your chain' : files ? files + ' of ' + all.length + ' files picked' : 'No files picked',
+      modalAlign: mobile ? 'flex-end' : 'center', modalPad: mobile ? '0' : '32px 20px', modalRadius: mobile ? '16px 16px 0 0' : '16px', modalMaxH: mobile ? '88%' : '100%', modalBtnH: mobile ? 44 : 36,
+      groups, quick, zipSummary: files + ' of ' + all.length + ' \u00b7 ' + fmt(sel.reduce((t, f) => t + f.kb, 0)), footnote: notes.join(' '), hasFootnote: notes.length > 0,
+      pauseOpacity: s.assembled ? 1 : 0.4,
+      pauses: [['Cut', 'Remove the paused stretch.'], ['Keep', 'Leave it in, marked.'], ['Split', 'One file per segment between pauses.']].map(([name, help], i) => ({ name, help, pick: () => this.setState({ pause: i }), bg: s.pause === i ? '#1c1c1f' : 'transparent', border: s.pause === i ? '#3a3b3f' : '#26272b' })),
+      nsLabel: s.ns ? s.ns + ' %' : 'Off', nsPct: s.ns + '%', nsReduction: s.ns ? 'Background ' + M + Math.round(s.ns * 0.4) + ' dB' : 'No change',
+      nsDrag: this.nsDrag, useSuggested: () => this.setState({ ns: 40 }),
+      toneTabs: [['eq', 'Graphic EQ'], ['comp', 'Compressor']].map(([k, l]) => seg(l, s.toneTab === k, () => this.setState({ toneTab: k }))),
+      isEq: s.toneTab === 'eq', isComp: s.toneTab === 'comp',
+      presets: Object.keys(PRESETS).map(k => seg(k, s.preset === k, () => this.setState({ preset: k, bands: PRESETS[k].slice() }))),
+      eqPath: this.eqPath(s.bands),
+      bands: s.bands.map((v, i) => {
+        const y = (12 - v) / 24 * 100;
+        return { val: sgn(v), valColor: v ? '#ededea' : '#6a6c71', f: FREQS[i] >= 1000 ? FREQS[i] / 1000 + 'k' : String(FREQS[i]),
+          knob: y + '%', fillTop: Math.min(y, 50) + '%', fillH: Math.abs(y - 50) + '%',
+          drag: e => this.bandDrag(i, e), reset: () => this.setState(p => { const b = p.bands.slice(); b[i] = 0; return { bands: b, preset: null }; }) };
+      }),
+      comps: Object.keys(COMP).map(k => seg(k, s.comp === k, () => this.setState({ comp: k }))), compHelp: COMP[s.comp],
+      targets: TARGETS.map((t, i) => seg(t.label, s.target === i, () => this.setState({ target: i }))), targetLabel: TARGETS[s.target].v,
+      readouts: [{ k: 'MEASURED', v: M + '23.4', u: 'LUFS' }, { k: 'AFTER', v: M + integ.toFixed(1), u: 'LUFS' }, { k: 'TRUE PEAK', v: M + '1.3', u: 'dBTP' }],
+      summary: [
+        { label: 'Edit', value: s.assembled ? 'Assembled, pauses ' + ['cut', 'kept', 'split'][s.pause] : 'Raw only' },
+        { label: 'Noise', value: s.ns ? s.ns + ' %, background ' + M + Math.round(s.ns * 0.4) + ' dB' : 'Off' },
+        { label: 'Tone', value: (s.preset || 'Custom') + ' EQ, ' + s.comp.toLowerCase() + ' compression' },
+        { label: 'Loudness', value: TARGETS[s.target].label + ', ' + TARGETS[s.target].v + (s.level ? ', speakers levelled' : '') },
+      ].map((r, i) => ({ ...r, num: String(i + 1).padStart(2, '0'), divider: i ? '#1c1d20' : 'transparent', go: () => this.go(i) })),
+      abOpts: abLabels.map((l, i) => seg(l, s.ab === i, () => this.setState({ ab: i }))),
+      isDesktop: !mobile, isMobile: mobile, playing: s.playing, paused: !s.playing, playNudge: s.playing ? 0 : 3, playAria: s.playing ? 'Pause preview' : 'Play preview',
+      togglePlay: this.togglePlay, playPct: (s.t / 30 * 100) + '%', playTime: mm(s.t) + ' / 0:30', chainText,
+      hasBack: s.step > 0, back: () => this.go(s.step - 1),
+      next: () => s.step < 4 ? this.go(s.step + 1) : this.setState({ picker: true }),
+      nextLabel: s.step < 4 ? 'Next: ' + STEPS[s.step + 1].label : 'Export\u2026',
+      btnFlex: mobile ? '1' : '0 0 auto',
+    };
+  }
+}
+</script>
+</body>
+</html>

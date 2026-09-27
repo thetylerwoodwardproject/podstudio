@@ -25,6 +25,7 @@
   --color-surface: #141416; /* cards, sheets, docks */
   --color-nav: #16171a; /* active nav item ("raised" in the framework) */
   --color-plot: #16171a; /* graph plot area, a step above the card */
+  --color-sheet: #0f0f11; /* a dialog or bottom sheet over the page, between page and surface */
   --color-control: #1c1c1f; /* secondary buttons, avatar, selected chip */
   --color-divider: #1c1d20; /* header, sidebar, row dividers */
   --color-border: #26272b; /* inputs, segmented, tags, slider track */

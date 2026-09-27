@@ -73,8 +73,9 @@ const label = 'text-[14px] text-text';
 </section>
 
 <Card label="Ready to publish" rows data-publish>
-  <Row title="Episode file" hint="Everyone mixed into one file, ready for your podcast host. The separate tracks are always in the export too.">
-    <Switch name="publish-mix" label="Episode file" />
+  <Row title="Files in the zip" data-export-files>
+    <Fragment slot="hint"><span data-export-files-text>Everything the chain makes, until you save a selection in Export → Choose files.</span></Fragment>
+    <button type="button" class="h-9 flex-none rounded-[10px] border border-border px-3 text-[14px] text-text hover:border-handle" data-export-files-forget hidden>Forget</button>
   </Row>
   <Block data-publish-options>
     <div class="flex items-center justify-between"><span class={label}>Loudness</span><span class="font-mono text-[13px] text-text" data-publish-target>−16 LUFS</span></div>
@@ -94,10 +95,6 @@ const label = 'text-[14px] text-text';
   <Row title="Level each speaker" data-publish-options>
     <Fragment slot="hint">Evens out each voice, by up to <span class="font-mono text-[12px] whitespace-nowrap">12 dB</span>, so nobody's quieter than the rest. Makes levelled copies; the originals are kept.</Fragment>
     <Switch name="publish-level" label="Level each speaker" />
-  </Row>
-  <Row title="MP3 too" data-publish-options>
-    <Fragment slot="hint"><span class="font-mono text-[12px] whitespace-nowrap">128 kbps</span> mono or <span class="font-mono text-[12px] whitespace-nowrap">192 kbps</span> stereo, beside the WAV</Fragment>
-    <Switch name="publish-mp3" label="MP3 too" />
   </Row>
   <Row title="Loudness graph" hint="On the export page: the episode's loudness over the preview, and over the finished file" data-publish-options>
     <Switch name="publish-meter" label="Loudness graph" />
@@ -131,9 +128,7 @@ const label = 'text-[14px] text-text';
   if (pub) {
     const p = loadSettings().recording.publish;
     const box = (n: string) => pub.querySelector<HTMLInputElement>(`[name="${n}"]`)!;
-    box('publish-mix').checked = p.mix;
     box('publish-level').checked = p.level;
-    box('publish-mp3').checked = p.mp3;
     box('publish-meter').checked = p.meter;
     // Remembered tones, by name
     const showVoices = () => {
@@ -152,11 +147,20 @@ const label = 'text-[14px] text-text';
     });
     pub.querySelector<HTMLInputElement>(`[name="publish-loudness"][value="${p.loudness}"]`)!.checked = true;
     const targets = { stereo: '−16 LUFS', mono: '−19 LUFS', off: 'Off' };
+    // The files picked to export, saved from Export → Choose files ("Use this selection every time")
+    const showFiles = () => {
+      const kinds = loadSettings().recording.exportFiles;
+      pub.querySelector('[data-export-files-text]')!.textContent = kinds
+        ? `Your saved selection: ${kinds.map((k) => k.replace(/^voice/, 'each voice').replace(/_/g, ' ')).join(', ')}. Other kinds of file start unticked.`
+        : 'Everything the chain makes, until you save a selection in Export → Choose files.';
+      pub.querySelector<HTMLElement>('[data-export-files-forget]')!.hidden = !kinds;
+    };
+    showFiles();
+    pub.querySelector('[data-export-files-forget]')!.addEventListener('click', () => {
+      saveSettings('recording', { exportFiles: null });
+      showFiles();
+    });
     const dim = () => {
-      pub.querySelectorAll<HTMLElement>('[data-publish-options]').forEach((el) => {
-        el.classList.toggle('opacity-40', !box('publish-mix').checked);
-        el.inert = !box('publish-mix').checked;
-      });
       pub.querySelector('[data-publish-target]')!.textContent = targets[pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value as keyof typeof targets];
       pub.querySelector<HTMLElement>('[data-publish-mono-note]')!.hidden = pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value !== 'mono';
     };
@@ -166,9 +170,7 @@ const label = 'text-[14px] text-text';
         publish: {
           ...loadSettings().recording.publish,
           meter: box('publish-meter').checked,
-          mix: box('publish-mix').checked,
           level: box('publish-level').checked,
-          mp3: box('publish-mp3').checked,
           loudness: pub.querySelector<HTMLInputElement>('[name="publish-loudness"]:checked')!.value as 'stereo' | 'mono' | 'off',
         },
       });
