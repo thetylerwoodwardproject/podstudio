@@ -175,6 +175,7 @@ about 120 MB of RAM. The full guide is [docs/deploy.md](docs/deploy.md).
 - [docs/ui-framework.md](docs/ui-framework.md): the UI framework every screen follows
 - [docs/server-api.md](docs/server-api.md): the API for guests and producers
 - [docs/roadmap.md](docs/roadmap.md): what's designed and coming next
+- [docs/handoff.md](docs/handoff.md): where the project is now, known issues, and the next steps
 - [site/](site/README.md): the podstudio.dev landing page
 
 Built with [Astro](https://astro.build) and [Tailwind CSS](https://tailwindcss.com);
