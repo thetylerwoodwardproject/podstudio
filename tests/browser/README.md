@@ -33,7 +33,7 @@ npm run test:browser -- flow publish   # some of them, by name
 | `import` | Script import steps: paste, rename and reorder sections, review |
 | `mic` | Mic check steps: input, level, test recording, noise |
 | `saved` | Session saved, and the marker tones settings card |
-| `flow` | The Export step flow: tabs, noise reaching the Tone and Loudness previews, the file picker, the zip, and the saved selection on the server |
+| `flow` | The Export step flow: tabs, noise reaching the Tone and Loudness previews, the file picker, the zip, saved selection, and completion (focus, scrolling, phone layout, identical re-download, adjustment, raw-only and failed exports, return to Sessions) |
 | `publish` | Episode loudness (stereo, mono, off), MP3 and ID3, the levelled copies |
 | `tones` | Marker tones in the export, with ducking |
 | `pads` | The pad editor, pads while recording, the Pads track and rough mix |

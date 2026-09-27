@@ -59,15 +59,42 @@ kept in step.
 
 | | |
 |---|---|
-| 🎙️ **Lossless recording** | Mono or stereo WAV at 16 or 24-bit, on the mic's own clock, saved every 5 s and sent to your server as you go |
+| 🎙️ **Lossless recording** | Mono or stereo lossless WAV at 16 or 24-bit, saved every 5 s and sent to your server as you go |
 | 📜 **A prompter that follows you** | Voice follow scrolls the script as you talk and holds your place when you ad-lib |
 | ✂️ **Marked, not cut** | Retake, cough and ad-lib are one key each. The raw WAV stays whole; the export adds an edit that keeps your last attempt of each line |
 | 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and the session from anywhere |
 | ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
-| 📦 **Publish as is, or take it to your DAW** | A ready-to-publish episode at −16 LUFS stereo or −19 LUFS mono (WAV and MP3), with optional levelling, a graphic EQ and compressor per voice, and a loudness meter, beside every person's raw and edited WAV for your own post-production |
+| 📦 **Publish as is, or take it to your DAW** | A ready-to-publish episode at −16 LUFS stereo or −19 LUFS mono (WAV and MP3), with optional levelling, a graphic EQ and compressor per voice, and a loudness meter, with each person’s raw and edited WAV available for your own post-production |
 | 🎛️ **Hotkey pads** | Nine sounds on the number keys, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |
 | 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
+
+The recording workflow also includes:
+
+- **Script import and editing:** paste text or import `.txt`/`.md`, rename and
+  reorder sections, then review before importing. Use speaker lines, a host-only
+  script, talking points, or ad-lib mode.
+- **Mic check:** Input → Level → Test → Noise, with a ten-second recording,
+  device and channel selection, and Original / Cleaned / Removed previews.
+- **Recording safeguards:** mic-stop, clipping, battery and storage warnings,
+  offline upload retries, crash recovery, and voice-follow diagnostics.
+- **Guest wrap-up:** wait for uploads, listen to Host / Guest / Both, nudge the
+  guest offset, or import their backup WAV before export.
+- **Export choices:** Edit → Noise → Tone → Loudness → Export. Pick individual
+  files or use Everything, To publish, or For my DAW; save the kinds of file you
+  want for future sessions. WAVs, edits, cleaned and processed copies, MP3,
+  marker tones, Audacity labels, CSV markers and reports are available as
+  applicable to the chosen processing.
+- **Export completion:** a confirmation with the actual file count and zip
+  size, Back to sessions, Download again, and Adjust export settings. Finished
+  episode measurements remain available below it.
+- **Sessions and settings across devices:** recordings upload as you go and
+  can be brought into another browser to play or export. Recording, export and
+  prompter settings follow your account; microphone selection stays on the
+  device, as does the recording screen’s text zoom. Sessions can be played,
+  downloaded or deleted.
+- **Account security:** two-factor authentication, recovery codes, trusted
+  devices and password changes, plus a one-time admin setup link on the server.
 
 Every feature in detail: [docs/features.md](docs/features.md).
 
@@ -97,7 +124,7 @@ Every feature in detail: [docs/features.md](docs/features.md).
     <td width="34%" align="center"><img src="docs/images/phone-recording.png" alt="Recording on a phone: the script, the level meter and the control bar" width="260"></td>
     <td width="66%" valign="middle">
       <h3>On a phone, too</h3>
-      <p>The same control bar works on a phone: Cough, Retake and Ad-lib under your thumb, the level meter above them, and the script taking the rest of the screen. iPhones and iPads with iOS 17 or later record through Safari or any other browser; Android works in Chrome.</p>
+      <p>The same control bar works on a phone: Cough, Retake and Ad-lib under your thumb, the level meter above them, and the script taking the rest of the screen. iPhone and iPad recording uses the AudioWorklet path on supported iOS 17+ browsers; real-device validation is still pending. Android uses Chrome.</p>
       <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
       <img src="docs/images/saved.png" alt="Session saved: the raw WAV and edit, with a player and Export">
       <p><sub><b>Session saved</b>: length, markers, file size, what's on the server, and a player (original or cleaned)</sub></p>
@@ -109,9 +136,9 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 | | |
 |---|---|
-| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, tone per voice (EQ and compressor), a loudness meter, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · a mixer view on a laptop or phone · hotkey pads, with faders on a phone · accounts with two-factor · episodes, scripts and recordings stored on the server · the guided installer |
-| 🚧 **In progress** | First test on a real VPS (the lab environment) · checking iPhone recording on real devices |
-| 🗓️ **Next** | Versioned releases with upgrade paths · Whisper transcripts through your own OpenAI key. See [docs/roadmap.md](docs/roadmap.md) |
+| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, tone per voice (EQ and compressor), a loudness meter, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · a mixer view on a laptop or phone · hotkey pads, with faders on a phone · accounts with two-factor · episodes, scripts and recordings stored on the server · settings synced per account · selectable export files and a completion screen · the guided installer |
+| 🚧 **Next validation** | First test on a real VPS (the lab environment) · checking iPhone recording and guest sessions on real devices and networks |
+| 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and transcription. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |
 
 Known gaps and caveats: [docs/features.md#known-gaps](docs/features.md#known-gaps).
@@ -127,8 +154,9 @@ npm run dev
 ```
 
 Open **https://localhost:4321** (accept the self-signed certificate once), then
-create your account and turn on two-factor. `npm run dev:phone` does the same
-but is reachable from phones and other computers on your Wi-Fi.
+create your account and turn on two-factor. The current dev configuration
+listens on the network too; use the Network address printed in the terminal for phones on your Wi-Fi. `npm run dev:phone`
+explicitly enables the same network access.
 
 It runs in Chrome, Edge, Arc and other Chromium browsers on computers and
 Android, and in any browser on iPhone and iPad with iOS 17 or later (see
@@ -151,8 +179,9 @@ The installer walks you through everything:
 5. checks HTTPS works;
 6. prints a one-time link to create your admin account.
 
-Run it again to upgrade; it backs up the database first. Podstudio idles at
-about 120 MB of RAM. The full guide is [docs/deploy.md](docs/deploy.md).
+Run it again to upgrade; it backs up the database first. Fresh installs,
+upgrades and server memory use still need validation on the lab VPS. The full
+guide is [docs/deploy.md](docs/deploy.md).
 
 ## Made by
 
@@ -171,6 +200,11 @@ about 120 MB of RAM. The full guide is [docs/deploy.md](docs/deploy.md).
 
 ## For developers
 
+The [Checks workflow](.github/workflows/checks.yml) runs unit/server tests,
+Astro and Svelte checks, the build, and all 13 Chromium browser tests on pushes
+and pull requests. Browser failure logs and screenshots are retained for seven
+days; see [the browser test guide](tests/browser/README.md).
+
 - [docs/development.md](docs/development.md): commands, the code layout, and where each design screen lives
 - [docs/ui-framework.md](docs/ui-framework.md): the UI framework every screen follows
 - [docs/server-api.md](docs/server-api.md): the API for guests and producers
@@ -178,7 +212,8 @@ about 120 MB of RAM. The full guide is [docs/deploy.md](docs/deploy.md).
 - [docs/handoff.md](docs/handoff.md): where the project is now, known issues, and the next steps
 - [site/](site/README.md): the podstudio.dev landing page
 
-Built with [Astro](https://astro.build) and [Tailwind CSS](https://tailwindcss.com);
+Built with [Astro](https://astro.build), Svelte 5 for stateful panels, and
+[Tailwind CSS](https://tailwindcss.com);
 noise suppression by [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet).
 Credits for everything Podstudio ships are in Settings → About & credits.
 

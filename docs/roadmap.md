@@ -5,7 +5,7 @@ Designed and agreed, not built yet.
 ## Next stage: a lab environment on a real VPS
 
 The next test runs on a real VPS. From here on, work builds off that lab
-server rather than only this dev container, so every change has to be
+server as well as local development and CI, so every change has to be
 something you can install over a running copy without losing data.
 
 - **Lab environment.** One VPS set up with `deploy/install.sh` (Caddy, systemd,
@@ -30,6 +30,10 @@ something you can install over a running copy without losing data.
   release with real recordings in place, restart during a live session (guests
   reconnect), and idle memory.
 
+The unit/server checks and all 13 browser tests already run in
+[GitHub Actions](../.github/workflows/checks.yml). They cover simulated devices;
+they do not replace the real-server and real-phone checks above.
+
 ## Calibration (step flow mockup 1d)
 
 Designed in `design/step-flow/` (1d), not built: a step flow of **Speaker 1 →
@@ -45,3 +49,11 @@ in the bar; the last button is **Save**. It needs:
 - somewhere the correction applies (the monitor path during recording and
   playback), which doesn't exist yet: Podstudio doesn't route monitoring
   today.
+
+## Transcription and episode package
+
+Transcripts, titles, chapters and soundbites still use example data. Connecting
+transcription through the user's own OpenAI key and replacing the package
+screen's mock content remain future work, after the lab and upgrade-path work.
+The Domain & HTTPS checks and Controls remotes also remain mock interfaces;
+see [known gaps](features.md#known-gaps).

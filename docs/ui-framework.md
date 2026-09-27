@@ -38,8 +38,10 @@ graphs that follow the settings) is a Svelte 5 component in
   the page opens without it.
 - Keep the `data-*` hooks the browser tests use.
 - `npx svelte-check` must pass, as well as `npx astro check`.
-- Existing panels move to Svelte only when they need real work. The recording
-  screen and `lib/audio` stay as they are.
+- Existing panels move to Svelte only when they need real work. Recording
+  moves in small pieces when needed; timing-critical capture, meters and
+  prompter scrolling stay plain TypeScript. Follow the
+  [screen-by-screen rules](handoff.md#svelte-or-astro-the-rule).
 
 ## Fonts
 - Sans: `-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif`
@@ -150,6 +152,13 @@ check, Wrapping up, Script import). Design: `design/step-flow/`.
   28/20/40 padding, 28 between blocks), the bar.
 - **The preview plays everything up to the step.** Audio work stays in
   `lib/audio` (`chain-preview.ts` for Export, `preview-player.ts` to play).
+- **Export completion:** after the browser download starts, show “Your export
+  is ready” with actual zip size and file count. Focus the heading and scroll
+  it into view; turn the final step number green. The bottom bar uses a summary
+  and **Back to sessions**. Offer **Download again** and **Adjust export
+  settings**, keeping measured results and sync details below. Don’t claim the
+  file finished saving or redirect automatically. Failed exports stay in the
+  export flow.
 - **Settings survive going back** and a reload (Export keeps them per take for
   the browser tab).
 - Screens that are Astro markup with a script use `lib/step-shell.svelte.ts`,

@@ -13,10 +13,12 @@ with a message fit to show the person.
 ## Roles
 
 - **host**: the account holder. Creates the session, records, and owns the
-  session state. (Until sign-in exists, whoever creates a session is its host.)
+  session state. Creating a session requires a signed-in account with
+  two-factor setup complete.
 - **guest**: at most one per session. Records their own track locally and uploads it.
 - **producer**: never records. Follows and edits the script, marks retakes,
-  ad-libs, pauses and cuts, starts/pauses/stops the session, manages the guest.
+  ad-libs and pauses, starts/pauses/stops the session, and manages invite
+  codes. Cough is controlled by the person recording; lobby admission is the host’s.
 
 Each person holds a **token** for the session, sent as `Authorization: Bearer <token>`
 (or `?token=` on the WebSocket).
@@ -52,7 +54,7 @@ them in, so a leaked code can't bring in strangers or bots.
 
 | Method | Path | Who | Does |
 |---|---|---|---|
-| GET | `/api/health` | anyone | `{ ok: true, server, time }`. The app checks this to offer guests at all. |
+| GET | `/api/health` | anyone | `{ ok: true, server, version, schema, time }`. The app checks this to offer guests at all. |
 | POST | `/api/sessions` `{ episodeId }` | host | → `{ sessionId, hostToken, codes: { guest, producer } }` |
 | GET | `/api/sessions/:id` | any admitted member | → `{ episodeId, codes? (host, producer), connected: Role[], waiting? (host): Knock[], ended }` |
 | POST | `/api/sessions/:id/codes/:role` | host, producer | New code for `guest` or `producer` → `{ code, codes }` |
@@ -92,14 +94,38 @@ Messages between people (`src/lib/room.ts` has the types):
 |---|---|---|
 | `state` | host | `{ state: { recording, paused, ended, startedAtServer, word, line, point, markers, scriptVersion, mode, hostName, adlib, cut } }`. The host is the authority; markers are in seconds on the host's recording clock. |
 | `script` | host, producer | `{ version, text }`: the whole script (import format) after an edit |
-| `command` | producer, guest | `{ action }`: `start`, `pause`, `resume`, `stop`, `retake`, `adlib`, `cut`, `next`, `prev`, `goto {word}`, `section {index}`, `point {index}`, `cough {down}` (guest) |
-| `guest` | guest | `{ name, level, clip, recording, uploaded, pending, done, mic, word?, take? }` about twice a second |
-| `hello` | anyone | `{ role, name }` on connecting |
+| `command` | producer, guest | `{ action }`: `start`, `pause`, `resume`, `stop`, `retake`, `adlib`, `next`, `prev`, `goto {word}`, `section {index}`, `point {index}`, `cough {down}` (guest) |
+| `guest` | guest | `{ name, level?, now?, clip?, recording?, uploaded?, pending?, done?, mic?, word?, take? }` about twice a second |
+| `hello` | anyone | `{ role, name? }` on connecting |
+| `setup` | host | `{ mode, points, hostName, guestName? }`: script mode, talking points and speaker names |
 
 ## Timing
 
-The host's and guest's tracks are recorded on different devices. Each records
-`startedAtServer` (the server clock when its recorder started, from the clock
-offset). At export the guest track is shifted by `guestStart − hostStart`:
-padded with silence if it started late, trimmed if early. Markers are on the
-host's recording clock, so the same cuts apply to both tracks.
+The host and guest record `startedAtServer` and a `sync` log:
+`{ clock: "server", points: [[frames, serverTimeMs], ...] }`. Each point pairs
+captured sample frames with the shared-clock arrival time. The recorder keeps
+the least-late chunk of each roughly five-second segment; these points travel
+in track metadata. Clock offset is sampled when joining and every minute.
+
+At export, `src/lib/audio/sync.ts` fits the clocks, corrects measurable drift
+with single-frame slips, fills guest gaps with silence and removes guest audio
+from host gaps. Both edits use the same cuts; coughs mute only the person's
+own track. Older recordings without sync logs use the start-time offset
+(`src/lib/audio/align.ts`). Wrapping up can add a manual guest offset of up to
+±500 ms. Exported WAVs carry Broadcast WAV timecode, and the optional export
+report describes corrections. See [track sync](features.md#keeping-tracks-in-sync).
+
+## Account settings
+
+Separate from live-room tokens, `server/user-settings.ts` provides settings
+for the fully signed-in account using its session cookie:
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/api/me/settings` | `{ settings: object \| null, updatedAt }` |
+| PUT | `/api/me/settings` with `{ settings }` | `{ updatedAt }`; settings must be an object, with a 256 KiB request limit |
+
+`updatedAt` is assigned by the server. The browser saves locally immediately,
+sends changes after 400 ms, and synchronizes on page load. Recording and
+prompter settings sync; the client leaves `recording.deviceId` out of uploads
+and preserves its local value when applying server settings.

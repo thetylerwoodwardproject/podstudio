@@ -1,6 +1,6 @@
 # Handoff: where Podstudio is, and what's next
 
-Written 27 September 2026, at `d6abc49` on `main`. Read this first, then
+Updated 27 September 2026 against `ed89995` on `main`. Read this first, then
 [README.md](../README.md), [development.md](development.md) (commands and
 layout), [features.md](features.md) (what each screen does) and
 [ui-framework.md](ui-framework.md) (the rules every screen follows).
@@ -8,7 +8,7 @@ layout), [features.md](features.md) (what each screen does) and
 ## Where it stands
 
 Recording, voice follow, guests and producers, uploads, and export all work
-end to end in this dev container. It hasn't run on a real server yet: that's
+end to end locally and in Linux CI. It hasn't run on a real server yet: that's
 the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 (three migrations).
 
@@ -16,6 +16,8 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 
 | Commit | What |
 |---|---|
+| `ed89995` | **Export completion.** Actual zip count and size, “Your export is ready”, Back to sessions, Download again (the same zip), and Adjust export settings. Keeps the finished measurements and sync report. Browser coverage includes failure and raw-only exports, focus, scrolling and phone layouts. |
+| `722803e`, `e15794a` | **CI checks.** GitHub Actions runs unit/server tests, both type checks, the build and all 13 browser tests. Saves logs and screenshots for seven days. The upload test selects the raw WAV explicitly instead of relying on filesystem order. |
 | `d6abc49` | **Export: pick the files that go in the zip.** A Choose files sheet with every file in four groups, each with a line saying what it is and its size; quick picks (Everything, To publish, For my DAW); "Use this selection every time" saves the *kinds* of file, so the selection carries across episodes, guests and split parts. |
 | `50f0385` | **Steady noise suppression.** The flutter on EQ and compression came from DeepFilterNet's gain jumping frame to frame. `GainSmoother` (`lib/audio/denoise-core.ts`) holds the model's gain per frequency (instant rise, 80 ms fall). At 70 %: jitter 1.36 → 0.48 dB, speech loss 3.8 → 1.3 dB. Cleaned copies are cached as `ns2-*`, so old `ns-*` ones are made again. **Settings are kept on the server** (per account, migration 3) and follow you to any device; the chosen microphone stays per device. |
 | `e714bc5` … `dd95765` | **The step flow** (design handoff in `design/step-flow/`): Export, Mic check, Wrapping up (with a guest offset nudge), Script import, Session saved and marker tones. Noise now comes before Tone, and each step's preview plays the chain up to that step. |
@@ -27,12 +29,11 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
   `ws`. Caddy terminates HTTPS in production (`deploy/`).
 - **Database:** numbered migrations in `server/migrations.ts`. Only ever add
   one; never edit a released one.
-- **Browser:** Astro pages. The newer screens are Svelte 5 (runes). Note that
-  `development.md` still says "vanilla TypeScript, not framework islands";
-  that's out of date.
+- **Browser:** Astro pages with Svelte 5 (runes) for stateful panels. See
+  [development.md](development.md) for the current stack and layout.
   - **Step flow:** `components/steps/` (StepTabs, StepPlayer, StepPage,
-    ToneStep, LoudnessGraph). Astro pages drive them through
-    `lib/step-shell.svelte.ts`.
+    ToneStep, LoudnessGraph). Export owns its flow in Svelte; Mic check,
+    Wrapping up and Script import still use `lib/step-shell.svelte.ts`.
   - **Preview player:** `lib/audio/preview-player.ts` swaps A/B at the same
     playhead.
   - **Chain preview:** `lib/audio/chain-preview.ts` builds the preview stage by
@@ -54,12 +55,14 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
   - Every page pulls the settings on load (`syncSettings()` in `Base.astro`).
     If the server copy is newer it replaces the local one and fires
     `podstudio:settings`.
-  - The key is `deviceId`, and it never leaves the device.
+  - The microphone choice is `recording.deviceId`; that field never leaves
+    the device. Recording and prompter settings sync; the recording screen’s
+    separate `podstudio:text-size` zoom key also stays local.
 
 ## Tests
 
 - **Checks:** `npm test` (232 unit and server tests), `npx astro check`,
-  `npx svelte-check` and `npm run build`. All pass at `d6abc49`.
+  `npx svelte-check` and `npm run build`. All pass at `ed89995`, locally and in CI.
 - **Browser tests:** `npm run build`, then `npm run test:browser` (about
   15 minutes). They run in real Chromium with a fake mic and check the files in
   each downloaded zip. They live in [`tests/browser/`](../tests/browser/README.md):
@@ -69,10 +72,16 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
     puts known settings on the server first. Settings are per account on the
     server, so without it one test's settings leak into the next.
 
+The [CI workflow](../.github/workflows/checks.yml) also runs the full browser
+suite on pushes and pull requests. It uses Playwright Chromium via `PS_CHROME`
+and retains diagnostics for seven days, without automatic retries.
+
 ## Known issues
 
-- **`guest/sync` is flaky:** it sometimes reports "no measurable drift" and
-  passes on a rerun. The test simulates drift; the app is fine.
+- **`guest-sync` has a known intermittent failure:** it can report “no
+  measurable drift” for the simulated clock skew. Recent local and CI runs
+  passed, but the test has not been made deterministic. Investigate failures
+  using the logs; a passing rerun alone does not establish the cause.
 - **Settings pages reload on first sync.** A settings page you haven't touched
   reloads when newer settings arrive from the server. That's harmless, but
   visible on a slow connection.
@@ -85,7 +94,7 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 ## Svelte or Astro: the rule
 
 Svelte is used where a screen holds a lot of connected state, and nowhere
-else. It's 13 files (about 1,800 lines) against about 10,300 lines of Astro.
+else. Pages and layouts remain predominantly Astro.
 
 **At a glance:**
 
@@ -178,22 +187,18 @@ Astro is for pages that mostly show things and save a form.
 
 ## Next steps
 
-1. **Run the browser tests in CI** (GitHub Actions: build, then
-   `npm run test:browser`, with Chromium from Playwright and `PS_CHROME`).
-2. **The lab VPS** ([roadmap](roadmap.md#next-stage-a-lab-environment-on-a-real-vps)):
+1. **The lab VPS** ([roadmap](roadmap.md#next-stage-a-lab-environment-on-a-real-vps)):
    - install with `deploy/install.sh` on a real domain;
    - tag `v0.2.0` with a `CHANGELOG.md`;
    - test upgrades from each released schema, not only from an empty
      database;
    - make the server refuse to start on a database newer than it knows.
-3. **Real devices:** the iPhone mic and background behaviour, and phones as
+2. **Real devices:** the iPhone mic and background behaviour, and phones as
    guests over a real network.
-4. **Screens to Svelte, as they next change:** Mic check and Wrapping up
+3. **Screens to Svelte, as they next change:** Mic check and Wrapping up
    first, then Recording (in pieces), Guest, Producer and the pad editor (see
    [Svelte or Astro](#svelte-or-astro-the-rule)).
-5. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
+4. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
    It needs a monitor path that Podstudio doesn't have yet.
-6. **Small clean-ups:**
-   - bring `development.md`'s stack and layout up to date (Svelte, `steps/`,
-     `export-files.ts`, `user-settings.ts`);
-   - clear stale OPFS noise variants.
+5. **Small clean-ups:** clear stale OPFS noise variants and investigate the
+   intermittent guest-sync test.

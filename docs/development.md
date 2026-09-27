@@ -12,7 +12,9 @@ Needs Node 22.18 or later (Node 24 LTS on a server): the server runs its TypeScr
 npm install
 npm run dev        # https://localhost:4321 (self-signed certificate), with the server's API and live room
 npm run dev:phone  # the same, reachable from phones and other computers on your network
-npm run build      # type-check, then build the static site into dist/
+npx astro check    # Astro and TypeScript diagnostics
+npx svelte-check   # Svelte diagnostics (run separately from the build)
+npm run build      # Astro check, then build prerendered pages and the Node server into dist/
 npm start          # the production server (after npm run build): http on 127.0.0.1:4321, Caddy in front
 npm run preview    # the production server over https with a self-signed certificate, on the network
 npm test           # unit and server tests (accounts, 2FA, live sessions, audio, exports)
@@ -23,9 +25,24 @@ npm run reset-2fa -- tyler        # on the server: turn two-factor off, to set i
 
 Open `/screens` to see every screen, listed by its id from the design file. Links there with `?demo` show the design's example content; the "Try it live" list uses real recording.
 
+## Checks and publishing
+
+Work on a feature branch. Before publishing, run `npm test`, `npx astro check`,
+`npx svelte-check` and `npm run build`; for screen changes also run
+`npm run test:browser` and review screenshots against the UI framework.
+The [Checks workflow](../.github/workflows/checks.yml) runs all of these on
+pushes, pull requests and manual runs, using Node 24, Python 3.12 and the
+Chromium bundled with the locked Playwright version. Logs and screenshots are
+retained for seven days. See [browser tests](../tests/browser/README.md).
+
+Once checks pass, push the feature branch, fast-forward `feat/ui-build`, and
+push that commit to both `feat/ui-build` and `main`. Commit as
+`Tyler Woodward <tyler@fullymodulated.com>`, without co-author trailers.
+
 ## Stack
 
-- **Astro 7** with the Node adapter: pages are built ahead of time, and `server/main.ts` serves them with the API. **node:sqlite** (built into Node 22.13+) for the database, **ws** for the live room: the only runtime dependencies besides Astro and Tailwind. Interactive parts are small vanilla TypeScript `<script>` modules, not framework islands.
+- **Astro 7** with the Node adapter: pages are prerendered where possible; the adapter serves dynamic pages. `server/main.ts` serves the built app with the API and live room. **node:sqlite** stores the database and **ws** handles the live room.
+- **Svelte 5** for stateful panels: the Export flow and picker, step tabs and player, Tone and Loudness panels, Saved player, and marker-tone card. Simple pages stay Astro. Audio processing, file work and timing-critical recording code stay plain TypeScript. Follow the [migration rules](handoff.md#svelte-or-astro-the-rule); don’t convert a working page just to convert it.
 - **Tailwind CSS 4** via `@tailwindcss/vite`. The design tokens are in `src/styles/global.css`.
 - **UI framework:** every screen follows [docs/ui-framework.md](ui-framework.md) (tokens, components, type, writing); the full reference is `docs/design/Podstudio_UI_Framework.dc.html`.
 - **Fonts:** the system sans and mono stacks for the app; the prompter's Atkinson Hyperlegible is self-hosted from `@fontsource`, so nothing loads from Google.
@@ -45,6 +62,7 @@ server/
   cli.ts                    reset-password, reset-2fa
   library.ts                episodes, scripts (versioned), show setup, pads, the sound library (media/)
   takes.ts                  host recordings uploaded as they're made (takes/<id>/seg-*.pcm + meta.json)
+  user-settings.ts          account settings API (migration 3); microphone deviceId stays local
   testing.ts                test helper: the API on a random port, signed in
 dev/server-plugin.ts        mounts server/api.ts in npm run dev
 docs/server-api.md          the API for guests and producers
@@ -68,24 +86,35 @@ src/
     voice/match.ts      fuzzy alignment of heard words against the script
     voice/follow.ts     speech recognition wrapper: word, lost and found events; mute() for coughs
     prompter.ts         reading-line scroll + word highlight; the ?demo driver
-    settings.ts         saved settings and prompter themes
+    settings.ts         local settings cache, account sync, prompter themes; deviceId stays local
+    export-files.ts     one file plan for the export picker and zip writer
+    step-shell.svelte.ts mounts shared Svelte tabs/player in the remaining Astro step flows
     zip.ts              stored zip writer for multi-file downloads
     script-parser.ts    "## Heading" sections for script import
     markers.ts          marker names and counts ("3 retakes · 2 coughs · 1 ad-lib")
     room.ts             guests and producer: server API calls, the live room, the server-clock offset
     show.ts             per-episode show setup: solo or with a guest, script mode, producer
     upload.ts           sends a recording's 5 s segments to the server in order, with retries
-    audio/align.ts      lines a guest's track up with the host's
+    audio/align.ts      start-time fallback for lining up a guest’s track
+    audio/sync.ts       clock fitting, drift/gap correction and Broadcast WAV timecode
+    audio/line-up.ts    host/guest waveforms for the wrap-up offset nudge
+    audio/preview-player.ts  swaps preview choices at the same playhead
+    audio/chain-preview.ts   caches Raw → Edit → Noise → Tone → Loudness previews
+    audio/tone.ts, master.ts, loudness.ts, mp3.ts  EQ, compression, levelling, loudness and MP3
+    audio/pad-engine.ts, pads-render.ts, pads-export.ts  live pads and exported pad tracks
     platform.ts         iPhone/iPad, Android, touch
     script-store.ts     the episode script every screen uses (the user's own or the example)
     states.ts           mock-state switching (?state=…) for multi-state screens
-    mock-forms.ts       forms with data-next move to the next screen until the server exists
+    mock-forms.ts       data-next navigation for the remaining mock forms
   layouts/              Base (browser gate), AppShell (top bar), Phone, Setup
   components/ui/        Button, Field, Select, Segmented, Switch, Checkbox, OtpInput, Callout, …
-  components/app/       TopBar, ImportDialog, MicCheck, PreviewStates
+  components/app/       TopBar, ImportDialog, MicCheck, ExportFlow, ExportPicker, SavedPlayer, PreviewStates
+  components/steps/     StepTabs, StepPage, StepPlayer, ToneStep, LoudnessGraph
   components/settings/  one component per settings section
   pages/                routes (below)
-project/                the Claude Design handoff (HANDOFF.md, prototypes, archive)
+docs/design/            UI framework, step-flow and export-file designs
+.github/workflows/      CI checks, including the full browser suite
+project/                original design handoff (HANDOFF.md, prototypes, archive)
 chats/                  the design conversation
 ```
 
@@ -98,7 +127,7 @@ chats/                  the design conversation
 | 1i | `/episodes/142/saved` | Session saved |
 | 3a | `/settings/controls` | The controls and keys |
 | — | `/signin`, `/signin/verify` | Sign-in and 2FA |
-| — | `/setup/two-factor`, `/setup/domain` | First-run wizard (only the designed steps) |
+| — | `/setup/account`, `/setup/two-factor`, `/setup/domain` | Account creation and two-factor setup; Domain checks are mock data |
 | — | `/unsupported` | Firefox, Safari on the Mac, and iOS 16 or earlier |
 | — | `/` | Library, with **Import script** |
 | — | `/episodes/142/script` | Script editor |
@@ -109,8 +138,8 @@ chats/                  the design conversation
 | — | `/join` | Enter a 6-digit guest or producer code |
 | 6a | `/guest` | The guest: green room, waiting, recording and upload |
 | — | `/producer` | The producer: live script, session controls, the guest |
-| — | `/episodes/142/wrap` | Waiting for the guest's track before export |
-| 8b | `/episodes/142/session` | Export |
+| — | `/episodes/142/wrap` | Uploads → Line up (guest offset) → Review |
+| 8b | `/episodes/142/session` | Edit → Noise → Tone → Loudness → Export, file picker and completion state |
 | 2d, 2e | `/episodes/142/transcribing`, `/episodes/142/package` | Transcript and episode package (mock data) |
 | 7a | `/settings/<section>` | Nine sections, including About & credits. Domain & HTTPS has `?state=ok\|warn\|local`. |
 

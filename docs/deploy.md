@@ -1,7 +1,9 @@
 # Running Podstudio on a VPS
 
 Podstudio is one Node process with a SQLite database and a data folder, behind
-Caddy for HTTPS (or Nginx with Certbot, if you prefer). A 1 GB VPS is plenty: the server idles around 100 MB of RAM.
+Caddy for HTTPS (or Nginx with Certbot, if you prefer). The first real VPS
+validation is still pending; confirm memory use and upgrade behaviour in the
+[lab checks](roadmap.md#next-stage-a-lab-environment-on-a-real-vps).
 Recording is done in the browser; the server stores what's uploaded, so size the
 disk for your audio (24-bit / 48 kHz mono is about 520 MB an hour per speaker).
 
@@ -14,7 +16,7 @@ disk for your audio (24-bit / 48 kHz mono is about 520 MB an hour per speaker).
 ## Install
 
 ```sh
-git clone <your copy of Podstudio> podstudio && cd podstudio
+git clone https://github.com/thetylerwoodwardproject/podstudio && cd podstudio
 sudo ./deploy/install.sh
 ```
 
@@ -116,7 +118,7 @@ PORT=4321
 
 ```
 /var/lib/podstudio/
-  podstudio.db          accounts, episodes, scripts, pads, sessions (SQLite, WAL)
+  podstudio.db          accounts, settings, episodes, scripts, pads, sessions (SQLite, WAL)
   takes/<id>/           your recordings: seg-000001.pcm … + meta.json
   live/<session>/guest/ guests' recordings
   media/                pad sounds (WAV)
@@ -129,7 +131,7 @@ the audio is plain files. The installer offers to set this up as
 `/etc/cron.d/podstudio-backup`; to do it by hand (`sudo crontab -e`):
 
 ```sh
-15 3 * * * sqlite3 /var/lib/podstudio/podstudio.db ".backup '/var/backups/podstudio.db'" && rsync -a --delete /var/lib/podstudio/takes /var/lib/podstudio/live /var/lib/podstudio/media /var/backups/podstudio/
+15 3 * * * sqlite3 /var/lib/podstudio/podstudio.db ".backup '/var/backups/podstudio/podstudio.db'" && rsync -a --delete /var/lib/podstudio/takes /var/lib/podstudio/live /var/lib/podstudio/media /var/backups/podstudio/
 ```
 
 Then copy `/var/backups` off the server (rsync to another machine, restic,
