@@ -1,7 +1,8 @@
 ---
-// 5b · Script import: paste, upload, or Google Docs link
-import Button from '@/components/ui/Button.astro';
-import { episode, importPreview } from '@/data/mock';
+// 5b / step flow 1g · Script import: Paste (a file, pasted text or a Google Docs link) → Sections
+// (rename and reorder the headings) → Review, then import. Full-screen on a phone.
+import { episode } from '@/data/mock';
+import { inputClass } from '@/lib/ui';
 
 interface Props {
   /** Episode the imported script goes to */
@@ -10,99 +11,133 @@ interface Props {
   label?: string;
 }
 const { episodeId = episode.id, label = `Ep. ${episodeId}` } = Astro.props;
-import { inputClass } from '@/lib/ui';
+const steps = [
+  { id: 'paste', label: 'Paste', title: 'Import a script', lede: 'Drop a file, paste the text, or link a Google Doc. Each line of text is a line of the script.' },
+  { id: 'sections', label: 'Sections', title: 'Sections', lede: 'Found from your headings. Each becomes a jump point on the teleprompter.' },
+  { id: 'review', label: 'Review', title: 'Review', lede: `How the script will read in ${label}.` },
+];
 ---
 
 <dialog
   id="import-dialog"
   data-episode={episodeId}
   data-target={label}
+  data-steps={JSON.stringify(steps)}
   aria-labelledby="import-title"
-  class="m-auto w-[min(900px,calc(100vw-32px))] overflow-hidden rounded-[14px] border border-edge bg-panel p-0 text-fg backdrop:bg-black/60 md:h-[600px]"
+  class="m-auto h-[min(640px,calc(100dvh-32px))] w-[min(820px,calc(100vw-32px))] overflow-hidden rounded-[14px] border border-border bg-page p-0 text-text backdrop:bg-black/60 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:border-0"
 >
-  <div class="grid h-full md:grid-cols-2">
-    <div class="flex flex-col gap-4.5 border-line p-7 max-md:border-b md:border-r">
-      <h2 id="import-title" class="text-[20px] tracking-[-0.02em]">Import a script</h2>
-      <div
-        data-drop
-        tabindex="0"
-        class="flex min-h-40 flex-1 flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-edge-strong p-5 text-center transition-colors data-[over]:border-fg data-[over]:bg-surface"
-      >
-        <div class="text-[15px]">Drop a file or paste text</div>
-        <div class="text-[12px] text-subtle" data-live-only>Click here, then press ⌘V or Ctrl+V</div>
-        <div class="meta text-subtle">.txt · .md · .docx · .fdx</div>
-        <label class="inline-flex h-10 items-center rounded-[10px] border border-edge px-4 text-[14px] hover:bg-raised">
-          Choose file
-          <input type="file" accept=".txt,.md,.docx,.fdx,text/plain,text/markdown" class="sr-only" data-file />
-        </label>
-      </div>
-      <div class="flex flex-col gap-2">
-        <label for="gdocs" class="text-[12px] text-muted">Or paste a Google Docs link</label>
-        <input
-          id="gdocs"
-          type="url"
-          class:list={[inputClass, 'font-mono text-[12px]']}
-          placeholder="https://docs.google.com/document/d/…"
-        />
-      </div>
-      <p class="text-[12px] leading-[1.55] text-subtle">
-        Each line of text is a line of the script. <span class="font-mono text-fg-soft">## Heading</span> lines become
-        sections.
-      </p>
-    </div>
+  <div class="flex h-full min-h-0 flex-col">
+    <header class="flex h-14 flex-none items-center justify-between gap-4 border-b border-divider px-5">
+      <h2 id="import-title" class="text-[15px] text-text-2">Import script <span class="text-text-3">·</span> <span class="text-text-3">{label}</span></h2>
+      <form method="dialog"><button value="cancel" class="text-[14px] text-text-2 hover:text-text">Cancel</button></form>
+    </header>
+    <div data-tabs-mount></div>
+    <div class="min-h-0 flex-1 overflow-y-auto" data-scroll>
+      <div class="mx-auto flex max-w-[760px] flex-col gap-7 px-5 pt-7 pb-10">
+        <div class="flex flex-col gap-1.5">
+          <h1 class="page-title" data-step-title>{steps[0].title}</h1>
+          <p class="text-[14px] leading-normal text-pretty text-text-2" data-step-lede>{steps[0].lede}</p>
+        </div>
 
-    <div class="flex min-w-0 flex-col gap-4.5 p-7">
-      <div class="flex items-baseline justify-between gap-3">
-        <div class="truncate text-[14px]" data-file-name>{importPreview.file}</div>
-        <div class="meta flex-none text-muted" data-file-meta>{importPreview.meta}</div>
+        <!-- 01 Paste -->
+        <section class="flex flex-col gap-5" data-step-panel="paste">
+          <div
+            data-drop
+            tabindex="0"
+            class="flex min-h-44 flex-col items-center justify-center gap-2.5 rounded-[14px] border border-dashed border-handle p-5 text-center transition-colors data-[over]:border-text data-[over]:bg-surface"
+          >
+            <div class="text-[15px]">Drop a file or paste text</div>
+            <div class="text-[13px] text-text-3" data-live-only>Click here, then press ⌘V or Ctrl+V</div>
+            <div class="meta text-text-3">.txt · .md · .docx · .fdx</div>
+            <label class="inline-flex h-9 cursor-pointer items-center rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle">
+              Choose file
+              <input type="file" accept=".txt,.md,.docx,.fdx,text/plain,text/markdown" class="sr-only" data-file />
+            </label>
+          </div>
+          <div class="flex flex-col gap-2">
+            <label for="gdocs" class="text-[13px] text-text-2">Or paste a Google Docs link</label>
+            <input id="gdocs" type="url" class:list={[inputClass, 'font-mono text-[12px]']} placeholder="https://docs.google.com/document/d/…" />
+          </div>
+          <div class="flex items-baseline justify-between gap-3 rounded-[14px] bg-surface px-5 py-4" data-file-row hidden>
+            <span class="truncate text-[14px]" data-file-name></span>
+            <span class="meta flex-none text-text-2" data-file-meta></span>
+          </div>
+          <p class="help">A line starting with <span class="font-mono text-[12px] text-text">NAME:</span> switches the speaker, and <span class="font-mono text-[12px] text-text">## Heading</span> lines become sections.</p>
+        </section>
+
+        <!-- 02 Sections -->
+        <section class="flex flex-col gap-3" data-step-panel="sections" hidden>
+          <ol class="flex flex-col rounded-[14px] bg-surface" data-sections></ol>
+          <p class="text-[13px] text-text-3" data-sections-help>Drag to reorder. Click a name to rename it.</p>
+        </section>
+
+        <!-- 03 Review -->
+        <section class="flex flex-col gap-3" data-step-panel="review" hidden>
+          <div class="flex flex-col gap-3 rounded-[14px] bg-surface p-5" data-preview></div>
+          <p class="text-[13px] text-text-3" data-preview-more></p>
+        </section>
       </div>
-      <div class="flex min-h-40 flex-1 flex-col gap-3 overflow-hidden rounded-[10px] border border-border bg-void p-4" data-preview>
-        <div class="eyebrow">{importPreview.section}</div>
-        {
-          importPreview.lines.map((l) => (
-            <div class="text-[13px] leading-normal text-fg-soft">{l.text}</div>
-          ))
-        }
-      </div>
-      <form method="dialog" class="flex justify-end gap-2.5">
-        <Button type="submit" value="cancel">Cancel</Button>
-        <Button type="submit" value="import" variant="primary" data-import>Import to <span data-target-label>{importPreview.target}</span></Button>
-      </form>
     </div>
+    <div data-bar-mount></div>
   </div>
 </dialog>
 
-<template id="import-line">
-  <div class="text-[13px] leading-normal text-fg-soft"></div>
-</template>
-<template id="import-section">
-  <div class="eyebrow"></div>
-</template>
-
 <script>
   import { loadShow } from '@/lib/show';
-  import { parseScript } from '@/lib/script-parser';
+  import { parseScript, type ParsedLine } from '@/lib/script-parser';
   import { saveScriptText, scriptToText } from '@/lib/script-store';
+  import { flattenSections, groupSections, moveItem, readSeconds, readTime, type Section } from '@/lib/script-sections';
+  import { loadSettings } from '@/lib/settings';
 
   const dialog = document.getElementById('import-dialog') as HTMLDialogElement;
-  const drop = dialog.querySelector<HTMLElement>('[data-drop]')!;
-  const fileInput = dialog.querySelector<HTMLInputElement>('[data-file]')!;
-  const tpl = (id: string) => (document.getElementById(id) as HTMLTemplateElement).content.firstElementChild!;
-
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => dialog.querySelector<T>(s)!;
+  const drop = $('[data-drop]');
+  const fileInput = $<HTMLInputElement>('[data-file]');
   const demo = new URL(location.href).searchParams.has('demo');
-  // Text parsed from a paste or a file, waiting for "Import".
-  let pending: string | null = null;
-  if (!demo) dialog.querySelector('[data-target-label]')!.textContent = dialog.dataset.target!;
+  const wpm = loadSettings().prompter.wpm || 150;
 
-  for (const opener of document.querySelectorAll('[data-open-import]')) {
-    opener.addEventListener('click', () => dialog.showModal());
+  // What's been read, waiting for Import: the lines before the first heading, and the sections.
+  let intro: ParsedLine[] = [];
+  let sections: Section[] = [];
+  let hasLines = false;
+
+  // ── The steps (lib/step-shell.svelte.ts); no player, so the bar sums up the script ──
+  type Step = { id: 'paste' | 'sections' | 'review'; label: string; title: string; lede: string };
+  const steps = JSON.parse(dialog.dataset.steps!) as Step[];
+  const { stepShell } = await import('@/lib/step-shell.svelte');
+  const shell = stepShell($('[data-tabs-mount]'), $('[data-bar-mount]'), { steps, current: 0, reached: 0, ongo: (i) => go(i) }, {});
+  const bar = shell.bar;
+  const summary = () => {
+    const lines = flattenSections(intro, sections);
+    return hasLines
+      ? { text: `${sections.length} section${sections.length === 1 ? '' : 's'}`, meta: `${lines.length} lines · ${readTime(readSeconds(lines, wpm))} read time` }
+      : { text: 'Nothing yet', meta: 'Drop, paste or link a script' };
+  };
+  function go(i: number) {
+    const step = steps[i];
+    shell.tabs!.current = i;
+    dialog.querySelectorAll<HTMLElement>('[data-step-panel]').forEach((p) => (p.hidden = p.dataset.stepPanel !== step.id));
+    $('[data-step-title]').textContent = step.title;
+    $('[data-step-lede]').textContent = step.id === 'sections' && !sections.length ? 'No headings found, so the script is one section. Add “## Heading” lines to split it.' : step.lede;
+    $('[data-scroll]').scrollTo({ top: 0 });
+    bar.summary = summary();
+    bar.onback = i > 0 ? () => go(i - 1) : null;
+    bar.next =
+      i < steps.length - 1
+        ? { label: `Next: ${steps[i + 1].label}`, onclick: () => go(i + 1), disabled: !hasLines }
+        : { label: `Import to ${dialog.dataset.target}`, onclick: () => dialog.close('import'), attrs: { 'data-import': '' }, disabled: demo };
+    if (step.id === 'sections') showSections();
+    if (step.id === 'review') showPreview();
   }
+  go(0);
+
+  for (const opener of document.querySelectorAll('[data-open-import]')) opener.addEventListener('click', () => dialog.showModal());
   drop.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('label')) drop.focus();
   });
   dialog.addEventListener('close', () => {
-    if (dialog.returnValue !== 'import' || !pending || demo) return;
-    saveScriptText(dialog.dataset.episode!, pending);
+    if (dialog.returnValue !== 'import' || !hasLines || demo) return;
+    saveScriptText(dialog.dataset.episode!, scriptToText(flattenSections(intro, sections)));
     location.href = `/episodes/${dialog.dataset.episode}/script?imported`;
   });
   // Click on the backdrop closes the dialog.
@@ -110,38 +145,119 @@ import { inputClass } from '@/lib/ui';
     if (e.target === dialog) dialog.close();
   });
 
-
   function show(name: string, text: string) {
     const parsed = parseScript(text);
     // The first speaker named is the host; anyone else is the guest. A solo show
     // (or a script without names) is all the host's.
     const first = [...parsed.speakers.keys()][0];
     const withGuest = loadShow(dialog.dataset.episode!).format === 'guest';
-    pending = parsed.lines.length
-      ? scriptToText(parsed.lines.map((l) => ({ ...l, who: withGuest && l.who && l.who !== first ? 'GUEST' : '' })))
-      : null;
-    dialog.querySelector('[data-file-name]')!.textContent = name;
-    dialog.querySelector('[data-file-meta]')!.textContent =
-      `${parsed.words.toLocaleString()} words · ${parsed.lines.length} lines · ${parsed.sections.length} sections`;
+    const lines = parsed.lines.map((l) => ({ ...l, who: withGuest && l.who && l.who !== first ? 'GUEST' : '' }));
+    ({ intro, sections } = groupSections(lines));
+    hasLines = lines.length > 0;
+    $('[data-file-row]').hidden = false;
+    $('[data-file-name]').textContent = name;
+    $('[data-file-meta]').textContent = hasLines
+      ? `${parsed.words.toLocaleString()} words · ${lines.length} lines · ${sections.length} sections`
+      : 'No script lines found';
+    shell.tabs!.reached = hasLines ? steps.length - 1 : 0;
+    go(0);
+  }
 
+  // ── Sections: rename in place, reorder by dragging the handle (or Alt+↑/↓ on it) ──
+  const list = $('[data-sections]');
+  function showSections() {
+    $('[data-sections-help]').hidden = !sections.length;
+    list.replaceChildren(
+      ...sections.map((s, i) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-3 px-5 py-3.5 transition-colors data-[dragging]:bg-control' + (i ? ' border-t border-divider' : '');
+        li.dataset.section = String(i);
+        li.innerHTML = `
+          <button type="button" class="-ml-1.5 flex h-8 w-5 flex-none cursor-grab touch-none items-center justify-center text-text-3 hover:text-text" aria-label="Move" data-handle>⋮⋮</button>
+          <span class="w-5 flex-none font-mono text-[11px] text-text-3">${String(i + 1).padStart(2, '0')}</span>
+          <button type="button" class="min-w-0 flex-1 truncate text-left text-[14px] hover:underline hover:underline-offset-2" data-rename></button>
+          <span class="flex-none font-mono text-[12px] text-text-3" data-stats></span>`;
+        li.querySelector('[data-rename]')!.textContent = s.name;
+        li.querySelector('[data-stats]')!.textContent = `${s.lines.length} line${s.lines.length === 1 ? '' : 's'} · ${readTime(readSeconds(s.lines, wpm))}`;
+        return li;
+      }),
+    );
+    bar.summary = summary();
+  }
+  list.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-rename]');
+    if (!btn) return;
+    const i = Number(btn.closest<HTMLElement>('[data-section]')!.dataset.section);
+    const input = Object.assign(document.createElement('input'), { value: sections[i].name, className: `${btn.className} rounded-[6px] border border-border bg-page px-2 py-1 no-underline hover:no-underline`, ariaLabel: 'Section name' });
+    input.dataset.renameInput = '';
+    btn.replaceWith(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (save: boolean) => {
+      if (done) return;
+      done = true;
+      const name = input.value.trim();
+      if (save && name) sections[i].name = name;
+      showSections();
+    };
+    input.addEventListener('keydown', (k) => {
+      if (k.key === 'Enter') (k.preventDefault(), finish(true));
+      if (k.key === 'Escape') (k.preventDefault(), k.stopPropagation(), finish(false));
+    });
+    input.addEventListener('blur', () => finish(true));
+  });
+  list.addEventListener('keydown', (e) => {
+    const handle = (e.target as HTMLElement).closest('[data-handle]');
+    if (!handle || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const i = Number(handle.closest<HTMLElement>('[data-section]')!.dataset.section);
+    const to = i + (e.key === 'ArrowUp' ? -1 : 1);
+    if (to < 0 || to >= sections.length) return;
+    sections = moveItem(sections, i, to);
+    showSections();
+    list.querySelector<HTMLElement>(`[data-section="${to}"] [data-handle]`)!.focus();
+  });
+  list.addEventListener('pointerdown', (e) => {
+    const handle = (e.target as HTMLElement).closest<HTMLElement>('[data-handle]');
+    if (!handle) return;
+    e.preventDefault();
+    const from = Number(handle.closest<HTMLElement>('[data-section]')!.dataset.section);
+    const rows = [...list.children] as HTMLElement[];
+    rows[from].dataset.dragging = '';
+    let to = from;
+    const move = (m: PointerEvent) => {
+      // The row whose middle the pointer has passed
+      to = rows.filter((r) => m.clientY > r.getBoundingClientRect().top + r.offsetHeight / 2).length;
+      to = Math.max(0, Math.min(sections.length - 1, to > from ? to - 1 : to));
+      rows.forEach((r, k) => (r.style.boxShadow = k === to && to !== from ? `inset 0 ${to > from ? -2 : 2}px 0 var(--color-text)` : ''));
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      if (to !== from) sections = moveItem(sections, from, to);
+      showSections();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  });
 
-    const preview = dialog.querySelector('[data-preview]')!;
-    const nodes: Node[] = [];
+  // ── Review: the script as it will read ──
+  function showPreview() {
+    const lines = flattenSections(intro, sections);
+    const nodes: HTMLElement[] = [];
     let section: string | null | undefined;
-    for (const line of parsed.lines.slice(0, 40)) {
+    for (const line of lines.slice(0, 60)) {
       if (line.section !== section) {
         section = line.section;
-        if (section) {
-          const h = tpl('import-section').cloneNode(true) as HTMLElement;
-          h.textContent = section;
-          nodes.push(h);
-        }
+        if (section) nodes.push(Object.assign(document.createElement('div'), { className: `eyebrow${nodes.length ? ' mt-2' : ''}`, textContent: section }));
       }
-      const row = tpl('import-line').cloneNode(true) as HTMLElement;
-      row.textContent = line.text;
-      nodes.push(row);
+      nodes.push(Object.assign(document.createElement('div'), { className: 'text-[14px] leading-normal', textContent: `${line.who ? `${line.who}: ` : ''}${line.text}` }));
     }
-    preview.replaceChildren(...nodes);
+    $('[data-preview]').replaceChildren(...nodes);
+    $('[data-preview-more]').textContent = lines.length > 60 ? `And ${lines.length - 60} more lines.` : '';
   }
 
   async function readFile(file: File) {
@@ -149,8 +265,9 @@ import { inputClass } from '@/lib/ui';
       show(file.name, await file.text());
     } else {
       // .docx and .fdx are converted on the server once the backend exists.
-      dialog.querySelector('[data-file-name]')!.textContent = file.name;
-      dialog.querySelector('[data-file-meta]')!.textContent = 'Parsed when imported';
+      $('[data-file-row]').hidden = false;
+      $('[data-file-name]').textContent = file.name;
+      $('[data-file-meta]').textContent = 'Only .txt and .md can be read here for now';
     }
   }
 

@@ -24,8 +24,10 @@
     onback?: (() => void) | null;
     next?: { label: string; onclick: () => void; disabled?: boolean; attrs?: Record<string, string> } | null;
     extra?: Snippet;
+    /** In place of the player on a step with nothing to play: "4 sections" and "64 lines · ~8:15 read time" */
+    summary?: { text: string; meta: string } | null;
   }
-  let { options = null, choice = 0, onchoose, chain = '', time = '', progress = 0, playing = false, canPlay = true, onplay, onback = null, next = null, extra }: Props = $props();
+  let { options = null, choice = 0, onchoose, chain = '', time = '', progress = 0, playing = false, canPlay = true, onplay, onback = null, next = null, extra, summary = null }: Props = $props();
   const opts = $derived((options ?? []).map((label, i) => ({ value: String(i), label })));
 </script>
 
@@ -33,6 +35,11 @@
   <div class="mx-auto flex max-w-[760px] flex-wrap items-center gap-x-3 gap-y-3.5 px-4 pt-3.5 pb-5 sm:flex-nowrap sm:gap-3.5 sm:px-5 sm:py-4">
     {#if extra}
       <div class="min-w-0 basis-full sm:flex-1 sm:basis-0">{@render extra()}</div>
+    {:else if summary}
+      <div class="flex min-w-0 basis-full items-baseline gap-2.5 sm:flex-1 sm:basis-0" data-summary-bar>
+        <span class="text-[14px] whitespace-nowrap">{summary.text}</span>
+        <span class="truncate font-mono text-[12px] text-text-3">{summary.meta}</span>
+      </div>
     {:else}
       <button
         type="button"

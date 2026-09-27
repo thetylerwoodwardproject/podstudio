@@ -27,6 +27,7 @@ export interface BarState {
   onplay: () => void;
   onback: (() => void) | null;
   next: { label: string; onclick: () => void; disabled?: boolean; attrs?: Record<string, string> } | null;
+  summary: { text: string; meta: string } | null;
 }
 
 export function stepShell(tabsTarget: HTMLElement | null, barTarget: HTMLElement, tabs: TabsState | null, bar: Partial<BarState>) {
@@ -44,6 +45,7 @@ export function stepShell(tabsTarget: HTMLElement | null, barTarget: HTMLElement
     onplay: () => {},
     onback: null,
     next: null,
+    summary: null,
     ...bar,
   });
   if (t && tabsTarget) mount(StepTabs, { target: tabsTarget, props: t });
