@@ -87,6 +87,26 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 Svelte is used where a screen holds a lot of connected state, and nowhere
 else. It's 13 files (about 1,800 lines) against about 10,300 lines of Astro.
 
+**At a glance:**
+
+- **Svelte, already:**
+  - the Export flow, with the file picker and the Tone and Loudness steps;
+  - the step tabs and bottom player;
+  - the marker tones card and the Saved player.
+- **Svelte, when next changed:**
+  - Mic check, Wrapping up and Script import;
+  - Recording, in pieces;
+  - Guest, Producer and the pad editor.
+- **Astro:**
+  - Studio, Sessions, the script editor, and Settings → Recording and the other
+    settings pages;
+  - the library, sign-in, two-factor setup, Saved and the package screen;
+  - the voice test page and `session.astro` (the shell around the Svelte Export
+    flow).
+
+Svelte is for screens where many things change at once while you use them.
+Astro is for pages that mostly show things and save a form.
+
 - **Why it's worth having:**
   - **It's cheap to load:** about 19 KB compressed, loaded only on the pages
     that use it.
@@ -127,7 +147,16 @@ else. It's 13 files (about 1,800 lines) against about 10,300 lines of Astro.
   | Pad editor (`components/settings/Pads.astro`) | A list with a selected pad and its fields, plus show and episode overrides | `pads` |
 
   Studio, Sessions, the script editor and Settings → Recording have moderate
-  state. Move them only if a change makes them awkward.
+  state, so they stay Astro. Move one only when a change to it turns out hard
+  to do cleanly as written. The signs:
+  - one choice has to update several places on the screen;
+  - labels and controls start showing things out of step because an update
+    was missed;
+  - the change adds new states, such as loading, empty, error or a new mode;
+  - the change is a redesign, so most of the screen is being rewritten anyway.
+
+  Small changes (wording, a field that only saves a value, a style fix) stay
+  in Astro.
 - **Leave as they are:**
   - `session.astro`: its screen is already Svelte, and its script loads data
     and writes the zip, which stays plain TypeScript;
