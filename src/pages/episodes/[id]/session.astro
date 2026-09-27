@@ -52,12 +52,12 @@ const episode = { ...mockEpisode, ...data.episode };
   import { assemble, audacityLabels, mapTime, mutes, onAudio, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName, padLabel } from '@/lib/markers';
   import { hasPads, renderPads, renderRoughMix, stereoOf } from '@/lib/audio/pads-export';
-  import { bextFor, formatBytes, getTake, listTakes, rangesWav, readFrames, takeBytes, takeWav, tonedWav, trackShift, trackStart, trackSync, type TakeMeta } from '@/lib/audio/takes';
-  import { guestRanges, guestTime, timecode, type SyncMap } from '@/lib/audio/sync';
+  import { bextFor, formatBytes, getTake, listTakes, rangesWav, readFrames, takeBytes, takeWav, tonedWav, trackStart, type TakeMeta } from '@/lib/audio/takes';
+  import { lineUp } from '@/lib/audio/line-up';
+  import { timecode } from '@/lib/audio/sync';
   import { renderMaster, TARGETS, type MasterTrack } from '@/lib/audio/master';
   import { encodeMp3 } from '@/lib/audio/mp3';
   import { VariantWriter } from '@/lib/audio/takes';
-  import { alignedRanges } from '@/lib/audio/align';
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
   import { denoiseSamples, denoiseTake } from '@/lib/audio/denoise';
   import { noiseFloor } from '@/lib/audio/denoise-core';
@@ -147,35 +147,12 @@ const episode = { ...mockEpisode, ...data.episode };
     // A track from another device on the host's timeline: with sync points, drift and gaps
     // are corrected (lib/audio/sync.ts); older tracks are lined up by their start only.
     const hostStart = trackStart(take);
-    const syncs = new Map<TakeMeta, SyncMap | null>();
-    const syncOf = (t: TakeMeta) => {
-      if (!syncs.has(t)) syncs.set(t, t === take ? null : trackSync(t, take));
-      return syncs.get(t)!;
-    };
-    const aligned = (t: TakeMeta, ranges: [number, number][]) => {
-      const m = syncOf(t);
-      return m ? guestRanges(m, ranges, take.sampleRate, t.sampleRate) : alignedRanges(ranges, trackShift(t, take));
-    };
+    const lu = lineUp(take);
+    const aligned = (t: TakeMeta, ranges: [number, number][]) => lu.ranges(t, ranges);
     // Timecode: every file carries where it starts on the session clock, so editors line them up.
     const tc = (t: TakeMeta, at = 0) => bextFor(t, hostStart + at * 1000);
-    const secs = (x: number) => (x < 10 ? x.toFixed(1) : String(Math.round(x))).replace('-', '−');
     /** What was done to line each track up, for the page and the zip. */
-    const syncLines = () =>
-      tracks
-        .filter((t) => t !== take)
-        .map((t) => {
-          const who = t.speaker.charAt(0) + t.speaker.slice(1).toLowerCase();
-          const m = syncOf(t);
-          if (!m) return `${who}: lined up by start time only (recorded before sync points existed).`;
-          const parts = [
-            m.driftMs >= 1
-              ? `${Math.round(m.driftMs)} ms of drift corrected (${m.ppm > 0 ? '+' : '−'}${Math.abs(m.ppm).toFixed(0)} ppm)`
-              : 'no measurable drift',
-          ];
-          if (m.gaps >= 0.05) parts.push(`${secs(m.gaps)} s of missing audio filled with silence`);
-          if (m.dropped >= 0.05) parts.push(`${secs(m.dropped)} s left out while your mic was stopped`);
-          return `${who}: ${parts.join(', ')}.`;
-        });
+    const syncLines = () => tracks.filter((t) => t !== take).map((t) => `${cap(t.speaker)}: ${lu.describe(t)}.`);
     const syncReport = () =>
       [
         `Timecode (session clock, ${Intl.DateTimeFormat().resolvedOptions().timeZone}): ${timecode(hostStart)} at the start of every full-length file.`,
@@ -197,17 +174,7 @@ const episode = { ...mockEpisode, ...data.episode };
     const guestTrack = tracks.find((t) => t !== take);
     const whoName = (m: SessionMarker) => (m.who === 'guest' ? (guestTrack ? cap(guestTrack.speaker) : take.guest?.name ?? 'Guest') : cap(take.speaker));
     /** Each person's coughs, muted in their own edit (seconds of their own track). */
-    const mutedFor = (t: TakeMeta): [number, number][] => {
-      const own = mutes(wallMarkers, t === take ? 'host' : 'guest', duration);
-      const m = syncOf(t);
-      if (!m) return alignedRanges(own, trackShift(t, take));
-      // Host-timeline mutes, moved onto the guest's own audio.
-      return own.flatMap(([a, b]) => {
-        const ga = guestTime(m, a, take.sampleRate, t.sampleRate);
-        const gb = guestTime(m, b, take.sampleRate, t.sampleRate);
-        return ga != null && gb != null ? [[ga, gb] as [number, number]] : [];
-      });
-    };
+    const mutedFor = (t: TakeMeta): [number, number][] => lu.own(t, mutes(wallMarkers, t === take ? 'host' : 'guest', duration));
     const words = (line: number) => lines[line]?.split(/\s+/).slice(0, 3).join(' ') ?? '';
     const describe = (m: SessionMarker) =>
       m.kind === 'pad'

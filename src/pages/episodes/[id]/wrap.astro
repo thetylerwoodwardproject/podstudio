@@ -1,62 +1,115 @@
 ---
-// After a session with a guest: your track is saved; wait for the guest's to finish
-// uploading, bring it into this browser, then export both.
+// After a session with a guest (step flow 1c): Uploads (wait for the guest's track and
+// bring it into this browser), Line up (listen, nudge the guest), Review, then Export.
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
-import Button from '@/components/ui/Button.astro';
 import { episode as mockEpisode } from '@/data/mock';
 
 export const prerender = false;
 const data = episodePage(Astro.params.id);
 if (!data) return new Response('No such episode', { status: 404 });
 const episode = { ...mockEpisode, ...data.episode };
-const row = 'flex items-center gap-4 border-b border-line py-4';
+const steps = [
+  { id: 'uploads', label: 'Uploads', title: 'Wrapping up', lede: "Your track is saved. The guest's uploads as they record; once the last pieces are in, it comes into this browser." },
+  { id: 'lineup', label: 'Line up', title: 'Line up tracks', lede: 'Listen to Both. If the voices echo or one answers too soon, nudge the guest.' },
+  { id: 'review', label: 'Review', title: 'Review', lede: 'Both tracks go to Export lined up like this, with the same cuts.' },
+];
+const card = 'flex flex-col rounded-[14px] bg-surface';
+const row = 'flex items-center gap-4 px-5 py-4';
+const rule = 'mx-5 h-px bg-divider';
+const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] border border-border text-[16px] hover:border-handle disabled:opacity-40 select-none touch-none';
 ---
 
 <AppShell title="Wrapping up" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Wrapping up' }]}>
   <EpisodeData data={data} />
-  <div class="mx-auto flex w-full max-w-[640px] flex-col gap-6 px-6 py-10" id="wrap" data-episode={episode.id}>
-    <div>
-      <h1 class="page-title">Wrapping up</h1>
-      <p class="mt-1.5 text-[14px] leading-normal text-muted">
-        Your track is saved. The guest's uploads as they record; once the last pieces are in, it comes into this browser and
-        you can export both, lined up.
-      </p>
-    </div>
-    <div class="flex flex-col border-t border-line">
-      <div class={row}>
-        <span class="size-2.5 flex-none rounded-full bg-ok"></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-[15px]" data-host-name>Your track</div>
-          <div class="meta text-muted" data-host-meta>Saved in this browser</div>
+  <div class="flex h-full min-h-0 flex-col" id="wrap" data-episode={episode.id} data-steps={JSON.stringify(steps)}>
+    <div data-tabs-mount></div>
+    <div class="min-h-0 flex-1 overflow-y-auto" data-scroll>
+      <div class="mx-auto flex max-w-[760px] flex-col gap-7 px-5 pt-7 pb-10">
+        <div class="flex flex-col gap-1.5">
+          <h1 class="page-title" data-step-title>{steps[0].title}</h1>
+          <p class="text-[14px] leading-normal text-pretty text-text-2" data-step-lede>{steps[0].lede}</p>
         </div>
-      </div>
-      <div class={row}>
-        <span class="size-2.5 flex-none rounded-full bg-warn" data-guest-dot></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-[15px]" data-guest-name>Guest</div>
-          <div class="meta text-muted" data-guest-meta>Checking…</div>
-          <div class="mt-2 h-1 overflow-hidden rounded-full bg-line" data-progress hidden><div class="h-full w-0 rounded-full bg-fg transition-[width]" data-progress-fill></div></div>
-        </div>
+
+        <!-- 01 Uploads -->
+        <section class="flex flex-col gap-7" data-step-panel="uploads">
+          <div class={card}>
+            <div class={row}>
+              <span class="size-2 flex-none rounded-full bg-ok"></span>
+              <div class="min-w-0 flex-1">
+                <div class="text-[14px]" data-host-name>Your track</div>
+                <div class="meta mt-0.5 text-text-2" data-host-meta>Saved in this browser</div>
+              </div>
+            </div>
+            <div class={rule}></div>
+            <div class={row}>
+              <span class="size-2 flex-none rounded-full bg-warn" data-guest-dot></span>
+              <div class="min-w-0 flex-1">
+                <div class="text-[14px]" data-guest-name>Guest</div>
+                <div class="meta mt-0.5 text-text-2" data-guest-meta>Checking…</div>
+                <div class="mt-2 h-1 overflow-hidden rounded-full bg-border" data-progress hidden><div class="h-full w-0 rounded-full bg-text transition-[width]" data-progress-fill></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-text-2">
+            <label class="cursor-pointer underline-offset-2 hover:text-text hover:underline">
+              Add the guest's file instead
+              <input type="file" accept="audio/*,.wav" class="sr-only" data-file />
+            </label>
+            <button type="button" class="underline-offset-2 hover:text-text hover:underline" data-skip>Export without the guest</button>
+          </div>
+          <p class="text-[13px] text-text-3">If the guest's upload can't finish, they can download their recording from their page and send it to you.</p>
+        </section>
+
+        <!-- 02 Line up -->
+        <section class="flex flex-col gap-7" data-step-panel="lineup" hidden>
+          <div class={card}>
+            <div class={row}>
+              <span class="size-2 flex-none rounded-full bg-spk-yellow"></span>
+              <span class="w-24 flex-none truncate text-[14px]" data-lane-host>Host</span>
+              <div class="h-8 min-w-0 flex-1 rounded-[6px] bg-control" data-wave="host"></div>
+            </div>
+            <div class={row}>
+              <span class="size-2 flex-none rounded-full bg-spk-teal"></span>
+              <span class="w-24 flex-none truncate text-[14px]" data-lane-guest>Guest</span>
+              <div class="h-8 min-w-0 flex-1 rounded-[6px] bg-control" data-wave="guest"></div>
+            </div>
+            <div class={rule}></div>
+            <div class={row}>
+              <div class="min-w-0 flex-1">
+                <div class="text-[14px]">Guest offset</div>
+                <div class="help mt-0.5">Later (+) or earlier (−), in steps of <span class="font-mono text-[12px]">5 ms</span>. Hold to keep going.</div>
+              </div>
+              <button type="button" class={step} aria-label="Guest 5 ms earlier" data-nudge="-1">−</button>
+              <span class="w-16 text-center font-mono text-[13px]" data-nudge-value>0 ms</span>
+              <button type="button" class={step} aria-label="Guest 5 ms later" data-nudge="1">+</button>
+            </div>
+          </div>
+          <p class="help" data-lineup-how></p>
+        </section>
+
+        <!-- 03 Review -->
+        <section class="flex flex-col gap-7" data-step-panel="review" hidden>
+          <dl class={card}>
+            <div class={row}><dt class="w-32 flex-none text-[14px] text-text-2" data-review-host-name>Your track</dt><dd class="min-w-0 flex-1 text-[14px]" data-review-host></dd></div>
+            <div class={rule}></div>
+            <div class={row}><dt class="w-32 flex-none text-[14px] text-text-2" data-review-guest-name>Guest</dt><dd class="min-w-0 flex-1 text-[14px]" data-review-guest></dd></div>
+            <div class={rule}></div>
+            <div class={row}><dt class="w-32 flex-none text-[14px] text-text-2">Lined up</dt><dd class="min-w-0 flex-1 text-[14px]" data-review-sync></dd></div>
+          </dl>
+        </section>
       </div>
     </div>
-    <div class="flex flex-wrap items-center gap-3">
-      <Button variant="primary" size="lg" data-continue disabled>Continue to export</Button>
-      <button type="button" class="text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline" data-skip>Export without the guest</button>
-      <label class="ml-auto cursor-pointer text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline">
-        Add the guest's file instead
-        <input type="file" accept="audio/*,.wav" class="sr-only" data-file />
-      </label>
-    </div>
-    <p class="text-[12px] text-subtle">
-      If the guest's upload can't finish, they can download their recording from their page and send it to you.
-    </p>
+    <div data-bar-mount></div>
   </div>
 </AppShell>
 
 <script>
-  import { formatBytes, formatDuration, getTake, listTakes, saveRemoteTake, takeBytes, type TakeMeta } from '@/lib/audio/takes';
+  import { formatBytes, formatDuration, getTake, listTakes, rangesWav, saveRemoteTake, takeBytes, updateMeta, type TakeMeta } from '@/lib/audio/takes';
+  import { lineUp } from '@/lib/audio/line-up';
+  import { renderMaster } from '@/lib/audio/master';
+  import { PreviewPlayer } from '@/lib/audio/preview-player';
   import { importTrack } from '@/lib/audio/import';
   import { Room, fetchSegment, hostMembership, trackInfo, type GuestStatus } from '@/lib/room';
 
@@ -65,8 +118,146 @@ const row = 'flex items-center gap-4 border-b border-line py-4';
   const episodeId = root.dataset.episode!;
   const id = new URL(location.href).searchParams.get('take');
   const exportUrl = () => `/episodes/${episodeId}/session?take=${encodeURIComponent(id ?? '')}`;
-  const continueBtn = $<HTMLButtonElement>('[data-continue]');
-  continueBtn.addEventListener('click', () => (location.href = exportUrl()));
+  const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
+
+  // ── The steps (lib/step-shell.svelte.ts). Line up and Review open once the guest's track is here. ──
+  type Step = { id: 'uploads' | 'lineup' | 'review'; label: string; title: string; lede: string };
+  const steps = JSON.parse(root.dataset.steps!) as Step[];
+  const { stepShell, wirePlayer } = await import('@/lib/step-shell.svelte');
+  const shell = stepShell(root.querySelector('[data-tabs-mount]'), root.querySelector('[data-bar-mount]')!, { steps, current: 0, reached: 0, ongo: (i) => go(i) }, {});
+  const bar = shell.bar;
+  const player = new PreviewPlayer();
+  const playing = wirePlayer(bar, player, () => build().then(() => player.ready));
+  let hostTake: TakeMeta | null = null;
+  let guestTake: TakeMeta | null = null;
+  let current = 0;
+  const offsetText = (ms: number) => (ms ? `${ms > 0 ? '+' : '−'}${Math.abs(ms)} ms` : '0 ms');
+  const chainText = () =>
+    !guestTake ? 'The guest’s track isn’t here yet' : ['Host only', 'Guest only', `Host + guest, offset ${offsetText(guestTake.nudgeMs ?? 0)}`][bar.choice];
+  const choose = bar.onchoose;
+  bar.onchoose = (i) => {
+    choose(i);
+    bar.chain = chainText();
+  };
+  function go(i: number) {
+    const step = steps[i];
+    current = i;
+    shell.tabs!.current = i;
+    root.querySelectorAll<HTMLElement>('[data-step-panel]').forEach((p) => (p.hidden = p.dataset.stepPanel !== step.id));
+    $('[data-step-title]').textContent = step.title;
+    $('[data-step-lede]').textContent = step.lede;
+    $('[data-scroll]').scrollTo({ top: 0 });
+    bar.options = step.id === 'uploads' ? null : ['Host', 'Guest', 'Both'];
+    bar.choice = step.id === 'uploads' ? 0 : 2;
+    bar.canPlay = !!guestTake && step.id !== 'uploads';
+    bar.chain = step.id === 'uploads' && guestTake ? 'Next: listen to both tracks together' : chainText();
+    bar.onback = i > 0 ? () => go(i - 1) : null;
+    bar.next =
+      i < steps.length - 1
+        ? { label: `Next: ${steps[i + 1].label}`, onclick: () => go(i + 1), disabled: !guestTake }
+        : { label: 'Continue to export', onclick: () => (location.href = exportUrl()), attrs: { 'data-continue': '' } };
+    if (step.id !== 'uploads' && guestTake) showLineUp();
+    if (step.id === 'lineup' && guestTake && !player.ready) build();
+    playing.update();
+  }
+  go(0);
+
+  // ── Line up: 30 s from the middle of the session, Host / Guest / Both, rebuilt as the guest is nudged ──
+  let building: Promise<void> | null = null;
+  let again = false;
+  async function build() {
+    if (building) {
+      again = true;
+      return building;
+    }
+    building = (async () => {
+      do {
+        again = false;
+        const host = hostTake!, guest = guestTake!;
+        const length = host.samples / host.sampleRate;
+        const len = Math.min(30, length);
+        const from = Math.max(0, length / 2 - len / 2);
+        const r: [number, number][] = [[from, from + len]];
+        bar.chain = 'Getting 30 s ready…';
+        const h = await rangesWav(host, r, [], undefined, [], null);
+        const g = await rangesWav(guest, lineUp(host).ranges(guest, r), [], undefined, [], null);
+        const mix = async (wavs: Blob[]) => {
+          const out: Float32Array[] = [];
+          await renderMaster(wavs.map((wav) => ({ wav, level: false })), { rate: host.sampleRate, channels: 1, lufs: null, levelling: false }, async (x) => void out.push(x.slice()));
+          const y = new Float32Array(out.reduce((n, p) => n + p.length, 0));
+          let o = 0;
+          for (const p of out) (y.set(p, o), (o += p.length));
+          return y;
+        };
+        const options = [await mix([h]), await mix([g]), await mix([h, g])];
+        player.set({ options, channels: 1, rate: host.sampleRate });
+        wave('host', options[0]);
+        wave('guest', options[1]);
+      } while (again);
+      bar.chain = chainText();
+      playing.update();
+    })().finally(() => (building = null));
+    return building;
+  }
+  /** A lane's waveform: the peak of each of 240 slices, mirrored. */
+  function wave(which: 'host' | 'guest', x: Float32Array) {
+    const box = $(`[data-wave="${which}"]`);
+    const n = 240, per = Math.max(1, Math.floor(x.length / n));
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      let pk = 0;
+      for (let k = i * per; k < Math.min(x.length, (i + 1) * per); k++) pk = Math.max(pk, Math.abs(x[k]));
+      const h = Math.max(0.5, Math.min(1, pk * 2.5) * 15);
+      d += `M${i + 0.5} ${16 - h}V${16 + h}`;
+    }
+    box.innerHTML = `<svg viewBox="0 0 ${n} 32" preserveAspectRatio="none" width="100%" height="100%" aria-hidden="true"><path d="${d}" stroke="var(--color-spk-${which === 'host' ? 'yellow' : 'teal'})" stroke-opacity="0.7" stroke-width="0.6" /></svg>`;
+  }
+  function showLineUp() {
+    const host = hostTake!, guest = guestTake!;
+    const ms = guest.nudgeMs ?? 0;
+    const lu = lineUp(host);
+    const how = lu.syncOf(guest) ? 'Lined up by sync points' : 'Lined up by start time';
+    $('[data-lane-host]').textContent = cap(host.speaker);
+    $('[data-lane-guest]').textContent = cap(guest.speaker);
+    $('[data-nudge-value]').textContent = offsetText(ms);
+    $('[data-lineup-how]').textContent = `${how}: ${lu.describe(guest)}.`;
+    if (current === 1) $('[data-step-lede]').textContent = `${how}. ${steps[1].lede}`;
+    $('[data-review-host-name]').textContent = cap(host.speaker);
+    $('[data-review-guest-name]').textContent = cap(guest.speaker);
+    $('[data-review-host]').textContent = `${formatDuration(host.samples / host.sampleRate)} · ${formatBytes(takeBytes(host))}`;
+    $('[data-review-guest]').textContent = `${formatDuration(guest.samples / guest.sampleRate)} · ${formatBytes(takeBytes(guest))}`;
+    $('[data-review-sync]').textContent = `${how}: ${lu.describe(guest)}`;
+  }
+  // The nudge: ±5 ms a press, repeating while held, ±500 ms at most; saved with the guest's track.
+  let saveTimer = 0;
+  const nudge = (dir: number) => {
+    const g = guestTake;
+    if (!g) return;
+    g.nudgeMs = Math.max(-500, Math.min(500, (g.nudgeMs ?? 0) + dir * 5));
+    showLineUp();
+    bar.chain = chainText();
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => {
+      updateMeta(g);
+      build();
+    }, 350);
+  };
+  root.querySelectorAll<HTMLButtonElement>('[data-nudge]').forEach((b) => {
+    const dir = Number(b.dataset.nudge);
+    let hold = 0;
+    const stop = () => clearTimeout(hold);
+    const repeat = (wait: number) => {
+      hold = window.setTimeout(() => (nudge(dir), repeat(60)), wait);
+    };
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      nudge(dir);
+      repeat(400);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((t) => b.addEventListener(t, stop));
+    // The keyboard (Enter, Space) clicks without a pointer
+    b.addEventListener('click', (e) => e.detail === 0 && nudge(dir));
+  });
   $('[data-skip]').addEventListener('click', () => {
     if (confirm('Export without the guest’s track? You can come back for it while the session is on the server.')) location.href = exportUrl();
   });
@@ -89,6 +280,7 @@ const row = 'flex items-center gap-4 border-b border-line py-4';
       setGuest('No session to wrap up.', 'var(--color-faint)');
       return;
     }
+    hostTake = host;
     $('[data-host-name]').textContent = `${host.speaker.charAt(0)}${host.speaker.slice(1).toLowerCase()}'s track`;
     $('[data-host-meta]').textContent = `Saved · ${formatDuration(host.samples / host.sampleRate)} · ${formatBytes(takeBytes(host))}`;
 
@@ -183,8 +375,10 @@ const row = 'flex items-center gap-4 border-b border-line py-4';
     $('[data-guest-name]').textContent = `${name}'s track`;
     setGuest(`In this browser · ${formatDuration(guest.samples / guest.sampleRate)} · ${formatBytes(takeBytes(guest))}`, 'var(--color-ok)');
     progress(null);
-    continueBtn.disabled = false;
     $('[data-skip]').hidden = true;
+    guestTake = guest;
+    shell.tabs!.reached = steps.length - 1;
+    go(current);
   }
 
   $<HTMLInputElement>('[data-file]').addEventListener('change', async (e) => {

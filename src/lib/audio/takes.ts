@@ -57,6 +57,8 @@ export interface TakeMeta {
   lineLog?: LineStart[];
   /** Server clock (ms) when this track's recorder started, for lining up tracks from different devices */
   startedAtServer?: number;
+  /** A guest's track moved by hand against the host's, ms, later (+) or earlier (−), after sync (Wrapping up → Line up) */
+  nudgeMs?: number;
   /** Sync points (frames captured, shared-clock ms), about every 5 s: drift and gap correction, timecode (lib/audio/sync.ts) */
   sync?: SyncLog;
   /** Recorded on another device (the guest's), fetched from the server */
@@ -141,6 +143,13 @@ export async function deleteTake(id: string) {
 export async function findCrashedTakes(): Promise<TakeMeta[]> {
   const held = new Set(((await navigator.locks.query()).held ?? []).map((l) => l.name));
   return (await listTakes()).filter((t) => t.status === 'recording' && !held.has(lockName(t.id)));
+}
+
+/** Save changes to a take's details (meta.json), such as a guest's nudge. */
+export async function updateMeta(meta: TakeMeta) {
+  const dir = await (await takesDir()).getDirectoryHandle(meta.id);
+  meta.updatedAt = Date.now();
+  await writeFile(dir, 'meta.json', JSON.stringify(meta));
 }
 
 /** Keep a recovered take: mark it done with whatever audio was saved. */
