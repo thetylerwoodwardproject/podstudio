@@ -16,6 +16,7 @@ npm run build      # type-check, then build the static site into dist/
 npm start          # the production server (after npm run build): http on 127.0.0.1:4321, Caddy in front
 npm run preview    # the production server over https with a self-signed certificate, on the network
 npm test           # unit and server tests (accounts, 2FA, live sessions, audio, exports)
+npm run test:browser  # end-to-end in Chromium, after npm run build (tests/browser/README.md)
 npm run reset-password -- tyler   # on the server: a new password for an account
 npm run reset-2fa -- tyler        # on the server: turn two-factor off, to set it up again
 ```
@@ -47,6 +48,7 @@ server/
   testing.ts                test helper: the API on a random port, signed in
 dev/server-plugin.ts        mounts server/api.ts in npm run dev
 docs/server-api.md          the API for guests and producers
+tests/browser/              end-to-end tests in Chromium: npm run test:browser (see its README)
 src/
   styles/global.css     design tokens (@theme), base styles, the eyebrow/meta utilities
   data/mock.ts          all mock content: episode, script, transcript, package, settings

@@ -1,0 +1,61 @@
+// Script import as steps (1g): Paste → Sections (rename, reorder) → Review → Import.
+import { chromium } from './auth.mjs';
+import { OUT as S, B, DATA, FIX, TOOLS, CHROME } from './env.mjs';
+const D = `${S}/flow`;
+let fails = 0; const ok = (n, c, x = '') => { if (!c) fails++; console.log(c ? 'PASS' : 'FAIL', n, x); };
+const browser = await chromium.launch({ executablePath: CHROME });
+const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1300, height: 900 } });
+const page = await ctx.newPage();
+const errs = []; page.on('pageerror', (e) => errs.push(e.stack.split('\n').slice(0, 5).join(' / ')));
+const text = (s) => page.textContent(s).then((t) => t.trim());
+const script = ['Welcome back to the show.', '## Cold open', 'HOST: It was a quiet week in the studio.', 'Until the new transmitter arrived.', '## The story', 'Four pallets, and one of them was just foam.', 'So this episode is about what happens after the crate is open.', '## Sponsor read', 'This episode is brought to you by coffee.', '## Wrap', 'Thanks for listening.'].join('\n');
+await page.goto(B + '/episodes/142/script');
+await page.click('[data-open-import]');
+await page.waitForSelector('#import-dialog [data-step-tab]');
+ok('three tabs, Next disabled until a script is in', (await page.locator('#import-dialog [data-step-tab]').count()) === 3 && (await page.isDisabled('#import-dialog button[data-next]')));
+ok('bar sums up: nothing yet', /Nothing yet/.test(await text('#import-dialog [data-summary-bar]')));
+// Paste
+await page.focus('#import-dialog [data-drop]');
+await page.evaluate((t) => { const d = new DataTransfer(); d.setData('text/plain', t); document.querySelector('#import-dialog [data-drop]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: d, bubbles: true })); }, script);
+ok('pasted: 4 sections, 7 lines', /7 lines · 4 sections/.test(await text('#import-dialog [data-file-meta]')), await text('#import-dialog [data-file-meta]'));
+ok('bar: 4 sections, lines and read time', /4 sections\s*7 lines · ~0:\d\d read time/.test(await text('#import-dialog [data-summary-bar]')), await text('#import-dialog [data-summary-bar]'));
+await page.screenshot({ path: `${D}/import-01-paste.png` });
+await page.click('#import-dialog button[data-next]');
+const names = () => page.locator('#import-dialog [data-rename]').allTextContents();
+ok('sections listed with lines and time', (await names()).join('|') === 'Cold open|The story|Sponsor read|Wrap' && /2 lines · ~0:0\d/.test(await text('#import-dialog [data-section="0"] [data-stats]')));
+// Rename
+await page.click('#import-dialog [data-section="1"] [data-rename]');
+await page.fill('#import-dialog [data-rename-input]', 'Main story');
+await page.keyboard.press('Enter');
+ok('renamed', (await names())[1] === 'Main story');
+// Drag Sponsor read (2) above Cold open (0)
+const h = await page.locator('#import-dialog [data-section="2"] [data-handle]').boundingBox();
+const top = await page.locator('#import-dialog [data-section="0"]').boundingBox();
+await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+await page.mouse.down();
+await page.mouse.move(h.x + h.width / 2, top.y + 5, { steps: 8 });
+await page.mouse.up();
+ok('dragged to the top', (await names()).join('|') === 'Sponsor read|Cold open|Main story|Wrap', (await names()).join('|'));
+// Keyboard: Alt+Down on Wrap's handle does nothing at the end; Alt+Up moves it up
+await page.focus('#import-dialog [data-section="3"] [data-handle]');
+await page.keyboard.press('Alt+ArrowUp');
+ok('Alt+↑ moves a section up', (await names()).join('|') === 'Sponsor read|Cold open|Wrap|Main story', (await names()).join('|'));
+await page.screenshot({ path: `${D}/import-02-sections.png` });
+await page.click('#import-dialog button[data-next]');
+ok('review in the new order', /^Welcome back to the show\.Sponsor read/.test(await text('#import-dialog [data-preview]')), (await text('#import-dialog [data-preview]')).slice(0, 60));
+await page.screenshot({ path: `${D}/import-03-review.png` });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.screenshot({ path: `${D}/import-03-review-phone.png` });
+ok('phone: full screen, no sideways scroll', await page.evaluate(() => { const d = document.getElementById('import-dialog').getBoundingClientRect(); return d.width === innerWidth && document.documentElement.scrollWidth <= innerWidth; }));
+await page.setViewportSize({ width: 1300, height: 900 });
+await page.click('#import-dialog [data-import]');
+await page.waitForURL('**/script?imported');
+await page.waitForTimeout(800);
+const saved = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => /script/.test(k)).map(([, v]) => v).join('\n'));
+const order = ['## Sponsor read', '## Cold open', '## Wrap', '## Main story'].map((x) => saved.indexOf(x));
+ok('saved in the new order, renamed', order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])) && saved.indexOf('Welcome back') < order[0], JSON.stringify(order));
+ok('section lines moved with them', saved.indexOf('coffee') > order[0] && saved.indexOf('coffee') < order[1] && saved.indexOf('Four pallets') > order[3]);
+ok('no page errors', !errs.length, errs.join(' | '));
+console.log(fails ? `${fails} FAILED` : 'ALL PASS');
+process.exitCode = fails ? 1 : 0;
+await browser.close();

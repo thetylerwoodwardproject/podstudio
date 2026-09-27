@@ -7,3 +7,4 @@ dist/
 *.zip
 .podstudio-dev/
 data/
+tests/browser/.out/

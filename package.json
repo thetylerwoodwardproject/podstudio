@@ -14,6 +14,7 @@
     "preview": "node --disable-warning=ExperimentalWarning server/main.ts --https --host 0.0.0.0",
     "check": "astro check",
     "test": "node --test 'src/**/*.test.ts' 'server/**/*.test.ts'",
+    "test:browser": "node --no-warnings tests/browser/run.mjs",
     "reset-password": "node --disable-warning=ExperimentalWarning server/cli.ts reset-password",
     "reset-2fa": "node --disable-warning=ExperimentalWarning server/cli.ts reset-2fa",
     "setup-link": "node --disable-warning=ExperimentalWarning server/cli.ts setup-link"
@@ -35,6 +36,7 @@
     "@types/node": "^26.6.2",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "playwright-core": "1.63.0",
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3"
   },

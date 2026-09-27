@@ -58,28 +58,21 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 
 ## Tests
 
-- **In the repo:** `npm test` (232 unit and server tests), `npx astro check`,
+- **Checks:** `npm test` (232 unit and server tests), `npx astro check`,
   `npx svelte-check` and `npm run build`. All pass at `d6abc49`.
-- **Browser tests (Playwright) are *not* in the repo.** They live in this
-  session's scratchpad and are lost when the container goes.
-  - They cover the whole product: `flow/e2e`, saved, mic and import; then
-    publish, tones, pads, ns, `ns/player`, `e2e-solo`, uploads,
-    `guest/e2e` and `guest/sync`.
-  - They run against a test server on `:4400` over https (`srv.sh`, with
-    `srv.sh fresh` to wipe its data).
-  - Shared helpers are in `flow/steps.mjs`. `resetSettings(page, change,
-    {clear})` puts known settings on the server before a test. Because
-    settings are now per account on the server, one test's settings leak into
-    the next unless it resets them.
-
-  Moving them into the repo is the first next step.
+- **Browser tests:** `npm run build`, then `npm run test:browser` (about
+  15 minutes). They run in real Chromium with a fake mic and check the files in
+  each downloaded zip. They live in [`tests/browser/`](../tests/browser/README.md):
+  - `run.mjs` starts the built server with empty data on `:4400`, runs each
+    test and stops the server;
+  - `steps.mjs` has the shared helpers. `resetSettings(page, change, {clear})`
+    puts known settings on the server first. Settings are per account on the
+    server, so without it one test's settings leak into the next.
 
 ## Known issues
 
 - **`guest/sync` is flaky:** it sometimes reports "no measurable drift" and
   passes on a rerun. The test simulates drift; the app is fine.
-- **Old test scripts:** `e2e-session.mjs`, `flow.mjs` and `testrec.mjs`
-  (scratchpad) still use plain http:// and fail for that reason only.
 - **Settings pages reload on first sync.** A settings page you haven't touched
   reloads when newer settings arrive from the server. That's harmless, but
   visible on a slow connection.
@@ -103,9 +96,8 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 
 ## Next steps
 
-1. **Put the browser tests in the repo**, for example as `tests/browser/` with
-   an `npm run test:browser` that starts its own server. Paths are hard-coded
-   to the scratchpad today.
+1. **Run the browser tests in CI** (GitHub Actions: build, then
+   `npm run test:browser`, with Chromium from Playwright and `PS_CHROME`).
 2. **The lab VPS** ([roadmap](roadmap.md#next-stage-a-lab-environment-on-a-real-vps)):
    - install with `deploy/install.sh` on a real domain;
    - tag `v0.2.0` with a `CHANGELOG.md`;
@@ -119,5 +111,4 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 5. **Small clean-ups:**
    - bring `development.md`'s stack and layout up to date (Svelte, `steps/`,
      `export-files.ts`, `user-settings.ts`);
-   - clear stale OPFS noise variants;
-   - fix or delete the old http:// scripts.
+   - clear stale OPFS noise variants.
