@@ -8,11 +8,12 @@
   interface Props {
     steps: { id: string; label: string }[];
     current: number;
+    complete?: boolean;
     /** The furthest step unlocked */
     reached: number;
     ongo: (i: number) => void;
   }
-  let { steps, current, reached, ongo }: Props = $props();
+  let { steps, current, reached, complete = false, ongo }: Props = $props();
 </script>
 
 <nav class="flex-none border-b border-divider" aria-label="Steps">
@@ -29,7 +30,7 @@
         data-step-tab={s.id}
         onclick={() => ongo(i)}
       >
-        <span class="font-mono text-[11px] font-medium tracking-[0.06em] {i === current ? 'text-text' : i < reached ? 'text-ok' : locked ? 'text-handle' : 'text-text-3'}">{String(i + 1).padStart(2, '0')}</span>
+        <span class="font-mono text-[11px] font-medium tracking-[0.06em] {complete || i !== current && i < reached ? 'text-ok' : i === current ? 'text-text' : locked ? 'text-handle' : 'text-text-3'}">{String(i + 1).padStart(2, '0')}</span>
         <span class="max-w-full truncate text-[13px] sm:text-[14px] {i === current ? 'text-text' : locked ? 'text-handle' : 'text-text-2'}">{s.label}</span>
       </button>
     {/each}

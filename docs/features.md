@@ -154,6 +154,13 @@ tone and loudness, boosting a voice doesn't bring the room back up.
    goes in the zip (below). Afterwards the page shows what the finished
    episode measured.
 
+After the zip is ready, Export confirms **Your export is ready** and that the
+download has started, with the actual file count and zip size. **Back to
+sessions** is the primary action. **Download again** reuses that zip, and
+**Adjust export settings** returns to the chosen settings and files. Any
+finished-episode measurements remain below the confirmation. Reloading returns
+to the export settings; it doesn't claim a download finished saving.
+
 ### Choosing the files
 
 **Export…** (or **Choose files**) opens a list of every file your chain makes,

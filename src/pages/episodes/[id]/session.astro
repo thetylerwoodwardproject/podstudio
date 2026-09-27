@@ -68,7 +68,7 @@ const episode = { ...mockEpisode, ...data.episode };
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { missingNotes, planFiles, type PlanInput } from '@/lib/export-files';
   import { loadScript } from '@/lib/script-store';
-  import type { ExportSettings, FlowState, Measured } from '@/components/app/ExportFlow.svelte';
+  import type { ExportSettings, FlowState, ExportResult } from '@/components/app/ExportFlow.svelte';
 
   const root = document.getElementById('session')!;
   const dialog = document.getElementById('markers-dialog') as HTMLDialogElement;
@@ -103,6 +103,7 @@ const episode = { ...mockEpisode, ...data.episode };
     lengthEl.textContent = '41:07';
     const settings: ExportSettings = { assembled: true, tones: false, pauses: 'cut', mix: false, ns: 0, voices: { TYLER: cleanTone(undefined) }, loudness: 'mono', level: false };
     mountFlow({
+      sessionsHref: `/episodes/${root.dataset.episode!}/sessions`,
       initial: { settings, step: 0, reached: 0 },
       info: { counts: '14 retakes · 3 pauses', tonesAvailable: true, toneKinds: 'retake', pads: null, sync: '', guestMissing: null, meter: true, demo: true },
       voices: [{ key: 'TYLER', name: 'Tyler', role: 'Host', color: 'var(--color-spk-yellow)' }],
@@ -397,7 +398,7 @@ const episode = { ...mockEpisode, ...data.episode };
       }
     };
 
-    const exportZip = async (s: ExportSettings, names: string[], progress: (text: string) => void): Promise<Measured | null> => {
+    const exportZip = async (s: ExportSettings, names: string[], progress: (text: string) => void): Promise<ExportResult> => {
       const o = optionsOf(s);
       const tones = s.voices;
       // Only the files picked (lib/export-files.ts), and only the work they need.
@@ -582,14 +583,19 @@ const episode = { ...mockEpisode, ...data.episode };
           progress('Preparing…');
         }
         if (want(`${label}_Session_export.txt`)) entries.push({ name: `${label}_Session_export.txt`, data: syncReport() + (pubLines.length ? `\n${pubLines.join('\n')}\n` : '') });
-        download(await zip(entries), `${label}_Session.zip`);
+        const blob = await zip(entries);
+        const filename = `${label}_Session.zip`;
+        const downloadAgain = () => download(blob, filename);
+        downloadAgain();
         // What the finished episode measured, for the Export step.
         const first = results[0];
-        return first ? { integrated: first.r.result, range: first.r.range, peak: first.r.truePeak, history: first.r.history, seconds: first.seconds, parts: first.parts } : null;
+        const measured = first ? { integrated: first.r.result, range: first.r.range, peak: first.r.truePeak, history: first.r.history, seconds: first.seconds, parts: first.parts } : null;
+        return { measured, files: entries.length, bytes: blob.size, filename, downloadAgain };
       }
     };
 
     mountFlow({
+      sessionsHref: `/episodes/${root.dataset.episode!}/sessions`,
       initial,
       info: {
         counts: markerCounts(markers) || 'No markers',

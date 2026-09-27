@@ -24,6 +24,7 @@ export async function throughWrap(page, until, before = async () => {}) {
 
 /** Export: open the file picker and download what's ticked. */
 export async function pickAndDownload(page) {
+  if (await page.locator('[data-adjust-export]').isVisible()) await page.click('[data-adjust-export]');
   await page.click('[data-export]');
   await page.waitForSelector('[data-picker] [data-download]:not([disabled])');
   await page.click('[data-picker] [data-download]');

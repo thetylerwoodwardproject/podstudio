@@ -49,6 +49,14 @@
     /** The design's example data: nothing plays or exports */
     demo: boolean;
   }
+  export interface ExportResult {
+    measured: Measured | null;
+    files: number;
+    bytes: number;
+    filename: string;
+    /** Download the same zip again without processing the audio a second time. */
+    downloadAgain: () => void;
+  }
   export interface Measured {
     integrated: number;
     range: number | null;
@@ -60,6 +68,7 @@
 </script>
 
 <script lang="ts">
+  import { tick as flush } from 'svelte';
   import StepPage from '@/components/steps/StepPage.svelte';
   import StepPlayer from '@/components/steps/StepPlayer.svelte';
   import ToneStep, { type ToneVoice } from '@/components/steps/ToneStep.svelte';
@@ -74,6 +83,7 @@
   import { formatSize, picked, type ExportFile } from '@/lib/export-files';
 
   interface Props {
+    sessionsHref: string;
     initial: FlowState;
     info: ExportInfo;
     voices: ToneVoice[];
@@ -92,10 +102,10 @@
     chain: (s: ExportSettings) => ChainPreview;
     onchange: (state: FlowState) => void;
     /** Make the zip with just these files */
-    onexport: (s: ExportSettings, names: string[], progress: (text: string) => void) => Promise<Measured | null>;
+    onexport: (s: ExportSettings, names: string[], progress: (text: string) => void) => Promise<ExportResult | null>;
     onmarkers: () => void;
   }
-  let { initial, info, voices, rate, removes, plan, saved: savedKinds, onsave, spectrum, floor, chain, onchange, onexport, onmarkers }: Props = $props();
+  let { sessionsHref, initial, info, voices, rate, removes, plan, saved: savedKinds, onsave, spectrum, floor, chain, onchange, onexport, onmarkers }: Props = $props();
 
   const STEPS: { id: StepId; label: string; title: string; lede: string }[] = [
     { id: 'edit', label: 'Edit', title: 'Edit', lede: 'Choose what the assembled edit keeps. The raw WAV always goes in the zip untouched.' },
@@ -175,6 +185,8 @@
 
   function go(i: number) {
     if (i > reached || exporting) return;
+    completed = null;
+    measured = null;
     gen++;
     clearTimeout(timer);
     player.reset();
@@ -278,6 +290,7 @@
   // ── Export ──
   let exporting = $state<string | null>(null);
   let measured = $state<Measured | null>(null);
+  let completed = $state.raw<ExportResult | null>(null);
   let skipGuest = $state(false);
   const waiting = $derived(!!info.guestMissing && !skipGuest);
   const toneShort = (t: VoiceTone) =>
@@ -321,7 +334,11 @@
     playing = false;
     exporting = 'Preparing…';
     try {
-      measured = await onexport($state.snapshot(settings) as ExportSettings, names, (t) => (exporting = t));
+      const exported = await onexport($state.snapshot(settings) as ExportSettings, names, (t) => (exporting = t));
+      // Let the picker close and restore focus before announcing the result.
+      await flush();
+      completed = exported;
+      measured = exported?.measured ?? null;
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -336,10 +353,12 @@
   const pick = (): void => {
     picking = true;
   };
-  const next = $derived(
+  const next: { label: string; onclick: () => void; disabled?: boolean; attrs?: Record<string, string> } = $derived(
     step < STEPS.length - 1
       ? { label: `Next: ${STEPS[step + 1].label}`, onclick: toNext }
-      : { label: exporting ?? 'Export…', onclick: pick, disabled: !!exporting || waiting || info.demo, attrs: { 'data-export': '' } },
+      : completed
+        ? { label: 'Back to sessions', onclick: () => location.assign(sessionsHref), attrs: { 'data-back-sessions': '' } as Record<string, string> }
+        : { label: exporting ?? 'Export…', onclick: pick, disabled: !!exporting || waiting || info.demo, attrs: { 'data-export': '' } as Record<string, string> },
   );
 
   const card = 'flex flex-col rounded-[14px] bg-surface';
@@ -348,7 +367,9 @@
   const tag = 'font-mono text-[11px] font-medium tracking-[0.06em] text-text-3 uppercase';
 </script>
 
-<StepPage steps={STEPS} current={step} {reached} ongo={go} title={STEPS[step].title} lede={STEPS[step].lede}>
+<StepPage steps={STEPS} current={step} {reached} ongo={go} complete={!!completed}
+  title={completed ? 'Your export is ready' : STEPS[step].title}
+  lede={completed ? 'Your download has started.' : STEPS[step].lede}>
   {#if waiting}
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-warn/60 bg-warn/8 px-4 py-3.5" role="alert" data-guest-missing>
       <div class="min-w-0 flex-1">
@@ -507,6 +528,21 @@
       <Switch name="pub-level" label="Level each speaker" bind:checked={settings.level} />
     </div>
   {:else}
+    {#if completed}
+      <div class="flex flex-col gap-4 rounded-[14px] bg-surface p-5" data-export-complete>
+        <div class="flex items-center gap-3">
+          <span class="flex size-8 flex-none items-center justify-center rounded-full bg-ok/10 text-ok" aria-hidden="true">✓</span>
+          <div class="min-w-0">
+            <p class="font-mono text-[13px]" data-export-result>{completed.files} {completed.files === 1 ? 'file' : 'files'} · {formatSize(completed.bytes)}</p>
+            <p class="help mt-1 break-all">{completed.filename}</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" class="h-11 rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle sm:h-9" data-download-again onclick={completed.downloadAgain}>Download again</button>
+          <button type="button" class="min-h-11 text-[13px] text-text-2 underline-offset-2 hover:text-text hover:underline sm:min-h-9" data-adjust-export onclick={() => go(step)}>Adjust export settings</button>
+        </div>
+      </div>
+    {:else}
     <div class="flex flex-col gap-3">
       <h2 class="section-label">Your chain</h2>
       <div class={card} data-chain-summary>
@@ -520,6 +556,8 @@
         {/each}
       </div>
     </div>
+
+    {/if}
 
     {#if measured}
       <div class="flex flex-col gap-3" data-measured>
@@ -538,6 +576,7 @@
       </div>
     {/if}
 
+    {#if !completed}
     <div class="flex flex-col gap-3">
       <h2 class="section-label">In the zip</h2>
       <div class="flex flex-wrap items-center gap-4 rounded-[14px] bg-surface px-5 py-[18px]" data-zip>
@@ -547,14 +586,16 @@
         </div>
         <button type="button" class="h-9 rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle" data-choose-files onclick={() => (picking = true)}>Choose files</button>
       </div>
-      <p class="help" data-sync-note>Every WAV carries Broadcast WAV timecode, so editors can line the files up.{info.sync ? ` ${info.sync}` : ''}</p>
     </div>
+    {/if}
+    <p class="help" data-sync-note>Every WAV carries Broadcast WAV timecode, so editors can line the files up.{info.sync ? ` ${info.sync}` : ''}</p>
   {/if}
 
   <ExportPicker bind:open={picking} files={planned.files} bind:picks {saved} notes={planned.notes} ondownload={exportNow} onforget={() => ((saved = null), onsave(null))} />
 
   {#snippet player()}
     <StepPlayer
+      summary={completed ? { text: 'Export ready', meta: `${completed.files} ${completed.files === 1 ? 'file' : 'files'} · ${formatSize(completed.bytes)}` } : null}
       options={AB[id]}
       {choice}
       onchoose={choose}
@@ -564,7 +605,7 @@
       {playing}
       canPlay={!info.demo && !exporting}
       onplay={toggle}
-      onback={step > 0 && !exporting ? () => go(step - 1) : null}
+      onback={step > 0 && !exporting && !completed ? () => go(step - 1) : null}
       {next}
     />
   {/snippet}

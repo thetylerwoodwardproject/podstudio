@@ -1,6 +1,7 @@
 // The Export step flow, end to end: tabs, the chain preview (noise reaching Tone and Loudness), export.
 import { resetSettings } from './steps.mjs';
 import { chromium } from './auth.mjs';
+import { readFileSync, statSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { OUT as S, B, DATA, FIX, TOOLS, CHROME } from './env.mjs';
 const D = `${S}/flow`;
@@ -175,7 +176,24 @@ ok('episode at −19 LUFS (independent meter)', Math.abs(l + 19) < 0.6, String(l
 const report = execSync(`cat ${D}/x/*_export.txt`).toString();
 ok('report: from the noise-suppressed audio, compressor Medium', /from the noise-suppressed audio/.test(report) && /compressor Medium/.test(report), report.split('\n').find((x) => x.startsWith('Episode')));
 ok('what the episode measured', await until(async () => /^−1[89]\.\d/.test(await text('[data-measured-value="Integrated"]')), 5000));
+await page.waitForSelector('[data-export-complete]');
+ok('completion is focused and scrolled into view', await page.evaluate(() => {
+  const title = document.querySelector('[data-step-title]');
+  return title.textContent === 'Your export is ready' && document.activeElement === title && title.getBoundingClientRect().top >= 0 && title.getBoundingClientRect().bottom < innerHeight;
+}));
+ok('completion uses actual file count and size', (await text('[data-export-result]')).startsWith('9 files · ') && (await text('[data-export-result]')).includes((statSync(await dl.path()).size / 1e6).toFixed(1) + ' MB'));
+ok('Export step is done', await page.locator('[data-step-tab=export] span').first().evaluate((e) => e.classList.contains('text-ok')));
+ok('primary action returns to sessions', (await text('[data-back-sessions]')) === 'Back to sessions' && !(await page.locator('[data-export]').count()));
 await page.screenshot({ path: `${D}/05-export-done.png`, fullPage: true });
+const [again] = await Promise.all([page.waitForEvent('download'), page.click('[data-download-again]')]);
+await again.saveAs(`${D}/again.zip`);
+ok('download again is the identical zip', readFileSync(await dl.path()).equals(readFileSync(`${D}/again.zip`)));
+await page.setViewportSize({ width: 390, height: 844 });
+ok('phone completion has no sideways scroll', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+await page.screenshot({ path: `${D}/phone-export-done.png` });
+await page.click('[data-adjust-export]');
+ok('adjust returns to the retained selection', (await text('[data-step-title]')) === 'Export' && (await text('[data-summary]')).startsWith('9 of ') && !(await page.locator('[data-measured]').count()));
+await page.setViewportSize({ width: 1300, height: 900 });
 
 // Saved on the server, as kinds
 const onServer = await page.evaluate(async () => (await (await fetch('/api/me/settings')).json()).settings.recording.exportFiles);
@@ -221,6 +239,28 @@ await page.click('[data-forget]');
 ok('Forget saved', (await page.locator('[data-quick=saved]').count()) === 0 && !(await page.isChecked('[data-remember]')));
 await page.keyboard.press('Escape');
 ok('forgotten on the server too', await until(async () => (await page.evaluate(async () => (await (await fetch('/api/me/settings')).json()).settings.recording.exportFiles)) === null, 5000));
+// A failed download must not show success. A raw-only export must, even without measurements.
+await page.click('[data-export]');
+for (const name of await page.locator('[data-file][aria-checked=true]').evaluateAll((els) => els.map((e) => e.dataset.file))) await page.locator(`[data-file="${name}"]`).click();
+await page.click('[data-file="Ep142_Session_Tyler.wav"]');
+await page.evaluate(() => {
+  window.__createObjectURL = URL.createObjectURL;
+  URL.createObjectURL = (blob) => { if (blob.type === 'application/zip') throw new Error('Test download failure'); return window.__createObjectURL(blob); };
+});
+const [failure] = await Promise.all([page.waitForEvent('dialog'), page.click('[data-download]')]);
+ok('failed download reports error', failure.message() === 'Test download failure');
+await until(async () => !(await page.isDisabled('[data-export]')));
+ok('failed export has no completion', !(await page.locator('[data-export-complete]').count()));
+await page.evaluate(() => { URL.createObjectURL = window.__createObjectURL; });
+await page.click('[data-export]');
+const [rawDownload] = await Promise.all([page.waitForEvent('download'), page.click('[data-download]')]);
+await rawDownload.saveAs(`${D}/raw-only.zip`);
+await page.waitForSelector('[data-export-complete]');
+ok('raw-only export completes without measurements', (await text('[data-export-result]')).startsWith('1 file · ') && !(await page.locator('[data-measured]').count()));
+await page.screenshot({ path: `${D}/phone-export-raw-done.png` });
+await page.click('[data-back-sessions]');
+await page.waitForURL('**/episodes/142/sessions');
+ok('back to this episode’s sessions', true);
 ok('no page errors', !errs.length, errs.join(' | '));
 console.log(fails ? `${fails} FAILED` : 'ALL PASS');
 process.exitCode = fails ? 1 : 0;

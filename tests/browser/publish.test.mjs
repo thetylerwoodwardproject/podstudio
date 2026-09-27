@@ -24,6 +24,7 @@ ok('defaults: stereo, levelling off, the episode WAV and MP3 ticked', loudDefaul
 await page.keyboard.press('Escape');
 /** Open the picker, change what `pick` changes, download. */
 const exportZip = async (tag, pick = async () => {}) => {
+  if (await page.locator('[data-adjust-export]').isVisible()) await page.click('[data-adjust-export]');
   await page.click('[data-export]');
   await pick();
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 240000 }), page.click('[data-picker] [data-download]')]);
