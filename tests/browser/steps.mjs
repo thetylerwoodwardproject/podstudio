@@ -39,18 +39,27 @@ export async function resetSettings(page, change = (s) => s, { clear = false } =
   // On a page with no scripts of its own, so nothing reloads or syncs under it
   const back = page.url();
   const origin = new URL(back).origin;
-  await page.goto(`${origin}/api/health`);
-  await page.evaluate(async ([src, clear]) => {
-    if (clear) localStorage.clear();
-    const change = (0, eval)(src);
-    const cur = JSON.parse(localStorage.getItem('podstudio:settings') || '{}');
-    const next = change(cur) ?? cur;
-    const { deviceId: _d, ...recording } = next.recording ?? {};
-    const res = await fetch('/api/me/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ settings: { ...next, recording } }) });
-    const r = await res.json();
-    localStorage.setItem('podstudio:settings', JSON.stringify(next));
-    localStorage.setItem('podstudio:settings:at', String(r.updatedAt));
-    localStorage.removeItem('podstudio:settings:dirty');
-  }, [change.toString(), clear]);
+  // A fresh Settings page may start its one-time reload just as this helper
+  // leaves it. Retry on that navigation race before changing test state.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(`${origin}/api/health`);
+      await page.evaluate(async ([src, clear]) => {
+        if (clear) localStorage.clear();
+        const change = (0, eval)(src);
+        const cur = JSON.parse(localStorage.getItem('podstudio:settings') || '{}');
+        const next = change(cur) ?? cur;
+        const { deviceId: _d, ...recording } = next.recording ?? {};
+        const res = await fetch('/api/me/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ settings: { ...next, recording } }) });
+        const r = await res.json();
+        localStorage.setItem('podstudio:settings', JSON.stringify(next));
+        localStorage.setItem('podstudio:settings:at', String(r.updatedAt));
+        localStorage.removeItem('podstudio:settings:dirty');
+      }, [change.toString(), clear]);
+      break;
+    } catch (error) {
+      if (attempt === 2 || !String(error).includes('Execution context was destroyed')) throw error;
+    }
+  }
   await page.goto(back);
 }
