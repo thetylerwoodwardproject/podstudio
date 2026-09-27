@@ -1,8 +1,8 @@
 ---
-// 1i · Session ended: what was saved, then transcribe, listen or record another
+// 1i / step flow 1e · Session saved: what was saved, a player (Original / Cleaned) and Export
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
-import Base from '@/layouts/Base.astro';
+import AppShell from '@/layouts/AppShell.astro';
 import { episode as mockEpisode } from '@/data/mock';
 
 export const prerender = false;
@@ -10,66 +10,57 @@ const data = episodePage(Astro.params.id);
 if (!data) return new Response('No such episode', { status: 404 });
 const episode = { ...mockEpisode, ...data.episode };
 
-const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5';
+const row = 'flex items-baseline gap-4 px-5 py-4';
+const rule = 'mx-5 h-px bg-divider';
 ---
 
-<Base title="Session saved">
+<AppShell title="Session saved" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Saved' }]}>
   <EpisodeData data={data} />
-  <div class="mx-auto flex min-h-dvh max-w-[480px] flex-col px-6 pt-14 pb-[max(24px,env(safe-area-inset-bottom))]" id="saved" data-episode={episode.id}>
-    <div class="flex size-10 items-center justify-center rounded-full bg-ok text-[20px] text-ink" aria-hidden="true">✓</div>
-    <h1 class="page-title mt-5">Session saved</h1>
-    <p class="mt-2.5 text-[15px] leading-normal text-muted" data-summary>
-      <span data-demo-only>18:42 · 3 retakes · 2 coughs · 1 ad-lib.</span> It’s saved in this browser, so it’s here whenever you
-      come back to this device.
-    </p>
-
-    <dl class="mt-6 flex flex-col border-t border-line text-[14px]">
-      <div class={row}>
-        <dt class="text-muted">Saved</dt>
-        <dd class="font-mono text-[13px]" data-size><span data-demo-only>162 MB · 48 kHz · 24-bit</span></dd>
+  <div class="flex h-full min-h-0 flex-col" id="saved" data-episode={episode.id}>
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="mx-auto flex max-w-[760px] flex-col gap-7 px-5 pt-7 pb-10">
+        <div class="flex flex-col gap-1.5">
+          <h1 class="page-title">Session saved</h1>
+          <p class="text-[14px] leading-normal text-text-2" data-summary><span data-demo-only>18:42 recorded · 7 retakes marked</span></p>
+        </div>
+        <dl class="flex flex-col rounded-[14px] bg-surface text-[14px]">
+          <div class={row}>
+            <dt class="w-[140px] flex-none text-text-2">Raw WAV</dt>
+            <dd class="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3" data-raw><span data-demo-only>18:42</span></dd>
+          </div>
+          <div class={rule}></div>
+          <div class={row}>
+            <dt class="w-[140px] flex-none text-text-2">Assembled edit</dt>
+            <dd class="min-w-0 flex-1" data-edit><span data-demo-only>14:05</span></dd>
+          </div>
+          <div class={rule}></div>
+          <div class={row}>
+            <dt class="w-[140px] flex-none text-text-2">On the server</dt>
+            <dd class="min-w-0 flex-1" data-server>Checking…</dd>
+          </div>
+        </dl>
+        <p class="text-[13px] leading-normal text-text-3">
+          Noise suppression is only a way of listening in the player below. You set it for real in Export. The recording is kept in this browser until you delete it.
+        </p>
+        <div class="flex flex-wrap gap-2.5">
+          <a href={`/episodes/${episode.id}/transcribing`} class="inline-flex h-9 items-center rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle" data-transcribe>Transcribe</a>
+          <a href={`/episodes/${episode.id}/recording`} class="inline-flex h-9 items-center rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle" data-again>Record another</a>
+        </div>
       </div>
-      <div class={row}>
-        <dt class="text-muted">Assembled edit</dt>
-        <dd data-edit><span data-demo-only>17:10 after cuts</span></dd>
-      </div>
-      <div class={row}>
-        <dt class="text-muted">On the server</dt>
-        <dd data-server>Checking…</dd>
-      </div>
-      <div class={row}>
-        <dt class="text-muted">Copy in this browser</dt>
-        <dd>Kept until you delete it</dd>
-      </div>
-    </dl>
-
-    <audio class="mt-6 w-full" controls data-player hidden></audio>
-    <div class="mt-3" data-ab hidden></div>
-    <a href={`/episodes/${episode.id}/session`} class="mt-5 text-[14px] text-muted underline-offset-2 hover:text-fg hover:underline" data-export>
-      Export the WAV, markers and edit →
-    </a>
-
-    <div class="mt-auto flex flex-col gap-2.5 pt-10">
-      <a href={`/episodes/${episode.id}/transcribing`} class="flex h-13 items-center justify-center rounded-[14px] bg-fg text-[16px] text-ink" data-transcribe>
-        Transcribe
-      </a>
-      <div class="grid grid-cols-2 gap-2.5">
-        <button type="button" class="flex h-13 items-center justify-center rounded-[14px] border border-edge text-[15px] hover:bg-raised" data-listen>
-          Listen
-        </button>
-        <a href={`/episodes/${episode.id}/recording`} class="flex h-13 items-center justify-center rounded-[14px] border border-edge text-[15px] hover:bg-raised" data-again>
-          Record another
-        </a>
+    </div>
+    <div data-player-mount>
+      <div class="border-t border-divider bg-surface px-5 py-4" data-demo-only>
+        <a href={`/episodes/${episode.id}/session`} class="mx-auto flex max-w-[760px] justify-end text-[14px]">Export</a>
       </div>
     </div>
   </div>
-</Base>
+</AppShell>
 
 <script>
   import { assemble } from '@/lib/audio/assemble';
   import { formatBytes, formatDuration, getTake, listTakes, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { sessionUrl } from '@/lib/flow';
   import { markerCounts } from '@/lib/markers';
-  import { noiseToggle, noiseToggleHtml } from '@/lib/player';
   import { resumeUploads } from '@/lib/take-upload';
 
   const root = document.getElementById('saved')!;
@@ -112,25 +103,29 @@ const row = 'flex items-center justify-between gap-4 border-b border-line py-3.5
     const seconds = take.samples / take.sampleRate;
     const markers = take.markers ?? [];
     const counts = markerCounts(markers.filter((m) => m.kind !== 'pause'));
-    $('[data-summary]').textContent =
-      `${formatDuration(seconds)}${counts ? ` · ${counts}` : ''}. It’s saved in this browser and on the server.`;
-    $('[data-size]').textContent = `${formatBytes(takeBytes(take))} · ${take.sampleRate / 1000} kHz · ${take.bitDepth}-bit${take.channels === 2 ? ' · stereo' : ''}`;
+    $('[data-summary]').textContent = `${formatDuration(seconds)} recorded${counts ? ` · ${counts}` : ''}`;
+    const raw = $('[data-raw]');
+    raw.replaceChildren(
+      Object.assign(document.createElement('span'), { textContent: formatDuration(seconds) }),
+      Object.assign(document.createElement('span'), {
+        className: 'font-mono text-[12px] text-text-3',
+        textContent: `${formatBytes(takeBytes(take))} · ${take.sampleRate / 1000} kHz · ${take.bitDepth}-bit${take.channels === 2 ? ' · stereo' : ''}`,
+      }),
+    );
     const edit = assemble(seconds, markers, take.lineLog ?? [], 'cut');
     $('[data-edit]').textContent = edit.removed ? `${formatDuration(seconds - edit.removed)} after cuts` : `${formatDuration(seconds)} · nothing to cut`;
-    $<HTMLAnchorElement>('[data-export]').href = `/episodes/${episodeId}/session?take=${encodeURIComponent(take.id)}`;
 
-    const player = $<HTMLAudioElement>('[data-player]');
     let original = '';
-    const originalUrl = async () => (original ||= URL.createObjectURL(await takeWav(take)));
-    // Noise suppression on the player: the whole session, cleaned once and kept.
-    const ab = $('[data-ab]');
-    ab.innerHTML = noiseToggleHtml('saved-ns');
-    noiseToggle(player, ab.querySelector<HTMLInputElement>('[data-ns-toggle]')!, ab.querySelector<HTMLElement>('[data-ns-status]')!, take, originalUrl);
-    $('[data-listen]').addEventListener('click', async () => {
-      if (!player.src) player.src = await originalUrl();
-      player.hidden = false;
-      ab.hidden = false;
-      player.play();
+    const [{ mount }, { default: SavedPlayer }] = await Promise.all([import('svelte'), import('@/components/app/SavedPlayer.svelte')]);
+    const slot = $('[data-player-mount]');
+    slot.replaceChildren();
+    mount(SavedPlayer, {
+      target: slot,
+      props: {
+        take,
+        original: async () => (original ||= URL.createObjectURL(await takeWav(take))),
+        exportHref: `/episodes/${episodeId}/session?take=${encodeURIComponent(take.id)}`,
+      },
     });
   }
 </script>

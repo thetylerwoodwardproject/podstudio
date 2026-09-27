@@ -8,26 +8,12 @@ import ToggleRow from './ToggleRow.astro';
 import Block from '@/components/ui/Block.astro';
 import Card from '@/components/ui/Card.astro';
 import Row from '@/components/ui/Row.astro';
-import CheckChip from '@/components/ui/CheckChip.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Select from '@/components/ui/Select.astro';
 import Switch from '@/components/ui/Switch.astro';
 import { mbPerMinute } from '@/lib/audio/format';
 
 const label = 'text-[14px] text-text';
-const kinds = [
-  ['retake', 'Retake', '1 kHz'],
-  ['cut', 'Cough', '600 Hz'],
-  ['adlib', 'Ad-lib', '1.4 kHz'],
-  ['pause', 'Pause', '800 Hz'],
-  ['gap', 'Mic stopped', '400 Hz'],
-];
-const toneSliders = [
-  ['level', 'Tone level', -30, -6, 1, 'dBFS'],
-  ['duck', 'Duck under voice', 0, 24, 1, 'dB'],
-  ['attackMs', 'Attack', 1, 100, 1, 'ms'],
-  ['releaseMs', 'Release', 20, 1000, 10, 'ms'],
-] as const;
 ---
 
 <Section title="Recording" description="Defaults for new sessions. The host can change them per session from the studio." />
@@ -82,43 +68,8 @@ const toneSliders = [
     </p>
   </div>
 
-  <div class="rounded-[14px] bg-surface" data-tones>
-    <div class="flex items-center justify-between gap-4 p-5">
-      <div>
-        <div class={label} id="tone-default-label">Marker tones on the full recording</div>
-        <div class="mt-0.5 text-[13px] text-text-2">A short beep at each marker so edit points can be heard. The edit stays clean.</div>
-      </div>
-      <label
-        class="relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-track-off transition-colors has-checked:bg-text has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-text"
-      >
-        <input type="checkbox" role="switch" class="peer sr-only" aria-labelledby="tone-default-label" data-tone-default />
-        <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
-      </label>
-    </div>
-    <!-- Dimmed while tones are off; they can still be set up -->
-    <div class="mx-5 flex flex-col gap-5 border-t border-divider pt-5 pb-5 transition-opacity" data-tone-options>
-      <div class="flex flex-col gap-3">
-        <div class={label}>Markers that beep</div>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Markers that beep">
-          {kinds.map(([k, text, hz]) => <CheckChip label={text} detail={hz} data-tone-kind={k} />)}
-        </div>
-      </div>
-      <div class="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-        {
-          toneSliders.map(([k, text, min, max, step, unit]) => (
-            <label class="flex flex-col gap-3">
-              <span class="flex justify-between text-[14px] text-text">
-                {text}
-                <span class="font-mono text-[13px]" data-tone-value={k} />
-              </span>
-              <input type="range" min={min} max={max} step={step} class="w-full" data-tone-range={k} data-unit={unit} />
-            </label>
-          ))
-        }
-      </div>
-      <p class="help">Tones duck under your voice by the duck amount. Attack sets how fast they drop when you start talking; release sets how fast they return.</p>
-    </div>
-  </div>
+  <!-- Marker tones: a Svelte component (MarkerTones.svelte), mounted by the script below -->
+  <div data-tones-mount></div>
 </section>
 
 <Card label="Ready to publish" rows data-publish>
@@ -168,32 +119,12 @@ const toneSliders = [
   import { toneActive, toneSummary } from '@/lib/audio/tone';
   import { inputChoices, inputFor } from '@/lib/audio/devices';
 
-  // Marker tones.
-  const tonesBox = document.querySelector<HTMLElement>('[data-tones]');
-  if (tonesBox) {
-    const t = loadSettings().recording.tones;
-    const save = () => saveSettings('recording', { tones: t });
-    const def = tonesBox.querySelector<HTMLInputElement>('[data-tone-default]')!;
-    def.checked = t.inExports;
-    const options = tonesBox.querySelector<HTMLElement>('[data-tone-options]')!;
-    const dim = () => options.classList.toggle('opacity-40', !def.checked);
-    dim();
-    def.addEventListener('change', () => ((t.inExports = def.checked), dim(), save()));
-    tonesBox.querySelectorAll<HTMLInputElement>('[data-tone-kind]').forEach((box) => {
-      const k = box.dataset.toneKind as keyof typeof t.kinds;
-      box.checked = t.kinds[k];
-      box.addEventListener('change', () => ((t.kinds[k] = box.checked), save()));
-    });
-    tonesBox.querySelectorAll<HTMLInputElement>('[data-tone-range]').forEach((r) => {
-      const k = r.dataset.toneRange as 'level' | 'duck' | 'attackMs' | 'releaseMs';
-      const out = tonesBox.querySelector(`[data-tone-value="${k}"]`)!;
-      const show = () => (out.textContent = `${r.value.replace('-', '−')} ${r.dataset.unit}`);
-      r.value = String(t[k]);
-      show();
-      r.addEventListener('input', show);
-      r.addEventListener('change', () => ((t[k] = Number(r.value)), save()));
-    });
-  }
+  // Marker tones: loaded after the page, like the other Svelte panels.
+  const tonesMount = document.querySelector<HTMLElement>('[data-tones-mount]');
+  if (tonesMount)
+    Promise.all([import('svelte'), import('./MarkerTones.svelte')]).then(([{ mount }, { default: MarkerTones }]) =>
+      mount(MarkerTones, { target: tonesMount, props: { initial: loadSettings().recording.tones, onchange: (tones) => saveSettings('recording', { tones }) } }),
+    );
 
   // Ready to publish.
   const pub = document.querySelector<HTMLElement>('[data-publish]');

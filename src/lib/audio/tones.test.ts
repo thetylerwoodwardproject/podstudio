@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TONE_SECONDS, defaultTones, duckGains, mixTones, toneWindows } from './tones.ts';
+import { TONE_SECONDS, defaultTones, duckGains, hzLabel, mixTones, sampleVoice, toneFreq, toneWindows } from './tones.ts';
 
 const rate = 48000;
 const db = (g: number) => 20 * Math.log10(g);
@@ -66,4 +66,33 @@ test('windows cover the pre-roll and merge when they overlap', () => {
   assert.equal(w.length, 2);
   assert.deepEqual([w[0].from, w[0].to, w[0].tones.length], [24000, 60000 + 9600, 2]);
   assert.equal(w[1].to, 489600);
+});
+
+test('pitch: low, 1 kHz and high scale every kind', () => {
+  assert.equal(toneFreq('retake'), 1000);
+  assert.equal(toneFreq('retake', 'low'), 600);
+  assert.equal(toneFreq('retake', 'high'), 1600);
+  assert.equal(toneFreq('gap', 'high'), 640);
+  assert.equal(hzLabel(1000), '1 kHz');
+  assert.equal(hzLabel(1400), '1.4 kHz');
+  assert.equal(hzLabel(600), '600 Hz');
+  assert.equal(defaultTones.pitch, 'mid');
+  // The mixed tone is at that pitch: count zero crossings over the tone
+  const rate = 48000;
+  const x = mixTones(new Float32Array(rate), 1, rate, 0, [{ at: 0, kind: 'retake' }], { ...defaultTones, pitch: 'high' });
+  let z = 0;
+  for (let i = 1; i < rate * TONE_SECONDS; i++) if (x[i - 1] < 0 !== x[i] < 0) z++;
+  assert.ok(Math.abs(z / 2 / TONE_SECONDS - 1600) < 20, String(z / 2 / TONE_SECONDS));
+});
+
+test('the sample voice talks at 4 s, so the tone there is ducked', () => {
+  const rate = 48000;
+  const v = sampleVoice(rate);
+  assert.equal(v.length, 8 * rate);
+  const at = 4 * rate;
+  let e = 0;
+  for (let i = at; i < at + rate * TONE_SECONDS; i++) e += v[i] * v[i];
+  assert.ok(Math.sqrt(e / (rate * TONE_SECONDS)) > 0.01);
+  const g = duckGains(v, rate, defaultTones);
+  assert.ok(g[at + 2400] < 0.3, String(g[at + 2400]));
 });

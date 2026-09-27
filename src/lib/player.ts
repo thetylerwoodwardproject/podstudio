@@ -11,8 +11,14 @@ import { loadSettings } from './settings';
 
 const PREVIEW_SECONDS = 12;
 
-export function noiseToggle(audio: HTMLAudioElement, toggle: HTMLInputElement, status: HTMLElement, meta: TakeMeta, original: () => Promise<string>) {
-  const amount = loadSettings().recording.noiseSuppression || 50;
+/**
+ * Wires `toggle` to `audio`. `status` is an element for short status text, or a
+ * function that gets it. Returns where playback is in the session (the player
+ * may hold only a cleaned stretch of it for a while).
+ */
+export function noiseToggle(audio: HTMLAudioElement, toggle: HTMLInputElement, status: HTMLElement | ((text: string) => void), meta: TakeMeta, original: () => Promise<string>) {
+  const amount = noiseAmount();
+  const say = typeof status === 'function' ? status : (text: string) => void (status.textContent = text);
   let full: string | null = null;
   let cleaning: Promise<void> | null = null;
   let progress = 0;
@@ -30,7 +36,7 @@ export function noiseToggle(audio: HTMLAudioElement, toggle: HTMLInputElement, s
     if (play) await audio.play().catch(() => {});
   };
   const showProgress = () => {
-    if (toggle.checked && !full) status.textContent = `${waiting ? 'Cleaning the rest' : 'Cleaned from here · the rest'} ${Math.round(progress * 100)}%`;
+    if (toggle.checked && !full) say(`${waiting ? 'Cleaning the rest' : 'Cleaned from here · the rest'} ${Math.round(progress * 100)}%`);
   };
 
   const cleanWhole = () =>
@@ -43,11 +49,11 @@ export function noiseToggle(audio: HTMLAudioElement, toggle: HTMLInputElement, s
       if (toggle.checked) {
         await swap(full, 0, Infinity, !audio.paused || waiting);
         waiting = false;
-        status.textContent = `Cleaned · ${amount}%`;
+        say(`Cleaned · ${amount}%`);
       }
     })().catch((err) => {
       cleaning = null;
-      status.textContent = `Couldn’t clean: ${(err as Error).message}`;
+      say(`Couldn’t clean: ${(err as Error).message}`);
     }));
 
   audio.addEventListener('ended', () => {
@@ -63,16 +69,16 @@ export function noiseToggle(audio: HTMLAudioElement, toggle: HTMLInputElement, s
       if (!toggle.checked) {
         waiting = false;
         await swap(await original());
-        status.textContent = '';
+        say('');
         return;
       }
       if (!full && (await hasVariant(meta, variantName(amount)))) full = URL.createObjectURL(await takeWav(meta, variantName(amount)));
       if (full) {
         await swap(full);
-        status.textContent = `Cleaned · ${amount}%`;
+        say(`Cleaned · ${amount}%`);
         return;
       }
-      status.textContent = 'Cleaning from here…';
+      say('Cleaning from here…');
       const from = Math.floor(position());
       const preview = URL.createObjectURL((await previewTake(meta, amount, PREVIEW_SECONDS, from)).after);
       if (toggle.checked && !full) {
@@ -81,13 +87,17 @@ export function noiseToggle(audio: HTMLAudioElement, toggle: HTMLInputElement, s
       }
       cleanWhole();
     } catch (err) {
-      status.textContent = `Couldn’t clean: ${(err as Error).message}`;
+      say(`Couldn’t clean: ${(err as Error).message}`);
       toggle.checked = false;
     } finally {
       toggle.disabled = false;
     }
   });
+  return { position, amount };
 }
+
+/** The amount a Listen player cleans at: the export default, or 40 %. */
+export const noiseAmount = () => loadSettings().recording.noiseSuppression || 40;
 
 /** The switch's markup, shared by the Listen players. */
 export const noiseToggleHtml = (id: string) => `

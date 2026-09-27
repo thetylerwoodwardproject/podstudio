@@ -8,6 +8,7 @@
 import { tone } from './wav.ts';
 
 export type ToneKind = 'retake' | 'cut' | 'adlib' | 'pause' | 'gap';
+export type TonePitch = 'low' | 'mid' | 'high';
 
 export interface ToneSettings {
   /** Include tones in exports by default */
@@ -21,6 +22,8 @@ export interface ToneSettings {
   releaseMs: number;
   /** Voice above this (dBFS, 5 ms RMS) ducks the tone */
   threshold: number;
+  /** Every tone lower or higher: a retake at 600 Hz, 1 kHz or 1.6 kHz */
+  pitch: TonePitch;
 }
 
 export const defaultTones: ToneSettings = {
@@ -31,10 +34,16 @@ export const defaultTones: ToneSettings = {
   attackMs: 10,
   releaseMs: 150,
   threshold: -40,
+  pitch: 'mid',
 };
 
 /** A pitch per marker kind, so they can be told apart by ear. */
 export const TONE_FREQ: Record<ToneKind, number> = { retake: 1000, cut: 600, adlib: 1400, pause: 800, gap: 400 };
+export const PITCH_SCALE: Record<TonePitch, number> = { low: 0.6, mid: 1, high: 1.6 };
+/** A marker kind's tone at a pitch setting, in Hz. */
+export const toneFreq = (kind: ToneKind, pitch: TonePitch = 'mid') => Math.round(TONE_FREQ[kind] * (PITCH_SCALE[pitch] ?? 1));
+/** "1 kHz", "600 Hz" */
+export const hzLabel = (f: number) => (f >= 1000 ? `${String(f / 1000).replace(/\.0$/, '')} kHz` : `${f} Hz`);
 export const TONE_SECONDS = 0.2;
 /** Voice before a tone the ducker looks at, so its state is settled when the tone starts. */
 export const DUCK_PREROLL = 0.5;
@@ -82,7 +91,7 @@ export function mixTones(
   rate: number,
   from: number,
   tones: PlacedTone[],
-  o: Pick<ToneSettings, 'level' | 'duck' | 'attackMs' | 'releaseMs' | 'threshold'>,
+  o: Pick<ToneSettings, 'level' | 'duck' | 'attackMs' | 'releaseMs' | 'threshold'> & { pitch?: TonePitch },
 ): Float32Array {
   const frames = Math.floor(x.length / channels);
   const mono = new Float32Array(frames);
@@ -94,7 +103,7 @@ export function mixTones(
   const gains = duckGains(mono, rate, o);
   const out = x.slice();
   for (const t of tones) {
-    const beep = tone(rate, { freq: TONE_FREQ[t.kind], dbfs: o.level, seconds: TONE_SECONDS });
+    const beep = tone(rate, { freq: toneFreq(t.kind, o.pitch), dbfs: o.level, seconds: TONE_SECONDS });
     const start = t.at - from;
     for (let i = 0; i < beep.length; i++) {
       const f = start + i;
@@ -125,4 +134,26 @@ export function toneWindows(tones: PlacedTone[], rate: number, total: number): {
     } else out.push({ from, to, tones: [t] });
   }
   return out;
+}
+
+/**
+ * An 8 s stand-in for a voice, for hearing tones in Settings: syllables of a
+ * buzzy 120 Hz voice (with a little pitch movement) in phrases. A retake
+ * tone at 4 s lands just after a short gap, under the voice.
+ */
+export function sampleVoice(rate: number, seconds = 8): Float32Array {
+  const x = new Float32Array(Math.round(rate * seconds));
+  let phase = 0;
+  for (let i = 0; i < x.length; i++) {
+    const t = i / rate;
+    // Phrases: talking except 2.2–2.6 s, 3.5–3.9 s and after 7.4 s
+    const talking = !((t > 2.2 && t < 2.6) || (t > 3.5 && t < 3.9) || t > 7.4) && t > 0.3;
+    const syllable = 0.5 - 0.5 * Math.cos(2 * Math.PI * 4.3 * t);
+    const f0 = 120 + 12 * Math.sin(2 * Math.PI * 0.7 * t) + 6 * Math.sin(2 * Math.PI * 4.3 * t);
+    phase += (2 * Math.PI * f0) / rate;
+    let v = 0;
+    for (let h = 1; h <= 12; h++) v += Math.sin(h * phase) / h ** 1.1 * (h === 4 || h === 6 ? 1.8 : 1);
+    x[i] = talking ? 0.12 * syllable * v : 0;
+  }
+  return x;
 }
