@@ -117,6 +117,23 @@ else. It's 13 files (about 1,800 lines) against about 10,300 lines of Astro.
   - The `data-*` hooks the browser tests use must stay the same. Run
     `npm run test:browser -- mic` (or `guest guest-sync` for Wrapping up)
     before and after.
+- **Then, each when it next needs real changes** (same rule, same checks):
+
+  | Screen | Why | Browser tests |
+  |---|---|---|
+  | Recording (`pages/episodes/[id]/recording.astro`, about 1,600 lines of script) | The REC clock, saved indicator, ad-lib/cut pill, warnings, undo toast, pause countdown, More sheet, and guest and producer panels are all state shown in several places. **Move it in pieces** (warnings, header, More sheet first), never in one go. The prompter scroll, level meter and mic capture stay plain TypeScript that Svelte only hosts: they're timing-critical. | `solo pads tones uploads guest` |
+  | Guest (`pages/guest.astro`) | States the host drives: green room, waiting, recording, uploading | `guest guest-sync` |
+  | Producer (`pages/producer.astro`) | Live script position, session state, the guest and the controls, all from the live room | `guest guest-sync` |
+  | Pad editor (`components/settings/Pads.astro`) | A list with a selected pad and its fields, plus show and episode overrides | `pads` |
+
+  Studio, Sessions, the script editor and Settings → Recording have moderate
+  state. Move them only if a change makes them awkward.
+- **Leave as they are:**
+  - `session.astro`: its screen is already Svelte, and its script loads data
+    and writes the zip, which stays plain TypeScript;
+  - Saved, two-factor setup, the library and sign-in: small or mostly static;
+  - the package screen: still mock data;
+  - `voice.astro`: a test page for voice follow.
 
 ## Deliberate departures from the design handoffs
 
@@ -142,8 +159,9 @@ else. It's 13 files (about 1,800 lines) against about 10,300 lines of Astro.
    - make the server refuse to start on a database newer than it knows.
 3. **Real devices:** the iPhone mic and background behaviour, and phones as
    guests over a real network.
-4. **Mic check and Wrapping up in Svelte**, the next time either needs real
-   changes (see [Svelte or Astro](#svelte-or-astro-the-rule)).
+4. **Screens to Svelte, as they next change:** Mic check and Wrapping up
+   first, then Recording (in pieces), Guest, Producer and the pad editor (see
+   [Svelte or Astro](#svelte-or-astro-the-rule)).
 5. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
    It needs a monitor path that Podstudio doesn't have yet.
 6. **Small clean-ups:**
