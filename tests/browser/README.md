@@ -53,3 +53,16 @@ npm run test:browser -- flow publish   # some of them, by name
   - `sting.wav` and `bed.wav`: pad sounds.
 - `voice-noisy.wav` (voice-like with a −42 dBFS hiss) is made from
   `voice-like.wav` by `tools/noisy.py` the first time it's needed.
+
+## CI
+
+`.github/workflows/checks.yml` runs on pushes, pull requests and manual runs.
+It runs the unit tests, Astro and Svelte checks, and the build before the full
+browser suite. Node 24 and Python 3.12 are installed explicitly. Chromium and
+its Linux dependencies come from the locked `playwright-core` version;
+`PS_CHROME` points to that version's executable.
+
+Each run keeps browser logs and screenshots as the `browser-diagnostics`
+artifact for seven days, including on failure. Recordings, downloads, account
+state and the test database aren't uploaded. Tests run sequentially, with no
+automatic retries hiding failures.

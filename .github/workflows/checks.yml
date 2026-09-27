@@ -1,0 +1,48 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: npm test
+      - run: npx astro check
+      - run: npx svelte-check
+      - run: npm run build
+      - name: Install Chromium and system dependencies
+        run: npx playwright-core install --with-deps chromium
+      - name: Select Playwright Chromium
+        run: node --input-type=module -e 'import { chromium } from "playwright-core"; import { appendFileSync } from "node:fs"; appendFileSync(process.env.GITHUB_ENV, `PS_CHROME=${chromium.executablePath()}\n`);'
+      - run: npm run test:browser
+      - name: Save browser logs and screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: browser-diagnostics
+          path: |
+            tests/browser/.out/logs/
+            tests/browser/.out/**/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
