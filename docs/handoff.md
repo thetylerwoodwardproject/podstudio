@@ -1,6 +1,6 @@
 # Handoff: where Podstudio is, and what's next
 
-Updated 27 September 2026 against `ed89995` on `main`. Read this first, then
+Updated 27 September 2026 for the settings audio-controls work. Read this first, then
 [README.md](../README.md), [development.md](development.md) (commands and
 layout), [features.md](features.md) (what each screen does) and
 [ui-framework.md](ui-framework.md) (the rules every screen follows).
@@ -8,14 +8,15 @@ layout), [features.md](features.md) (what each screen does) and
 ## Where it stands
 
 Recording, voice follow, guests and producers, uploads, and export all work
-end to end locally and in Linux CI. It hasn't run on a real server yet: that's
-the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
+end to end locally and in Linux CI. The full application is now installed on
+the first lab VPS for real-world testing (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 (three migrations).
 
 **Recently landed**, newest first:
 
 | Commit | What |
 |---|---|
+| This delivery | **Settings audio controls.** Hotkey pads use a Svelte setup sheet with atomic drafts, previous browser/server sessions, clip uploads and live preview; all six standards colours render from concrete tokens. Marker settings preview all five clean export tones. Every Settings page reports saving, saved, offline/waiting and failed server writes. |
 | `ed89995` | **Export completion.** Actual zip count and size, “Your export is ready”, Back to sessions, Download again (the same zip), and Adjust export settings. Keeps the finished measurements and sync report. Browser coverage includes failure and raw-only exports, focus, scrolling and phone layouts. |
 | `722803e`, `e15794a` | **CI checks.** GitHub Actions runs unit/server tests, both type checks, the build and all 13 browser tests. Saves logs and screenshots for seven days. The upload test selects the raw WAV explicitly instead of relying on filesystem order. |
 | `d6abc49` | **Export: pick the files that go in the zip.** A Choose files sheet with every file in four groups, each with a line saying what it is and its size; quick picks (Everything, To publish, For my DAW); "Use this selection every time" saves the *kinds* of file, so the selection carries across episodes, guests and split parts. |
@@ -58,6 +59,13 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
   - The microphone choice is `recording.deviceId`; that field never leaves
     the device. Recording and prompter settings sync; the recording screen’s
     separate `podstudio:text-size` zoom key also stays local.
+  - `lib/save-status.ts` is the typed browser event shared by account settings
+    and pad synchronization. `SaveStatus.svelte` renders it in every Settings
+    section; mock-only controls do not emit persistence states.
+- **Hotkey pads:** `components/settings/PadsEditor.svelte` owns the setup
+  sheet and its draft. Audio decoding, OPFS/server media storage, session
+  import and playback remain in `lib/pads.ts`, `lib/audio/takes.ts` and
+  `lib/audio/pad-engine.ts`.
 
 ## Tests
 
@@ -101,11 +109,11 @@ else. Pages and layouts remain predominantly Astro.
 - **Svelte, already:**
   - the Export flow, with the file picker and the Tone and Loudness steps;
   - the step tabs and bottom player;
-  - the marker tones card and the Saved player.
+  - the marker tones card, the Saved player and the hotkey pad editor sheet.
 - **Svelte, when next changed:**
   - Mic check, Wrapping up and Script import;
   - Recording, in pieces;
-  - Guest, Producer and the pad editor.
+  - Guest and Producer.
 - **Astro:**
   - Studio, Sessions, the script editor, and Settings → Recording and the other
     settings pages;
@@ -153,8 +161,6 @@ Astro is for pages that mostly show things and save a form.
   | Recording (`pages/episodes/[id]/recording.astro`, about 1,600 lines of script) | The REC clock, saved indicator, ad-lib/cut pill, warnings, undo toast, pause countdown, More sheet, and guest and producer panels are all state shown in several places. **Move it in pieces** (warnings, header, More sheet first), never in one go. The prompter scroll, level meter and mic capture stay plain TypeScript that Svelte only hosts: they're timing-critical. | `solo pads tones uploads guest` |
   | Guest (`pages/guest.astro`) | States the host drives: green room, waiting, recording, uploading | `guest guest-sync` |
   | Producer (`pages/producer.astro`) | Live script position, session state, the guest and the controls, all from the live room | `guest guest-sync` |
-  | Pad editor (`components/settings/Pads.astro`) | A list with a selected pad and its fields, plus show and episode overrides | `pads` |
-
   Studio, Sessions, the script editor and Settings → Recording have moderate
   state, so they stay Astro. Move one only when a change to it turns out hard
   to do cleanly as written. The signs:
@@ -187,8 +193,8 @@ Astro is for pages that mostly show things and save a form.
 
 ## Next steps
 
-1. **The lab VPS** ([roadmap](roadmap.md#next-stage-a-lab-environment-on-a-real-vps)):
-   - install with `deploy/install.sh` on a real domain;
+1. **The lab VPS** ([roadmap](roadmap.md#current-stage-a-lab-environment-on-a-real-vps)):
+   - exercise the completed `deploy/install.sh` install on its real domain;
    - tag `v0.2.0` with a `CHANGELOG.md`;
    - test upgrades from each released schema, not only from an empty
      database;
@@ -196,7 +202,8 @@ Astro is for pages that mostly show things and save a form.
 2. **Real devices:** the iPhone mic and background behaviour, and phones as
    guests over a real network.
 3. **Screens to Svelte, as they next change:** Mic check and Wrapping up
-   first, then Recording (in pieces), Guest, Producer and the pad editor (see
+   first, then Recording (in pieces), Guest and Producer (the pad editor has
+   moved; see
    [Svelte or Astro](#svelte-or-astro-the-rule)).
 4. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
    It needs a monitor path that Podstudio doesn't have yet.

@@ -48,6 +48,11 @@ export const TONE_SECONDS = 0.2;
 /** Voice before a tone the ducker looks at, so its state is settled when the tone starts. */
 export const DUCK_PREROLL = 0.5;
 
+/** A clean reference preview, made by the same oscillator as exported marker tones. */
+export function markerTonePreview(kind: ToneKind, o: Pick<ToneSettings, 'level' | 'pitch'>, rate = 48000) {
+  return tone(rate, { freq: toneFreq(kind, o.pitch), dbfs: o.level, seconds: TONE_SECONDS });
+}
+
 /**
  * Gain for the tones at each sample of `voice` (mono): 1 while the voice is
  * quiet, down by `duck` dB while it's above the threshold, moving with the

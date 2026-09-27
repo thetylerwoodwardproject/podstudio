@@ -12,6 +12,7 @@ import type { BitDepth, Channels } from './audio/wav';
 import { defaultTones, type ToneSettings } from './audio/tones';
 import { cleanTone, type VoiceTone } from './audio/tone';
 import { ApiError, api } from './api';
+import { beginSave } from './save-status';
 
 export interface RecordingSettings {
   depth: BitDepth;
@@ -166,13 +167,18 @@ export function portable(s: Settings) {
 }
 
 async function pushSettings() {
+  const finish = beginSave();
   try {
     const r = await api<{ updatedAt: number }>('me/settings', { method: 'PUT', body: { settings: portable(loadSettings()) } });
     ls.set(AT, String(r.updatedAt));
     ls.set(DIRTY, null);
+    finish('saved');
   } catch (err) {
     // Not signed in (a guest's page): the settings stay in this browser only.
-    if (err instanceof ApiError && err.status >= 400 && err.status < 500) ls.set(DIRTY, null);
+    if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+      ls.set(DIRTY, null);
+      finish('error');
+    } else finish('waiting');
   }
 }
 

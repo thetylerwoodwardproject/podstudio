@@ -6,7 +6,7 @@
  * which knows when pads are armed.
  */
 import { PadEngine, type Playing } from './audio/pad-engine';
-import { PAD_INK, loadPadSettings, padColor, padLength, padTag, padsFor, savePadSettings, type Pad } from './pads';
+import { loadPadSettings, padColor, padInk, padLength, padTag, padsFor, savePadSettings, type Pad } from './pads';
 import { detentBetween, faderPos, faderTop, slideLevel } from './pad-fader';
 
 const minSec = (s: number) => {
@@ -51,7 +51,7 @@ function padButton(key: number, p: PadInfo | undefined, engine: PadEngine, armed
     return b;
   }
   b.style.background = padColor(p.color);
-  b.style.color = PAD_INK;
+  b.style.color = padInk(p.color);
   b.innerHTML = `
     <span class="flex items-start justify-between gap-1">
       <span class="font-mono text-[18px] leading-none font-medium">${key}</span>

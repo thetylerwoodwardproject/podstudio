@@ -1,15 +1,13 @@
 <!--
   Settings → Recording, marker tones (design: step flow 1f): add tones, their
   pitch and how far they drop under your voice, with the rest under More. The
-  player at the bottom plays an 8 s sample retake without and with the tone,
-  made with the settings as they are (lib/audio/tones.ts).
+  five clean reference previews use the same generated tones as export.
 -->
 <script lang="ts">
   import Switch from '@/components/ui/Switch.svelte';
   import Segmented from '@/components/ui/Segmented.svelte';
-  import StepPlayer from '@/components/steps/StepPlayer.svelte';
   import { PreviewPlayer } from '@/lib/audio/preview-player';
-  import { hzLabel, mixTones, sampleVoice, toneFreq, type ToneKind, type TonePitch, type ToneSettings } from '@/lib/audio/tones';
+  import { hzLabel, markerTonePreview, toneFreq, type ToneKind, type TonePitch, type ToneSettings } from '@/lib/audio/tones';
 
   interface Props {
     initial: ToneSettings;
@@ -34,36 +32,23 @@
   ] as const;
   const minus = (s: string) => s.replace(/-/g, '−');
 
-  // ── The sample ──
+  // Clean reference tones: one at a time, without synthetic speech or ducking.
   const RATE = 48000;
-  const voice = sampleVoice(RATE);
   const player = new PreviewPlayer();
-  let choice = $state(1);
-  let playing = $state(false);
-  let pos = $state(0);
-  $effect(() => {
-    const s = $state.snapshot(t) as ToneSettings;
-    player.set({ options: [voice, mixTones(voice, 1, RATE, 0, [{ at: 4 * RATE, kind: 'retake' }], s)], channels: 1, rate: RATE });
-    player.select(choice);
-  });
+  let playing = $state<ToneKind | null>(null);
   $effect(() => () => player.close());
-  player.onended = () => ((playing = false), (pos = 0));
-  function tick() {
-    playing = player.playing;
-    pos = player.position();
-    if (playing) requestAnimationFrame(tick);
-  }
-  async function toggle() {
-    if (player.playing) {
-      player.pause();
-      playing = false;
+  player.onended = () => (playing = null);
+  async function preview(kind: ToneKind) {
+    if (playing === kind && player.playing) {
+      player.reset();
+      playing = null;
       return;
     }
+    const s = $state.snapshot(t) as ToneSettings;
+    player.set({ options: [markerTonePreview(kind, s, RATE)], channels: 1, rate: RATE });
+    playing = kind;
     await player.play();
-    tick();
   }
-  const pitchLabel = $derived(hzLabel(toneFreq('retake', t.pitch)));
-  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const row = 'flex items-center gap-4 px-5 py-[18px]';
   const rule = 'mx-5 h-px bg-divider';
 </script>
@@ -91,6 +76,26 @@
         data-tone-pitch
         onchange={(v) => (t.pitch = v as TonePitch)}
       />
+    </div>
+    <div class={rule}></div>
+    <div class="flex flex-col gap-2 px-5" data-tone-previews>
+      <div class="text-[14px]">Preview each tone</div>
+      <p class="help">Clean reference tones at the level used in the export. Ducking only applies when they are mixed under speech.</p>
+      <div class="grid gap-2 sm:grid-cols-2">
+        {#each KINDS as [k, name]}
+          <button
+            type="button"
+            class="flex h-10 items-center gap-3 rounded-[10px] border border-border bg-page px-3 text-left text-[14px] hover:border-handle focus-visible:outline-2 focus-visible:outline-text"
+            aria-label={`${playing === k ? 'Stop' : 'Preview'} ${name} tone, ${hzLabel(toneFreq(k, t.pitch))}`}
+            data-tone-preview={k}
+            onclick={() => preview(k)}
+          >
+            <span class="flex size-5 items-center justify-center text-[13px]" aria-hidden="true">{playing === k ? '■' : '▶'}</span>
+            <span class="min-w-0 flex-1">{name}</span>
+            <span class="font-mono text-[12px] text-text-3">{hzLabel(toneFreq(k, t.pitch))}</span>
+          </button>
+        {/each}
+      </div>
     </div>
     <div class={rule}></div>
     <label class="flex flex-col gap-3 px-5">
@@ -134,14 +139,4 @@
       </div>
     </details>
   </div>
-  <StepPlayer
-    options={['Without', 'With tone']}
-    {choice}
-    onchoose={(i) => ((choice = i), player.select(i))}
-    chain={choice ? `Sample retake with ${pitchLabel} tone, ${t.duck ? minus(`-${t.duck}`) : '0'} dB` : 'Sample retake, no tone'}
-    time={`${mmss(pos)} / 0:08`}
-    progress={pos / 8}
-    {playing}
-    onplay={toggle}
-  />
 </div>

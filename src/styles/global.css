@@ -96,6 +96,14 @@
  * script editor overrides them (see src/lib/speakers.ts).
  */
 :root {
+  /* Pad fills use this same six-colour standards palette. Keep them as ordinary
+     custom properties because pads choose them at runtime. */
+  --pad-yellow: oklch(83.77% 0.148 81.72);
+  --pad-teal: oklch(90.16% 0.173 188.71);
+  --pad-green: oklch(80% 0.18 145);
+  --pad-red: oklch(68% 0.2 25);
+  --pad-purple: oklch(70% 0.16 300);
+  --pad-black: #3a3b3f;
   --spk-tyler: var(--color-spk-yellow);
   --spk-sam: var(--color-spk-teal);
   --spk-dana: var(--color-spk-purple);

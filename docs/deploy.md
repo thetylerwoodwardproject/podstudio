@@ -3,7 +3,7 @@
 Podstudio is one Node process with a SQLite database and a data folder, behind
 Caddy for HTTPS (or Nginx with Certbot, if you prefer). The first real VPS
 validation is still pending; confirm memory use and upgrade behaviour in the
-[lab checks](roadmap.md#next-stage-a-lab-environment-on-a-real-vps).
+[lab checks](roadmap.md#current-stage-a-lab-environment-on-a-real-vps).
 Recording is done in the browser; the server stores what's uploaded, so size the
 disk for your audio (24-bit / 48 kHz mono is about 520 MB an hour per speaker).
 

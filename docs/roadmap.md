@@ -1,15 +1,16 @@
-# Planned
+# Planned and in validation
 
 Designed and agreed, not built yet.
 
-## Next stage: a lab environment on a real VPS
+## Current stage: a lab environment on a real VPS
 
-The next test runs on a real VPS. From here on, work builds off that lab
-server as well as local development and CI, so every change has to be
+The first full install is now running on a real VPS for real-world testing.
+From here on, work builds off that lab server as well as local development and
+CI, so every change has to be
 something you can install over a running copy without losing data.
 
-- **Lab environment.** One VPS set up with `deploy/install.sh` (Caddy, systemd,
-  `/var/lib/podstudio`), used as the reference install. New slices are tried
+- **Lab environment (underway).** One VPS set up with `deploy/install.sh`
+  (Caddy, systemd, `/var/lib/podstudio`), used as the reference install. New slices are tried
   there — a real domain, real phones, real network — before they count as done.
 - **Versions.** Releases get a semver number, set once in `package.json`:
   - shown in Settings → About and in `GET /api/health` (both done, with the

@@ -9,6 +9,7 @@
  * event says so.
  */
 import { ApiError, api } from './api';
+import { beginSave } from './save-status';
 
 const dirty = (key: string) => `${key}:dirty`;
 const mark = (key: string, on: boolean) => {
@@ -28,12 +29,17 @@ const get = (key: string) => {
 /** Try a save; keep it marked unsent if the server can't be reached. */
 async function send(key: string, run: () => Promise<unknown>) {
   mark(key, true);
+  const finish = beginSave();
   try {
     await run();
     mark(key, false);
+    finish('saved');
   } catch (err) {
     // Not signed in (a guest's page): it stays in this browser only.
-    if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 409) mark(key, false);
+    if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 409) {
+      mark(key, false);
+      finish('error');
+    } else finish('waiting');
   }
 }
 

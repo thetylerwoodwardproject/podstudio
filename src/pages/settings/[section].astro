@@ -56,11 +56,18 @@ const View = current.view;
       <View />
       </div>
     </form>
+    <div data-save-status-mount></div>
   </div>
 </AppShell>
 
 <script>
   import { api } from '@/lib/api';
+
+  const saveMount = document.querySelector<HTMLElement>('[data-save-status-mount]');
+  if (saveMount)
+    Promise.all([import('svelte'), import('@/components/settings/SaveStatus.svelte')]).then(([{ mount }, { default: SaveStatus }]) =>
+      mount(SaveStatus, { target: saveMount }),
+    );
 
   document.querySelector('[data-signout]')!.addEventListener('click', async () => {
     const r = await api<{ next: string }>('auth/signout', { body: {} });

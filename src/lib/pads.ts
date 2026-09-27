@@ -51,11 +51,12 @@ export interface PadSettings {
 
 export const defaultPadSettings: PadSettings = { volumeDb: -6, duckAttackMs: 80, duckReleaseMs: 400, threshold: -40, duck: true };
 
-/** The six Syntax colours, the same tokens as the cast colours in global.css. */
+/** The six standards colours. Pad variables are always emitted because this name is chosen at runtime. */
 export const PAD_COLORS: PadColor[] = ['yellow', 'teal', 'green', 'red', 'purple', 'black'];
-export const padColor = (c: PadColor) => `var(--color-spk-${c})`;
-/** Dark ink on every pad colour */
+export const padColor = (c: PadColor) => `var(--pad-${c})`;
+/** Pad label ink. Black is the only standards swatch that needs light type. */
 export const PAD_INK = '#0B0B0C';
+export const padInk = (c: PadColor) => c === 'black' ? 'var(--color-text)' : PAD_INK;
 
 export const KIND_LABEL: Record<PadKind, string> = { bite: 'Soundbite', clip: 'Clip', music: 'Music', sfx: 'Sound effect' };
 
@@ -140,12 +141,12 @@ function write(key: string, value: unknown) {
 export const loadShowPads = (): PadSet => read<PadSet>(SHOW_KEY, []);
 export const saveShowPads = (set: PadSet) => {
   write(SHOW_KEY, set);
-  import('./sync').then((s) => s.pushPads(null));
+  return import('./sync').then((s) => s.pushPads(null));
 };
 export const loadEpisodePads = (episodeId: string): PadSet => read<PadSet>(epKey(episodeId), []);
 export const saveEpisodePads = (episodeId: string, set: PadSet) => {
   write(epKey(episodeId), set);
-  import('./sync').then((s) => s.pushPads(episodeId));
+  return import('./sync').then((s) => s.pushPads(episodeId));
 };
 export const loadPadSettings = (): PadSettings => ({ ...defaultPadSettings, ...read<Partial<PadSettings>>(SETTINGS_KEY, {}) });
 export const savePadSettings = (patch: Partial<PadSettings>) => write(SETTINGS_KEY, { ...loadPadSettings(), ...patch });
@@ -186,7 +187,13 @@ export async function saveLibraryFile(stereo: Float32Array, info: { name: string
   await put(dir, `${id}.json`, JSON.stringify(file));
   // To the server's library too, so other browsers (and the Pads track at export) have it.
   const q = new URLSearchParams({ name: file.name, seconds: String(file.seconds), ...(file.source ? { source: file.source } : {}) });
-  await fetch(`/api/media/${id}?${q}`, { method: 'PUT', body: wav, credentials: 'same-origin' }).catch(() => {});
+  let res: Response;
+  try {
+    res = await fetch(`/api/media/${id}?${q}`, { method: 'PUT', body: wav, credentials: 'same-origin' });
+  } catch {
+    throw new Error('Can’t reach the Podstudio server. The file remains in this browser.');
+  }
+  if (!res.ok) throw new Error(`The server refused this sound (${res.status}).`);
   return file;
 }
 

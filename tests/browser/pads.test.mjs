@@ -4,16 +4,17 @@ import { execSync } from 'node:child_process';
 import { OUT as S, B, DATA, FIX, TOOLS, CHROME } from './env.mjs';
 const P = `${S}/pads`;
 const e = '/episodes/142';
-const browser = await chromium.launch({
+const launch = () => chromium.launch({
   executablePath: CHROME,
-  args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${FIX}/mono11.wav`, '--autoplay-policy=no-user-gesture-required'],
+  args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${FIX}/mono11.wav`, '--autoplay-policy=no-user-gesture-required', '--disable-audio-output'],
 });
-const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 }, permissions: ['microphone'], acceptDownloads: true });
+let browser = await launch();
+let ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 }, permissions: ['microphone'], acceptDownloads: true });
 const errs = [];
 let fails = 0;
 const ok = (n, c, x = '') => { if (!c) fails++; console.log(c ? 'PASS' : 'FAIL', n, x); };
 const until = async (fn, ms = 10000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 150)); } return false; };
-const page = await ctx.newPage();
+let page = await ctx.newPage();
 page.on('pageerror', (x) => errs.push(page.url() + ' ' + x.message));
 page.on('dialog', (d) => d.accept());
 
@@ -21,32 +22,73 @@ page.on('dialog', (d) => d.accept());
 // Cleared on a page with no scripts (a settings page reloads itself when the server's settings arrive)
 await page.goto(B + '/api/health');
 await page.evaluate(async () => { localStorage.clear(); const r = await navigator.storage.getDirectory(); for await (const [n] of r) await r.removeEntry(n, { recursive: true }); });
+// A completed take that exists only on the server, for the previous-episode clip picker.
+await page.evaluate(async () => {
+  const meta = { id: 'pad-server-clip', episodeId: '141', number: 1, name: 'Server session', kind: 'session', startLine: 0, startText: '', speaker: 'TYLER', device: 'Test', sampleRate: 48000, bitDepth: 16, channels: 1, samples: 48000, segments: 1, startedAt: Date.now() - 10000, updatedAt: Date.now(), status: 'done', peaks: [] };
+  await fetch('/api/takes/pad-server-clip', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta, done: false }) });
+  await fetch('/api/takes/pad-server-clip/segments/1', { method: 'PUT', body: new Uint8Array(96000) });
+  await fetch('/api/takes/pad-server-clip', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta, done: true }) });
+});
 await page.goto(B + '/settings/pads?episode=142&key=1');
-await page.click('[data-kind=sfx]');
+await page.waitForLoadState('networkidle');
+await page.waitForSelector('[data-pad-editor-sheet][open]', { state: 'visible' });
+await page.waitForTimeout(500);
+ok('pad opens in a framework sheet', await page.locator('[data-pad-editor-sheet]').isVisible());
+const colors = await page.locator('[data-colors] [data-color]').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
+ok('all six standards colors render', colors.length === 6 && new Set(colors).size === 6, colors.join(' | '));
+await page.click('[data-kind-picker] [data-value=sfx]');
 await page.setInputFiles('[data-upload]', `${FIX}/sting.wav`);
 ok('upload fills the pad', await until(async () => !(await page.locator('[data-d-save]').isDisabled())));
 await page.fill('[data-d-name]', 'Sting');
-ok('sfx defaults: one-shot, no duck', (await page.getAttribute('[data-mode=oneshot]', 'aria-pressed')) === 'true' && !(await page.isChecked('[data-d-duck]')));
+await page.screenshot({ path: `${P}/editor-sheet.png` });
+ok('sfx defaults: one-shot, no duck', (await page.getAttribute('[data-mode-picker] [data-value=oneshot]', 'aria-pressed')) === 'true' && !(await page.isChecked('[data-d-duck]')));
 ok('44.1 kHz file converted to 48 kHz', /0:01\.0 · 48 kHz/.test(await page.locator('[data-d-source]').textContent()), await page.locator('[data-d-source]').textContent());
 await page.click('[data-d-save]');
+ok('save indicator confirms the pad', await until(async () => (await page.locator('[data-save-status]').getAttribute('data-save-status')) === 'saved'));
+await page.click('[data-grid-key="1"]');
+await page.keyboard.press('Escape');
+ok('Escape closes the sheet and returns focus', await page.locator('[data-pad-editor-sheet]').isHidden() && await page.locator('[data-grid-key="1"]').evaluate((el) => el === document.activeElement));
+await page.click('[data-grid-key="1"]');
+await page.mouse.click(10, 450);
+ok('clicking the backdrop closes the sheet', await page.locator('[data-pad-editor-sheet]').isHidden());
 await page.click('[data-grid-key="2"]');
-await page.click('[data-kind=music]');
+await page.click('[data-kind-picker] [data-value=music]');
 await page.setInputFiles('[data-upload]', `${FIX}/bed.wav`);
 await until(async () => !(await page.locator('[data-d-save]').isDisabled()));
 await page.fill('[data-d-name]', 'Theme bed');
-ok('music defaults: loop, ducks, 2 s fade', (await page.getAttribute('[data-mode=loop]', 'aria-pressed')) === 'true' && (await page.isChecked('[data-d-duck]')) && (await page.inputValue('[data-d-fadeout]')) === '2000');
+ok('music defaults: loop, ducks, 2 s fade', (await page.getAttribute('[data-mode-picker] [data-value=loop]', 'aria-pressed')) === 'true' && (await page.isChecked('[data-d-duck]')) && (await page.inputValue('[data-d-fadeout]')) === '2000');
 await page.click('[data-d-save]');
-ok('grid shows both', /SFX/.test(await page.locator('[data-grid-key="1"]').textContent()) && /LOOP/.test(await page.locator('[data-grid-key="2"]').textContent()));
+ok('grid shows both', await until(async () => /SFX/.test(await page.locator('[data-grid-key="1"]').textContent()) && /LOOP/.test(await page.locator('[data-grid-key="2"]').textContent())));
 await page.screenshot({ path: `${P}/editor.png`, fullPage: true });
 // Drag 2 onto 3 and back
 await page.dragAndDrop('[data-grid-key="2"]', '[data-grid-key="3"]');
-ok('drag swaps keys', /Theme bed/.test(await page.locator('[data-grid-key="3"]').textContent()) && /Empty/.test(await page.locator('[data-grid-key="2"]').textContent()));
+ok('drag swaps keys', await until(async () => /Theme bed/.test(await page.locator('[data-grid-key="3"]').textContent()) && /Empty/.test(await page.locator('[data-grid-key="2"]').textContent())));
 await page.dragAndDrop('[data-grid-key="3"]', '[data-grid-key="2"]');
 ok('and back', /Theme bed/.test(await page.locator('[data-grid-key="2"]').textContent()));
+
+// The same settings sheet becomes a bottom sheet at phone width.
+await page.setViewportSize({ width: 390, height: 820 });
+ok('editor usable at phone width', await page.locator('[data-pads-editor]').isVisible());
+await page.click('[data-grid-key="1"]');
+await page.waitForSelector('[data-pad-editor-sheet][open]', { state: 'visible' });
+const phoneSheet = await page.locator('[data-pad-editor-sheet]').boundingBox();
+ok('phone editor is a bottom sheet', !!phoneSheet && Math.abs(phoneSheet.y + phoneSheet.height - 820) < 2);
+await page.screenshot({ path: `${P}/phone-editor-sheet.png` });
+await page.keyboard.press('Escape');
+await page.setViewportSize({ width: 1440, height: 900 });
+
 // A script with a cue
 await page.evaluate(() => (localStorage.setItem('podstudio:script:142', '## Cold open\n[pad 1]\nIt was a quiet week in the studio, until the new transmitter arrived.\nFour pallets. I counted.\n## The install\nSo this episode is about what happens after the crate is open.\nAnd then some.'), localStorage.setItem('podstudio:script:142:dirty', '1')));
 
 // ── Recording with the rail ──
+await browser.close(); browser = await launch();
+ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 }, permissions: ['microphone'], acceptDownloads: true });
+page = await ctx.newPage(); page.on('pageerror', (x) => errs.push(page.url() + ' ' + x.message));
+await page.goto(B + '/api/health');
+await page.evaluate(() => {
+  localStorage.setItem('podstudio:script:142', '## Cold open\n[pad 1]\nIt was a quiet week in the studio, until the new transmitter arrived.\nFour pallets. I counted.\n## The install\nSo this episode is about what happens after the crate is open.\nAnd then some.');
+  localStorage.setItem('podstudio:script:142:dirty', '1');
+});
 await page.goto(B + e + '/recording');
 await page.waitForTimeout(2500);
 ok('rail shows', await page.locator('[data-pad-rail]').isVisible());
@@ -173,21 +215,6 @@ ok('rough mix same length', Math.abs(get('_RoughMix.wav').sec - mic.sec) < 0.001
 const pctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 820 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
 const phone = await pctx.newPage();
 phone.on('pageerror', (x) => errs.push('phone ' + x.message));
-// Same browser storage is per context: copy the pads over.
-await phone.goto(B + '/settings/pads');
-await phone.waitForLoadState('networkidle'); await phone.waitForSelector('[data-pads-editor]', { state: 'visible', timeout: 10000 }).catch(() => {});
-ok('editor usable on a phone', await phone.locator('[data-pads-editor]').isVisible());
-await phone.goto(B + '/settings/pads?key=1');
-await phone.click('[data-kind=sfx]');
-await phone.setInputFiles('[data-upload]', `${FIX}/sting.wav`);
-await until(async () => !(await phone.locator('[data-d-save]').isDisabled()));
-await phone.fill('[data-d-name]', 'Sting');
-await phone.click('[data-d-save]');
-await phone.locator('[data-grid-key="2"]').click();
-await phone.click('[data-kind=music]');
-await phone.setInputFiles('[data-upload]', `${FIX}/bed.wav`);
-await until(async () => !(await phone.locator('[data-d-save]').isDisabled()));
-await phone.click('[data-d-save]');
 await phone.goto(B + e + '/recording');
 await phone.waitForTimeout(2500);
 ok('phone: strip shows, rail doesn\'t', (await phone.locator('[data-pad-strip]').isVisible()) && (await phone.locator('[data-pad-rail]').isHidden()));
@@ -205,6 +232,25 @@ ok('phone: a one-shot drops back to the strip', await until(async () => await ph
 await phone.tap('[data-pad-strip-handle]');
 await phone.tap('[data-pad-sheet-stop]');
 ok('phone: Stop all', await until(async () => !(await stripRing(2)), 1500));
+
+// Preview in its own page so its AudioContext cannot interfere with the fake-mic recording test.
+const audition = await ctx.newPage();
+audition.on('dialog', (d) => d.accept());
+await audition.goto(B + '/settings/pads?key=3'); await audition.waitForLoadState('networkidle'); await audition.waitForSelector('[data-pad-editor-sheet][open]');
+await audition.click('[data-kind-picker] [data-value=clip]');
+ok('server-only previous episode is listed', /Ep\. 141.*Server session.*server/.test(await audition.locator('[data-clip-take]').textContent()));
+await audition.selectOption('[data-clip-take]', 'pad-server-clip');
+await audition.fill('[data-clip-from]', '0:00'); await audition.fill('[data-clip-to]', '0:00.5'); await audition.click('[data-clip-use]');
+ok('server-only clip is downloaded and cut', await until(async () => !(await audition.locator('[data-d-save]').isDisabled()), 15000));
+await audition.getByRole('button', { name: 'Cancel' }).click();
+ok('cancel discards the pad draft', /Empty/.test(await audition.locator('[data-grid-key="3"]').textContent()));
+await audition.goto(B + '/settings/pads?key=1'); await audition.waitForSelector('[data-pad-editor-sheet][open]');
+await audition.click('[data-d-preview]');
+ok('pad previews live during setup', await until(async () => (await audition.locator('[data-d-preview]').textContent()) === 'Stop'));
+await audition.click('[data-d-preview]');
+await audition.click('[data-d-clear]');
+ok('clear removes the saved pad', await until(async () => /Empty/.test(await audition.locator('[data-grid-key="1"]').textContent())));
+await audition.close();
 
 ok('no page errors', errs.length === 0, errs.join('\n'));
 console.log(fails ? `${fails} FAILED` : 'ALL PASS');

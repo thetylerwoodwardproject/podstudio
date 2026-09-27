@@ -31,8 +31,8 @@
 > [!WARNING]
 > **Podstudio is in active development and changes often.** It isn't released
 > yet: expect rough edges, screens that still show example data, and changes
-> between versions. Recording, voice follow and exports work today; the first
-> real-server test on a VPS is next. Keep your own backups of anything you
+> between versions. Recording, voice follow and exports work today; real-world
+> testing on the first VPS install is underway. Keep your own backups of anything you
 > record, and please open an issue if something breaks.
 
 <p align="center">
@@ -65,7 +65,7 @@ kept in step.
 | 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and the session from anywhere |
 | ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
 | 📦 **Publish as is, or take it to your DAW** | A ready-to-publish episode at −16 LUFS stereo or −19 LUFS mono (WAV and MP3), with optional levelling, a graphic EQ and compressor per voice, and a loudness meter, with each person’s raw and edited WAV available for your own post-production |
-| 🎛️ **Hotkey pads** | Nine sounds on the number keys, ducked under your voice and saved as their own track |
+| 🎛️ **Hotkey pads** | Nine sounds on the number keys, configured in a desktop or phone sheet from uploads, previous sessions or the library, previewed live, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |
 | 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
 
@@ -91,7 +91,8 @@ The recording workflow also includes:
 - **Sessions and settings across devices:** recordings upload as you go and
   can be brought into another browser to play or export. Recording, export and
   prompter settings follow your account; microphone selection stays on the
-  device, as does the recording screen’s text zoom. Sessions can be played,
+  device, as does the recording screen’s text zoom. Settings show whether each
+  server write is saving, saved, waiting for a connection or failed. Sessions can be played,
   downloaded or deleted.
 - **Account security:** two-factor authentication, recovery codes, trusted
   devices and password changes, plus a one-time admin setup link on the server.
@@ -137,7 +138,7 @@ Every feature in detail: [docs/features.md](docs/features.md).
 | | |
 |---|---|
 | ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, tone per voice (EQ and compressor), a loudness meter, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · a mixer view on a laptop or phone · hotkey pads, with faders on a phone · accounts with two-factor · episodes, scripts and recordings stored on the server · settings synced per account · selectable export files and a completion screen · the guided installer |
-| 🚧 **Next validation** | First test on a real VPS (the lab environment) · checking iPhone recording and guest sessions on real devices and networks |
+| 🚧 **Validation underway** | The first real VPS is installed for real-world testing · checking upgrades, iPhone recording and guest sessions on real devices and networks |
 | 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and transcription. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |
 
@@ -179,8 +180,8 @@ The installer walks you through everything:
 5. checks HTTPS works;
 6. prints a one-time link to create your admin account.
 
-Run it again to upgrade; it backs up the database first. Fresh installs,
-upgrades and server memory use still need validation on the lab VPS. The full
+Run it again to upgrade; it backs up the database first. The first lab VPS is
+installed; fresh installs, upgrades and server memory use are now being validated there. The full
 guide is [docs/deploy.md](docs/deploy.md).
 
 ## Made by

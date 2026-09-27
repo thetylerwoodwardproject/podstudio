@@ -7,6 +7,7 @@
   interface Option {
     value: string;
     label: string;
+    shortLabel?: string;
   }
   interface Props {
     name?: string;
@@ -39,10 +40,10 @@
     {#if name}
       <label class={`${item} has-checked:bg-text has-checked:font-medium has-checked:text-page has-focus-visible:outline-2 has-focus-visible:outline-text`}>
         <input type="radio" class="sr-only" {name} value={o.value} checked={o.value === value} onchange={() => pick(o.value)} />
-        {o.label}
+        {#if o.shortLabel}<span class="sm:hidden">{o.shortLabel}</span><span class="hidden sm:inline">{o.label}</span>{:else}{o.label}{/if}
       </label>
     {:else}
-      <button type="button" class={`${item} aria-pressed:bg-text aria-pressed:font-medium aria-pressed:text-page`} aria-pressed={o.value === value} data-value={o.value} onclick={() => pick(o.value)}>{o.label}</button>
+      <button type="button" class={`${item} aria-pressed:bg-text aria-pressed:font-medium aria-pressed:text-page`} aria-pressed={o.value === value} data-value={o.value} onclick={() => pick(o.value)}>{#if o.shortLabel}<span class="sm:hidden">{o.shortLabel}</span><span class="hidden sm:inline">{o.label}</span>{:else}{o.label}{/if}</button>
     {/if}
   {/each}
 </div>

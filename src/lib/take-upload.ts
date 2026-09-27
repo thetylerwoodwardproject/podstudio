@@ -109,10 +109,11 @@ export async function resumeUploads(episodeId: string, onProgress?: (take: TakeM
   }
 }
 
-/** Takes on the server for an episode (to bring into a browser that doesn't have them). */
-export async function serverTakes(episodeId: string): Promise<{ id: string; meta: TakeMeta; segments: number; done: boolean }[]> {
+/** Takes on the server, optionally for one episode (to bring into this browser). */
+export async function serverTakes(episodeId?: string): Promise<{ id: string; meta: TakeMeta; segments: number; done: boolean }[]> {
   try {
-    const res = await fetch(`/api/takes?episode=${encodeURIComponent(episodeId)}`, { credentials: 'same-origin' });
+    const query = episodeId ? `?episode=${encodeURIComponent(episodeId)}` : '';
+    const res = await fetch(`/api/takes${query}`, { credentials: 'same-origin' });
     return res.ok ? ((await res.json()) as { takes: { id: string; meta: TakeMeta; segments: number; done: boolean }[] }).takes : [];
   } catch {
     return [];

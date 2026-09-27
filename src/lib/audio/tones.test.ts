@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TONE_SECONDS, defaultTones, duckGains, hzLabel, mixTones, sampleVoice, toneFreq, toneWindows } from './tones.ts';
+import { TONE_SECONDS, defaultTones, duckGains, hzLabel, markerTonePreview, mixTones, sampleVoice, toneFreq, toneWindows, type ToneKind, type TonePitch } from './tones.ts';
 
 const rate = 48000;
 const db = (g: number) => 20 * Math.log10(g);
@@ -83,6 +83,18 @@ test('pitch: low, 1 kHz and high scale every kind', () => {
   let z = 0;
   for (let i = 1; i < rate * TONE_SECONDS; i++) if (x[i - 1] < 0 !== x[i] < 0) z++;
   assert.ok(Math.abs(z / 2 / TONE_SECONDS - 1600) < 20, String(z / 2 / TONE_SECONDS));
+});
+
+test('clean previews contain every marker kind at every pitch', () => {
+  const kinds: ToneKind[] = ['retake', 'cut', 'adlib', 'pause', 'gap'];
+  const pitches: TonePitch[] = ['low', 'mid', 'high'];
+  for (const pitch of pitches) for (const kind of kinds) {
+    const x = markerTonePreview(kind, { ...defaultTones, pitch }, rate);
+    let crossings = 0;
+    for (let i = 1; i < x.length; i++) if ((x[i - 1] < 0) !== (x[i] < 0)) crossings++;
+    const measured = crossings / 2 / TONE_SECONDS;
+    assert.ok(Math.abs(measured - toneFreq(kind, pitch)) < 20, `${kind}/${pitch}: ${measured} Hz`);
+  }
 });
 
 test('the sample voice talks at 4 s, so the tone there is ducked', () => {

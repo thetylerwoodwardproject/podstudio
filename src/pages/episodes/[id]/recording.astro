@@ -362,7 +362,7 @@ const zones = [
   import { waitingRoom } from '@/lib/waiting-room';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
-  import { PAD_INK, padColor, padsFor } from '@/lib/pads';
+  import { padColor, padInk, padsFor } from '@/lib/pads';
   import { mountPadRail, type PadRail } from '@/lib/pad-rail';
   import { mountMixer } from '@/lib/mixer-view';
   import { padLabel } from '@/lib/markers';
@@ -414,7 +414,7 @@ const zones = [
           const chip = document.createElement('span');
           chip.className = 'rounded-[4px] px-1.5 py-0.5 font-mono text-[11px] leading-none font-medium tracking-[0.06em] uppercase';
           chip.style.background = pad ? padColor(pad.color) : 'var(--color-raised)';
-          chip.style.color = pad ? PAD_INK : 'var(--color-muted)';
+          chip.style.color = pad ? padInk(pad.color) : 'var(--color-muted)';
           chip.textContent = `${c.key} · ${pad?.name ?? 'Empty pad'}${c.note ? ` · ${c.note}` : ''}`;
           chip.dataset.cue = String(c.key);
           chips.append(chip);
