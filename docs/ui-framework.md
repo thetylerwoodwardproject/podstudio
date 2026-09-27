@@ -25,7 +25,7 @@ Before adding a one-off style, check whether a component above already does it.
 Pages, layouts and simple components are `.astro`. A panel with a lot of
 state that changes as you use it (several controls that affect each other,
 graphs that follow the settings) is a Svelte 5 component in
-`src/components/`, like `app/ToneCard.svelte`:
+`src/components/`, like `app/ExportFlow.svelte`:
 
 - Style it with Tailwind classes and the tokens above, the same as `.astro`
   files. Write class names out in full; for values only known at runtime

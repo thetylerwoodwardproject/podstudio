@@ -1,223 +1,33 @@
 ---
-// 8b · After a continuous session: export options
+// 8b · After a continuous session: export, as a step flow (components/app/ExportFlow.svelte)
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
-import Button from '@/components/ui/Button.astro';
-import Block from '@/components/ui/Block.astro';
-import Card from '@/components/ui/Card.astro';
-import Row from '@/components/ui/Row.astro';
-import Segmented from '@/components/ui/Segmented.astro';
-import Switch from '@/components/ui/Switch.astro';
-import LoudnessCard from '@/components/app/LoudnessCard.astro';
 import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
 export const prerender = false;
 const data = episodePage(Astro.params.id);
 if (!data) return new Response('No such episode', { status: 404 });
 const episode = { ...mockEpisode, ...data.episode };
-
-const pauseModes = [
-  { value: 'cut', title: 'Cut', body: 'Remove the paused stretch.' },
-  { value: 'keep', title: 'Keep', body: 'Leave it in, marked.' },
-  { value: 'split', title: 'Split', body: 'One file per segment between pauses.' },
-];
-const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounded-full bg-track-off transition-colors has-checked:bg-text has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-text';
 ---
 
 <AppShell title="Session export" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Export' }]}>
+  <span slot="topbar" class="font-mono text-[13px] text-text-2" data-length></span>
   <EpisodeData data={data} />
-  <form
-    class="group/s flex min-h-full flex-col gap-6 px-6 py-8 lg:px-11"
+  <div
+    class="h-full"
     id="session"
     data-episode={episode.id}
     data-label={`Ep${episode.number}`}
     data-title={episode.label}
     data-lines={JSON.stringify(scriptLines.map((l) => l.text))}
   >
-    <div>
-      <h1 class="page-title">Session · <span data-length><span data-demo-only>41:07</span></span></h1>
-      <p class="mt-1.5 text-[13px] text-muted" data-counts><span data-demo-only>18:42 · 14 retakes · 3 pauses</span></p>
+    <div class="mx-auto flex max-w-[760px] flex-col gap-1.5 px-5 pt-7" data-empty hidden>
+      <h1 class="page-title">Export</h1>
+      <p class="text-[14px] text-text-2">No session recorded yet. Start one from the studio.</p>
     </div>
-
-    <!-- A session with a guest exports only once their track is here, so both line up -->
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-warn/60 bg-warn/8 px-4 py-3.5" role="alert" data-guest-missing hidden>
-      <div class="min-w-0 flex-1">
-        <div class="text-[14px]"><span data-guest-missing-name>The guest</span>'s track isn't here yet</div>
-        <div class="mt-1 text-[12px] text-muted">Export waits for it, so both tracks come out lined up with the same cuts.</div>
-      </div>
-      <a class="inline-flex h-9 items-center rounded-[10px] bg-fg px-3.5 text-[13px] font-medium text-ink hover:bg-white hover:text-ink" data-guest-missing-link>Get their track</a>
-      <button type="button" class="text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline" data-guest-missing-skip>Export without them</button>
-    </div>
-
-    <p class="text-[13px] text-subtle" data-empty hidden>
-      No session recorded yet. Start one from the studio.
-    </p>
-
-    <section class="flex flex-col gap-2.5">
-      <h2 class="section-label">Always included</h2>
-      <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
-        <div class="flex-1">
-          <div class="text-[14px]">Raw WAV with markers</div>
-          <div class="mt-1 text-[12px] text-muted">
-            The whole recording, untouched. Markers are embedded in the file and also saved as Audacity labels and a CSV.
-          </div>
-        </div>
-        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
-      </div>
-      <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5">
-        <div class="flex-1">
-          <div class="text-[14px]">Timecode and sync</div>
-          <div class="mt-1 text-[12px] text-muted" data-sync-note>
-            Every WAV carries its start as Broadcast WAV timecode, so editors can line the files up on their own.
-          </div>
-        </div>
-        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
-      </div>
-      <div class="flex items-center gap-3.5 rounded-[10px] bg-surface px-4 py-3.5" data-pads-row hidden>
-        <div class="flex-1">
-          <div class="text-[14px]">Pads track</div>
-          <div class="mt-1 text-[12px] text-muted">
-            Your hotkey pads as their own stereo WAV, same length and clock as your mic, ducked as you heard them.
-            <span data-pads-count></span> Your mic track has none of it.
-          </div>
-        </div>
-        <span class="rounded bg-raised px-1.5 py-[3px] font-mono text-[10px] font-medium text-ok">ON</span>
-      </div>
-    </section>
-
-    <section class="flex flex-col gap-2.5">
-      <h2 class="section-label">Optional</h2>
-      <label class="flex items-center gap-3.5 rounded-[10px] border border-border px-4 py-3.5 has-checked:border-handle has-checked:bg-control">
-        <div class="flex-1">
-          <div class="text-[14px]">Assembled edit</div>
-          <div class="mt-1 text-[12px] text-muted">
-            Keeps the last attempt of each line and cuts the rest. Saved as a separate file, so the raw WAV stays as it
-            is. <span data-removes><span data-demo-only>Removes 6:52.</span></span>
-          </div>
-        </div>
-        <span class={switchTrack}>
-          <input type="checkbox" role="switch" name="assembled" checked class="peer sr-only" aria-label="Assembled edit" />
-          <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
-        </span>
-      </label>
-      <label class="flex items-center gap-3.5 rounded-[10px] border border-border px-4 py-3.5 has-checked:border-handle has-checked:bg-control">
-        <div class="flex-1">
-          <div class="text-[14px]">Marker tones in your full recording</div>
-          <div class="mt-1 text-[12px] text-muted">
-            A short beep at each <span data-tone-kinds>retake</span>, ducked under your voice, so the places to edit can be
-            heard. Your full recording then isn't untouched; the edit and a guest's track stay clean. Tones, ducking, attack and release are in
-            <a href="/settings/recording" class="underline underline-offset-2 hover:text-fg">Settings → Recording</a>.
-          </div>
-        </div>
-        <span class={switchTrack}>
-          <input type="checkbox" role="switch" name="tones" class="peer sr-only" aria-label="Marker tones in the full recording" />
-          <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
-        </span>
-      </label>
-    </section>
-
-    <label class="-mt-3.5 flex items-center gap-3.5 rounded-[10px] border border-border px-4 py-3.5 has-checked:border-handle has-checked:bg-control" data-mix-row hidden>
-      <div class="flex-1">
-        <div class="text-[14px]">Rough mix</div>
-        <div class="mt-1 text-[12px] text-muted">Mic and pads in one file, limited to −1 dBFS, for a quick listen or an episode with no edit.</div>
-      </div>
-      <span class={switchTrack}>
-        <input type="checkbox" role="switch" name="mix" class="peer sr-only" aria-label="Rough mix" />
-        <span class="absolute top-[3px] left-[3px] size-[18px] rounded-full bg-text-2 transition-all peer-checked:left-[19px] peer-checked:bg-page"></span>
-      </span>
-    </label>
-
-    <section class="flex flex-col gap-2.5 transition-opacity group-has-[[name=assembled]:not(:checked)]/s:pointer-events-none group-has-[[name=assembled]:not(:checked)]/s:opacity-40">
-      <h2 class="section-label">Pauses in the assembled edit</h2>
-      <div class="grid gap-2.5 sm:grid-cols-3" role="radiogroup" aria-label="Pauses in the assembled edit">
-        {
-          pauseModes.map((m, i) => (
-            <label class="flex flex-col gap-1.5 rounded-[10px] border border-border p-3.5 hover:border-handle has-checked:border-handle has-checked:bg-control has-focus-visible:outline-2 has-focus-visible:outline-fg">
-              <input type="radio" name="pauses" value={m.value} checked={i === 0} class="sr-only" />
-              <span class="text-[14px]">{m.title}</span>
-              <span class="text-[12px] leading-[1.45] text-muted">{m.body}</span>
-            </label>
-          ))
-        }
-      </div>
-      <p class="text-[12px] text-subtle">While paused, recording keeps running, so the markers stay lined up with the audio.</p>
-    </section>
-
-    <section class="flex flex-col gap-2.5" data-ns>
-      <h2 class="section-label">Noise suppression</h2>
-      <div class="rounded-[14px] bg-surface p-5">
-        <div class="flex items-center gap-4">
-          <label for="ns-amount" class="flex-none text-[14px]">Suppression</label>
-          <input id="ns-amount" name="ns" type="range" min="0" max="100" step="5" value="0" class="min-w-0 flex-1 accent-fg" data-ns-amount />
-          <span class="w-11 flex-none text-right font-mono text-[13px]" data-ns-value>Off</span>
-        </div>
-        <p class="mt-2 text-[12px] leading-normal text-muted">
-          Adaptive, like Waves NS1: it learns the room as it goes and leaves your voice alone. Higher takes away more of
-          the background. With it on, you get both versions: the unprocessed files as always, plus cleaned copies
-          ending in <span class="font-mono">_clean</span>.
-        </p>
-        <div class="mt-3.5 flex flex-wrap items-center gap-2.5">
-          <Button type="button" data-ns-preview>Preview 30 s</Button>
-          <div class="flex overflow-hidden rounded-[10px] border border-edge text-[13px]" role="group" aria-label="Listen to" data-ns-ab hidden>
-            <button type="button" class="px-3.5 py-2 aria-pressed:bg-fg aria-pressed:text-ink" aria-pressed="false" data-ns-play="before">Original</button>
-            <button type="button" class="px-3.5 py-2 aria-pressed:bg-fg aria-pressed:text-ink" aria-pressed="false" data-ns-play="after">Cleaned</button>
-          </div>
-          <!-- Attenuation meter: how far the background came down -->
-          <span class="flex items-center gap-2.5" data-ns-meter hidden>
-            <span class="relative h-1.5 w-28 overflow-hidden rounded-full bg-line"><span class="absolute inset-y-0 left-0 rounded-full bg-ok" data-ns-meter-fill></span></span>
-            <span class="meta text-muted" data-ns-meter-text></span>
-          </span>
-          <span class="meta text-muted" data-ns-status></span>
-        </div>
-        <audio data-ns-player hidden></audio>
-        <p class="mt-3.5 text-[12px] text-subtle" data-ns-files>Off: only the unprocessed files are exported.</p>
-        <p class="mt-1 text-[11px] text-faint">
-          Noise suppression by <a href="https://github.com/Rikorose/DeepFilterNet" target="_blank" rel="noopener" class="underline-offset-2 hover:text-fg hover:underline">DeepFilterNet3</a>
-          · <a href="/settings/about" class="underline-offset-2 hover:text-fg hover:underline">Credits</a>
-        </p>
-      </div>
-    </section>
-
-    <Card label="Ready to publish" rows data-publish>
-      <Row title="Episode file" hint="Everyone mixed into one file, ready to upload to your podcast host. The separate tracks above are still in the zip for your DAW." data-pub-row>
-        <Switch name="pub-mix" label="Episode file" />
-      </Row>
-      <Block data-pub-options>
-        <div class="flex items-center justify-between"><span class="text-[14px] text-text">Loudness</span><span class="font-mono text-[13px] text-text" data-pub-target>−16 LUFS</span></div>
-        <Segmented
-          name="pub-loudness"
-          label="Loudness"
-          value="stereo"
-          options={[
-            { value: 'stereo', label: 'Stereo' },
-            { value: 'mono', label: 'Mono' },
-            { value: 'off', label: 'Off' },
-          ]}
-        />
-        <p class="help">The usual podcast targets. True peaks stay under <span class="font-mono text-[12px] whitespace-nowrap">−1 dBTP</span>, so encoding doesn't clip. Off only limits the peaks.</p>
-        <p class="help" data-pub-mono-note hidden>Your pads are stereo. Mono sums left and right into one channel, at the same balance you hear in stereo.</p>
-      </Block>
-      <Row title="Level each speaker" data-pub-options>
-        <Fragment slot="hint">Evens out each voice, by up to <span class="font-mono text-[12px] whitespace-nowrap">12 dB</span>. Adds a levelled copy of each person's edit; the originals are kept.</Fragment>
-        <Switch name="pub-level" label="Level each speaker" />
-      </Row>
-      <Row title="MP3 too" data-pub-options>
-        <Fragment slot="hint"><span class="font-mono text-[12px] whitespace-nowrap">128 kbps</span> mono or <span class="font-mono text-[12px] whitespace-nowrap">192 kbps</span> stereo</Fragment>
-        <Switch name="pub-mp3" label="MP3 too" />
-      </Row>
-    </Card>
-
-    <!-- Tone: a Svelte component, mounted by the script below once the takes are loaded -->
-    <div data-tone-mount data-pub-options></div>
-    <LoudnessCard />
-
-    <div class="mt-auto flex flex-wrap items-center justify-end gap-2.5">
-      <span class="meta mr-auto text-muted" data-summary></span>
-      <Button data-open-markers>Open markers</Button>
-      <Button variant="primary" data-export><span data-export-label>Export</span></Button>
-    </div>
-  </form>
+    <div class="h-full" data-flow-mount></div>
+  </div>
 
   <dialog
     id="markers-dialog"
@@ -239,31 +49,30 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
 </AppShell>
 
 <script>
-  import { assemble, audacityLabels, mapTime, mutes, onAudio, type PauseMode, type SessionMarker } from '@/lib/audio/assemble';
+  import { assemble, audacityLabels, mapTime, mutes, onAudio, type SessionMarker } from '@/lib/audio/assemble';
   import { markerCounts, markerName, padLabel } from '@/lib/markers';
   import { hasPads, renderPads, renderRoughMix, stereoOf } from '@/lib/audio/pads-export';
-  import { bextFor, formatBytes, getTake, listTakes, rangesWav, takeBytes, takeWav, tonedWav, trackShift, trackStart, trackSync, type TakeMeta } from '@/lib/audio/takes';
+  import { bextFor, formatBytes, getTake, listTakes, rangesWav, readFrames, takeBytes, takeWav, tonedWav, trackShift, trackStart, trackSync, type TakeMeta } from '@/lib/audio/takes';
   import { guestRanges, guestTime, timecode, type SyncMap } from '@/lib/audio/sync';
   import { renderMaster, TARGETS, type MasterTrack } from '@/lib/audio/master';
   import { encodeMp3 } from '@/lib/audio/mp3';
   import { VariantWriter } from '@/lib/audio/takes';
   import { alignedRanges } from '@/lib/audio/align';
   import type { PlacedTone, ToneKind } from '@/lib/audio/tones';
-  import { denoiseTake, previewTake } from '@/lib/audio/denoise';
+  import { denoiseSamples, denoiseTake } from '@/lib/audio/denoise';
+  import { noiseFloor } from '@/lib/audio/denoise-core';
   import { loadSettings, saveSettings } from '@/lib/settings';
-  import { flatTone, toneActive, toneSummary, type VoiceTone } from '@/lib/audio/tone';
+  import { cleanTone, toneActive, toneSummary } from '@/lib/audio/tone';
   import { longTermSpectrum } from '@/lib/audio/spectrum';
-  import { TonePreview } from '@/lib/audio/tone-preview';
-  import { mountLoudness } from '@/lib/loudness-view';
+  import { ChainPreview, type ChainTrack } from '@/lib/audio/chain-preview';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadScript } from '@/lib/script-store';
+  import type { ExportSettings, FlowState, Measured } from '@/components/app/ExportFlow.svelte';
 
-  const form = document.getElementById('session') as HTMLFormElement;
+  const root = document.getElementById('session')!;
   const dialog = document.getElementById('markers-dialog') as HTMLDialogElement;
-  const $ = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+  const lengthEl = document.querySelector<HTMLElement>('[data-length]')!;
   const demo = new URL(location.href).searchParams.has('demo');
-
-  $('[data-open-markers]').addEventListener('click', () => dialog.showModal());
   dialog.addEventListener('click', (e) => e.target === dialog && dialog.close());
 
   const clock = (sec: number) => {
@@ -276,12 +85,46 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
     const s = Math.floor(sec);
     return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   };
+  const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
+  const kindNames: Record<ToneKind, string> = { retake: 'retake', cut: 'cough', adlib: 'ad-lib', pause: 'pause', gap: 'mic stop' };
 
-  if (!demo) live();
+  // The flow (and Svelte) load just after the page, so the page itself opens fast.
+  async function mountFlow(props: Record<string, unknown>) {
+    const [{ mount }, { default: ExportFlow }] = await Promise.all([import('svelte'), import('@/components/app/ExportFlow.svelte')]);
+    mount(ExportFlow, { target: root.querySelector('[data-flow-mount]')!, props: props as never });
+  }
+
+  if (demo) showDemo();
+  else live();
+
+  /** The design's example, for reviewing the screen (?demo): nothing plays or exports. */
+  function showDemo() {
+    lengthEl.textContent = '41:07';
+    const settings: ExportSettings = { assembled: true, tones: false, pauses: 'cut', mix: false, ns: 0, voices: { TYLER: cleanTone(undefined) }, loudness: 'mono', level: false, episode: true, mp3: true };
+    mountFlow({
+      initial: { settings, step: 0, reached: 0 },
+      info: { counts: '14 retakes · 3 pauses', tonesAvailable: true, toneKinds: 'retake', pads: null, sync: '', guestMissing: null, meter: true, demo: true },
+      voices: [{ key: 'TYLER', name: 'Tyler', role: 'Host', color: 'var(--color-spk-yellow)' }],
+      rate: 48000,
+      removes: () => 'Removes 6:52.',
+      files: (s: ExportSettings) => {
+        const count = 3 + (s.assembled ? 1 : 0) + (s.ns ? 2 : 0) + (s.episode ? 1 : 0) + (s.episode && s.mp3 ? 1 : 0);
+        return { count, text: `${count} files · 1.4 GB` };
+      },
+      spectrum: async () => [],
+      floor: async () => -47,
+      chain: () => {
+        throw new Error('Nothing to play in the demo');
+      },
+      onchange: () => {},
+      onexport: async () => null,
+      onmarkers: () => dialog.showModal(),
+    });
+  }
 
   async function live() {
-    const episodeId = form.dataset.episode!;
-    const label = form.dataset.label!;
+    const episodeId = root.dataset.episode!;
+    const label = root.dataset.label!;
     const lines = loadScript(episodeId).lines.map((l) => l.text);
     const id = new URL(location.href).searchParams.get('take');
     const take: TakeMeta | null =
@@ -289,32 +132,17 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       (await listTakes(episodeId)).filter((t) => t.kind === 'session' && t.status === 'done').at(-1) ??
       null;
 
-    const exportBtn = $<HTMLButtonElement>('[data-export]');
     if (!take) {
-      $('[data-empty]').hidden = false;
-      $('[data-length]').textContent = '0:00';
-      $('[data-counts]').textContent = 'Nothing recorded yet';
-      exportBtn.disabled = true;
-      $<HTMLButtonElement>('[data-open-markers]').disabled = true;
+      root.querySelector<HTMLElement>('[data-empty]')!.hidden = false;
+      lengthEl.textContent = '0:00';
       return;
     }
 
     // Every track in the session: yours, and the guest's (recorded on their device).
     const all = await listTakes(episodeId);
     const tracks = [take, ...all.filter((t) => t.id !== take.id && t.group && t.group === take.group && t.status === 'done')];
-    // A guest recorded in this session but their track isn't here: hold the export until it is.
-    if (take.guest && tracks.length === 1) {
-      const banner = $('[data-guest-missing]');
-      banner.hidden = false;
-      $('[data-guest-missing-name]').textContent = take.guest.name;
-      $<HTMLAnchorElement>('[data-guest-missing-link]').href = `/episodes/${episodeId}/wrap?take=${encodeURIComponent(take.id)}`;
-      exportBtn.disabled = true;
-      $('[data-guest-missing-skip]').addEventListener('click', () => {
-        if (!confirm(`Export without ${take.guest!.name}'s track? Their audio won't be in this zip.`)) return;
-        banner.hidden = true;
-        exportBtn.disabled = false;
-      });
-    }
+    // A guest recorded in this session but their track isn't here: the export waits until it is.
+    const guestMissing = take.guest && tracks.length === 1 ? { name: take.guest.name, href: `/episodes/${episodeId}/wrap?take=${encodeURIComponent(take.id)}` } : null;
     const duration = take.samples / take.sampleRate;
     // A track from another device on the host's timeline: with sync points, drift and gaps
     // are corrected (lib/audio/sync.ts); older tracks are lined up by their start only.
@@ -355,29 +183,18 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         ...syncLines(),
         '',
       ].join('\n');
-    {
-      const lines = syncLines();
-      $('[data-sync-note]').textContent =
-        `Every WAV carries its start as Broadcast WAV timecode (${timecode(hostStart)}), so editors can line the files up on their own.` +
-        (lines.length ? ` ${lines.join(' ')}` : '');
-    }
     // Recorded on the wall clock; assemble() converts these itself.
     const wallMarkers = take.markers ?? [];
     const lineLog = take.lineLog ?? [];
     // Everything shown or written into files is on the audio (gaps taken out).
     const { markers } = onAudio(wallMarkers, lineLog);
-    $('[data-length]').textContent = clock(duration);
-    $('[data-counts]').textContent = markerCounts(markers) || 'No markers';
+    lengthEl.textContent = clock(duration);
     const withPads = hasPads(take);
-    $('[data-pads-row]').hidden = !withPads;
-    $('[data-mix-row]').hidden = !withPads;
-    if (withPads) {
-      const n = take.pads!.presses.length;
-      $('[data-pads-count]').textContent = `${n} press${n === 1 ? '' : 'es'}, each a marker named like “${padLabel(markers.find((m) => m.kind === 'pad')!)}”.`;
-    }
+    const padsText = withPads
+      ? `Your hotkey pads as their own stereo WAV, same length and clock as your mic, ducked as you heard them. ${take.pads!.presses.length} press${take.pads!.presses.length === 1 ? '' : 'es'}, each a marker named like “${padLabel(markers.find((m) => m.kind === 'pad')!)}”.`
+      : null;
 
     const guestTrack = tracks.find((t) => t !== take);
-    const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
     const whoName = (m: SessionMarker) => (m.who === 'guest' ? (guestTrack ? cap(guestTrack.speaker) : take.guest?.name ?? 'Guest') : cap(take.speaker));
     /** Each person's coughs, muted in their own edit (seconds of their own track). */
     const mutedFor = (t: TakeMeta): [number, number][] => {
@@ -430,115 +247,14 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         : [Object.assign(document.createElement('p'), { className: 'py-2.5 text-[13px] text-subtle', textContent: 'No markers in this session.' })]),
     );
 
-    // Noise suppression: one fader, remembered as the default for next time.
-    const nsInput = $<HTMLInputElement>('[data-ns-amount]');
-    nsInput.value = String(loadSettings().recording.noiseSuppression);
-    const showNs = () => {
-      const v = Number(nsInput.value);
-      $('[data-ns-value]').textContent = v ? `${v}%` : 'Off';
-      $('[data-ns-files]').textContent = v
-        ? 'Both versions: the unprocessed WAV and edit, plus cleaned copies (…_clean.wav, …_edit_clean.wav).'
-        : 'Off: only the unprocessed files are exported.';
-      $<HTMLButtonElement>('[data-ns-preview]').disabled = !v;
-    };
-    showNs();
-    let preview: { amount: number; before: string; after: string } | null = null;
-    const player = $<HTMLAudioElement>('[data-ns-player]');
-    nsInput.addEventListener('input', () => {
-      showNs();
-      if (preview && preview.amount !== Number(nsInput.value)) $('[data-ns-status]').textContent = 'Preview again to hear this setting';
-    });
-    nsInput.addEventListener('change', () => saveSettings('recording', { noiseSuppression: Number(nsInput.value) }));
-    const play = (which: 'before' | 'after') => {
-      if (!preview) return;
-      const at = player.currentTime;
-      player.src = preview[which];
-      player.currentTime = at;
-      player.play();
-      form.querySelectorAll<HTMLElement>('[data-ns-play]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.nsPlay === which)));
-    };
-    form.querySelectorAll<HTMLElement>('[data-ns-play]').forEach((b) =>
-      b.addEventListener('click', () => (b.getAttribute('aria-pressed') === 'true' ? player.pause() : play(b.dataset.nsPlay as 'before' | 'after'))),
-    );
-    player.addEventListener('pause', () => form.querySelectorAll('[data-ns-play]').forEach((b) => b.setAttribute('aria-pressed', 'false')));
-    $('[data-ns-preview]').addEventListener('click', async () => {
-      const amount = Number(nsInput.value);
-      const btn = $<HTMLButtonElement>('[data-ns-preview]');
-      btn.disabled = true;
-      $('[data-ns-status]').textContent = preview ? 'Cleaning…' : 'Loading noise suppression (about 19 MB the first time)…';
-      try {
-        const p = await previewTake(take!, amount, 30);
-        if (preview) {
-          URL.revokeObjectURL(preview.before);
-          URL.revokeObjectURL(preview.after);
-        }
-        preview = { amount, before: URL.createObjectURL(p.before), after: URL.createObjectURL(p.after) };
-        $('[data-ns-ab]').hidden = false;
-        $('[data-ns-meter]').hidden = false;
-        $('[data-ns-meter-fill]').style.width = `${Math.min(100, (p.reduction / 30) * 100)}%`;
-        $('[data-ns-meter-text]').textContent = `Background −${Math.round(p.reduction)} dB`;
-        $('[data-ns-status]').textContent = '';
-        player.currentTime = 0;
-        play('after');
-      } catch (err) {
-        $('[data-ns-status]').textContent = `Couldn’t clean: ${(err as Error).message}`;
-      } finally {
-        btn.disabled = false;
-      }
-    });
 
     // Marker tones: which kinds, from settings.
-    const toneSettings = loadSettings().recording.tones;
+    const rec = loadSettings().recording;
+    const toneSettings = rec.tones;
     const toneKinds = (Object.keys(toneSettings.kinds) as ToneKind[]).filter((k) => toneSettings.kinds[k]);
-    const toneSwitch = $<HTMLInputElement>('[name=tones]');
-    toneSwitch.checked = toneSettings.inExports && toneKinds.length > 0;
-    toneSwitch.disabled = !toneKinds.length;
-    const kindNames: Record<ToneKind, string> = { retake: 'retake', cut: 'cough', adlib: 'ad-lib', pause: 'pause', gap: 'mic stop' };
-    $('[data-tone-kinds]').textContent = toneKinds.length
-      ? toneKinds.map((k) => kindNames[k]).join(', ').replace(/, ([^,]*)$/, ' and $1')
-      : 'marker (none are chosen in Settings)';
     const placed = (t: TakeMeta): PlacedTone[] =>
       markers.filter((m) => toneKinds.includes(m.kind as ToneKind) && !(m.kind === 'cut' && m.who === 'guest')).map((m) => ({ at: Math.round(m.t * t.sampleRate), kind: m.kind as ToneKind }));
 
-    const options = () => {
-      const data = new FormData(form);
-      const ns = Number(data.get('ns') ?? 0);
-      return {
-        assembled: data.has('assembled'),
-        pauses: String(data.get('pauses')) as PauseMode,
-        ns,
-        tones: data.has('tones') && toneKinds.length > 0,
-        mix: withPads && data.has('mix'),
-        pub: {
-          mix: data.has('pub-mix'),
-          loudness: String(data.get('pub-loudness') ?? 'stereo') as 'stereo' | 'mono' | 'off',
-          level: data.has('pub-level'),
-          mp3: data.has('pub-mp3'),
-        },
-      };
-    };
-    // Ready to publish: the defaults from Settings → Recording.
-    {
-      const p = loadSettings().recording.publish;
-      const box = (n: string) => form.querySelector<HTMLInputElement>(`[name="${n}"]`)!;
-      box('pub-mix').checked = p.mix;
-      box('pub-level').checked = p.level;
-      box('pub-mp3').checked = p.mp3;
-      form.querySelector<HTMLInputElement>(`[name="pub-loudness"][value="${p.loudness}"]`)!.checked = true;
-      const targets = { stereo: '−16 LUFS', mono: '−19 LUFS', off: 'Off' };
-      const dim = () => {
-        form.querySelectorAll<HTMLElement>('[data-pub-options]').forEach((el) => {
-          el.classList.toggle('opacity-40', !box('pub-mix').checked);
-          el.inert = !box('pub-mix').checked;
-        });
-        const loudness = form.querySelector<HTMLInputElement>('[name="pub-loudness"]:checked')!.value as keyof typeof targets;
-        $('[data-pub-target]').textContent = targets[loudness];
-        // Stereo pads in a mono episode: say they're summed.
-        $('[data-pub-mono-note]').hidden = !(withPads && loudness === 'mono');
-      };
-      dim();
-      form.addEventListener('change', dim);
-    }
     // Tone: each person's EQ and compressor, remembered by name (Settings → Recording → Tone).
     const voiceKeys = new Map<TakeMeta, string>();
     for (const t of tracks) {
@@ -547,93 +263,57 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
       voiceKeys.set(t, k);
     }
     const voiceKey = (t: TakeMeta) => voiceKeys.get(t)!;
-    const savedVoices = loadSettings().recording.publish.voices;
-    const tones: Record<string, VoiceTone> = Object.fromEntries(tracks.map((t) => [voiceKey(t), structuredClone(savedVoices[voiceKey(t)] ?? flatTone())]));
-    /** A processed copy of someone's edit: levelled (and toned), or toned only. */
-    const copyOf = (o: ReturnType<typeof options>, t: TakeMeta) => (o.pub.level ? 'levelled' : toneActive(tones[voiceKey(t)]) ? 'toned' : null);
 
+    /** The export's settings as the zip code reads them. */
+    const optionsOf = (s: ExportSettings) => ({
+      assembled: s.assembled,
+      pauses: s.pauses,
+      ns: s.ns,
+      tones: s.tones && toneKinds.length > 0,
+      mix: withPads && s.mix,
+      pub: { mix: s.episode, loudness: s.loudness, level: s.level, mp3: s.episode && s.mp3 },
+    });
+    type Options = ReturnType<typeof optionsOf>;
+    /** A processed copy of someone's edit: levelled (and toned), or toned only. */
+    const copyOf = (o: Options, tones: ExportSettings['voices'], t: TakeMeta) => (o.pub.level ? 'levelled' : toneActive(tones[voiceKey(t)]) ? 'toned' : null);
     // The ranges each episode file (and levelled copy) is made from: the edit's, or the whole session.
-    const pubParts = (o: ReturnType<typeof options>) => (o.assembled ? assemble(duration, wallMarkers, lineLog, o.pauses).files : [[[0, duration]] as [number, number][]]);
-    const refresh = () => {
-      const o = options();
+    const pubParts = (o: Options) => (o.assembled ? assemble(duration, wallMarkers, lineLog, o.pauses).files : [[[0, duration]] as [number, number][]]);
+
+    /** How many files the zip will have, and roughly how big it is. */
+    const files = (s: ExportSettings) => {
+      const o = optionsOf(s);
       const a = assemble(duration, wallMarkers, lineLog, o.pauses);
-      $('[data-removes]').textContent = a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
       const raw = tracks.reduce((n, t) => n + takeBytes(t), 0);
       const editBytes = tracks.reduce((n, t) => n + (duration - a.removed) * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0);
       // Noise suppression on: every audio file comes twice, unprocessed and cleaned.
       const copies = o.ns ? 2 : 1;
       const padTracks = withPads ? 1 : 0;
-      // Ready to publish: an episode file per part (and its MP3), and a levelled copy of each person's edit.
+      // The episode: a file per part (and its MP3), and a levelled or toned copy of each person's edit.
       const parts = o.pub.mix ? pubParts(o).length : 0;
       const pubLen = o.assembled ? duration - a.removed : duration;
       const pubCh = o.pub.loudness === 'mono' ? 1 : 2;
-      const withCopy = o.pub.mix ? tracks.filter((t) => copyOf(o, t)) : [];
+      const withCopy = o.pub.mix ? tracks.filter((t) => copyOf(o, s.voices, t)) : [];
       const pubFiles = parts * (1 + (o.pub.mp3 ? 1 : 0)) + parts * withCopy.length;
       const pubBytes = o.pub.mix
         ? pubLen * take.sampleRate * (take.bitDepth / 8) * pubCh +
           (o.pub.mp3 ? (pubLen * (pubCh === 2 ? 192 : 128) * 1000) / 8 : 0) +
           withCopy.reduce((n, t) => n + pubLen * t.sampleRate * (t.bitDepth / 8) * (t.channels ?? 1), 0)
         : 0;
-      const files = (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0) + (take.voiceLog?.length ? 1 : 0) + pubFiles;
+      const count =
+        (tracks.length + (o.assembled ? a.files.length * tracks.length : 0)) * copies + 3 + padTracks * (1 + (o.assembled ? a.files.length : 0)) + (o.mix ? 1 : 0) + (take.voiceLog?.length ? 1 : 0) + pubFiles;
       const padBytes = withPads ? duration * take.sampleRate * (take.bitDepth / 8) * 2 * (1 + (o.assembled ? 1 : 0) + (o.mix ? 1 : 0)) : 0;
-      $('[data-summary]').textContent = `${files} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes + pubBytes)}`;
+      return { count, text: `${count} files · ${formatBytes((raw + (o.assembled ? editBytes : 0)) * copies + padBytes + pubBytes)}` };
     };
-    form.addEventListener('change', refresh);
-    refresh();
 
-    // ── Tone (each person's EQ and compressor) and the episode's loudness meter ──
-    const targetOf = (o: ReturnType<typeof options>) => (o.pub.loudness === 'off' ? null : TARGETS[o.pub.loudness].lufs);
-    let saveTimer = 0;
-    const rememberTones = () => {
-      clearTimeout(saveTimer);
-      saveTimer = window.setTimeout(() => {
-        const p = loadSettings().recording.publish;
-        saveSettings('recording', { publish: { ...p, voices: { ...p.voices, ...structuredClone(tones) } } });
-      }, 300);
-    };
-    // The card (and Svelte) load just after the page, so the page itself opens as fast as before.
-    const [{ mount, flushSync }, { default: ToneCard }] = await Promise.all([import('svelte'), import('@/components/app/ToneCard.svelte')]);
-    const toneView = mount(ToneCard, {
-      target: $('[data-tone-mount]'),
-      props: {
-        voices: tracks.map((t) => ({ key: voiceKey(t), name: cap(t.speaker), role: t === take ? 'Host' : 'Guest', color: t === take ? 'var(--color-spk-yellow)' : 'var(--color-spk-teal)' })),
-        tones,
-        rate: take.sampleRate,
-        spectrum: async (k: string) => longTermSpectrum(await takeWav(tracks.find((t) => voiceKey(t) === k)!)),
-        onchange: (k: string, tone: VoiceTone) => {
-          tones[k] = tone;
-          rememberTones();
-          refresh();
-          previewChanged();
-        },
-      },
-    });
-    flushSync(); // its buttons exist now, for the preview wiring below
-    const loudRoot = $('[data-loudness]');
-    const meterOn = loadSettings().recording.publish.meter;
-    loudRoot.hidden = !meterOn;
-    const loud = mountLoudness(loudRoot);
-    loud.setTarget(targetOf(options()));
-    function showExported({ r, seconds, parts }: { r: Awaited<ReturnType<typeof renderMaster>>; seconds: number; parts: number }) {
-      const short = [...r.history].reverse().find((x) => Number.isFinite(x)) ?? -Infinity;
-      loud.show({ integrated: r.result, short, momentary: -Infinity, range: r.range, peak: r.truePeak, history: r.history, seconds });
-      loud.note(`What the exported episode${parts > 1 ? ' (part 1)' : ''} measured, start to finish. Short-term is its last 3 s.`, 'Exported');
-    }
-
-    // Preview: 30 s of the episode through the export's own chain (lib/audio/tone-preview.ts).
-    let tonePreview: TonePreview | null = null;
-    let previewFor = '';
+    // The preview's 30 s: from about a third of the way into the edit (or the session), for each edit setting.
     let padsReady = false;
-    let rendering = false;
-    let again = false;
-    let renderTimer = 0;
-    const pBtn = $<HTMLButtonElement>('[data-tone-preview]');
-    const pStatus = $('[data-tone-preview-status]');
-    const abGroup = $('[data-tone-ab]');
-    const optsKey = (o: ReturnType<typeof options>) => `${o.pub.loudness}|${o.pub.level}|${o.assembled}|${o.pauses}`;
-    const playingText = () =>
-      tonePreview?.ab === 'original' ? "Original: everyone's tone off, at the same loudness." : "The episode mix with everyone's tone, as the export makes it.";
-    async function buildPreview(o: ReturnType<typeof options>) {
+    const chains = new Map<string, ChainPreview>();
+    const chain = (s: ExportSettings) => {
+      const key = `${s.assembled}|${s.pauses}`;
+      if (!chains.has(key)) chains.set(key, new ChainPreview(() => stretch(optionsOf(s)), take.sampleRate, denoiseSamples));
+      return chains.get(key)!;
+    };
+    async function stretch(o: Options): Promise<ChainTrack[]> {
       const ranges = pubParts(o)[0];
       const total = ranges.reduce((n, [a, b]) => n + b - a, 0);
       const len = Math.min(30, total);
@@ -647,103 +327,96 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         if (to > from) sub.push([from, to]);
         pos += b - a;
       }
-      const inputs = [];
-      for (const t of tracks) inputs.push({ key: voiceKey(t), wav: await rangesWav(t, aligned(t, sub), [], undefined, mutedFor(t), null) });
+      // Raw: the session from the same moment, uncut
+      const r0 = Math.max(0, Math.min(duration - len, sub[0]?.[0] ?? 0));
+      const raw: [number, number][] = [[r0, r0 + len]];
+      const out: ChainTrack[] = [];
+      for (const t of tracks)
+        out.push({
+          key: voiceKey(t),
+          raw: await rangesWav(t, aligned(t, raw), [], undefined, [], null),
+          edit: await rangesWav(t, aligned(t, sub), [], undefined, mutedFor(t), null),
+        });
       if (withPads) {
-        if (!padsReady) await renderPads(take!, (d) => (pStatus.textContent = `Pads track… ${Math.round(d * 100)}%`));
+        if (!padsReady) await renderPads(take!);
         padsReady = true;
-        inputs.push({ key: null, wav: await rangesWav(stereoOf(take!), sub, [], 'pads', [], null) });
+        out.push({ key: null, raw: await rangesWav(stereoOf(take!), raw, [], 'pads', [], null), edit: await rangesWav(stereoOf(take!), sub, [], 'pads', [], null) });
       }
-      return new TonePreview(inputs, { rate: take!.sampleRate, channels: o.pub.loudness === 'mono' ? 1 : 2, lufs: targetOf(o), levelling: o.pub.level });
+      return out;
     }
-    async function renderPreview() {
-      if (!tonePreview) return;
-      if (rendering) {
-        again = true;
-        return;
-      }
-      rendering = true;
-      pStatus.textContent = 'Updating…';
-      try {
-        do {
-          again = false;
-          await tonePreview.render(tones);
-        } while (again);
-        pStatus.textContent = tonePreview.playing ? playingText() : '';
-      } finally {
-        rendering = false;
-      }
-    }
-    function previewChanged() {
-      if (!tonePreview) return;
-      clearTimeout(renderTimer);
-      renderTimer = window.setTimeout(renderPreview, 250);
-    }
-    function stopPreview(text = '') {
-      tonePreview?.stop();
-      pBtn.textContent = 'Preview 30 s';
-      toneView.preview(null, null);
-      pStatus.textContent = text;
-    }
-    let frame = 0;
-    function tick() {
-      if (!tonePreview?.playing) return;
-      requestAnimationFrame(tick);
-      const t = tonePreview.position();
-      if (meterOn && tonePreview.meter) loud.show(tonePreview.loudnessAt(t));
-      if (frame++ % 2 === 0) {
-        const v = tonePreview.voiceAt(toneView.currentKey(), t);
-        toneView.preview(v.spectrum, v.level);
-      }
-    }
-    pBtn.addEventListener('click', async () => {
-      if (tonePreview?.playing) return stopPreview();
-      const o = options();
-      pBtn.disabled = true;
-      try {
-        if (!tonePreview || previewFor !== optsKey(o)) {
-          tonePreview?.close();
-          pStatus.textContent = 'Getting 30 s of the episode ready…';
-          tonePreview = await buildPreview(o);
-          previewFor = optsKey(o);
-          await renderPreview();
-        }
-        await tonePreview.play();
-        abGroup.hidden = false;
-        pBtn.textContent = 'Stop';
-        pStatus.textContent = playingText();
-        loud.note('The preview, measured as it plays: 30 s of the episode with everyone’s tone, as the export makes it.', 'Preview');
-        tick();
-      } catch (err) {
-        pStatus.textContent = `Couldn’t preview: ${(err as Error).message}`;
-      } finally {
-        pBtn.disabled = false;
-      }
-    });
-    abGroup.querySelectorAll<HTMLButtonElement>('[data-ab]').forEach((b) =>
-      b.addEventListener('click', () => {
-        tonePreview?.setAb(b.dataset.ab as 'original' | 'tone');
-        abGroup.querySelectorAll('[data-ab]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        if (tonePreview?.playing) pStatus.textContent = playingText();
-      }),
-    );
-    // Loudness, levelling or the edit changed: the preview has to be made again.
-    form.addEventListener('change', (e) => {
-      const o = options();
-      loud.setTarget(targetOf(o));
-      if ((e.target as HTMLElement).closest('[data-tone]')) return;
-      if (tonePreview && previewFor !== optsKey(o)) {
-        tonePreview.close();
-        tonePreview = null;
-        stopPreview('Settings changed: preview again to hear them.');
-      }
-    });
 
-    exportBtn.addEventListener('click', async () => {
-      const o = options();
-      exportBtn.disabled = true;
-      $('[data-export-label]').textContent = 'Preparing…';
+    /** The room's noise floor: the loudest of each person's, from three 20 s stretches of their take. */
+    async function floor() {
+      let worst = -Infinity;
+      for (const t of tracks) {
+        const ch = t.channels ?? 1;
+        const n = Math.min(t.samples, 20 * t.sampleRate);
+        const parts: Float32Array[] = [];
+        for (const at of [0.15, 0.5, 0.85]) {
+          const x = await readFrames(t, Math.max(0, Math.min(t.samples - n, Math.round(t.samples * at))), n);
+          parts.push(ch === 1 ? x : x.filter((_, i) => i % ch === 0));
+        }
+        const joined = new Float32Array(parts.reduce((k, p) => k + p.length, 0));
+        let o = 0;
+        for (const p of parts) (joined.set(p, o), (o += p.length));
+        worst = Math.max(worst, noiseFloor(joined, t.sampleRate));
+      }
+      return worst;
+    }
+
+    // Settings for this take, kept for the browser tab so Back and a reload never lose them; the defaults come from Settings.
+    const storeKey = `podstudio:export:${take.id}`;
+    const defaults: ExportSettings = {
+      assembled: true,
+      tones: toneSettings.inExports && toneKinds.length > 0,
+      pauses: 'cut',
+      mix: false,
+      ns: rec.noiseSuppression,
+      voices: Object.fromEntries(tracks.map((t) => [voiceKey(t), cleanTone(rec.publish.voices[voiceKey(t)])])),
+      loudness: rec.publish.loudness,
+      level: rec.publish.level,
+      episode: rec.publish.mix,
+      mp3: rec.publish.mp3,
+    };
+    let initial: FlowState = { settings: defaults, step: 0, reached: 0 };
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(storeKey) ?? 'null') as FlowState | null;
+      if (saved?.settings)
+        initial = {
+          step: Number(saved.step) || 0,
+          reached: Number(saved.reached) || 0,
+          settings: { ...defaults, ...saved.settings, voices: Object.fromEntries(Object.keys(defaults.voices).map((k) => [k, cleanTone(saved.settings.voices?.[k] ?? defaults.voices[k])])) },
+        };
+    } catch {
+      // Nothing saved, or storage is off: start from the defaults.
+    }
+    // The noise amount and each voice's tone are remembered for next time too.
+    let lastNs = initial.settings.ns;
+    let lastVoices = JSON.stringify(initial.settings.voices);
+    let saveTimer = 0;
+    const onchange = (state: FlowState) => {
       try {
+        sessionStorage.setItem(storeKey, JSON.stringify(state));
+      } catch {
+        // Storage full or off: the flow still works, it just won't survive a reload.
+      }
+      const s = state.settings;
+      if (s.ns !== lastNs) saveSettings('recording', { noiseSuppression: (lastNs = s.ns) });
+      const v = JSON.stringify(s.voices);
+      if (v !== lastVoices) {
+        lastVoices = v;
+        clearTimeout(saveTimer);
+        saveTimer = window.setTimeout(() => {
+          const p = loadSettings().recording.publish;
+          saveSettings('recording', { publish: { ...p, voices: { ...p.voices, ...s.voices } } });
+        }, 300);
+      }
+    };
+
+    const exportZip = async (s: ExportSettings, progress: (text: string) => void): Promise<Measured | null> => {
+      const o = optionsOf(s);
+      const tones = s.voices;
+      {
         const name = (t: TakeMeta) => `${label}_Session_${t.speaker.charAt(0)}${t.speaker.slice(1).toLowerCase()}`;
         const endLabel: Partial<Record<SessionMarker['kind'], string>> = { adlib: 'Script resumes', cut: 'Cough ends' };
         const cue = (m: SessionMarker, rate: number, at = m.t) => ({ at: Math.round(at * rate), label: describe(m) });
@@ -770,14 +443,14 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
         }
         // The Pads track: rebuilt from the press log on your mic's clock, and the optional rough mix.
         if (withPads) {
-          await renderPads(take, (d) => ($('[data-export-label]').textContent = `Pads track… ${Math.round(d * 100)}%`));
+          await renderPads(take, (d) => progress(`Pads track… ${Math.round(d * 100)}%`));
           const cues = markers.filter((m) => m.kind === 'pad').map((m) => cue(m, take.sampleRate));
           entries.push({ name: `${label}_Session_Pads.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'pads', [], tc(take)) });
           if (o.mix) {
-            await renderRoughMix(take, (d) => ($('[data-export-label]').textContent = `Rough mix… ${Math.round(d * 100)}%`));
+            await renderRoughMix(take, (d) => progress(`Rough mix… ${Math.round(d * 100)}%`));
             entries.push({ name: `${label}_Session_RoughMix.wav`, data: await rangesWav(stereoOf(take), [[0, duration]], cues, 'mix', [], tc(take)) });
           }
-          $('[data-export-label]').textContent = 'Preparing…';
+          progress('Preparing…');
         }
         entries.push({ name: `${label}_Session_markers.txt`, data: audacityLabels(markers, describe) });
         const csv = [
@@ -809,11 +482,10 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
           for (const t of tracks) {
             variant = await denoiseTake(t, o.ns, (done) => {
               const left = done > 0.02 ? ((Date.now() - began) / done) * (1 - done) : 0;
-              $('[data-export-label]').textContent =
-                `Cleaning… ${Math.round(done * 100)}%${left > 60000 ? ` · about ${Math.round(left / 60000)} min left` : ''}`;
+              progress(`Cleaning… ${Math.round(done * 100)}%${left > 60000 ? ` · about ${Math.round(left / 60000)} min left` : ''}`);
             });
           }
-          $('[data-export-label]').textContent = 'Preparing…';
+          progress('Preparing…');
         }
         if (variant) {
           for (const t of tracks) {
@@ -871,7 +543,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
           const outCh: 1 | 2 = o.pub.loudness === 'mono' ? 1 : 2;
           const master = { ...take, channels: outCh };
           const parts = pubParts(o);
-          const title = form.dataset.title ?? label;
+          const title = root.dataset.title ?? label;
           for (const [i, ranges] of parts.entries()) {
             const suffix = parts.length > 1 ? `_part${i + 1}` : '';
             const at = ranges[0]?.[0] ?? 0;
@@ -881,7 +553,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
               const wav = await rangesWav(t, aligned(t, ranges), [], variant ?? undefined, mutedFor(t), null);
               const tone = tones[voiceKey(t)];
               const input: MasterTrack = { wav, level: true, tone: toneActive(tone) ? tone : undefined };
-              if (copyOf(o, t)) {
+              if (copyOf(o, tones, t)) {
                 const w = await VariantWriter.open(t, `level-${i + 1}`);
                 writers.push(w);
                 input.levelled = (x) => w.write(x);
@@ -891,7 +563,7 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
             if (withPads) inputs.push({ wav: await rangesWav(stereoOf(take), ranges, [], 'pads', [], null), level: false });
             const out = await VariantWriter.open(master, `master-${i + 1}`);
             const r = await renderMaster(inputs, { rate: take.sampleRate, channels: outCh, lufs: target?.lufs ?? null, levelling: o.pub.level }, (x) => out.write(x), (stage, d) => {
-              $('[data-export-label]').textContent = `${stage === 'level' ? (o.pub.level ? 'Levelling' : 'Measuring loudness') : 'Mastering'}${parts.length > 1 ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`;
+              progress(`${stage === 'level' ? (o.pub.level ? 'Levelling' : 'Measuring loudness') : 'Mastering'}${parts.length > 1 ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`);
             });
             await out.done();
             for (const w of writers) await w.done();
@@ -900,10 +572,10 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
             if (o.pub.mp3)
               entries.push({
                 name: `${label}_Episode${suffix}.mp3`,
-                data: await encodeMp3(episodeWav, `${title}${suffix ? ` (part ${i + 1})` : ''}`, (d) => ($('[data-export-label]').textContent = `MP3${suffix ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`)),
+                data: await encodeMp3(episodeWav, `${title}${suffix ? ` (part ${i + 1})` : ''}`, (d) => progress(`MP3${suffix ? ` part ${i + 1}` : ''}… ${Math.round(d * 100)}%`)),
               });
             for (const t of tracks) {
-              const copy = copyOf(o, t);
+              const copy = copyOf(o, tones, t);
               if (!copy) continue;
               const file = o.assembled ? `${name(t)}_edit${parts.length > 1 ? `_part${i + 1}` : ''}_${copy}` : `${name(t)}_${copy}`;
               entries.push({ name: `${file}.wav`, data: await takeWav(t, `level-${i + 1}`, tc(t, at)) });
@@ -914,18 +586,41 @@ const switchTrack = 'relative inline-flex h-6 w-10 flex-none items-center rounde
             );
             if (i === 0) results.push({ r, seconds: r.frames / take.sampleRate, parts: parts.length });
           }
-          $('[data-export-label]').textContent = 'Preparing…';
+          progress('Preparing…');
         }
         entries.push({ name: `${label}_Session_export.txt`, data: syncReport() + (pubLines.length ? `\n${pubLines.join('\n')}\n` : '') });
         download(await zip(entries), `${label}_Session.zip`);
-        // The loudness card: what the finished episode measured.
-        if (results[0]) showExported(results[0]);
-      } catch (err) {
-        alert((err as Error).message);
-      } finally {
-        exportBtn.disabled = false;
-        $('[data-export-label]').textContent = 'Export';
+        // What the finished episode measured, for the Export step.
+        const first = results[0];
+        return first ? { integrated: first.r.result, range: first.r.range, peak: first.r.truePeak, history: first.r.history, seconds: first.seconds, parts: first.parts } : null;
       }
+    };
+
+    mountFlow({
+      initial,
+      info: {
+        counts: markerCounts(markers) || 'No markers',
+        tonesAvailable: toneKinds.length > 0,
+        toneKinds: toneKinds.length ? toneKinds.map((k) => kindNames[k]).join(', ').replace(/, ([^,]*)$/, ' and $1') : 'marker (none are chosen in Settings)',
+        pads: padsText,
+        sync: [`Timecode ${timecode(hostStart)}.`, ...syncLines()].join(' '),
+        guestMissing,
+        meter: rec.publish.meter,
+        demo: false,
+      },
+      voices: tracks.map((t) => ({ key: voiceKey(t), name: cap(t.speaker), role: t === take ? 'Host' : 'Guest', color: t === take ? 'var(--color-spk-yellow)' : 'var(--color-spk-teal)' })),
+      rate: take.sampleRate,
+      removes: (s: ExportSettings) => {
+        const a = assemble(duration, wallMarkers, lineLog, s.pauses);
+        return a.removed ? `Removes ${clock(a.removed)}.` : 'Nothing to remove yet.';
+      },
+      files,
+      spectrum: async (k: string) => longTermSpectrum(await takeWav(tracks.find((t) => voiceKey(t) === k)!)),
+      floor,
+      chain,
+      onchange,
+      onexport: exportZip,
+      onmarkers: () => dialog.showModal(),
     });
   }
 </script>

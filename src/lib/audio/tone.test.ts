@@ -36,7 +36,7 @@ test('the EQ streams: chunks give the same result as one go, per channel', () =>
   const l = sine(250, 0.2, 0.4), r = sine(3000, 0.2, 0.4);
   const x = new Float32Array(l.length * 2);
   for (let i = 0; i < l.length; i++) (x[2 * i] = l[i]), (x[2 * i + 1] = r[i]);
-  const t = tone(EQ_PRESETS.Radio, { on: true, ...COMP_PRESETS.Broadcast });
+  const t = tone(EQ_PRESETS.Radio, { on: true, ...COMP_PRESETS.Heavy });
   const whole = new ToneProcessor(rate, 2, t).process(x.slice());
   const p = new ToneProcessor(rate, 2, t);
   const parts = [x.slice(0, 1234), x.slice(1234, 9000), x.slice(9000)].map((c) => p.process(c));
@@ -79,4 +79,7 @@ test('stored settings are cleaned up', () => {
   assert.equal(t.comp.ratio, 1);
   assert.equal(t.comp.makeup, 12);
   assert.deepEqual(cleanTone(undefined), flatTone());
+  // Names from before the step flow
+  assert.equal(t.comp.preset, 'Medium');
+  assert.equal(cleanTone({ comp: { ...flatTone().comp, preset: 'Broadcast' } }).comp.preset, 'Heavy');
 });

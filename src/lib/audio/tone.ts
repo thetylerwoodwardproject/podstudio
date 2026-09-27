@@ -45,21 +45,30 @@ export const EQ_PRESETS: Record<string, number[]> = {
   'De-mud': [0, 0, -1, -4, -3, -1, 0, 1, 0, 0],
   Radio: [-12, -6, 2, -2, 0, 2, 3, 3, -4, -10],
 };
+/** About 3, 6 and 10 dB off the loudest words. Off is the compressor switched off. */
 export const COMP_PRESETS: Record<string, Omit<CompSettings, 'on' | 'preset'>> = {
-  Gentle: { threshold: -24, ratio: 2, knee: 12, makeup: 3 },
-  Voice: { threshold: -20, ratio: 3, knee: 8, makeup: 5 },
-  Broadcast: { threshold: -16, ratio: 5, knee: 4, makeup: 7 },
+  Light: { threshold: -24, ratio: 2, knee: 12, makeup: 3 },
+  Medium: { threshold: -20, ratio: 3, knee: 8, makeup: 5 },
+  Heavy: { threshold: -16, ratio: 5, knee: 4, makeup: 7 },
 };
+export const COMP_HELP: Record<string, string> = {
+  Off: 'No compression.',
+  Light: 'Evens out peaks by about 3 dB. Sounds natural.',
+  Medium: 'About 6 dB on loud words. The usual spoken-word setting.',
+  Heavy: 'Up to 10 dB. Dense and upfront, like radio.',
+};
+/** The presets' names before the step flow, as remembered settings may still have them. */
+const OLD_COMP: Record<string, string> = { Gentle: 'Light', Voice: 'Medium', Broadcast: 'Heavy' };
 
 /** Off: a flat EQ and no compression, so the voice goes through untouched. */
 export const flatTone = (): VoiceTone => ({
   eq: { on: false, gains: [...EQ_PRESETS.Flat], preset: 'Flat' },
-  comp: { on: false, ...COMP_PRESETS.Voice, preset: 'Voice' },
+  comp: { on: false, ...COMP_PRESETS.Medium, preset: 'Medium' },
 });
 
 export const eqActive = (t: VoiceTone) => t.eq.on && t.eq.gains.some((g) => g !== 0);
 
-/** A few words for a tone: "EQ Warm, compressor Voice", "custom EQ", "flat". */
+/** A few words for a tone: "EQ Warm, compressor Medium", "custom EQ", "flat". */
 export function toneSummary(t: VoiceTone): string {
   const parts: string[] = [];
   if (eqActive(t)) parts.push(t.eq.preset && t.eq.preset !== 'Flat' ? `EQ ${t.eq.preset}` : 'custom EQ');
@@ -81,7 +90,7 @@ export function cleanTone(t: Partial<VoiceTone> | undefined): VoiceTone {
       ratio: clamp(Number(c.ratio), 1, 10),
       knee: clamp(Number(c.knee), 0, 18),
       makeup: clamp(Number(c.makeup), 0, 12),
-      preset: typeof c.preset === 'string' ? c.preset : null,
+      preset: typeof c.preset === 'string' ? (OLD_COMP[c.preset] ?? c.preset) : null,
     },
   };
 }

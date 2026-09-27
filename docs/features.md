@@ -6,6 +6,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 - [Recording solo](#recording-solo)
 - [With a guest and a producer](#with-a-guest-and-a-producer)
 - [Keeping tracks in sync](#keeping-tracks-in-sync)
+- [Exporting, step by step](#exporting-step-by-step)
 - [Ready to publish](#ready-to-publish)
 - [Hotkey pads](#hotkey-pads)
 - [Keys (laptop)](#keys-laptop)
@@ -40,7 +41,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 - **Your own script**: on the script page, **Import or paste** takes pasted text or a .txt/.md file (`## Heading` lines become sections). Every screen uses it, and lines can be edited in place.
 - **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, mutes coughs on the cougher's track, and cuts, keeps or splits at pauses.
 - **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
-  - **Export**: the fader, **Preview 30 s** with an Original / Cleaned switch and an attenuation meter ("Background −24 dB"). With it on, the zip has both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
+  - **Export** (step 02, Noise): the room's noise floor, measured in the quiet between lines, with a suggested setting ("Use 40 %"), the fader, and how far the background comes down ("Background −24 dB"). The preview plays **Original / Cleaned / Removed**; Removed is only what's being taken away, so you can hear whether it's eating into words. Tone and loudness come after it and are heard on the cleaned audio. With it on, the zip has both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
   - **Credits**: Settings → About & credits lists DeepFilterNet3 and everything else Podstudio ships, with licences.
   - **Listen** (Session saved and every card on the Sessions list): a **Noise suppression** switch. It plays a cleaned 12 s from where you are within a few seconds, cleans the whole session in the background, then carries on with it from the same moment. The cleaned copy is kept and shared with Export.
   - **Mic check**: after the test recording, **Hear it cleaned**, with a setting suggested from the room's noise floor (quieter than −60 dBFS: not needed; −60 to −45: 40 %; louder: 70 %). **Use this setting** makes it the export default, also in Settings → Recording.
@@ -124,13 +125,42 @@ shows the same. Accuracy is set by the browser's timing, typically within 10
 to 20 ms. Recordings made before sync points existed are lined up by their
 start times only.
 
+## Exporting, step by step
+
+The export page is five steps, in the order the audio is processed, one
+decision each: **Edit → Noise → Tone → Loudness → Export**. Tabs across the
+top go back to any step you've reached; Back and Next are in the bar at the
+bottom. The settings are kept for the session while the tab is open, so going
+back or reloading never loses them; the defaults come from Settings →
+Recording.
+
+The bar is also the preview: 30 s of the episode through everything up to the
+step you're on, with a before and after for that step (**Raw / Edit**,
+**Original / Cleaned / Removed**, **Before / With tone**, **Before /
+Levelled**, **Raw / Final**). It says what's playing ("Edit → Noise 40 % →
+Tone → −16 LUFS"); switching keeps your place; changing a setting while it
+plays updates it in a second or so. Because noise suppression comes before
+tone and loudness, boosting a voice doesn't bring the room back up.
+
+1. **Edit**: the assembled edit, marker tones, and what happens to pauses
+   (cut, keep, split); with pads, the Pads track and the rough mix; the
+   markers list.
+2. **Noise**: see [Noise suppression](#recording-solo).
+3. **Tone**: each voice's EQ and compressor (below).
+4. **Loudness**: the target, and **Measured / After / True peak** for the
+   preview, the loudness over those 30 s against the target, and Level each
+   speaker.
+5. **Export**: your chain (each stage with a Change link back to it) and what
+   goes in the zip. The button says how many files it makes ("Export 11
+   files"); afterwards the page shows what the finished episode measured.
+
 ## Ready to publish
 
 Every export gives you two ways out: the files for your own post-production
 (an untouched WAV and an edit per person, lined up, with timecode), and an
-episode you can upload to your podcast host as is. The episode part is set on
-the export page under **Ready to publish**, with the defaults in Settings →
-Recording. Each switch is independent:
+episode you can upload to your podcast host as is. The episode is set in the
+Tone, Loudness and Export steps, with the defaults in Settings → Recording.
+Each switch is independent:
 
 - **Episode file** (on by default). Everyone's edit, and the Pads track if you
   used pads, mixed into `…_Episode.wav`. If pauses are set to split, there's
@@ -160,27 +190,26 @@ Recording. Each switch is independent:
   to 16 kHz, ±12 dB) and a compressor for each voice, applied to their edit
   before the leveller and the mix. The graph shows a speech target, the
   voice's own long-term spectrum (measured from their take) before and with
-  the EQ, and the EQ curve. Presets (Flat, Warm, Clear, De-mud, Radio, and
-  Gentle, Voice, Broadcast for the compressor), and **Match to target**, which
+  the EQ, and the EQ curve. Presets (Flat, Warm, Clear, De-mud, Radio; Custom
+  once you move a band), and **Match to target**, which
   suggests bands that move the voice toward the target by up to 6 dB each.
   Sweep a finger or the mouse across the faders to draw the curve, or drag
-  the dots on the graph; on a phone all ten fit. The compressor is drawn as
-  its curve (input against output) with the voice's level riding on it while
-  you preview. Each person's tone is remembered by name (Settings →
+  the dots on the graph; on a phone all ten fit. The compressor is **Off,
+  Light, Medium or Heavy** (about 3, 6 and 10 dB off the loudest words);
+  **More** opens its curve (input against output, with the voice's level
+  riding on it while you preview) and its threshold, ratio, knee and make-up
+  gain. Each person's tone is remembered by name (Settings →
   Recording → Tone lists them). With tone on and levelling off, the zip also
   gets a toned copy of each edit (`…_edit_toned.wav`); with levelling on, the
   levelled copy includes the tone.
-- **Preview 30 s** plays a stretch of the episode through the export's own
-  chain (tone, leveller, loudness target, limiter), so what you hear is what
-  you get. **Original / With tone** switches between everyone's tone off and
-  on at the same loudness. Changing a setting while it plays updates it in
-  about a second.
-- **Loudness meter** (on by default; Settings → Recording). While the
-  preview plays: integrated, short-term and momentary loudness, range and
-  true peak, a momentary bar against the target (green within 1 LU), and
-  short-term loudness over time. After an export it shows what the finished
-  episode measured, start to finish, and `…_export.txt` has the same figures
-  and each person's tone.
+- **The preview** runs the export's own chain (noise suppression, tone,
+  leveller, loudness target, limiter), so what you hear is what you get. On
+  the Tone step, **Before / With tone** are at the same loudness, so the
+  comparison is about tone and not level.
+- **Loudness graph** (on by default; Settings → Recording): short-term
+  loudness over the preview against the target (green within 1 LU), and after
+  an export, over the whole episode with its integrated loudness, range and
+  true peak. `…_export.txt` has the same figures and each person's tone.
 
 The episode is made from the same audio as the edits: lined up and drift
 corrected, coughs muted, and cleaned when noise suppression is on. The

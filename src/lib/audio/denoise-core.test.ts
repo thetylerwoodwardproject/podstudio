@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FrameStream, Resampler, amountToDb, backgroundReduction, join, suggestAmount } from './denoise-core.ts';
+import { FrameStream, Resampler, amountToDb, backgroundReduction, join, noiseFloor, removedPart, suggestAmount } from './denoise-core.ts';
 import { pcmBytes, pcmFloats } from './wav.ts';
 
 test('the fader: 0 is off, halfway allows 20 dB, the top has no limit', () => {
@@ -90,4 +90,24 @@ test('PCM bytes round-trip exactly', () => {
     const back = pcmFloats(pcmBytes(x, depth), depth);
     assert.deepEqual([...pcmBytes(back, depth)], [...pcmBytes(x, depth)], `${depth}-bit`);
   }
+});
+
+test('noise floor: the quiet between words, not the words or digital silence', () => {
+  const rate = 48000;
+  const x = new Float32Array(rate * 10);
+  let seed = 1;
+  const noise = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2;
+  // −50 dBFS-ish hiss everywhere, speech-loud bursts every other half second, a second of digital silence
+  for (let i = 0; i < x.length; i++) x[i] = noise() * 10 ** (-50 / 20) * Math.sqrt(3);
+  for (let i = 0; i < x.length; i++) if (Math.floor(i / (rate / 2)) % 2 === 0) x[i] += 0.3 * Math.sin(i / 7);
+  x.fill(0, rate * 8, rate * 9);
+  const f = noiseFloor(x, rate);
+  assert.ok(Math.abs(f + 50) < 1.5, String(f));
+  assert.equal(noiseFloor(new Float32Array(rate), rate), -Infinity);
+});
+
+test('removed part: original minus cleaned', () => {
+  const a = Float32Array.from([0.5, -0.25, 0.125]);
+  const b = Float32Array.from([0.5, -0.5, 0]);
+  assert.deepEqual([...removedPart(a, b)], [0, 0.25, 0.125]);
 });

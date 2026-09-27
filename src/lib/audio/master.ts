@@ -152,12 +152,13 @@ const CHUNK_SECONDS = 5;
 
 /**
  * Mix `tracks` into `write`, at `rate` and `channels`, reaching `target`
- * (null: no loudness change, only the peak limit). The first track sets the
- * length; others are padded or cut to it.
+ * (null: no loudness change, only the peak limit), or turned up by a fixed
+ * `gain` (dB) if one is given. The first track sets the length; others are
+ * padded or cut to it.
  */
 export async function renderMaster(
   tracks: MasterTrack[],
-  o: { rate: number; channels: 1 | 2; lufs: number | null; levelling: boolean },
+  o: { rate: number; channels: 1 | 2; lufs: number | null; levelling: boolean; gain?: number },
   write: (x: Float32Array) => Promise<void>,
   onProgress?: (stage: 'level' | 'master', done: number) => void,
 ): Promise<MasterResult> {
@@ -213,7 +214,7 @@ export async function renderMaster(
   const meter = new LoudnessMeter(o.rate, o.channels);
   await pass(true, (mix) => meter.push(mix), 'level');
   const measured = meter.integrated();
-  const gainDb = o.lufs == null || !Number.isFinite(measured) ? 0 : Math.min(30, o.lufs - measured);
+  const gainDb = o.gain ?? (o.lufs == null || !Number.isFinite(measured) ? 0 : Math.min(30, o.lufs - measured));
   const g = 10 ** (gainDb / 20);
   const limiter = new TruePeakLimiter(o.rate, o.channels, -1);
   const after = new LoudnessMeter(o.rate, o.channels);

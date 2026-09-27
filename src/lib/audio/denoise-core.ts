@@ -206,3 +206,30 @@ export function backgroundReduction(input: Float32Array, output: Float32Array, r
   if (!a) return 0;
   return b ? Math.max(0, 10 * Math.log10(a / b)) : 100;
 }
+
+/**
+ * A room's noise floor in dBFS: the level of the quietest tenth of 100 ms
+ * blocks (the gaps between words), like the mic check measures it. Digital
+ * silence (a stopped mic, a filled gap) doesn't count. −Infinity if there's
+ * nothing but silence.
+ */
+export function noiseFloor(x: Float32Array, rate: number): number {
+  const block = Math.round(rate / 10);
+  const levels: number[] = [];
+  for (let o = 0; o + block <= x.length; o += block) {
+    let s = 0;
+    for (let i = o; i < o + block; i++) s += x[i] * x[i];
+    const db = 10 * Math.log10(s / block);
+    if (db > -100) levels.push(db);
+  }
+  if (!levels.length) return -Infinity;
+  levels.sort((a, b) => a - b);
+  return levels[Math.floor(levels.length * 0.1)];
+}
+
+/** What noise suppression took away: the input minus the cleaned audio, sample by sample. */
+export function removedPart(input: Float32Array, cleaned: Float32Array): Float32Array {
+  const out = new Float32Array(input.length);
+  for (let i = 0; i < input.length; i++) out[i] = input[i] - (cleaned[i] ?? 0);
+  return out;
+}
