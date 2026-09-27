@@ -1,11 +1,17 @@
 /*
- * User settings kept in the browser until the server stores them. The studio
- * screen, the settings pages and the prompters all read from here.
+ * Each person's settings. The studio screen, the settings pages and the
+ * prompters all read them from this browser's copy, straight away; the copy is
+ * kept on the server (GET/PUT /api/me/settings) so they follow you to any
+ * device. Saving sends the change; opening a page takes the server's copy if
+ * it's newer (syncSettings, run by every page). A change made offline is
+ * marked unsent and goes up on the next page load. The microphone stays per
+ * device: another computer's device ID means nothing here.
  */
 
 import type { BitDepth, Channels } from './audio/wav';
 import { defaultTones, type ToneSettings } from './audio/tones';
 import { cleanTone, type VoiceTone } from './audio/tone';
+import { ApiError, api } from './api';
 
 export interface RecordingSettings {
   depth: BitDepth;
@@ -23,17 +29,15 @@ export interface RecordingSettings {
   tones: ToneSettings;
   /** The ready-to-publish episode in exports (lib/audio/master.ts) */
   publish: PublishSettings;
+  /** The kinds of file to export (lib/export-files.ts), saved from the picker; null for everything */
+  exportFiles: string[] | null;
 }
 
 export interface PublishSettings {
-  /** Make the mixed episode file */
-  mix: boolean;
   /** −16 LUFS stereo, −19 LUFS mono, or no loudness change (peak limit only) */
   loudness: 'stereo' | 'mono' | 'off';
   /** Level each speaker before the mix (and export levelled copies of each edit) */
   level: boolean;
-  /** An MP3 of the episode too */
-  mp3: boolean;
   /** Show the loudness meter for the episode on the export page */
   meter: boolean;
   /** Each person's tone (EQ and compressor), remembered by speaker name (upper case, as on their track) */
@@ -62,7 +66,7 @@ export interface Settings {
 }
 
 export const defaults: Settings = {
-  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { mix: true, loudness: 'stereo', level: false, mp3: true, meter: true, voices: {} } },
+  recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { loudness: 'stereo', level: false, meter: true, voices: {} }, exportFiles: null },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -86,6 +90,9 @@ export function loadSettings(): Settings {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Settings> & { version?: number };
     // Settings from when separate takes existed.
     if (saved.recording) for (const old of ['mode', 'tone', 'download']) delete (saved.recording as unknown as Record<string, unknown>)[old];
+    // The episode file and MP3 switches, before the export picker replaced them
+    if (saved.recording?.publish) for (const old of ['mix', 'mp3']) delete (saved.recording.publish as unknown as Record<string, unknown>)[old];
+    const files = saved.recording?.exportFiles;
     return {
       recording: {
         ...defaults.recording,
@@ -100,6 +107,7 @@ export function loadSettings(): Settings {
           ...saved.recording?.publish,
           voices: Object.fromEntries(Object.entries(saved.recording?.publish?.voices ?? {}).map(([k, v]) => [k, cleanTone(v)])),
         },
+        exportFiles: Array.isArray(files) ? files.filter((k) => typeof k === 'string') : null,
       },
       prompter: { ...defaults.prompter, ...saved.prompter },
     };
@@ -113,10 +121,95 @@ export function saveSettings<K extends keyof Settings>(group: K, patch: Partial<
   s[group] = { ...s[group], ...patch };
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...s, version: VERSION }));
+    localStorage.setItem(DIRTY, '1');
   } catch {
     // Storage blocked: settings last for this page only.
   }
+  // Before this page has heard from the server, a save is held and made again on the
+  // server's copy, so a new device's defaults never overwrite what's there.
+  if (!synced) early.push(() => saveSettings(group, patch));
+  else {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushSettings, 400);
+  }
   return s;
+}
+
+// ── On the server ──
+/** Set while this browser has a change the server hasn't got */
+const DIRTY = `${KEY}:dirty`;
+/** When the server's copy that this browser has was saved (its clock) */
+const AT = `${KEY}:at`;
+let pushTimer: ReturnType<typeof setTimeout> | undefined;
+let synced = false;
+let early: (() => void)[] = [];
+const ls = {
+  get: (k: string) => {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
+  set: (k: string, v: string | null) => {
+    try {
+      if (v == null) localStorage.removeItem(k);
+      else localStorage.setItem(k, v);
+    } catch {}
+  },
+};
+
+/** What goes to the server: everything but what belongs to this device. */
+export function portable(s: Settings) {
+  const { deviceId: _device, ...recording } = s.recording;
+  return { recording, prompter: s.prompter, version: VERSION };
+}
+
+async function pushSettings() {
+  try {
+    const r = await api<{ updatedAt: number }>('me/settings', { method: 'PUT', body: { settings: portable(loadSettings()) } });
+    ls.set(AT, String(r.updatedAt));
+    ls.set(DIRTY, null);
+  } catch (err) {
+    // Not signed in (a guest's page): the settings stay in this browser only.
+    if (err instanceof ApiError && err.status >= 400 && err.status < 500) ls.set(DIRTY, null);
+  }
+}
+
+/**
+ * Bring this browser's copy and the server's together: send a change that
+ * hasn't gone up yet, or take the server's copy if it's newer. Fires
+ * `podstudio:settings` on window when the settings here changed.
+ */
+export async function syncSettings() {
+  try {
+    await pull();
+  } finally {
+    synced = true;
+    const held = early;
+    early = [];
+    held.forEach((again) => again());
+  }
+}
+
+async function pull() {
+  // A change from an earlier page that didn't reach the server: this browser's copy goes up.
+  if (ls.get(DIRTY) && !early.length) return pushSettings();
+  let r: { settings: Partial<Settings> | null; updatedAt: number };
+  try {
+    r = await api('me/settings');
+  } catch {
+    return; // Offline, or not signed in
+  }
+  // Nothing on the server yet: this browser's settings become the first copy.
+  if (!r.settings) return ls.get(KEY) ? pushSettings() : undefined;
+  if (r.updatedAt <= Number(ls.get(AT) ?? 0)) return;
+  const deviceId = loadSettings().recording.deviceId;
+  const server = r.settings as Settings;
+  ls.set(KEY, JSON.stringify({ ...server, recording: { ...server.recording, deviceId }, version: VERSION }));
+  ls.set(AT, String(r.updatedAt));
+  ls.set(DIRTY, null);
+  window.dispatchEvent(new Event('podstudio:settings'));
 }
 
 /** Sample rate in Hz for a UI rate. */

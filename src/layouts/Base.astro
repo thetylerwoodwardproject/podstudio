@@ -36,6 +36,10 @@ const gate = `(function () {
     <script>
       import '@/lib/mock-forms';
       import '@/lib/range-fill';
+      import { syncSettings } from '@/lib/settings';
+
+      // Settings live on the server; bring this browser's copy up to date.
+      syncSettings();
     </script>
   </body>
 </html>

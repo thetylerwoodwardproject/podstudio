@@ -67,8 +67,13 @@ const View = current.view;
     location.href = r.next;
   });
 
-  // Not saved to the server yet: saving just confirms on the button.
+  // Settings save as they change (and go to the server); the button just confirms.
   const form = document.querySelector<HTMLFormElement>('[data-settings]')!;
+  // The server's copy arrived and is newer than this browser's (another device changed
+  // something): show it, unless you've already started changing things here.
+  let touched = false;
+  form.addEventListener('input', () => (touched = true));
+  addEventListener('podstudio:settings', () => !touched && location.reload());
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const btn = e.submitter;

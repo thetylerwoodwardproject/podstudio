@@ -12,6 +12,7 @@ import { HttpError, json } from './http.ts';
 import { LiveRooms } from './live.ts';
 import { migrations } from './migrations.ts';
 import { checkOrigin } from './origin.ts';
+import { UserSettings } from './user-settings.ts';
 import pkg from '../package.json' with { type: 'json' };
 
 export interface Api {
@@ -34,6 +35,7 @@ export function serverStatus(ctx: Context) {
 export function createApi(ctx: Context): Api {
   const accounts = new Accounts(ctx);
   const live = new LiveRooms(ctx);
+  const settings = new UserSettings(ctx);
   // Starting a session with a guest needs the host signed in.
   live.canHost = (req) => accounts.allowed(req);
 
@@ -44,6 +46,7 @@ export function createApi(ctx: Context): Api {
     if (await live.handle(req, res, url, p)) return;
     if (!accounts.allowed(req)) throw new HttpError(401, 'Sign in first');
     if (req.method === 'GET' && p[0] === 'server' && p.length === 1) return json(res, 200, serverStatus(ctx));
+    if (p[0] === 'me' && p[1] === 'settings' && p.length === 2) return settings.handle(req, res, accounts.who(req).user!.id);
     if (await ctx.library.handle(req, res, url, p)) return;
     if (await ctx.takes.handle(req, res, url, p)) return;
     throw new HttpError(404, 'Not found');

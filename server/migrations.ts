@@ -123,4 +123,12 @@ export const migrations: string[] = [
     expires_at INTEGER NOT NULL
   );
   `,
+  // 3 · Each person's settings (recording, export, prompter), so they follow them to any device
+  `
+  CREATE TABLE user_settings (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  `,
 ];

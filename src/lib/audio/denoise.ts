@@ -11,8 +11,11 @@ import type { Reply, Request } from './denoise.worker';
 
 export { amountToDb, suggestAmount } from './denoise-core';
 
-/** The folder name of a take's cleaned copy at a fader setting. */
-export const variantName = (amount: number) => `ns-${Math.round(amount)}`;
+/**
+ * The folder name of a take's cleaned copy at a fader setting. "ns2": made with
+ * the steadied gains (GainSmoother), so copies from before that are made again.
+ */
+export const variantName = (amount: number) => `ns2-${Math.round(amount)}`;
 
 let worker: Worker | null = null;
 let nextJob = 1;

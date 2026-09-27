@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FrameStream, Resampler, amountToDb, backgroundReduction, join, noiseFloor, removedPart, suggestAmount } from './denoise-core.ts';
+import { FrameStream, Resampler, amountToDb, backgroundReduction, GainSmoother, join, noiseFloor, removedPart, suggestAmount } from './denoise-core.ts';
 import { pcmBytes, pcmFloats } from './wav.ts';
 
 test('the fader: 0 is off, halfway allows 20 dB, the top has no limit', () => {
@@ -110,4 +110,47 @@ test('removed part: original minus cleaned', () => {
   const a = Float32Array.from([0.5, -0.25, 0.125]);
   const b = Float32Array.from([0.5, -0.5, 0]);
   assert.deepEqual([...removedPart(a, b)], [0, 0.25, 0.125]);
+});
+
+test('gain smoother: gains of 1 give the input back, in any chunks, exactly as long', () => {
+  const rate = 48000;
+  const x = Float32Array.from({ length: 20000 }, (_, i) => Math.sin(i / 7) * 0.3 + Math.sin(i / 53) * 0.2);
+  const s = new GainSmoother(rate);
+  const parts: Float32Array[] = [];
+  // Output trails input, as the model's does
+  let fed = 0, out = 0;
+  for (const n of [1000, 3333, 7, 5000, 10660]) {
+    const inp = x.subarray(fed, fed + n);
+    fed += n;
+    const lag = Math.max(0, Math.min(fed, fed - 1500) - out);
+    parts.push(s.push(inp, x.subarray(out, out + lag)));
+    out += lag;
+  }
+  parts.push(s.push(new Float32Array(0), x.subarray(out)));
+  parts.push(s.end());
+  const y = join(parts);
+  assert.equal(y.length, x.length);
+  let e = 0;
+  for (let i = 0; i < x.length; i++) e = Math.max(e, Math.abs(y[i] - x[i]));
+  assert.ok(e < 1e-5, String(e));
+});
+
+test('gain smoother: a gain that flutters frame to frame comes out steady', () => {
+  const rate = 48000;
+  const x = Float32Array.from({ length: rate }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 440 * i) / rate));
+  // The "model" halves the level every other 10 ms
+  const y = x.map((v, i) => (Math.floor(i / 480) % 2 ? v * 0.5 : v));
+  const s = new GainSmoother(rate);
+  const z = join([s.push(x, y), s.end()]);
+  const lvl = (a: Float32Array, o: number) => {
+    let q = 0;
+    for (let i = o; i < o + 480; i++) q += a[i] * a[i];
+    return 10 * Math.log10(q / 480);
+  };
+  let before = 0, after = 0;
+  for (let o = rate / 2; o < rate - 960; o += 480) {
+    before = Math.max(before, Math.abs(lvl(y, o) - lvl(y, o + 480)));
+    after = Math.max(after, Math.abs(lvl(z, o) - lvl(z, o + 480)));
+  }
+  assert.ok(before > 5 && after < 1.5, `${before.toFixed(1)} → ${after.toFixed(1)} dB`);
 });

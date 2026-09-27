@@ -1,10 +1,11 @@
 /*
  * Noise suppression worker: DeepFilterNet3 (public/vendor/deepfilter) run off
  * the main thread. A job resamples to 48 kHz if needed, feeds the model in
- * whole frames, takes its delay back out and resamples back, so what comes out
- * lines up sample for sample with what went in. See denoise.ts for the calls.
+ * whole frames, takes its delay back out, steadies what it did (GainSmoother:
+ * no flutter on the voice) and resamples back, so what comes out lines up
+ * sample for sample with what went in. See denoise.ts for the calls.
  */
-import { FrameStream, MODEL_RATE, Resampler, join } from './denoise-core';
+import { FrameStream, GainSmoother, MODEL_RATE, Resampler, join } from './denoise-core';
 
 interface DeepFilter {
   default(): Promise<unknown>;
@@ -54,12 +55,17 @@ const jobs = new Map<number, Channel[]>();
 function channel(st: number, rate: number): Channel {
   const into = new Resampler(rate, MODEL_RATE);
   const model = new FrameStream((frame) => df!.df_process_frame(st, frame));
+  const smooth = new GainSmoother(MODEL_RATE);
   const back = new Resampler(MODEL_RATE, rate);
   return {
-    push: (x) => back.push(model.push(into.push(x))),
+    push: (x) => {
+      const input = into.push(x);
+      return back.push(smooth.push(input, model.push(input)));
+    },
     end: () => {
-      const tail = model.push(into.end());
-      return join([back.push(join([tail, model.end()])), back.end()]);
+      const input = into.end();
+      const out = join([model.push(input), model.end()]);
+      return join([back.push(join([smooth.push(input, out), smooth.end()])), back.end()]);
     },
   };
 }
