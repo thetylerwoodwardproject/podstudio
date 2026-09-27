@@ -1,8 +1,7 @@
 ---
-// Green room (6a layout): what to do on the left, a live mic check on the right, before a session.
+// Mic check before a session, as a step flow (design: step flow 1a/1b): Input → Level → Test → Noise.
 import AppShell from '@/layouts/AppShell.astro';
 import StatusRow from '@/components/ui/StatusRow.astro';
-import Button from '@/components/ui/Button.astro';
 import { episode as mockEpisode, lineStarts, scriptWords } from '@/data/mock';
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import type { EpisodeData as Data } from '@/lib/episode-page';
@@ -19,13 +18,12 @@ const ok = 'var(--color-ok)';
 const base = `/episodes/${episode.id}`;
 
 const c = {
-  eyebrow: 'Host · Tyler',
-  title: 'Green room',
-  sub: `Get set for ${episode.fullTitle}. The recording screen keeps this meter, so you can check again there.`,
+  title: 'Mic check',
   steps: [
-    ['Check your level', 'Talk at your normal volume. Your peaks should land in the target zone, −18 to −6 dBFS.'],
-    ['Make a test recording', 'Say a few lines at your loudest and play them back. Listen for distortion, crackle or clicks.'],
-    ['Read a line from the script', 'Voice follow should find it. If it doesn’t, open the voice check from the Heard box.'],
+    { id: 'input', label: 'Input', title: 'Microphone', lede: `Pick the mic you’ll record ${episode.fullTitle} with. System default follows your computer’s sound settings.` },
+    { id: 'level', label: 'Level', title: 'Level', lede: 'Talk at your normal volume. Your peaks should land in the target zone, −18 to −6 dBFS.' },
+    { id: 'test', label: 'Test', title: 'Test recording', lede: 'Say a few lines at your loudest and play them back: listen for distortion, crackle or clicks. Then read a line of the script for voice follow.' },
+    { id: 'noise', label: 'Noise', title: 'Room noise', lede: 'Measured from your test. The setting you pick here carries over to Export.' },
   ],
   inputs: ['Shure MV7 (USB)'],
   heard: '“It was a quiet week in the studio, until the new transmitter arrived.”',
@@ -41,147 +39,144 @@ const c = {
 };
 ---
 
-<AppShell title={c.title} avatar={false} crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Green room' }]}>
+<AppShell title={c.title} avatar={false} crumbs={[{ label: episode.label, href: `${base}/studio` }, { label: 'Mic check' }]}>
   {data && <EpisodeData data={data} />}
 
   <form
-    class="grid lg:min-h-full lg:grid-cols-[1fr_400px]"
+    class="flex h-full min-h-0 flex-col"
     id="mic-check"
     data-next={c.next}
     data-episode={episode.id}
     data-words={JSON.stringify(scriptWords)}
     data-line-starts={JSON.stringify(lineStarts)}
+    data-steps={JSON.stringify(c.steps)}
   >
-    <!-- What to do -->
-    <section class="flex flex-col gap-6 border-line px-6 py-10 lg:border-r lg:px-14">
-      <div>
-        <div class="eyebrow">{c.eyebrow}</div>
-        <h1 class="page-title mt-2">{c.title}</h1>
-        <p class="mt-2 max-w-[520px] text-[14px] leading-[1.55] text-muted">{c.sub}</p>
-      </div>
-
-      <ol class="flex flex-col gap-4">
-        {
-          c.steps.map(([title, body], i) => (
-            <li class="grid grid-cols-[28px_1fr] gap-3.5">
-              <span class="flex size-6.5 items-center justify-center rounded-full border border-edge-strong font-mono text-[11px] font-medium text-muted">
-                {i + 1}
-              </span>
-              <div class="min-w-0">
-                <div class="text-[15px]">{title}</div>
-                <p class="mt-1 text-[13px] leading-normal text-muted">{body}</p>
-
-              </div>
-            </li>
-          ))
-        }
-      </ol>
-
-
-      <div class="rounded-[14px] bg-surface px-4 py-3 text-[14px] leading-normal">
-        <span class="text-faint">Heard:</span>
-        <span data-heard>{c.heard}</span>
-      </div>
-
-    </section>
-
-    <!-- Live mic check -->
-    <aside class="flex flex-col gap-4 px-6 py-7">
-      <h2 class="text-[14px] font-medium">Mic check</h2>
-
-      <div class="flex flex-col gap-2">
-        <label for="mic" class="text-[12px] text-muted">Microphone</label>
-        <Select id="mic" name="mic" options={c.inputs} data-mic />
-      </div>
-
-      <div class="flex flex-col gap-1.5">
-        <LevelMeter segments={28} lit={19} compact />
-        <!-- One plain-language line: where the level is and what to do about it -->
-        <div class="flex items-center gap-2" data-live-only>
-          <span class="inline-block size-2 flex-none rounded-full bg-faint" data-status-dot></span>
-          <span class="text-[13px]" data-status>Talk at your normal volume</span>
-          <span class="ml-auto font-mono text-[12px] text-muted" data-status-peak></span>
+    <div data-tabs-mount></div>
+    <div class="min-h-0 flex-1 overflow-y-auto" data-scroll>
+      <div class="mx-auto flex max-w-[760px] flex-col gap-7 px-5 pt-7 pb-10">
+        <div class="flex flex-col gap-1.5">
+          <h1 class="page-title" data-step-title>{c.steps[0].title}</h1>
+          <p class="text-[14px] leading-normal text-pretty text-text-2" data-step-lede>{c.steps[0].lede}</p>
         </div>
-      </div>
 
-      <div class="flex flex-col">
-        {c.checks.map(([k, v, color], i) => <StatusRow label={k!} value={v!} color={color} dense data-check={i} />)}
-      </div>
-
-      <div class="flex flex-col gap-2.5 rounded-[14px] bg-surface p-5" data-live-only data-test>
-        <div class="flex items-center justify-between gap-3">
-          <div class="min-w-0">
-            <div class="text-[13px]">Test recording</div>
-            <div class="mt-0.5 text-[12px] leading-snug text-subtle" data-test-hint>Say a few lines at your loudest, then play it back.</div>
+        <!-- 01 Input -->
+        <section class="flex flex-col gap-7" data-step-panel="input">
+          <div class="flex flex-col gap-2.5 rounded-[14px] bg-surface p-5">
+            <label for="mic" class="text-[14px]">Microphone</label>
+            <Select id="mic" name="mic" options={c.inputs} data-mic />
+            <p class="help">On a multi-input interface, each input is listed on its own. The format is set by the host in Recording settings.</p>
           </div>
-          <button
-            type="button"
-            class="inline-flex h-8 flex-none items-center gap-2 rounded-[10px] bg-rec px-3 text-[12px] font-medium text-white disabled:opacity-50 data-[running]:bg-raised data-[running]:text-fg"
-            data-test-btn
-          >
-            <span class="size-2 rounded-full bg-current" data-test-icon></span>
-            <span data-test-label>Record 10 s</span>
-          </button>
-        </div>
-        <audio controls class="h-8 w-full [color-scheme:dark]" data-test-audio hidden></audio>
-        <div class="font-mono text-[11px]" data-test-result hidden></div>
-        <!-- Noise suppression on the test recording, with a setting suggested from the room's noise floor -->
-        <div class="flex flex-col gap-2.5 border-t border-line pt-3" data-ns-test hidden>
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-[13px]">Noise suppression</div>
-              <div class="mt-0.5 text-[12px] leading-snug text-subtle" data-ns-suggest></div>
-            </div>
-            <button type="button" class="inline-flex h-8 flex-none items-center rounded-[10px] border border-edge px-3 text-[12px] hover:bg-raised disabled:opacity-50" data-ns-hear>
-              Hear it cleaned
-            </button>
-          </div>
-          <div class="flex items-center gap-3">
-            <input type="range" min="0" max="100" step="5" value="0" class="min-w-0 flex-1 accent-fg" aria-label="Noise suppression" data-ns-test-amount />
-            <span class="w-10 flex-none text-right font-mono text-[12px]" data-ns-test-value>Off</span>
-            <button type="button" class="flex-none text-[12px] text-muted underline-offset-2 hover:text-fg hover:underline" data-ns-use>Use this setting</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- The numbers, for comparing with an interface's own meters -->
-      <details class="group rounded-[14px] bg-surface" data-live-only>
-        <summary class="flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 text-[13px] text-muted hover:text-fg">
-          Advanced details
-          <span class="text-faint transition-transform group-open:rotate-180">▾</span>
-        </summary>
-        <div class="flex flex-col gap-3 border-t border-line px-3.5 pt-3 pb-3.5">
-          <div class="flex flex-col gap-1 font-mono text-[12px]">
-            <span class="text-fg-soft" data-readout>Peak — · RMS —</span>
-            <span class="flex items-center justify-between gap-3 text-subtle">
-              <span data-max>Highest peak —</span>
-              <button type="button" class="text-muted hover:text-fg" data-reset>Reset</button>
-            </span>
-          </div>
-          <!-- One meter per input of an interface, to compare with its own meters -->
-          <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
           <div class="flex flex-col">
-            <StatusRow label="Device" value="…" dense data-opened="device" />
-            <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
-            <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
+            <StatusRow label="Free space" value={c.checks[4][1]} color={c.checks[4][2]} data-check="4" />
           </div>
-          <p class="text-[12px] text-subtle">Format is set by the host in Recording settings.</p>
-        </div>
-      </details>
+          <!-- The numbers, for comparing with an interface's own meters -->
+          <details class="group rounded-[14px] bg-surface" data-live-only>
+            <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 text-[14px] text-text-2 hover:text-text">
+              Advanced details
+              <span class="text-text-3 transition-transform group-open:rotate-180">▾</span>
+            </summary>
+            <div class="flex flex-col gap-3 border-t border-divider px-5 pt-3 pb-4">
+              <div class="flex flex-col gap-1 font-mono text-[12px]">
+                <span class="text-text" data-readout>Peak — · RMS —</span>
+                <span class="flex items-center justify-between gap-3 text-text-3">
+                  <span data-max>Highest peak —</span>
+                  <button type="button" class="text-text-2 hover:text-text" data-reset>Reset</button>
+                </span>
+              </div>
+              <!-- One meter per input of an interface, to compare with its own meters -->
+              <div class="flex flex-col gap-1.5" data-input-meters hidden></div>
+              <div class="flex flex-col">
+                <StatusRow label="Device" value="…" dense data-opened="device" />
+                <StatusRow label="Inputs · rate" value="…" dense data-opened="format" />
+                <StatusRow label="Browser processing" value="…" dense data-opened="processing" />
+              </div>
+            </div>
+          </details>
+        </section>
 
-      <div class="mt-auto flex flex-col gap-3 pt-2">
-        <Button type="submit" variant="record" size="lg" class="w-full" data-start>
-          ●&nbsp; Start session
-        </Button>
+        <!-- 02 Level -->
+        <section class="flex flex-col gap-7" data-step-panel="level" hidden>
+          <div class="flex flex-col gap-3 rounded-[14px] bg-surface p-5">
+            <LevelMeter segments={28} lit={19} compact />
+            <!-- One plain-language line: where the level is and what to do about it -->
+            <div class="flex items-center gap-2" data-live-only>
+              <span class="inline-block size-2 flex-none rounded-full bg-text-3" data-status-dot></span>
+              <span class="text-[14px]" data-status>Talk at your normal volume</span>
+              <span class="ml-auto font-mono text-[12px] text-text-2" data-status-peak></span>
+            </div>
+          </div>
+          <div class="flex flex-col">
+            {[0, 1, 2].map((i) => <StatusRow label={c.checks[i][0]} value={c.checks[i][1]} color={c.checks[i][2]} data-check={i} />)}
+          </div>
+        </section>
+
+        <!-- 03 Test -->
+        <section class="flex flex-col gap-7" data-step-panel="test" hidden>
+          <div class="flex flex-col gap-3 rounded-[14px] bg-surface p-5" data-test>
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-[14px]">Test recording</div>
+                <div class="help mt-0.5" data-test-hint>Say a few lines at your loudest, then play it back below.</div>
+              </div>
+              <button
+                type="button"
+                class="inline-flex h-9 flex-none items-center gap-2 rounded-[10px] bg-rec px-3.5 text-[14px] font-medium text-white disabled:opacity-50 data-[running]:bg-control data-[running]:text-text"
+                data-test-btn
+              >
+                <span class="size-2 rounded-full bg-current" data-test-icon></span>
+                <span data-test-label>Record 10 s</span>
+              </button>
+            </div>
+            <div class="font-mono text-[12px]" data-test-result hidden></div>
+          </div>
+          <div class="flex flex-col gap-2">
+            <h2 class="section-label">Read a line from the script</h2>
+            <div class="rounded-[14px] bg-surface px-5 py-4 text-[14px] leading-normal">
+              <span class="text-text-3">Heard:</span>
+              <span data-heard>{c.heard}</span>
+            </div>
+          </div>
+          <div class="flex flex-col">
+            {[3, 5].map((i) => <StatusRow label={c.checks[i][0]} value={c.checks[i][1]} color={c.checks[i][2]} data-check={i} />)}
+          </div>
+        </section>
+
+        <!-- 04 Noise -->
+        <section class="flex flex-col gap-7" data-step-panel="noise" hidden>
+          <div class="flex flex-wrap items-center gap-4 rounded-[14px] bg-surface px-5 py-[18px]">
+            <div class="min-w-[200px] flex-1">
+              <div class="flex items-baseline gap-2">
+                <span class="text-[14px]">Noise floor</span>
+                <span class="font-mono text-[13px] text-warn" data-ns-floor>—</span>
+              </div>
+              <div class="help mt-0.5" data-ns-suggest>Measured while the mic check listens to the room.</div>
+            </div>
+            <button type="button" class="h-9 rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle aria-pressed:border-text aria-pressed:bg-text aria-pressed:text-page" aria-pressed="false" data-ns-use hidden></button>
+          </div>
+          <div class="flex flex-col gap-3.5 rounded-[14px] bg-surface p-5" data-ns-test>
+            <label class="flex items-baseline justify-between" for="ns-test"><span class="text-[14px]">Suppression</span><span class="font-mono text-[13px]" data-ns-test-value>Off</span></label>
+            <input id="ns-test" type="range" min="0" max="100" step="5" value="0" class="w-full" data-ns-test-amount />
+            <div class="flex justify-between font-mono text-[11px] text-text-3"><span>Off</span><span>Gentle</span><span>Strong</span></div>
+            <div class="h-px bg-divider"></div>
+            <div class="flex items-center gap-3">
+              <span class="flex-none text-[13px] text-text-2">Background</span>
+              <div class="relative h-1 flex-1 rounded-full bg-border"><div class="absolute inset-y-0 left-0 w-0 rounded-full bg-ok" data-ns-bar></div></div>
+              <span class="flex-none font-mono text-[13px]" data-ns-reduction>No change</span>
+            </div>
+          </div>
+          <p class="help">Play the test below and switch to <span class="text-text">Removed</span> to hear only what’s taken out. Hiss and hum there is right; words or breaths mean it’s too high.</p>
+        </section>
       </div>
-    </aside>
+    </div>
+    <div data-bar-mount></div>
   </form>
 </AppShell>
 
 <script>
   import { MicCapture, type Level } from '@/lib/audio/capture';
-  import { encodeWav } from '@/lib/audio/wav';
-  import { denoiseSamples, suggestAmount } from '@/lib/audio/denoise';
+    import { denoiseSamples, suggestAmount } from '@/lib/audio/denoise';
+  import { backgroundReduction, noiseFloor as floorOf, removedPart } from '@/lib/audio/denoise-core';
+  import { PreviewPlayer } from '@/lib/audio/preview-player';
   import { segmentMeter, toFraction, verdict, zone } from '@/lib/audio/meter';
   import { availableInput, inputChoices, parseInput, sameInput } from '@/lib/audio/devices';
   import { storageLeft, formatBytes } from '@/lib/audio/takes';
@@ -195,6 +190,56 @@ const c = {
 
   const form = document.getElementById('mic-check') as HTMLFormElement;
   const demo = new URL(location.href).searchParams.has('demo');
+
+  // ── The steps: tabs, panels, and the bar (lib/step-shell.svelte.ts). A check, not a gate: every tab is open. ──
+  type Step = { id: 'input' | 'level' | 'test' | 'noise'; label: string; title: string; lede: string };
+  const steps = JSON.parse(form.dataset.steps!) as Step[];
+  const { stepShell, wirePlayer } = await import('@/lib/step-shell.svelte');
+  let current = 0;
+  const shell = stepShell(form.querySelector('[data-tabs-mount]'), form.querySelector('[data-bar-mount]')!, { steps, current: 0, reached: steps.length - 1, ongo: (i) => go(i) }, {});
+  const bar = shell.bar;
+  const player = new PreviewPlayer();
+  /** The test recording, once there is one */
+  let testTake: { samples: Float32Array; rate: number; channels: number } | null = null;
+  /** Called when a step opens (the live script listens) */
+  let onStep: (id: Step['id']) => void = () => {};
+  const nsInput = form.querySelector<HTMLInputElement>('[data-ns-test-amount]')!;
+  const chainText = () => {
+    if (!testTake) return 'Record a test first';
+    if (steps[current].id !== 'noise' || bar.choice === 0) return 'Test recording';
+    if (bar.choice === 2) return 'Only the removed noise';
+    const n = Number(nsInput.value);
+    return n ? `Test recording → Noise ${n} %` : 'Test recording · noise off';
+  };
+  const playing = wirePlayer(bar, player);
+  const choose = bar.onchoose;
+  bar.onchoose = (i) => {
+    choose(i);
+    bar.chain = chainText();
+  };
+  function go(i: number) {
+    const step = steps[i];
+    current = i;
+    shell.tabs!.current = i;
+    form.querySelectorAll<HTMLElement>('[data-step-panel]').forEach((p) => (p.hidden = p.dataset.stepPanel !== step.id));
+    form.querySelector('[data-step-title]')!.textContent = step.title;
+    form.querySelector('[data-step-lede]')!.textContent = step.lede;
+    form.querySelector('[data-scroll]')!.scrollTo({ top: 0 });
+    player.reset();
+    bar.options = step.id === 'noise' ? ['Original', 'Cleaned', 'Removed'] : null;
+    bar.choice = step.id === 'noise' ? 1 : 0;
+    bar.canPlay = !!testTake;
+    bar.chain = chainText();
+    bar.onback = i > 0 ? () => go(i - 1) : null;
+    bar.next =
+      i < steps.length - 1
+        ? { label: `Next: ${steps[i + 1].label}`, onclick: () => go(i + 1) }
+        : { label: 'Start recording', onclick: () => form.requestSubmit(), attrs: { 'data-start': '' } };
+    playing.update();
+    onStep(step.id);
+  }
+  go(0);
+
   if (!demo) live();
 
   async function live() {
@@ -416,52 +461,74 @@ const c = {
         if (left <= 0) finishTest();
       }, 200);
     });
-    // Noise suppression on the test recording.
-    let testTake: { samples: Float32Array; rate: number } | null = null;
-    let cleanedUrl: { amount: number; url: string } | null = null;
-    const nsAmount = $<HTMLInputElement>('[data-ns-test-amount]');
-    const nsHear = $<HTMLButtonElement>('[data-ns-hear]');
-    const showNsAmount = () => ($('[data-ns-test-value]').textContent = Number(nsAmount.value) ? `${nsAmount.value}%` : 'Off');
-    nsAmount.addEventListener('input', () => {
-      showNsAmount();
-      nsHear.textContent = 'Hear it cleaned';
-    });
-    $('[data-ns-use]').addEventListener('click', () => {
-      saveSettings('recording', { noiseSuppression: Number(nsAmount.value) });
-      $('[data-ns-use]').textContent = 'Saved for exports';
-      setTimeout(() => ($('[data-ns-use]').textContent = 'Use this setting'), 2000);
-    });
-    let originalUrl = '';
-    nsHear.addEventListener('click', async () => {
-      const audio = $<HTMLAudioElement>('[data-test-audio]');
+    // Noise suppression on the test recording: the floor, a suggestion, the fader, and
+    // Original / Cleaned / Removed in the bar. The setting is the default for Export.
+    const useBtn = $<HTMLButtonElement>('[data-ns-use]');
+    let cleaned: { amount: number; out: Float32Array } | null = null;
+    let suggested = 0;
+    nsInput.value = String(settings.noiseSuppression);
+    const mono = (x: Float32Array, ch: number) => (ch === 1 ? x : x.filter((_, i) => i % ch === 0));
+    const showNs = (reduction?: number) => {
+      const n = Number(nsInput.value);
+      $('[data-ns-test-value]').textContent = n ? `${n} %` : 'Off';
+      const r = !n ? 0 : Math.round(reduction ?? Math.min(40, n * 0.4));
+      $('[data-ns-reduction]').textContent = n ? `Background ${minus(-r)} dB` : 'No change';
+      $('[data-ns-bar]').style.width = `${Math.min(100, (r / 40) * 100)}%`;
+      useBtn.hidden = !suggested;
+      useBtn.textContent = n === suggested ? `Using ${suggested} %` : `Use ${suggested} %`;
+      useBtn.setAttribute('aria-pressed', String(n === suggested));
+      bar.chain = chainText();
+    };
+    const showFloor = () => {
+      const floor = testTake ? floorOf(mono(testTake.samples, testTake.channels), testTake.rate) : noiseFloor;
+      if (!Number.isFinite(floor)) return;
+      suggested = suggestAmount(floor);
+      $('[data-ns-floor]').textContent = `${minus(Math.round(floor))} dBFS`;
+      $('[data-ns-suggest]').textContent =
+        (testTake ? 'Measured from your test. ' : 'Measured from the room so far. ') +
+        (suggested === 0 ? 'A quiet room: you may not need it.' : suggested <= 40 ? `Audible fan and hum. Suggested: ${suggested} %.` : `A noisy room. Suggested: ${suggested} %.`);
+      showNs();
+    };
+    // The bar's audio: the test, cleaned at the fader's setting, and what that takes away.
+    let cleanTimer = 0;
+    async function cleanTest() {
       if (!testTake) return;
-      const amount = Number(nsAmount.value);
-      if (nsHear.textContent === 'Hear the original') {
-        audio.src = originalUrl;
-        audio.play();
-        nsHear.textContent = 'Hear it cleaned';
-        return;
-      }
-      if (!amount) return;
-      if (cleanedUrl?.amount !== amount) {
-        nsHear.disabled = true;
-        nsHear.textContent = 'Cleaning…';
+      const x = testTake.samples;
+      const amount = Number(nsInput.value);
+      if (amount && cleaned?.amount !== amount) {
+        bar.chain = 'Cleaning…';
         try {
-          const out = await denoiseSamples(testTake.samples, settings.channels, testTake.rate, amount);
-          if (cleanedUrl) URL.revokeObjectURL(cleanedUrl.url);
-          cleanedUrl = { amount, url: URL.createObjectURL(encodeWav([out], { sampleRate: testTake.rate, bitDepth: settings.depth, channels: settings.channels })) };
+          cleaned = { amount, out: await denoiseSamples(x, testTake.channels, testTake.rate, amount) };
         } catch (err) {
-          $('[data-ns-suggest]').textContent = `Couldn’t clean it: ${(err as Error).message}`;
-          nsHear.disabled = false;
-          nsHear.textContent = 'Hear it cleaned';
+          bar.chain = `Couldn’t clean it: ${(err as Error).message}`;
           return;
         }
-        nsHear.disabled = false;
+        if (Number(nsInput.value) !== amount) return;
       }
-      audio.src = cleanedUrl!.url;
-      audio.play();
-      nsHear.textContent = 'Hear the original';
+      const clean = amount ? cleaned!.out : x;
+      player.set({ options: [x, clean, removedPart(x, clean)], channels: testTake.channels, rate: testTake.rate });
+      playing.update();
+      showNs(amount ? backgroundReduction(mono(x, testTake.channels), mono(clean, testTake.channels), testTake.rate) : 0);
+    }
+    nsInput.addEventListener('input', () => {
+      showNs();
+      const n = Number(nsInput.value);
+      if (testTake && n && cleaned?.amount !== n) bar.chain = 'Cleaning…';
+      clearTimeout(cleanTimer);
+      cleanTimer = window.setTimeout(cleanTest, 300);
     });
+    nsInput.addEventListener('change', () => saveSettings('recording', { noiseSuppression: Number(nsInput.value) }));
+    useBtn.addEventListener('click', () => {
+      nsInput.value = String(suggested);
+      nsInput.dispatchEvent(new Event('input', { bubbles: true }));
+      nsInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    onStep = (id) => {
+      if (id !== 'noise') return;
+      showFloor();
+      cleanTest();
+    };
+    showNs();
 
     async function finishTest() {
       if (!test) return;
@@ -474,31 +541,20 @@ const c = {
       testBtn.disabled = false;
       $('[data-test-label]').textContent = 'Record again';
       $('[data-test-icon]').classList.replace('rounded-[1px]', 'rounded-full');
-      testHint.textContent = 'Play it back: listen for distortion, crackle or clicks, especially on your loudest words.';
-      const audio = $<HTMLAudioElement>('[data-test-audio]');
-      if (audio.src) URL.revokeObjectURL(audio.src);
-      audio.src = URL.createObjectURL(encodeWav(t.chunks, { sampleRate: t.rate, bitDepth: settings.depth, channels: settings.channels }));
-      originalUrl = audio.src;
-      audio.hidden = false;
-      // Offer noise suppression on it, starting from what suits the room.
+      testHint.textContent = 'Play it back below: listen for distortion, crackle or clicks, especially on your loudest words.';
       const joined = new Float32Array(t.chunks.reduce((n, c) => n + c.length, 0));
       let o = 0;
       for (const c of t.chunks) {
         joined.set(c, o);
         o += c.length;
       }
-      testTake = { samples: joined, rate: t.rate };
-      cleanedUrl = null;
-      const suggested = suggestAmount(noiseFloor);
-      nsAmount.value = String(suggested || loadSettings().recording.noiseSuppression);
-      showNsAmount();
-      nsHear.textContent = 'Hear it cleaned';
-      $('[data-ns-suggest]').textContent = !Number.isFinite(noiseFloor)
-        ? 'Hear how it sounds with the room taken out.'
-        : suggested
-          ? `Room noise ${minus(Math.round(noiseFloor))} dBFS · try ${suggested}%`
-          : `Room noise ${minus(Math.round(noiseFloor))} dBFS · quiet enough without it`;
-      $('[data-ns-test]').hidden = !joined.length;
+      testTake = joined.length ? { samples: joined, rate: t.rate, channels: settings.channels } : null;
+      cleaned = null;
+      player.set(testTake ? { options: [joined, joined, new Float32Array(joined.length)], channels: settings.channels, rate: t.rate } : null);
+      bar.canPlay = !!testTake;
+      bar.chain = chainText();
+      playing.update();
+      showFloor();
       // What the file itself measures.
       let peak = 0;
       let full = 0;
