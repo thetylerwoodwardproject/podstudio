@@ -1,6 +1,6 @@
-import { toStep, pickAndDownload } from './steps.mjs';
+import { toStep, pickAndDownload, resetSettings } from './steps.mjs';
 import { chromium } from './auth.mjs';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { OUT as S, B, DATA, FIX, TOOLS, CHROME } from './env.mjs';
 const e = '/episodes/142';
 let fails = 0;
@@ -13,6 +13,7 @@ const a = await actx.newPage();
 a.on('pageerror', (x) => errs.push('A ' + x.message));
 a.on('dialog', (d) => d.accept());
 await a.goto(B + e + '/recording');
+await resetSettings(a, () => ({}), { clear: true });
 await a.waitForTimeout(2000);
 await a.click('[data-start]');
 ok('saved to server while recording', await until(async () => /Saved to server/.test(await a.locator('[data-saved]').textContent()), 15000), await a.locator('[data-saved]').textContent());
@@ -53,7 +54,12 @@ const [dl] = await Promise.all([b.waitForEvent('download'), pickAndDownload(b)])
 execSync(`rm -rf ${S}/uploads/x && mkdir -p ${S}/uploads/x`);
 await dl.saveAs(`${S}/uploads/x/s.zip`);
 execSync(`cd ${S}/uploads/x && unzip -q s.zip`);
-const secs = Number(execSync(`python3 -c "import wave,glob;w=wave.open([f for f in glob.glob('${S}/uploads/x/*.wav') if not f.endswith('_edit.wav')][0]);print(w.getnframes()/w.getframerate())"`).toString());
+// The episode WAV contains the retake edit too. Select the raw recording by
+// name: glob order differs between filesystems and can pick the episode first.
+const rawWav = `${S}/uploads/x/Ep142_Session_Tyler.wav`;
+const secs = Number(execFileSync('python3', ['-c',
+  'import sys,wave;w=wave.open(sys.argv[1]);print(w.getnframes()/w.getframerate())', rawWav,
+]).toString());
 ok('exported WAV is the whole recording', Math.abs(secs - local.samples / local.sampleRate) < 0.01, `${secs.toFixed(2)} s`);
 ok('no page errors', !errs.length, errs.join('\n'));
 console.log(fails ? `${fails} FAILED` : 'ALL PASS');
