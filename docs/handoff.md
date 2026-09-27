@@ -82,6 +82,42 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
 - **Mock data** is listed in [features.md → Known gaps](features.md#known-gaps).
   It covers transcripts, the package screen and the Domain checks.
 
+## Svelte or Astro: the rule
+
+Svelte is used where a screen holds a lot of connected state, and nowhere
+else. It's 13 files (about 1,800 lines) against about 10,300 lines of Astro.
+
+- **Why it's worth having:**
+  - **It's cheap to load:** about 19 KB compressed, loaded only on the pages
+    that use it.
+  - **It doesn't change speed:** the audio work, which is where time goes, is
+    plain TypeScript either way.
+  - **It makes busy screens easier to write and change:** each piece of state
+    is declared once and the screen follows it. The Export flow and the file
+    picker would need many hand-written DOM updates in Astro, and missing one
+    leaves a screen out of step.
+- **Use Svelte** for:
+  - screens with steps, live previews, pickers and sheets;
+  - anything where one choice changes several parts of the screen.
+- **Stay with Astro** for:
+  - pages that are mostly static, such as the library, sign-in, setup and most
+    settings sections;
+  - server-rendered pages.
+  - Don't convert a working Astro page just to convert it.
+- **Next to move:** Mic check (`components/app/MicCheck.astro`) and Wrapping
+  up (`pages/episodes/[id]/wrap.astro`).
+  - Both are step flows written as Astro with a lot of hand-written update
+    code. They reach the Svelte step tabs and player through
+    `lib/step-shell.svelte.ts`.
+  - Move each one the next time it needs real changes, following
+    `ExportFlow.svelte`: the page loads the data and mounts one Svelte
+    component that owns the steps.
+  - Once both have moved, only Script import (`ImportDialog.astro`) still uses
+    `step-shell`. Move it too, then delete `step-shell`.
+  - The `data-*` hooks the browser tests use must stay the same. Run
+    `npm run test:browser -- mic` (or `guest guest-sync` for Wrapping up)
+    before and after.
+
 ## Deliberate departures from the design handoffs
 
 - **Export page:** it's `session.astro`, not `package.astro`.
@@ -106,9 +142,11 @@ the next stage (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
    - make the server refuse to start on a database newer than it knows.
 3. **Real devices:** the iPhone mic and background behaviour, and phones as
    guests over a real network.
-4. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
+4. **Mic check and Wrapping up in Svelte**, the next time either needs real
+   changes (see [Svelte or Astro](#svelte-or-astro-the-rule)).
+5. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
    It needs a monitor path that Podstudio doesn't have yet.
-5. **Small clean-ups:**
+6. **Small clean-ups:**
    - bring `development.md`'s stack and layout up to date (Svelte, `steps/`,
      `export-files.ts`, `user-settings.ts`);
    - clear stale OPFS noise variants.
