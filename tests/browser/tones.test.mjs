@@ -16,7 +16,7 @@ await page.click('[data-tone-more] summary');
 ok('settings show tone defaults', (await page.locator('[data-tone-value=duck]').textContent()) === '−12 dB' && (await page.locator('[data-tone-kind=retake]').isChecked()));
 await page.click('label:has([data-tone-kind=cut])'); ok('cough chip ticks', await page.locator('[data-tone-kind=cut]').isChecked());
 await page.waitForTimeout(300);
-await page.goto(B + '/episodes/142/recording');
+await page.goto(B + '/episodes/142/recording?legacy=1');
 await page.waitForTimeout(1500);
 await page.click('[data-start]');
 await page.waitForTimeout(2000);
@@ -26,7 +26,7 @@ await page.keyboard.down('c'); await page.waitForTimeout(500); await page.keyboa
 await page.waitForTimeout(2000);
 await page.keyboard.press('m'); await page.click('[data-end]'); await page.click('dialog [value=end]');
 await page.waitForURL('**/saved?take=*');
-await page.click('[data-export]'); await page.waitForURL('**/session?take=*'); await page.evaluate(() => sessionStorage.clear()); await page.reload(); await page.waitForSelector('[data-step-tab]');
+await page.click('[data-export]'); await page.waitForURL('**/export-legacy?take=*'); await page.evaluate(() => sessionStorage.clear()); await page.reload(); await page.waitForSelector('[data-step-tab]');
 ok('switch names the kinds', /retake and cough/.test(await page.locator('[data-tone-kinds]').textContent()), await page.locator('[data-tone-kinds]').textContent());
 ok('off by default', !(await page.isChecked('[name=tones]')));
 const exportZip = async (dir) => {

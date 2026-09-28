@@ -117,7 +117,7 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const episodeId = root.dataset.episode!;
   const id = new URL(location.href).searchParams.get('take');
-  const exportUrl = () => `/episodes/${episodeId}/session?take=${encodeURIComponent(id ?? '')}`;
+  const exportUrl = () => `/episodes/${episodeId}/${new URL(location.href).searchParams.has('legacy') ? 'export-legacy' : 'editor'}?take=${encodeURIComponent(id ?? '')}`;
   const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
 
   // ── The steps (lib/step-shell.svelte.ts). Line up and Review open once the guest's track is here. ──
@@ -155,7 +155,7 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
     bar.next =
       i < steps.length - 1
         ? { label: `Next: ${steps[i + 1].label}`, onclick: () => go(i + 1), disabled: !guestTake }
-        : { label: 'Continue to export', onclick: () => (location.href = exportUrl()), attrs: { 'data-continue': '' } };
+        : { label: 'Open editor', onclick: () => (location.href = exportUrl()), attrs: { 'data-continue': '' } };
     if (step.id !== 'uploads' && guestTake) showLineUp();
     if (step.id === 'lineup' && guestTake && !player.ready) build();
     playing.update();

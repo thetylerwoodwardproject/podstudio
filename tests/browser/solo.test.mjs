@@ -20,7 +20,7 @@ const counts = async () => { await page.keyboard.press('m'); const t = await pag
 
 await page.goto(B + e + '/script');
 await page.evaluate(() => localStorage.clear());
-await page.goto(B + e + '/recording');
+await page.goto(B + e + '/recording?legacy=1');
 await page.waitForTimeout(2500);
 const lvl = await page.locator('[data-level-text]').textContent();
 ok('meter live before start (the mic check)', /−1[01] dB/.test(lvl), lvl);
@@ -127,7 +127,7 @@ ok('listen plays', await page.evaluate(() => !document.querySelector('[data-play
 
 // Export: raw WAV + markers + edit
 await page.click('[data-export]');
-await page.waitForURL('**/session?take=*');
+await page.waitForURL('**/export-legacy?take=*');
 await toStep(page, 'export');
 const [dl] = await Promise.all([page.waitForEvent('download'), pickAndDownload(page)]);
 const zipPath = `${S}/dl-solo/s.zip`;

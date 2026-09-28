@@ -1,9 +1,7 @@
 # Running Podstudio on a VPS
 
 Podstudio is one Node process with a SQLite database and a data folder, behind
-Caddy for HTTPS (or Nginx with Certbot, if you prefer). The first real VPS
-validation is still pending; confirm memory use and upgrade behaviour in the
-[lab checks](roadmap.md#current-stage-a-lab-environment-on-a-real-vps).
+Caddy for HTTPS (or Nginx with Certbot, if you prefer). The first real VPS is installed and validation is underway; track memory use and upgrade behavior in the [lab checks](roadmap.md#current-stage-real-world-vps-and-editor-validation).
 Recording is done in the browser; the server stores what's uploaded, so size the
 disk for your audio (24-bit / 48 kHz mono is about 520 MB an hour per speaker).
 
@@ -118,7 +116,7 @@ PORT=4321
 
 ```
 /var/lib/podstudio/
-  podstudio.db          accounts, settings, episodes, scripts, pads, sessions (SQLite, WAL)
+  podstudio.db          accounts, settings, episodes, scripts, pads, sessions and editor project metadata (SQLite, WAL)
   takes/<id>/           your recordings: seg-000001.pcm … + meta.json
   live/<session>/guest/ guests' recordings
   media/                pad sounds (WAV)
@@ -142,15 +140,15 @@ podstudio:podstudio`, start it.
 ## Upgrading
 
 ```sh
-cd podstudio && git pull
+cd /opt/podstudio
+sudo -u podstudio git pull --ff-only origin main
 sudo ./deploy/install.sh
 ```
 
 It sees the existing install, shows the version you have and the one you're
 installing, and asks before going on. The database is copied to
 `/var/backups/podstudio/pre-<old version>-<date>.db` first, then the new version
-is built, migrated on start and restarted. Your recordings and settings aren't
-touched. Sessions and invite codes survive a restart, so a guest who's connected
+is built, migrated on start and restarted. Your recordings, settings and non-destructive editor projects are not touched. Migration 4 adds the editor-project table; the installer backs up the database before applying it. Sessions and invite codes survive a restart, so a guest who's connected
 reconnects on their own.
 
 To roll back: check out the previous version and run the installer again, then

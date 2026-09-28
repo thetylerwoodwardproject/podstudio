@@ -108,6 +108,18 @@ test('two gaps add up', async () => {
   assert.equal(audioTime(50, [[10, 12], [30, 35]]), 43);
 });
 
+test('a coordinated pause contains no samples and shifts later markers once', async () => {
+  const { onAudio } = await import('./assemble.ts');
+  const on = onAudio([
+    { t: 10, end: 15, kind: 'pause', line: 1, recorded: false },
+    { t: 20, kind: 'retake', line: 2 },
+  ], [{ t: 18, line: 2 }]);
+  assert.equal(on.markers[0].t, 10);
+  assert.equal(on.markers[0].end, 10);
+  assert.equal(on.markers[1].t, 15);
+  assert.equal(on.lineLog[0].t, 13);
+});
+
 test('a cough mutes, it never cuts', () => {
   const withCough: SessionMarker[] = [
     ...markers,

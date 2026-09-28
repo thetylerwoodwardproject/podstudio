@@ -6,7 +6,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 - [Recording solo](#recording-solo)
 - [With a guest and a producer](#with-a-guest-and-a-producer)
 - [Keeping tracks in sync](#keeping-tracks-in-sync)
-- [Exporting, step by step](#exporting-step-by-step)
+- [Podstudio Editor](#podstudio-editor)
 - [Ready to publish](#ready-to-publish)
 - [Hotkey pads](#hotkey-pads)
 - [Keys (laptop)](#keys-laptop)
@@ -22,7 +22,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
   - **Retake** (button, **R**, or double-tap/double-click the script): a tone you hear but isn't recorded, a marker, and back to the start of the line.
   - **Ad-lib** (button or **A**): off-script talk that stays in the edit. Voice follow also marks one after about six words that aren't in the script, and ends it when it hears the script again. The script holds your place meanwhile.
   - **Undo** (**U** or ⌘Z) for 4 s after a retake, cough or ad-lib.
-  - **More** (`···` or **M**): a bottom sheet on a phone, a popover on a laptop, with Pause (**P**; Resume counts down 3-2-1), text size 80–160 % (⌘+ ⌘−, saved per device), jump to section (**1–9** while it's open), the mic (changeable before you start), how much is saved, marker counts, the retake tone, and End session.
+  - **More** (`···` or **M**): a bottom sheet on a phone, a popover on a laptop, with Pause (**P**; host and guest stop accepting samples, playing pads freeze, and Resume counts down 3-2-1), text size 80–160 % (⌘+ ⌘−, saved per device), jump to section (**1–9** while it's open), the mic (changeable before you start), how much is saved, marker counts, the retake tone, and End session.
   - Tap or click a line to move there, drag or scroll to look around, **← →** or a page turner's PageUp/PageDown change lines.
   - **The meter** snaps up to each peak and falls 12 dB a second (like a broadcast peak meter), however often the device reports levels. A tick holds the highest peak of the last 1.5 s, which is the number beside it, so −12 dBFS sits mid-amber. If the system pauses the mic (iOS does for calls, Siri and other apps, and browsers keep audio off until you tap), a warning says so with a button to turn it back on. If a mic arrives with a silent input 1 and signal on another input, Podstudio switches to that input before you record, or warns if you're already recording. On iPhone and iPad it asks for a one-channel mic. **Copy diagnostics** in More includes the mic's settings, state and each input's level.
   - The laptop shows markers on a thin timeline above the bar: amber retakes, grey coughs, blue ad-libs, red gaps, and pad presses in their colours.
@@ -30,7 +30,7 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
   - **Mic stopped**: audio stops arriving while the clock runs on (an iPhone leaving the screen, the mic taken away). The gap is marked, not filled with silence: its length is measured from the samples that did arrive, and markers after it are moved back by that much when they're mapped onto the audio. **Resume recording** restarts the mic into the same file.
   - Clipping, a Bluetooth mic (call quality; tap to switch to the built-in mic before you start), battery at 20 % and 10 % (where the browser reports it), and less than 30 minutes of space left.
   - The screen stays awake while recording.
-- **Session saved** (`/episodes/142/saved`): length and markers, the raw WAV (size and format), how long the assembled edit is, and whether the server has it all; Transcribe and Record another. The bar at the bottom plays the whole recording, **Original / Cleaned**, with **Export** beside it. Cleaned is only a way of listening here; noise suppression is set for real in Export.
+- **After End Session:** a computer opens the Podstudio Editor. A phone opens **Session saved** (`/episodes/142/saved`) with length, markers, raw WAV details, server status and playback, plus **Open editor** for later desktop work.
 - **Voice follow keeps going**: after a network error it keeps reconnecting (waiting up to 30 s between tries), a failed start is retried, and a watchdog restarts recognition when the meter hears you talking but no words come back for 10 s (Chrome sometimes stalls silently). A ring next to REC shows its state (green listening, amber reconnecting, red stopped), More shows it with the restart count, and a warning with **Restart voice follow** appears if it stays down. Every restart, error and stall goes into the session's voice log: **Copy diagnostics** in More, and `…_voice-log.txt` in the export.
 - **Marker tones** (export switch, set up in Settings → Recording): a short beep mixed into the full recording at each retake, and optionally coughs (yours only), ad-libs, pauses and mic stops, each at its own pitch. **Pitch** moves them all: Low (a retake at 600 Hz), 1 kHz, or High (1.6 kHz). They're ducked **under your voice** (default 12 dB); **More** has which markers beep, the tone level, and the attack (how fast they drop when you start talking, default 10 ms) and release (how fast they come back, default 150 ms). The card has a clean, isolated preview for each of the five marker types and shows its current frequency; these use the same generator, pitch, duration and level as export. The edit stays clean, and only the moments around the tones are re-encoded.
 - **Lossless audio**: mono or stereo WAV at 16 or 24-bit, recorded through MediaRecorder PCM on supported Chromium browsers, on the mic’s own clock and at its own rate (nothing is resampled on that path). iPhone/iPad use AudioWorklet PCM at the AudioContext rate. On the MediaRecorder path, Web Audio only drives the meters, because it runs on the output device's clock, and with an interface in and other speakers out Chrome dropped or repeated samples. Browser echo cancellation, noise suppression and auto gain are off. Audio is saved to the browser's private file system every 5 seconds.
@@ -39,11 +39,11 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
 - **Mic check** (`/episodes/142/mic-check`), four steps: **Input** (the mic, free space, and the numbers under Advanced details), **Level** (one meter in the traffic-light zones and a plain-language line saying what to turn), **Test** (a 10-second recording, and a line to read for voice follow) and **Noise** (below). The test plays in the bar at the bottom; **Start recording** is on the last step. It's a check, not a gate: every tab is open. It can be switched off in Settings → Recording.
 - **Crash recovery**: if the tab closes mid-session, the next visit to the studio, library or sessions page opens the recovered-session screen. At most the last 5 seconds are lost.
 - **Your own script**: on the script page, **Import or paste** opens three steps. **Paste**: pasted text or a .txt/.md file (`## Heading` lines become sections). **Sections**: each with its lines and read time at your prompter speed; click a name to rename it, drag the handle (or Alt+↑/↓) to reorder, and its lines move with it. **Review**: the script as it will read, then Import. The bar at the bottom sums it up ("4 sections · 64 lines · ~8:15 read time"). Full-screen on a phone. Every screen uses the script, and lines can be edited in place.
-- **Session export** (8b): the raw WAV with its markers embedded as cues, Audacity labels and a CSV, plus an optional assembled edit that keeps the last attempt of each line, mutes coughs on the cougher's track, and cuts, keeps or splits at pauses.
+- **Editor and export:** the desktop editor opens after End Session, keeps every edit as metadata and exports a finished WAV, optional MP3 and optional aligned raw tracks. Retakes and pause suggestions are reviewed explicitly; coughs are muted only in the finished mix.
 - **Noise suppression**, like Waves NS1: one fader, adaptive, no noise print to capture. It uses [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) (MIT/Apache), built to WebAssembly and served from `public/vendor/deepfilter`, so nothing leaves the browser. The fader sets how much the model may take away (halfway allows 20 dB; the top takes all it can), and your voice is left alone. With noise under speech the model's per-frequency gain jumps about from one 10 ms frame to the next, which made voices sound fluttery (and quieter, so compression and levelling pumped them back up); its gains are steadied (they rise at once and fall over 80 ms) before they're applied, which takes that wobble from 1.4 to 0.5 dB at 70 % on a noisy test recording while the background still drops 20 dB. The raw WAV is never changed: a cleaned copy is kept beside the recording and reused.
-  - **Export** (step 02, Noise): the room's noise floor, measured in the quiet between lines, with a suggested setting ("Use 40 %"), the fader, and how far the background comes down ("Background −24 dB"). The preview plays **Original / Cleaned / Removed**; Removed is only what's being taken away, so you can hear whether it's eating into words. Tone and loudness come after it and are heard on the cleaned audio. With it on, the picker offers both versions: the unprocessed WAV and edit, plus `_clean.wav` and `_edit_clean.wav`, cut the same way from the cleaned audio so the markers line up in both.
+  - **Editor:** noise amount is a per-voice control in the FX sheet and is heard in the cumulative timeline preview. It is applied only while rendering playback or a finished export; raw source audio remains unchanged.
   - **Credits**: Settings → About & credits lists DeepFilterNet3 and everything else Podstudio ships, with licences.
-  - **Listen** (Session saved's Cleaned, and the switch on every card on the Sessions list): it plays a cleaned 12 s from where you are within a few seconds, cleans the whole session in the background, then carries on with it from the same moment. The cleaned copy is kept and shared with Export.
+  - **Listen:** Session Saved and Sessions can still compare Original/Cleaned. In the editor, the same processor runs in bounded windows as part of the cumulative preview.
   - **Mic check** (step 04, Noise): the noise floor of your test recording, a suggested setting (quieter than −60 dBFS: not needed; −60 to −45: 40 %; louder: 70 %) with **Use 40 %**, the fader and how far the background comes down. The test plays **Original / Cleaned / Removed**. The setting you pick is the export default, also in Settings → Recording.
   - Cost: about 19 MB downloaded once (the 11 MB engine, 2 MB gzipped, and the 8 MB model), then cached. It runs at 2–4× real time on a laptop, so a 30-minute episode takes around 10 minutes to clean, and longer on a phone. The server could run the native `deep-filter` binary instead, which is much faster (planned).
   - `scripts/build-deepfilter.sh` rebuilds the engine from a pinned upstream commit.
@@ -62,8 +62,8 @@ missing, see [Known gaps](#known-gaps); for what's next, [roadmap.md](roadmap.md
   - **Guest** (`/guest`), on a laptop or phone (iPhone too): a green room (name, mic, level in the usual zones, "on the call with headphones"), then waiting for the host. When the session starts, their device records their mic losslessly and **uploads 5 s pieces as it goes**, retrying when the network drops. Cough (hold) on their screen mutes their own track in the edit for that moment; yours isn't touched. At the end: "All sent", and **Download my recording** as a backup. Only one guest can be connected at a time.
   - **Producer** (`/producer`), any browser, never asks for a mic: the live script (edit any line and everyone gets it), Start / Pause / End for everyone, Retake and Ad-lib, ← → and sections (no cough button: a cough is marked by whoever coughs), and the guest's level, upload progress and code.
 - **The host's recording screen** is in charge: it records your track, shares the session state, and applies the producer's and guest's actions. A chip in the header shows the guest's level and uploads, with a warning if they stop recording or drop off.
-- **Wrapping up** (`/episodes/142/wrap`), three steps. **Uploads**: after End, it waits for the guest's last pieces and brings their track into this browser. **Line up**: both tracks' waveforms over 30 s from the middle, played **Host / Guest / Both**, and a **guest offset** to nudge them later or earlier in 5 ms steps (hold to repeat, up to ±500 ms). It says what lined them up (sync points, and how much drift was corrected, or start times), and the nudge goes on top, into every export and its report. **Review**, then Continue to export. If an upload failed, **Add the guest's file** takes the WAV they downloaded. **Export waits for the guest's track** wherever you open it from: the export page and the Sessions list both send you to the wrap-up until it's in, with "Export without them" as a deliberate, confirmed choice.
-- **Export** offers a raw WAV and an edit for each person, lined up on your timeline: the guest's is corrected for clock drift and gaps (see [Keeping tracks in sync](#keeping-tracks-in-sync)), and both edits get the same cuts, so they're the same length. Each person's coughs are muted in their own edit only. Noise suppression makes cleaned copies of both; marker tones go on your track only.
+- **Preparing the editor:** after End, the desktop editor waits for the guest’s final segments, downloads missing server segments on demand, applies automatic start, drift and gap correction, and then opens the synchronized tracks. If an upload is missing, the existing **Add guest file** recovery accepts the guest’s backup WAV.
+- **Editor/export** aligns the guest with drift and gap correction (see [Keeping tracks in sync](#keeping-tracks-in-sync)). Linked edits keep tracks together. The finished mix mutes each person’s cough only on that voice; optional raw tracks keep cough audio and place configured marker tones on the host copy only.
 - **The server API** is in `docs/server-api.md`, implemented by `server/live.ts`. Sessions, codes and tokens are in SQLite, so restarting the server keeps them. Joining is limited to 20 tries per address per 10 minutes, so codes can't be guessed.
 
 ## Keeping tracks in sync
@@ -125,126 +125,26 @@ shows the same. Accuracy is set by the browser's timing, typically within 10
 to 20 ms. Recordings made before sync points existed are lined up by their
 start times only.
 
-## Exporting, step by step
+## Podstudio Editor
 
-The export page is five steps, in the order the audio is processed, one
-decision each: **Edit → Noise → Tone → Loudness → Export**. Tabs across the
-top go back to any step you've reached; Back and Next are in the bar at the
-bottom. The settings are kept for the session while the tab is open, so going
-back or reloading never loses them; the defaults come from Settings →
-Recording.
+The desktop workflow is **Record → Editor → Export → Optional AI tools**. End Session opens `/episodes/:id/editor?take=:takeId`; the old `/session` URL redirects there. Phones remain on Session Saved because the full editing surface is desktop-only.
 
-The bar is also the preview: 30 s of the episode through everything up to the
-step you're on, with a before and after for that step (**Raw / Edit**,
-**Original / Cleaned / Removed**, **Before / With tone**, **Before /
-Levelled**, **Raw / Final**). It says what's playing ("Edit → Noise 40 % →
-Tone → −16 LUFS"); switching keeps your place; changing a setting while it
-plays updates it in a second or so. Because noise suppression comes before
-tone and loudness, boosting a voice doesn't bring the room back up.
+- **Timeline:** a large ruler, one quiet marker lane (`RET`, `COUGH`, `AD-LIB`, `PAUSE`) and one readable waveform lane for each host, guest, pads or imported source. Existing timestamps and sync logs align tracks automatically. Audio is read in bounded windows around the playhead and waveform peaks are cached, so a long session is not decoded into memory at once.
+- **Editing:** select a clip or range, split, trim either edge, move, delete to leave a gap, or ripple-cut across linked synchronized tracks. Tracks stay linked unless explicitly unlinked. Space plays or pauses; Delete removes; S splits; X ripple-cuts; ⌘/Ctrl-Z and ⌘/Ctrl-Shift-Z undo and redo. Shortcuts do nothing while typing in a control.
+- **Retakes:** markers and script history form attempt groups. The last attempt is suggested, but every group must be reviewed before export. Choose another attempt if needed, adjust its boundaries, loop either join, then confirm **Keep last take** or the selected attempt. Source recordings remain untouched.
+- **Pauses:** shared quiet stretches of at least three seconds become suggestions. Leave each one alone, shorten it to one second and adjust the boundary, or remove it. Podstudio never strips natural pauses automatically.
+- **Tracks and FX:** every track has Mute, Solo, FX and Level. Solo changes listening only; mute and level also affect the finished mix. The FX sheet gives voice tracks noise amount, Low/Mid/High tone, Off/Light/Medium/Heavy compression and speech leveling. Pads and imports get tone and compression.
+- **Imports:** WAV, MP3, M4A, FLAC and other formats the browser can decode become a new track at the playhead and use the existing media store.
+- **Playback:** one persistent player previews the cumulative project. It keeps the playhead while edits and FX change. Internally it renders a rolling 30-second window and prefetches the next one; this is not a 30-second playback limit.
+- **Autosave and recovery:** project metadata saves locally immediately and then to `/api/editor-projects/:takeId` after a short delay. The header reports Saving, Saved, Waiting for connection, Failed or Conflict. A conflict stops autosave until **Reload server version** or **Overwrite with this version** is chosen. Past Sessions reconstructs the timeline from immutable source references and saved metadata.
 
-1. **Edit**: the assembled edit, marker tones, and what happens to pauses
-   (cut, keep, split); with pads, the Pads track and the rough mix; the
-   markers list.
-2. **Noise**: see [Noise suppression](#recording-solo).
-3. **Tone**: each voice's EQ and compressor (below).
-4. **Loudness**: the target, and **Measured / After / True peak** for the
-   preview, the loudness over those 30 s against the target, and Level each
-   speaker.
-5. **Export**: your chain (each stage with a Change link back to it) and what
-   goes in the zip (below). Afterwards the page shows what the finished
-   episode measured.
+### Export
 
-After the zip is ready, Export confirms **Your export is ready** and that the
-download has started, with the actual file count and zip size. **Back to
-sessions** is the primary action. **Download again** reuses that zip, and
-**Adjust export settings** returns to the chosen settings and files. Any
-finished-episode measurements remain below the confirmation. Reloading returns
-to the export settings; it doesn't claim a download finished saving.
+The editor’s compact export sheet always includes a finished WAV. MP3 and **Include raw tracks** are optional. A finished mix applies the selected takes, trims, cuts, pause decisions, track mute/level, noise, EQ, compression, speech leveling, loudness and true-peak limiting. It never includes marker tones.
 
-### Choosing the files
+Raw exports are aligned full host, guest, pads and imported tracks. They retain all attempts, cough audio and other unprocessed material. Coordinated pause intervals contain no recorded samples; equivalent intervals in older sessions are removed while raw files are assembled. Configured marker tones are rendered into the host raw export without modifying the source recording.
 
-**Export…** (or **Choose files**) opens a list of every file your chain makes,
-in four groups: your recording untouched, the assembled edit, ready to
-publish, and markers and reports. Each says what it is and how big it'll be;
-tick just the ones you want. **Everything**, **To publish** (the episode and
-its MP3) and **For my DAW** (the edit files and the markers) pick a set in one
-go, and each group has All / None. The zip has exactly the ticked files, and
-only the work they need is done (no cleaning unless a selected file needs it, no
-mastering without an episode or a processed copy). A note says why a file
-isn't offered (the edit off, noise suppression off).
-
-**Use this selection every time** saves the kinds of file you ticked ("each
-voice's edit, cleaned"), not their names, so it applies to the next episode, a
-guest's files and split parts. Next time the saved ones start ticked and any
-other kind starts unticked; **Forget saved** (here or in Settings → Recording)
-goes back to everything.
-
-## Ready to publish
-
-Every export gives you two ways out: the files for your own post-production
-(an untouched WAV and an edit per person, lined up, with timecode), and an
-episode you can upload to your podcast host as is. The episode is set in the
-Tone and Loudness steps, with the defaults in Settings → Recording, and picked
-(or not) in Export's file list:
-
-- **Episode file.** Everyone's edit, and the Pads track if you
-  used pads, mixed into `…_Episode.wav`. If pauses are set to split, there's
-  one per part (`…_Episode_part2.wav`).
-- **Loudness.** **Stereo** at −16 LUFS (the default), **Mono** at −19 LUFS
-  (the same loudness heard on one channel), or **Off**. Loudness is measured to
-  ITU-R BS.1770-4 / EBU R128 (K-weighted, gated), the gain is set to reach the
-  target, and a true-peak limiter keeps everything under −1 dBTP so encoding
-  to MP3 or AAC doesn't clip. Off mixes and limits only, with no gain. In
-  stereo, voices sit in the centre and the pads keep their width. In mono,
-  stereo pads are summed to one channel, (L + R) ÷ 2, so they sit at the same
-  balance against the voices as in stereo; the export page says so when an
-  episode has pads.
-- **Level each speaker** (off by default). A slow leveler on each voice before
-  the mix, so a quiet guest and a loud host come out even: it steers each
-  voice toward the same speech level by up to ±12 dB, holds its gain through
-  pauses (room noise and silence are never pushed up), and a gentle 3:1
-  compressor catches laughs and shouts. It also offers a levelled copy of each
-  person’s edit in the picker (`…_edit_levelled.wav`) for your DAW. The Pads
-  track isn't levelled.
-- **MP3.** `…_Episode.mp3` beside the WAV: 192 kbps
-  stereo or 128 kbps mono, with an ID3 tag carrying the episode's name.
-  Encoded in the browser by LAME (lamejs, LGPL), which loads only when an MP3
-  is made.
-
-- **Tone** (per person, off until you set it). A ten-band graphic EQ (31 Hz
-  to 16 kHz, ±12 dB) and a compressor for each voice, applied to their edit
-  before the leveller and the mix. The graph shows a speech target, the
-  voice's own long-term spectrum (measured from their take) before and with
-  the EQ, and the EQ curve. Presets (Flat, Warm, Clear, De-mud, Radio; Custom
-  once you move a band), and **Match to target**, which
-  suggests bands that move the voice toward the target by up to 6 dB each.
-  Sweep a finger or the mouse across the faders to draw the curve, or drag
-  the dots on the graph; on a phone all ten fit. The compressor is **Off,
-  Light, Medium or Heavy** (about 3, 6 and 10 dB off the loudest words);
-  **More** opens its curve (input against output, with the voice's level
-  riding on it while you preview) and its threshold, ratio, knee and make-up
-  gain. Each person's tone is remembered by name (Settings →
-  Recording → Tone lists them). With tone on and levelling off, the picker also
-  offers a toned copy of each edit (`…_edit_toned.wav`); with levelling on, the
-  levelled copy includes the tone.
-- **The preview** runs the export's own chain (noise suppression, tone,
-  leveller, loudness target, limiter), so what you hear is what you get. On
-  the Tone step, **Before / With tone** are at the same loudness, so the
-  comparison is about tone and not level.
-- **Loudness graph** (on by default; Settings → Recording): short-term
-  loudness over the preview against the target (green within 1 LU), and after
-  an export, over the whole episode with its integrated loudness, range and
-  true peak. `…_export.txt` has the same figures and each person's tone.
-
-The episode is made from the same audio as the edits: lined up and drift
-corrected, coughs muted, and cleaned when noise suppression is on. The
-originals are never changed. `…_export.txt` in the zip gives the result,
-for example "Episode: −16.0 LUFS integrated (−21.3 before, gain +5.3 dB),
-stereo, true peak under −1 dBTP; levelling on".
-
-It all runs in your browser, like noise suppression, so the server does no
-extra work. On a recent laptop an hour with two speakers takes about 4
-minutes to mix and level, and about 5 more for the MP3.
+After packaging, the editor shows **Your export is ready**, **Back to sessions** and **Download again**. The project remains editable after export. Optional AI tools is visible as coming soon.
 
 ## Hotkey pads
 
@@ -307,7 +207,7 @@ authentication (an authenticator app, plus ten one-time recovery codes). After t
 
 **What's on the server:** episodes (the home page lists them; **+ New episode** takes the next number), each
 episode's script, show setup (solo or with a guest, script mode, talking points) and hotkey pads, and the pad
-sound library, and your settings (recording, export, prompter, and the files you save to export), so
+sound library, your revisioned editor project metadata, and your settings (recording, export and prompter), so
 they follow you to any browser you sign in on; the microphone choice stays per device. Pages are rendered with the server's copy and it's kept in this browser too, so the recording
 screen works offline; a change made offline goes up on the next page load. Scripts carry a version, so a tab
 with an old copy can't overwrite a newer one (it takes the newer copy instead).
@@ -330,5 +230,5 @@ browser: **Bring into this browser**, then play or export as usual. Deleting a s
 - **Setup wizard:** admin account creation and two-factor setup work. The broader Server check, OpenAI key and Done steps are not implemented; after two-factor setup, the Domain screen still shows example checks.
 - **OpenDyslexic** is listed as a prompter font, but the font isn't bundled yet, so it falls back to Atkinson Hyperlegible.
 - **Mock values:** model names are placeholders. The version (Settings → About and Server, `/api/health`) comes from `package.json`.
-- **Planned next** (designs in hand, not built yet): see `docs/roadmap.md`. It covers the next stage: a lab environment on a real VPS, with versioned releases and upgrade paths.
+- **Validation next:** the editor and installer are being exercised on the real lab VPS. See `docs/roadmap.md` for upgrade, long-session, real-device and optional AI work.
 - **One guest per session**, by design. Video isn't part of it: the call app carries video if you want it.

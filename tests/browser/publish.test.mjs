@@ -10,12 +10,12 @@ const browser = await chromium.launch({ executablePath: CHROME,
 const ctx = await browser.newContext({ ignoreHTTPSErrors: true, permissions: ['microphone'], acceptDownloads: true, viewport: { width: 1300, height: 900 } });
 const page = await ctx.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('dialog', (d) => d.accept());
-await page.goto(B + '/episodes/142/recording'); await page.waitForTimeout(2000);
+await page.goto(B + '/episodes/142/recording?legacy=1'); await page.waitForTimeout(2000);
 await page.click('[data-start]'); await page.waitForTimeout(30000);
 await page.keyboard.press('m'); await page.click('[data-end]'); await page.click('dialog [value=end]');
 await page.waitForURL('**/saved?take=*');
 const take = new URL(page.url()).searchParams.get('take');
-await page.goto(`${B}/episodes/142/session?take=${take}`); await page.evaluate(() => sessionStorage.clear()); await page.reload();
+await page.goto(`${B}/episodes/142/export-legacy?take=${take}`); await page.evaluate(() => sessionStorage.clear()); await page.reload();
 await toStep(page, 'loud');
 const loudDefaults = (await page.isChecked('[name=pub-loudness][value=stereo]')) && !(await page.isChecked('[name=pub-level]'));
 await toStep(page, 'export');

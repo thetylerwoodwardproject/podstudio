@@ -89,7 +89,7 @@ await page.evaluate(() => {
   localStorage.setItem('podstudio:script:142', '## Cold open\n[pad 1]\nIt was a quiet week in the studio, until the new transmitter arrived.\nFour pallets. I counted.\n## The install\nSo this episode is about what happens after the crate is open.\nAnd then some.');
   localStorage.setItem('podstudio:script:142:dirty', '1');
 });
-await page.goto(B + e + '/recording');
+await page.goto(B + e + '/recording?legacy=1');
 await page.waitForTimeout(2500);
 ok('rail shows', await page.locator('[data-pad-rail]').isVisible());
 ok('strip hidden on a laptop', await page.locator('[data-pad-strip]').isHidden());
@@ -160,7 +160,7 @@ await page.click('[data-end]');
 await page.click('dialog [value=end]');
 await page.waitForURL('**/saved?take=*');
 await page.click('[data-export]');
-await page.waitForURL('**/session?take=*');
+await page.waitForURL('**/export-legacy?take=*');
 await page.evaluate(() => sessionStorage.clear()); await page.reload(); await page.waitForSelector('[data-step-tab]');
 ok('export lists the Pads track', await page.locator('[data-pads-row]').isVisible(), await page.locator('[data-pads-row]').textContent());
 await page.check('[name=mix]', { force: true });
@@ -215,7 +215,7 @@ ok('rough mix same length', Math.abs(get('_RoughMix.wav').sec - mic.sec) < 0.001
 const pctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 820 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
 const phone = await pctx.newPage();
 phone.on('pageerror', (x) => errs.push('phone ' + x.message));
-await phone.goto(B + e + '/recording');
+await phone.goto(B + e + '/recording?legacy=1');
 await phone.waitForTimeout(2500);
 ok('phone: strip shows, rail doesn\'t', (await phone.locator('[data-pad-strip]').isVisible()) && (await phone.locator('[data-pad-rail]').isHidden()));
 const stripRing = (k) => phone.evaluate((k) => !!document.querySelector(`[data-pad-strip-row] [data-pad-key="${k}"]`).style.boxShadow, k);

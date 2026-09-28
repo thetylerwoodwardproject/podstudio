@@ -24,6 +24,8 @@ export interface SessionMarker {
   attempt?: number;
   /** Pauses: when recording resumed. Ad-libs: when the script resumed. Cuts and gaps: when they ended */
   end?: number;
+  /** False when a coordinated pause stopped the recorder, so this wall-clock interval has no samples. */
+  recorded?: boolean;
   /** Gaps, after onAudio(): seconds the mic was stopped (the audio has none of them) */
   lost?: number;
   /** Coughs: whose track it mutes (none = the host's) */
@@ -37,7 +39,7 @@ export const CUT_PADDING = 0.15;
 
 /** Wall-clock stretches the mic was stopped, in order. */
 function gapRanges(markers: SessionMarker[]): Range[] {
-  return merge(markers.filter((m) => m.kind === 'gap' && m.end != null).map((m) => [m.t, m.end!] as Range));
+  return merge(markers.filter((m) => (m.kind === 'gap' || (m.kind === 'pause' && m.recorded === false)) && m.end != null).map((m) => [m.t, m.end!] as Range));
 }
 
 /** Where wall-clock time `t` is in the audio: earlier gaps taken off (a time inside a gap lands where it started). */

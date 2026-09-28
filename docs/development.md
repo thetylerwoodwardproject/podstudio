@@ -42,7 +42,7 @@ push that commit to both `feat/ui-build` and `main`. Commit as
 ## Stack
 
 - **Astro 7** with the Node adapter: pages are prerendered where possible; the adapter serves dynamic pages. `server/main.ts` serves the built app with the API and live room. **node:sqlite** stores the database and **ws** handles the live room.
-- **Svelte 5** for stateful panels: the Export flow and picker, step tabs and player, Tone and Loudness panels, Saved player, and marker-tone card. Simple pages stay Astro. Audio processing, file work and timing-critical recording code stay plain TypeScript. Follow the [migration rules](handoff.md#svelte-or-astro-the-rule); don’t convert a working page just to convert it.
+- **Svelte 5** for stateful panels: the Podstudio Editor, export and FX sheets, pad editor, Saved player, and marker-tone card. Simple pages stay Astro. Audio processing, file work and timing-critical recording code stay plain TypeScript. Follow the [migration rules](handoff.md#svelte-or-astro-the-rule); don’t convert a working page just to convert it.
 - **Tailwind CSS 4** via `@tailwindcss/vite`. The design tokens are in `src/styles/global.css`.
 - **UI framework:** every screen follows [docs/ui-framework.md](ui-framework.md) (tokens, components, type, writing); the full reference is `docs/design/Podstudio_UI_Framework.dc.html`.
 - **Fonts:** the system sans and mono stacks for the app; the prompter's Atkinson Hyperlegible is self-hosted from `@fontsource`, so nothing loads from Google.
@@ -62,7 +62,8 @@ server/
   cli.ts                    reset-password, reset-2fa
   library.ts                episodes, scripts (versioned), show setup, pads, the sound library (media/)
   takes.ts                  host recordings uploaded as they're made (takes/<id>/seg-*.pcm + meta.json)
-  user-settings.ts          account settings API (migration 3); microphone deviceId stays local
+  user-settings.ts          account settings API; microphone deviceId stays local
+  editor-projects.ts        revisioned EditorProjectV1 API (migration 4)
   testing.ts                test helper: the API on a random port, signed in
 dev/server-plugin.ts        mounts server/api.ts in npm run dev
 docs/server-api.md          the API for guests and producers
@@ -99,7 +100,9 @@ src/
     audio/sync.ts       clock fitting, drift/gap correction and Broadcast WAV timecode
     audio/line-up.ts    host/guest waveforms for the wrap-up offset nudge
     audio/preview-player.ts  swaps preview choices at the same playhead
-    audio/chain-preview.ts   caches Raw → Edit → Noise → Tone → Loudness previews
+    editor-project.ts       versioned project model and non-destructive edit commands
+    audio/editor-render.ts   bounded timeline playback and offline project rendering
+    audio/chain-preview.ts   legacy five-step export preview cache
     audio/tone.ts, master.ts, loudness.ts, mp3.ts  EQ, compression, levelling, loudness and MP3
     audio/pad-engine.ts, pads-render.ts, pads-export.ts  live pads and exported pad tracks
     platform.ts         iPhone/iPad, Android, touch
@@ -108,7 +111,7 @@ src/
     mock-forms.ts       data-next navigation for the remaining mock forms
   layouts/              Base (browser gate), AppShell (top bar), Phone, Setup
   components/ui/        Button, Field, Select, Segmented, Switch, Checkbox, OtpInput, Callout, …
-  components/app/       TopBar, ImportDialog, MicCheck, ExportFlow, ExportPicker, SavedPlayer, PreviewStates
+  components/app/       EditorFlow, TopBar, ImportDialog, MicCheck, legacy ExportFlow/ExportPicker, SavedPlayer
   components/steps/     StepTabs, StepPage, StepPlayer, ToneStep, LoudnessGraph
   components/settings/  one component per settings section
   pages/                routes (below)
@@ -138,8 +141,10 @@ chats/                  the design conversation
 | — | `/join` | Enter a 6-digit guest or producer code |
 | 6a | `/guest` | The guest: green room, waiting, recording and upload |
 | — | `/producer` | The producer: live script, session controls, the guest |
-| — | `/episodes/142/wrap` | Uploads → Line up (guest offset) → Review |
-| 8b | `/episodes/142/session` | Edit → Noise → Tone → Loudness → Export, file picker and completion state |
+| — | `/episodes/142/editor?take=…` | Desktop timeline, retake/pause review, FX, autosave and compact export |
+| — | `/episodes/142/saved?take=…` | Phone fallback and recording summary |
+| — | `/episodes/142/session?take=…` | Compatibility redirect to the editor |
+| — | `/episodes/142/export-legacy?take=…` | Retained five-step exporter for compatibility/regression tests |
 | 2d, 2e | `/episodes/142/transcribing`, `/episodes/142/package` | Transcript and episode package (mock data) |
 | 7a | `/settings/<section>` | Nine sections, including About & credits. Domain & HTTPS has `?state=ok\|warn\|local`. |
 

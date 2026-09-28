@@ -28,7 +28,7 @@ ok('two 6-digit codes', /^\d{6}$/.test(guestCode) && /^\d{6}$/.test(producerCode
 await host.goto(B + '/episodes/142/script');
 await host.locator('[data-script-lines] button').nth(1).click();
 await host.waitForTimeout(600);
-await host.goto(B + '/episodes/142/recording');
+await host.goto(B + '/episodes/142/recording?legacy=1');
 await host.waitForTimeout(1500);
 
 // Guest joins with the code, on another browser
@@ -125,7 +125,7 @@ ok('wrap-up brings in the guest track', await throughWrap(host, until, async () 
   await host.click('[data-play]');
   await host.waitForTimeout(600);
 }));
-await host.waitForURL('**/session?take=*');
+await host.waitForURL('**/export-legacy?take=*');
 await toStep(host, 'export');
 const [dl] = await Promise.all([host.waitForEvent('download'), pickAndDownload(host)]);
 await dl.saveAs(`${S}/guest/x.zip`);
@@ -151,7 +151,7 @@ ok('host edit not muted there', hostThere > 1e-3, hostThere.toExponential(1));
 // Export stays locked while a guest's track is missing
 const hostTake = new URL(host.url()).searchParams.get('take');
 await host.evaluate(async (id) => { const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('takes'); await d.removeEntry(`${id}-guest`, { recursive: true }); }, hostTake);
-await host.goto(`${B}/episodes/142/session?take=${hostTake}`);
+await host.goto(`${B}/episodes/142/export-legacy?take=${hostTake}`);
 await toStep(host, 'export');
 ok('export waits for the guest', (await host.locator('[data-guest-missing]').isVisible()) && (await host.locator('[data-export]').isDisabled()), await host.locator('[data-guest-missing]').textContent());
 await host.goto(`${B}/episodes/142/sessions`);
@@ -159,6 +159,7 @@ await host.waitForTimeout(1000);
 ok('sessions list points to the wrap-up', /wrap\?take=/.test(await host.locator('[data-open]').first().getAttribute('href')) && /waiting for Sam/.test(await host.locator('[data-card] [data-summary]').first().textContent()));
 await host.locator('[data-open]').first().click();
 ok('wrap-up fetches it again', await throughWrap(host, until));
+await host.goto(`${B}/episodes/142/export-legacy?take=${hostTake}`);
 await toStep(host, 'export');
 ok('then export is open', (await host.locator('[data-guest-missing]').isHidden()) && !(await host.locator('[data-export]').isDisabled()));
 ok('no page errors', !errs.length, errs.join('\n'));

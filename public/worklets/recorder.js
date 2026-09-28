@@ -27,6 +27,11 @@ class PodstudioRecorder extends AudioWorkletProcessor {
     this.inPeaks = [];
     this.port.onmessage = (e) => {
       if (e.data === 'record') this.recording = true;
+      if (e.data === 'pause') {
+        this.flush();
+        this.recording = false;
+      }
+      if (e.data === 'resume') this.recording = true;
       // Switch to another input of the device (before recording: the input 1 was silent).
       if (e.data && typeof e.data.channel === 'number') this.channel = e.data.channel;
       if (e.data === 'stop') {

@@ -96,6 +96,8 @@ export class MicCapture extends EventTarget {
   channel: number | null = null;
   /** Whether the recorder is running */
   recording = false;
+  /** A deliberate session pause: the mic remains open, but no samples are accepted. */
+  paused = false;
   /** Since when the recorded input has been silent while another one has signal */
   private silentSince = 0;
   private silentTold = false;
@@ -242,6 +244,7 @@ export class MicCapture extends EventTarget {
   record() {
     this.startedAt = performance.now();
     this.recording = true;
+    this.paused = false;
     if (!MicCapture.pcmRecording || !this.stream) {
       this.node?.port.postMessage('record');
       return;
@@ -272,9 +275,28 @@ export class MicCapture extends EventTarget {
     this.recorder = rec;
   }
 
+  /** Stop accepting samples without closing the microphone or ending this take. */
+  pause() {
+    if (!this.recording || this.paused) return;
+    this.paused = true;
+    if (this.recorder && this.recorder.state === 'recording') {
+      this.recorder.requestData();
+      this.recorder.pause();
+    } else this.node?.port.postMessage('pause');
+  }
+
+  /** Continue the same take after a deliberate pause. */
+  resumeRecording() {
+    if (!this.recording || !this.paused) return;
+    this.paused = false;
+    if (this.recorder && this.recorder.state === 'paused') this.recorder.resume();
+    else this.node?.port.postMessage('resume');
+  }
+
   /** Stop recording; resolves after the last partial chunk has been delivered. */
   stop(): Promise<void> {
     this.recording = false;
+    this.paused = false;
     if (this.recorder) {
       const done = this.recorded;
       if (this.recorder.state !== 'inactive') this.recorder.stop();

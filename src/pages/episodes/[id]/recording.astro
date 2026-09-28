@@ -859,8 +859,10 @@ const zones = [
     if (state !== 'rec') return;
     coughUp();
     endAdlib();
-    paused = { t: now(), kind: 'pause', line: currentLine };
+    paused = { t: now(), kind: 'pause', line: currentLine, recorded: false };
     markers().push(paused);
+    capture.pause();
+    pads?.engine.pauseAll();
     setState('paused');
   }
   async function resume() {
@@ -877,6 +879,8 @@ const zones = [
     counting = false;
     if (paused) paused.end = now();
     paused = null;
+    capture.resumeRecording();
+    pads?.engine.resumeAll();
     setState('rec');
   }
   const togglePause = () => (state === 'rec' ? pause() : resume());
@@ -1585,8 +1589,14 @@ const zones = [
     await capture.close();
     ended = true;
     sendState();
-    // With a guest, wait for their track before exporting.
-    location.href = `/episodes/${episodeId}/${room ? 'wrap' : 'saved'}?take=${encodeURIComponent(meta.id)}`;
+    // The full editor is desktop-only. Phones keep the compact saved screen.
+    // `legacy` exists only for regression coverage of the retained exporter.
+    if (params.has('legacy')) {
+      location.href = `/episodes/${episodeId}/${room ? 'wrap' : 'saved'}?take=${encodeURIComponent(meta.id)}&legacy=1`;
+      return;
+    }
+    const mobile = matchMedia('(max-width: 700px), (pointer: coarse) and (max-width: 900px)').matches;
+    location.href = `/episodes/${episodeId}/${mobile ? 'saved' : 'editor'}?take=${encodeURIComponent(meta.id)}`;
   }
 
   addEventListener('beforeunload', (e) => {

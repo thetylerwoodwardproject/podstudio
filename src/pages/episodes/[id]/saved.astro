@@ -124,7 +124,9 @@ const rule = 'mx-5 h-px bg-divider';
       props: {
         take,
         original: async () => (original ||= URL.createObjectURL(await takeWav(take))),
-        exportHref: `/episodes/${episodeId}/session?take=${encodeURIComponent(take.id)}`,
+        exportHref: new URL(location.href).searchParams.has('legacy')
+          ? `/episodes/${episodeId}/export-legacy?take=${encodeURIComponent(take.id)}`
+          : `/episodes/${episodeId}/editor?take=${encodeURIComponent(take.id)}`,
       },
     });
   }

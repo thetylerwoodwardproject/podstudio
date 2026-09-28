@@ -137,7 +137,9 @@ check, Wrapping up, Script import). Design: `design/step-flow/`.
   clickable, not yet reached is handle and disabled. A screen that checks
   rather than gates (Mic check) leaves every tab open.
 - **Bar** (`steps/StepPlayer.svelte`), pinned at the bottom on surface:
-  - the preview: a play circle, what's playing ("Edit → Noise 40 % → Tone")
+  - the editor transport: play/pause, the current cumulative mix, current time,
+    duration and timeline zoom. Long sessions use rolling render windows without
+    exposing those buffers as a playback limit.
     with the time and a 3px progress line;
   - the step's before and after as a segmented control (Raw / Edit, Original /
     Cleaned / Removed, Before / With tone …). Switching keeps the playhead; a

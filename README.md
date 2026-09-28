@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  A free, self-hosted teleprompter and podcast recorder.<br>
-  Read your script, record lossless WAV, and keep every retake marked.
+  A free, self-hosted teleprompter, podcast recorder and lightweight editor.<br>
+  Record lossless synchronized tracks, edit in the browser, and keep the source audio recoverable.
 </p>
 
 <p align="center">
@@ -64,7 +64,8 @@ kept in step.
 | ✂️ **Marked, not cut** | Retake, cough and ad-lib are one key each. The raw WAV stays whole; the export adds an edit that keeps your last attempt of each line |
 | 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and the session from anywhere |
 | ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
-| 📦 **Publish as is, or take it to your DAW** | A ready-to-publish episode at −16 LUFS stereo or −19 LUFS mono (WAV and MP3), with optional levelling, a graphic EQ and compressor per voice, and a loudness meter, with each person’s raw and edited WAV available for your own post-production |
+| ✂️ **Podcast editor** | A desktop timeline with synchronized waveforms, retake and pause review, linked edits, undo/redo, per-track podcast FX, autosave, and a continuous cumulative preview |
+| 📦 **A finished mix or raw tracks** | Export a mastered WAV, optional MP3, and optional aligned host, guest, pads and imported raw tracks. Finished mixes contain the edits and no marker tones; host raw exports can carry configured marker tones |
 | 🎛️ **Hotkey pads** | Nine sounds on the number keys, configured in a desktop or phone sheet from uploads, previous sessions or the library, previewed live, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |
 | 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
@@ -78,16 +79,10 @@ The recording workflow also includes:
   device and channel selection, and Original / Cleaned / Removed previews.
 - **Recording safeguards:** mic-stop, clipping, battery and storage warnings,
   offline upload retries, crash recovery, and voice-follow diagnostics.
-- **Guest wrap-up:** wait for uploads, listen to Host / Guest / Both, nudge the
-  guest offset, or import their backup WAV before export.
-- **Export choices:** Edit → Noise → Tone → Loudness → Export. Pick individual
-  files or use Everything, To publish, or For my DAW; save the kinds of file you
-  want for future sessions. WAVs, edits, cleaned and processed copies, MP3,
-  marker tones, Audacity labels, CSV markers and reports are available as
-  applicable to the chosen processing.
-- **Export completion:** a confirmation with the actual file count and zip
-  size, Back to sessions, Download again, and Adjust export settings. Finished
-  episode measurements remain available below it.
+- **Editor after recording:** desktop users go straight from End Session to a synchronized timeline. Select, split, trim, move, delete or ripple-cut clips; review retakes and long-pause suggestions; use Mute, Solo, Level and a focused FX sheet per track; import browser-decodable audio; and undo or redo edits. Phones keep the Session Saved screen and link to the desktop editor.
+- **Non-destructive projects:** source WAV and PCM segments never change. Clip boundaries, link groups, markers, FX, track levels and export choices autosave as compact, revisioned project metadata, with a browser recovery copy for offline work.
+- **One cumulative preview:** playback always reflects the current edits, gain, mute and FX. It streams a rolling 30-second window around the playhead and prefetches the next window, so long sessions play continuously without loading the whole recording into memory.
+- **Simple export:** a compact sheet always includes the finished WAV and can add MP3 and aligned raw tracks. Completion shows Back to sessions and Download again; Optional AI tools is reserved for a later release.
 - **Sessions and settings across devices:** recordings upload as you go and
   can be brought into another browser to play or export. Recording, export and
   prompter settings follow your account; microphone selection stays on the
@@ -104,11 +99,11 @@ Every feature in detail: [docs/features.md](docs/features.md).
 <table>
   <tr>
     <td width="50%"><img src="docs/images/recording-more.png" alt="The More panel while recording: pause, text size, sections, the mic and what's saved"></td>
-    <td width="50%"><img src="docs/images/export.png" alt="Export as steps: Edit, Noise, Tone, Loudness, Export, with a preview at the bottom"></td>
+    <td width="50%"><img src="docs/images/editor.png" alt="Podstudio Editor with synchronized tracks, markers, transport and export"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>More</b>: pause, text size, jump to a section, the mic and what's saved</sub></td>
-    <td align="center"><sub><b>Export</b>: one step at a time, with a before-and-after preview of each</sub></td>
+    <td align="center"><sub><b>Editor</b>: synchronized tracks, quiet markers and one cumulative preview</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/script.png" alt="The script editor, with sections and the running word count"></td>
@@ -137,7 +132,7 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 | | |
 |---|---|
-| ✅ **Works now** | Solo recording with voice follow, markers and warnings · exports (WAV with cues, Audacity labels, the assembled edit, noise suppression, marker tones, a ready-to-publish episode at −16 LUFS with optional levelling, tone per voice (EQ and compressor), a loudness meter, and MP3) · guest and producer sessions, kept in sync (drift and gap correction, Broadcast WAV timecode) · a mixer view on a laptop or phone · hotkey pads, with faders on a phone · accounts with two-factor · episodes, scripts and recordings stored on the server · settings synced per account · selectable export files and a completion screen · the guided installer |
+| ✅ **Works now** | Solo recording with voice follow, markers and warnings · a desktop, non-destructive podcast editor with synchronized tracks, retake and pause review, linked editing, imports, per-track FX, autosave and undo/redo · finished WAV/MP3 and optional aligned raw-track exports · guest and producer sessions with drift and gap correction · a mixer view on a laptop or phone · hotkey pads with phone faders · accounts with two-factor · episodes, scripts, recordings and editor projects stored on the server · the guided installer |
 | 🚧 **Validation underway** | The first real VPS is installed for real-world testing · checking upgrades, iPhone recording and guest sessions on real devices and networks |
 | 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and transcription. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |
@@ -202,7 +197,7 @@ guide is [docs/deploy.md](docs/deploy.md).
 ## For developers
 
 The [Checks workflow](.github/workflows/checks.yml) runs unit/server tests,
-Astro and Svelte checks, the build, and all 13 Chromium browser tests on pushes
+Astro and Svelte checks, the build, and all 14 Chromium browser tests on pushes
 and pull requests. Browser failure logs and screenshots are retained for seven
 days; see [the browser test guide](tests/browser/README.md).
 

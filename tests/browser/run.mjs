@@ -11,7 +11,7 @@ import { B, DATA, OUT } from './env.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../..');
 // Quick ones first; the guest tests run two browsers for a few minutes each.
-const ORDER = ['import', 'mic', 'saved', 'flow', 'publish', 'tones', 'pads', 'ns', 'ns-player', 'solo', 'uploads', 'guest', 'guest-sync'];
+const ORDER = ['import', 'mic', 'editor', 'saved', 'flow', 'publish', 'tones', 'pads', 'ns', 'ns-player', 'solo', 'uploads', 'guest', 'guest-sync'];
 const all = readdirSync(HERE).filter((f) => f.endsWith('.test.mjs')).map((f) => f.slice(0, -9));
 const names = process.argv.slice(2).length ? process.argv.slice(2) : [...ORDER.filter((n) => all.includes(n)), ...all.filter((n) => !ORDER.includes(n))];
 for (const n of names) if (!all.includes(n)) throw new Error(`No test called ${n} (there are: ${all.join(', ')})`);

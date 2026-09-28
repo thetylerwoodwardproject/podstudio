@@ -49,6 +49,7 @@ export function createApi(ctx: Context): Api {
     if (p[0] === 'me' && p[1] === 'settings' && p.length === 2) return settings.handle(req, res, accounts.who(req).user!.id);
     if (await ctx.library.handle(req, res, url, p)) return;
     if (await ctx.takes.handle(req, res, url, p)) return;
+    if (await ctx.editorProjects.handle(req, res, p)) return;
     throw new HttpError(404, 'Not found');
   };
 

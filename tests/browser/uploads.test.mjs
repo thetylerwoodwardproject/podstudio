@@ -12,7 +12,7 @@ const actx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { wid
 const a = await actx.newPage();
 a.on('pageerror', (x) => errs.push('A ' + x.message));
 a.on('dialog', (d) => d.accept());
-await a.goto(B + e + '/recording');
+await a.goto(B + e + '/recording?legacy=1');
 await resetSettings(a, () => ({}), { clear: true });
 await a.waitForTimeout(2000);
 await a.click('[data-start]');
@@ -48,7 +48,7 @@ ok('other browser lists it as on the server', await until(async () => (await b.l
 await b.click(`[data-server-take="${takeId}"] button`);
 await b.waitForURL(`**/sessions?take=${takeId}`);
 ok('brought in: a session card', await until(async () => (await b.locator(`[data-card="${takeId}"]`).count()) === 1));
-await b.goto(`${B}${e}/session?take=${takeId}`);
+await b.goto(`${B}${e}/export-legacy?take=${takeId}`);
 await toStep(b, 'export');
 const [dl] = await Promise.all([b.waitForEvent('download'), pickAndDownload(b)]);
 execSync(`rm -rf ${S}/uploads/x && mkdir -p ${S}/uploads/x`);

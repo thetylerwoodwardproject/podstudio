@@ -17,7 +17,7 @@ with a message fit to show the person.
   two-factor setup complete.
 - **guest**: at most one per session. Records their own track locally and uploads it.
 - **producer**: never records. Follows and edits the script, marks retakes,
-  ad-libs and pauses, starts/pauses/stops the session, and manages invite
+  ad-libs and pauses, starts/pauses/resumes/stops the session on the shared clock, and manages invite
   codes. Cough is controlled by the person recording; lobby admission is the host’s.
 
 Each person holds a **token** for the session, sent as `Authorization: Bearer <token>`
@@ -92,7 +92,7 @@ Messages between people (`src/lib/room.ts` has the types):
 
 | type | from | contents |
 |---|---|---|
-| `state` | host | `{ state: { recording, paused, ended, startedAtServer, word, line, point, markers, scriptVersion, mode, hostName, adlib, cut } }`. The host is the authority; markers are in seconds on the host's recording clock. |
+| `state` | host | `{ state: { recording, paused, ended, startedAtServer, word, line, point, markers, scriptVersion, mode, hostName, adlib, cut } }`. The host is the authority; markers are in seconds on the host’s recording clock. Pause/resume is scheduled on the shared clock so host and guest stop accepting samples together, while active pads suspend at their current position. |
 | `script` | host, producer | `{ version, text }`: the whole script (import format) after an edit |
 | `command` | producer, guest | `{ action }`: `start`, `pause`, `resume`, `stop`, `retake`, `adlib`, `next`, `prev`, `goto {word}`, `section {index}`, `point {index}`, `cough {down}` (guest) |
 | `guest` | guest | `{ name, level?, now?, clip?, recording?, uploaded?, pending?, done?, mic?, word?, take? }` about twice a second |
@@ -114,6 +114,18 @@ own track. Older recordings without sync logs use the start-time offset
 (`src/lib/audio/align.ts`). Wrapping up can add a manual guest offset of up to
 ±500 ms. Exported WAVs carry Broadcast WAV timecode, and the optional export
 report describes corrections. See [track sync](features.md#keeping-tracks-in-sync).
+
+
+## Editor projects
+
+Signed-in editor clients store compact, non-destructive project metadata. Audio remains in existing take segments and media files.
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/api/editor-projects/:takeId` | `{ project, revision, updatedAt }`; `project` is null and revision is 0 before the first save |
+| PUT | `/api/editor-projects/:takeId` with `{ project, baseRevision, force? }` | Saves `EditorProjectV1` and returns the next `{ revision, updatedAt }` |
+
+The take must belong to the episode named by the project. IDs, tracks, clips and numeric clip bounds are validated, and the JSON body is limited to 1 MiB. A stale `baseRevision` returns `409` with the server project and revision. `force: true` is the explicit overwrite action offered by the conflict UI. Database migration 4 creates `editor_projects`; no audio is duplicated in it.
 
 ## Account settings
 

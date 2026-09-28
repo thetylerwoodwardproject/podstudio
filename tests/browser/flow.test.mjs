@@ -18,14 +18,14 @@ await page.goto(B + '/settings/recording');
 await resetSettings(page, (s) => { s.recording ??= {}; s.recording.noiseSuppression = 0; s.recording.exportFiles = null; s.recording.publish = { ...s.recording.publish, voices: {}, meter: true, level: false, loudness: 'stereo' }; return s; });
 let take = process.env.TAKE;
 if (!take) {
-  await page.goto(B + '/episodes/142/recording'); await page.waitForTimeout(2000);
+  await page.goto(B + '/episodes/142/recording?legacy=1'); await page.waitForTimeout(2000);
   await page.click('[data-start]'); await page.waitForTimeout(40000);
   await page.keyboard.press('m'); await page.click('[data-end]'); await page.click('dialog [value=end]');
   await page.waitForURL('**/saved?take=*');
   take = new URL(page.url()).searchParams.get('take');
   console.log('take', take);
 }
-await page.goto(`${B}/episodes/142/session?take=${take}`);
+await page.goto(`${B}/episodes/142/export-legacy?take=${take}`);
 await page.evaluate(() => sessionStorage.clear()); await page.reload();
 await page.waitForSelector('[data-step-tab]');
 
@@ -219,7 +219,7 @@ ok('reload keeps the step and settings', (await text('[data-step-title]')) === '
 // The tone is remembered by name
 await page.goto(B + '/settings/recording'); await page.waitForTimeout(800);
 ok('Settings lists the tone', /Tyler: EQ Clear, compressor Medium/.test(await page.locator('[data-voices-text]').textContent()), await page.locator('[data-voices-text]').textContent());
-await page.goto(`${B}/episodes/142/session?take=${take}`); await page.waitForSelector('[data-step-tab]');
+await page.goto(`${B}/episodes/142/export-legacy?take=${take}`); await page.waitForSelector('[data-step-tab]');
 
 // Phone
 await page.setViewportSize({ width: 390, height: 844 });

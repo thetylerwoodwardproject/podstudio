@@ -8,7 +8,7 @@ const page = await ctx.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
 let fails = 0; const ok = (n, c, x = '') => { if (!c) fails++; console.log(c ? 'PASS' : 'FAIL', n, x); };
 await page.goto(B + '/episodes/142/script'); await resetSettings(page, () => ({}), { clear: true });
-await page.goto(B + '/episodes/142/recording');
+await page.goto(B + '/episodes/142/recording?legacy=1');
 await page.waitForTimeout(1500);
 await page.click('[data-start]');
 await page.waitForTimeout(70000);

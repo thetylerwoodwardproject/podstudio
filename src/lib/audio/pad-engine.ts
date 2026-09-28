@@ -110,6 +110,16 @@ export class PadEngine {
     this.ctx?.resume().catch(() => {});
   }
 
+  /** Freeze active sources at their exact positions during a coordinated pause. */
+  pauseAll() {
+    this.ctx?.suspend().catch(() => {});
+  }
+
+  /** Continue every frozen pad from the same position. */
+  resumeAll() {
+    this.ctx?.resume().catch(() => {});
+  }
+
   /** A pad key went down (or a click). */
   press(key: number) {
     const pad = this.pads.get(key);

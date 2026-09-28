@@ -131,4 +131,15 @@ export const migrations: string[] = [
     updated_at INTEGER NOT NULL
   );
   `,
+  // 4 · Non-destructive editor projects. Audio remains in takes/media; this is only the edit decision list.
+  `
+  CREATE TABLE editor_projects (
+    take_id TEXT PRIMARY KEY REFERENCES takes(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL,
+    value TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX editor_projects_episode ON editor_projects (episode_id, updated_at);
+  `,
 ];

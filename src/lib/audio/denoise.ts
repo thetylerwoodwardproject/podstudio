@@ -4,12 +4,12 @@
  * is never changed: a cleaned copy is kept beside it (see VariantWriter in
  * takes.ts), and exports and previews read whichever they need.
  */
-import { amountToDb, backgroundReduction } from './denoise-core';
-import { VariantWriter, hasVariant, readFrames, type TakeMeta } from './takes';
-import { encodeWav } from './wav';
-import type { Reply, Request } from './denoise.worker';
+import { amountToDb, backgroundReduction } from './denoise-core.ts';
+import { VariantWriter, hasVariant, readFrames, type TakeMeta } from './takes.ts';
+import { encodeWav } from './wav.ts';
+import type { Reply, Request } from './denoise.worker.ts';
 
-export { amountToDb, suggestAmount } from './denoise-core';
+export { amountToDb, suggestAmount } from './denoise-core.ts';
 
 /**
  * The folder name of a take's cleaned copy at a fader setting. "ns2": made with

@@ -348,12 +348,12 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     setStage(recording ? 'rec' : writer ? 'rec' : 'waiting');
     $('[data-banner-title]').textContent = recording
       ? s!.paused
-        ? 'Paused · still recording'
+        ? 'Paused'
         : 'Recording'
       : `You're in`;
     $('[data-banner-body]').textContent = recording
       ? s!.paused
-        ? `${hostName} paused. Stay on the call; this stretch is left out of the edit.`
+        ? `${hostName} paused. Stay on the call; your recorder resumes with the host.`
         : 'Talk as you normally would. Your track uploads as you go.'
       : `Waiting for ${hostName} to start recording. Stay on the call with your headphones on.`;
     $('[data-light-text]').textContent = recording ? (s!.paused ? 'Paused' : 'Recording') : 'Waiting to start';
@@ -366,6 +366,8 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     }
     if (recording && !writer) start();
     else if (!recording && writer) stop();
+    else if (recording && writer && s!.paused && !capture.paused) capture.pause();
+    else if (recording && writer && !s!.paused && capture.paused) capture.resumeRecording();
   }
 
   room.on('setup', (msg) => {

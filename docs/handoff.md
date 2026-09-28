@@ -1,211 +1,112 @@
 # Handoff: where Podstudio is, and what's next
 
-Updated 27 September 2026 for the settings audio-controls work. Read this first, then
-[README.md](../README.md), [development.md](development.md) (commands and
-layout), [features.md](features.md) (what each screen does) and
-[ui-framework.md](ui-framework.md) (the rules every screen follows).
+Read this first, then `CLAUDE.md`, `docs/ui-framework.md`, `docs/features.md`,
+`docs/development.md`, `docs/server-api.md`, `docs/deploy.md`, and
+`docs/roadmap.md` as needed.
 
 ## Where it stands
 
-Recording, voice follow, guests and producers, uploads, and export all work
-end to end locally and in Linux CI. The full application is now installed on
-the first lab VPS for real-world testing (see [Next steps](#next-steps)). Version `0.1.0`, schema 3
-(three migrations).
+Podstudio `0.1.0` is in active development and installed on the first lab VPS
+for real-world testing. Database schema 4 is current. Recording, synchronized
+guest capture, hotkey pads, the desktop editor, browser audio processing and
+finished/raw export are implemented. Phone recording remains supported; the
+full editor is desktop-only and phones land on Session Saved.
 
-**Recently landed**, newest first:
+The current workflow is **Record → Podstudio Editor → Export → Optional AI
+tools**. The previous five-step export implementation remains at
+`export-legacy.astro` for compatibility and regression coverage, while
+`/episodes/:id/session` redirects to `/episodes/:id/editor`.
 
-| Commit | What |
-|---|---|
-| This delivery | **Settings audio controls.** Hotkey pads use a Svelte setup sheet with atomic drafts, previous browser/server sessions, clip uploads and live preview; all six standards colours render from concrete tokens. Marker settings preview all five clean export tones. Every Settings page reports saving, saved, offline/waiting and failed server writes. |
-| `ed89995` | **Export completion.** Actual zip count and size, “Your export is ready”, Back to sessions, Download again (the same zip), and Adjust export settings. Keeps the finished measurements and sync report. Browser coverage includes failure and raw-only exports, focus, scrolling and phone layouts. |
-| `722803e`, `e15794a` | **CI checks.** GitHub Actions runs unit/server tests, both type checks, the build and all 13 browser tests. Saves logs and screenshots for seven days. The upload test selects the raw WAV explicitly instead of relying on filesystem order. |
-| `d6abc49` | **Export: pick the files that go in the zip.** A Choose files sheet with every file in four groups, each with a line saying what it is and its size; quick picks (Everything, To publish, For my DAW); "Use this selection every time" saves the *kinds* of file, so the selection carries across episodes, guests and split parts. |
-| `50f0385` | **Steady noise suppression.** The flutter on EQ and compression came from DeepFilterNet's gain jumping frame to frame. `GainSmoother` (`lib/audio/denoise-core.ts`) holds the model's gain per frequency (instant rise, 80 ms fall). At 70 %: jitter 1.36 → 0.48 dB, speech loss 3.8 → 1.3 dB. Cleaned copies are cached as `ns2-*`, so old `ns-*` ones are made again. **Settings are kept on the server** (per account, migration 3) and follow you to any device; the chosen microphone stays per device. |
-| `e714bc5` … `dd95765` | **The step flow** (design handoff in `design/step-flow/`): Export, Mic check, Wrapping up (with a guest offset nudge), Script import, Session saved and marker tones. Noise now comes before Tone, and each step's preview plays the chain up to that step. |
+## Editor core
 
-## Architecture pointers
+- `src/pages/episodes/[id]/editor.astro` loads local and server takes, aligns
+  guests, creates bounded source readers, mounts the editor, imports audio and
+  renders exports.
+- `src/components/app/EditorFlow.svelte` owns the timeline, selections,
+  transport, sheets, undo/redo, autosave/conflicts and export state.
+- `src/lib/editor-project.ts` is the versioned, non-destructive project model
+  and edit command layer. Source PCM/WAV is only referenced; it is never
+  rewritten.
+- `src/lib/audio/editor-render.ts` renders only clips overlapping the requested
+  window. Playback uses rolling 30-second windows with prefetch, so it is not
+  limited to 30 seconds and does not decode a whole long session at once.
+- `server/editor-projects.ts` stores compact project JSON with revision checks
+  through `GET`/`PUT /api/editor-projects/:takeId`.
+- Finished export renders each audible track through its editor FX before the
+  existing loudness/true-peak master. Marker tones are absent. Optional raw
+  tracks retain attempts and cough audio; the host raw copy receives configured
+  marker tones during rendering.
 
-- **One Node process** (`server/main.ts`): the API (`server/api.ts`) in front
-  of Astro's built pages, SQLite through `node:sqlite`, and the live room over
-  `ws`. Caddy terminates HTTPS in production (`deploy/`).
-- **Database:** numbered migrations in `server/migrations.ts`. Only ever add
-  one; never edit a released one.
-- **Browser:** Astro pages with Svelte 5 (runes) for stateful panels. See
-  [development.md](development.md) for the current stack and layout.
-  - **Step flow:** `components/steps/` (StepTabs, StepPlayer, StepPage,
-    ToneStep, LoudnessGraph). Export owns its flow in Svelte; Mic check,
-    Wrapping up and Script import still use `lib/step-shell.svelte.ts`.
-  - **Preview player:** `lib/audio/preview-player.ts` swaps A/B at the same
-    playhead.
-  - **Chain preview:** `lib/audio/chain-preview.ts` builds the preview stage by
-    stage (Raw → Edit → Noise → Tone → Loudness), caching each stage.
-- **Export:** `src/pages/episodes/[id]/session.astro` does the loading and
-  writes the zip. `ExportFlow.svelte` is the steps and `ExportPicker.svelte`
-  the file sheet.
-  - `lib/export-files.ts` plans the files. Its one list drives both the picker
-    and the zip, so the count on the button is always what's in the zip.
-  - The file names have to match the zip writer's naming. A test checks that
-    the default case gives exactly 11 files.
-- **Noise suppression:** DeepFilterNet3 runs in a worker
-  (`lib/audio/denoise.worker.ts`): resample to 48 kHz, the model, then
-  `GainSmoother`, then resample back. Cleaned copies are cached in OPFS by
-  `variantName`. Bump its prefix whenever the processing changes.
-- **Settings:** `lib/settings.ts` is the store.
-  - Every save goes to `localStorage` at once and is PUT to `/api/me/settings`
-    400 ms later.
-  - Every page pulls the settings on load (`syncSettings()` in `Base.astro`).
-    If the server copy is newer it replaces the local one and fires
-    `podstudio:settings`.
-  - The microphone choice is `recording.deviceId`; that field never leaves
-    the device. Recording and prompter settings sync; the recording screen’s
-    separate `podstudio:text-size` zoom key also stays local.
-  - `lib/save-status.ts` is the typed browser event shared by account settings
-    and pad synchronization. `SaveStatus.svelte` renders it in every Settings
-    section; mock-only controls do not emit persistence states.
-- **Hotkey pads:** `components/settings/PadsEditor.svelte` owns the setup
-  sheet and its draft. Audio decoding, OPFS/server media storage, session
-  import and playback remain in `lib/pads.ts`, `lib/audio/takes.ts` and
-  `lib/audio/pad-engine.ts`.
+The editor supports linked split, trim, move, delete and ripple cut, explicit
+unlinking, selection, zoom, keyboard shortcuts, retake review, pause choices,
+imports, per-track mute/solo/level and focused FX. Retake groups must be
+reviewed before a finished export. Autosave writes a local recovery copy first,
+then uses server revisions and exposes offline and conflict states.
 
-## Tests
+## Recording and synchronization
 
-- **Checks:** `npm test` (232 unit and server tests), `npx astro check`,
-  `npx svelte-check` and `npm run build`. All pass at `ed89995`, locally and in CI.
-- **Browser tests:** `npm run build`, then `npm run test:browser` (about
-  15 minutes). They run in real Chromium with a fake mic and check the files in
-  each downloaded zip. They live in [`tests/browser/`](../tests/browser/README.md):
-  - `run.mjs` starts the built server with empty data on `:4400`, runs each
-    test and stops the server;
-  - `steps.mjs` has the shared helpers. `resetSettings(page, change, {clear})`
-    puts known settings on the server first. Settings are per account on the
-    server, so without it one test's settings leak into the next.
+`src/lib/audio/capture.ts` and `public/worklets/recorder.js` can pause and resume
+sample acceptance. A shared Pause command stops host and guest samples on the
+session clock and suspends active pads; Resume uses the existing countdown and
+pads continue from the same position. Pause intervals are recorded in metadata.
+Older sessions have their recorded pause intervals removed when editor sources
+or raw exports are assembled.
 
-The [CI workflow](../.github/workflows/checks.yml) also runs the full browser
-suite on pushes and pull requests. It uses Playwright Chromium via `PS_CHROME`
-and retains diagnostics for seven days, without automatic retries.
+Guest sync remains in `src/lib/audio/sync.ts`, with start-time fallback in
+`align.ts`. The editor shows Preparing editor until final guest segments and
+drift correction are ready. Missing guest uploads retain the Add guest file
+recovery path.
 
-## Known issues
+## Other current systems
 
-- **`guest-sync` has a known intermittent failure:** it can report “no
-  measurable drift” for the simulated clock skew. Recent local and CI runs
-  passed, but the test has not been made deterministic. Investigate failures
-  using the logs; a passing rerun alone does not establish the cause.
-- **Settings pages reload on first sync.** A settings page you haven't touched
-  reloads when newer settings arrive from the server. That's harmless, but
-  visible on a slow connection.
-- **Left-over cleaned copies:** old `ns-*` copies stay in OPFS after the
-  switch to `ns2-*`, and nothing clears them. A clean-up of unknown variants
-  would free the space.
-- **Mock data** is listed in [features.md → Known gaps](features.md#known-gaps).
-  It covers transcripts, the package screen and the Domain checks.
+- One Node process: `server/main.ts` serves Astro, JSON APIs and the WebSocket
+  room. SQLite runs in WAL mode; uploaded segments and media are files.
+- Account settings and pad synchronization emit the shared save-status event.
+  Every Settings page reports Saving, Saved automatically, Waiting for
+  connection or Couldn't save.
+- Hotkey pad setup is a Svelte sheet with draft Save/Cancel, six concrete UI
+  palette colors, server-session clips, uploaded browser-decodable clips and a
+  live draft preview.
+- Marker settings provide five clean isolated tone previews generated by the
+  same code and frequency mapping used for raw export.
+- Audio processing stays in plain TypeScript. Svelte owns stateful UI; Astro
+  owns routes and data loading. Keep this boundary when extending the editor.
 
-## Svelte or Astro: the rule
+## Tests and publishing
 
-Svelte is used where a screen holds a lot of connected state, and nowhere
-else. Pages and layouts remain predominantly Astro.
+Run all of these before publishing:
 
-**At a glance:**
+```sh
+npm test
+npx astro check
+npx svelte-check
+npm run build
+npm run test:browser
+```
 
-- **Svelte, already:**
-  - the Export flow, with the file picker and the Tone and Loudness steps;
-  - the step tabs and bottom player;
-  - the marker tones card, the Saved player and the hotkey pad editor sheet.
-- **Svelte, when next changed:**
-  - Mic check, Wrapping up and Script import;
-  - Recording, in pieces;
-  - Guest and Producer.
-- **Astro:**
-  - Studio, Sessions, the script editor, and Settings → Recording and the other
-    settings pages;
-  - the library, sign-in, two-factor setup, Saved and the package screen;
-  - the voice test page and `session.astro` (the shell around the Svelte Export
-    flow).
+The browser suite contains 14 Chromium flows and writes logs/screenshots to
+`tests/browser/.out`. Review new desktop and phone screenshots against
+`docs/ui-framework.md`. The editor unit coverage includes project validation,
+linked/ripple commands, retakes, pause suggestions, bounded source reads and
+finished/raw behavior. Server coverage includes project revisions and
+conflicts.
 
-Svelte is for screens where many things change at once while you use them.
-Astro is for pages that mostly show things and save a form.
+Work on a feature branch. Commit as `Tyler Woodward
+<tyler@fullymodulated.com>` with no co-author trailers. After checks pass, push
+the feature branch, fast-forward `feat/ui-build`, push it, then fast-forward
+`main` and push it.
 
-- **Why it's worth having:**
-  - **It's cheap to load:** about 19 KB compressed, loaded only on the pages
-    that use it.
-  - **It doesn't change speed:** the audio work, which is where time goes, is
-    plain TypeScript either way.
-  - **It makes busy screens easier to write and change:** each piece of state
-    is declared once and the screen follows it. The Export flow and the file
-    picker would need many hand-written DOM updates in Astro, and missing one
-    leaves a screen out of step.
-- **Use Svelte** for:
-  - screens with steps, live previews, pickers and sheets;
-  - anything where one choice changes several parts of the screen.
-- **Stay with Astro** for:
-  - pages that are mostly static, such as the library, sign-in, setup and most
-    settings sections;
-  - server-rendered pages.
-  - Don't convert a working Astro page just to convert it.
-- **Next to move:** Mic check (`components/app/MicCheck.astro`) and Wrapping
-  up (`pages/episodes/[id]/wrap.astro`).
-  - Both are step flows written as Astro with a lot of hand-written update
-    code. They reach the Svelte step tabs and player through
-    `lib/step-shell.svelte.ts`.
-  - Move each one the next time it needs real changes, following
-    `ExportFlow.svelte`: the page loads the data and mounts one Svelte
-    component that owns the steps.
-  - Once both have moved, only Script import (`ImportDialog.astro`) still uses
-    `step-shell`. Move it too, then delete `step-shell`.
-  - The `data-*` hooks the browser tests use must stay the same. Run
-    `npm run test:browser -- mic` (or `guest guest-sync` for Wrapping up)
-    before and after.
-- **Then, each when it next needs real changes** (same rule, same checks):
+## Known issues and next work
 
-  | Screen | Why | Browser tests |
-  |---|---|---|
-  | Recording (`pages/episodes/[id]/recording.astro`, about 1,600 lines of script) | The REC clock, saved indicator, ad-lib/cut pill, warnings, undo toast, pause countdown, More sheet, and guest and producer panels are all state shown in several places. **Move it in pieces** (warnings, header, More sheet first), never in one go. The prompter scroll, level meter and mic capture stay plain TypeScript that Svelte only hosts: they're timing-critical. | `solo pads tones uploads guest` |
-  | Guest (`pages/guest.astro`) | States the host drives: green room, waiting, recording, uploading | `guest guest-sync` |
-  | Producer (`pages/producer.astro`) | Live script position, session state, the guest and the controls, all from the live room | `guest guest-sync` |
-  Studio, Sessions, the script editor and Settings → Recording have moderate
-  state, so they stay Astro. Move one only when a change to it turns out hard
-  to do cleanly as written. The signs:
-  - one choice has to update several places on the screen;
-  - labels and controls start showing things out of step because an update
-    was missed;
-  - the change adds new states, such as loading, empty, error or a new mode;
-  - the change is a redesign, so most of the screen is being rewritten anyway.
-
-  Small changes (wording, a field that only saves a value, a style fix) stay
-  in Astro.
-- **Leave as they are:**
-  - `session.astro`: its screen is already Svelte, and its script loads data
-    and writes the zip, which stays plain TypeScript;
-  - Saved, two-factor setup, the library and sign-in: small or mostly static;
-  - the package screen: still mock data;
-  - `voice.astro`: a test page for voice follow.
-
-## Deliberate departures from the design handoffs
-
-- **Export page:** it's `session.astro`, not `package.astro`.
-- **Fonts:** system fonts, not Geist (the UI framework says so).
-- **Kept although the designs drop them:**
-  - the Tone graph's voice curves and Match to target;
-  - the loudness-over-time graph;
-  - the full compressor controls, under More.
-- **Export files:** the Episode file and MP3 switches left Settings → Recording.
-  The zip now holds what the picker ticks, and a saved selection shows there as
-  "Files in the zip".
-
-## Next steps
-
-1. **The lab VPS** ([roadmap](roadmap.md#current-stage-a-lab-environment-on-a-real-vps)):
-   - exercise the completed `deploy/install.sh` install on its real domain;
-   - tag `v0.2.0` with a `CHANGELOG.md`;
-   - test upgrades from each released schema, not only from an empty
-     database;
-   - make the server refuse to start on a database newer than it knows.
-2. **Real devices:** the iPhone mic and background behaviour, and phones as
-   guests over a real network.
-3. **Screens to Svelte, as they next change:** Mic check and Wrapping up
-   first, then Recording (in pieces), Guest and Producer (the pad editor has
-   moved; see
-   [Svelte or Astro](#svelte-or-astro-the-rule)).
-4. **Calibration** (mockup 1d, [roadmap](roadmap.md#calibration-step-flow-mockup-1d)).
-   It needs a monitor path that Podstudio doesn't have yet.
-5. **Small clean-ups:** clear stale OPFS noise variants and investigate the
-   intermittent guest-sync test.
+1. Validate the editor with long real sessions, multiple guest devices and
+   interrupted uploads on the lab VPS. Watch browser memory, worker time and
+   reconnect behavior.
+2. Validate upgrades from each released schema, including schema 3 → 4 and a
+   restored backup, before calling the installer upgrade path proven.
+3. Test phone recording and coordinated pause/resume on real iOS and Android
+   devices. The full editor intentionally remains desktop-only.
+4. Profile DeepFilterNet and long exports on common laptops. Native server-side
+   acceleration may be explored later, but the current product keeps audio
+   processing in the browser and VPS requirements low.
+5. Optional AI tools, transcription and episode-package features remain future
+   work. Do not let those controls imply a working service yet.

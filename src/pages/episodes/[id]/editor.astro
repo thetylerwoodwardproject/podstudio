@@ -1,0 +1,226 @@
+---
+import EpisodeData from '@/components/app/EpisodeData.astro';
+import { episodePage } from '@/lib/episode-page';
+import AppShell from '@/layouts/AppShell.astro';
+import { episode as mockEpisode } from '@/data/mock';
+
+export const prerender = false;
+const data = episodePage(Astro.params.id);
+if (!data) return new Response('No such episode', { status: 404 });
+const episode = { ...mockEpisode, ...data.episode };
+---
+
+<AppShell title="Editor" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Editor' }]}>
+  <EpisodeData data={data} />
+  <div class="h-full" id="editor-root" data-episode={episode.id} data-label={`Ep${episode.number}`} data-title={episode.label}>
+    <div class="flex h-full items-center justify-center text-[13px] text-text-2" data-loading>Preparing editor…</div>
+    <div class="h-full" data-editor-mount></div>
+  </div>
+</AppShell>
+
+<script>
+  import { mapTime, merge, onAudio, type Range } from '@/lib/audio/assemble';
+  import { renderPads, hasPads, stereoOf } from '@/lib/audio/pads-export';
+  import { lineUp } from '@/lib/audio/line-up';
+  import { cleanEditorProject, createEditorProject, detectPauses, defaultFx, type EditorProjectV1, type EditorTrack, type EditorSource } from '@/lib/editor-project';
+  import { finishedProject, renderEditorWindow, renderProjectWav, type EditorSources } from '@/lib/audio/editor-render';
+  import { getTake, listTakes, rangesWav, saveRemoteTake, type TakeMeta } from '@/lib/audio/takes';
+  import { WavReader, renderMaster, TARGETS } from '@/lib/audio/master';
+  import { encodeMp3 } from '@/lib/audio/mp3';
+  import { decodeToLibraryRate, readLibraryFile, saveLibraryFile } from '@/lib/pads';
+  import { encodeWav, pcmBytes, wavHeader } from '@/lib/audio/wav';
+  import { download, zip, type ZipEntry } from '@/lib/zip';
+  import { loadSettings } from '@/lib/settings';
+  import { mixTones, type PlacedTone, type ToneKind, type ToneSettings } from '@/lib/audio/tones';
+  import type { EditorConflict, EditorExportResult, EditorPreview, EditorSaveResult, EditorTrackView } from '@/components/app/EditorFlow.svelte';
+
+  const root = document.getElementById('editor-root')!;
+  const episodeId = root.dataset.episode!;
+  const label = root.dataset.label!;
+  const title = root.dataset.title!;
+  const query = new URL(location.href).searchParams;
+  const phone = matchMedia('(max-width: 700px), (pointer: coarse) and (max-width: 900px)').matches;
+  if (phone) location.replace(`/episodes/${episodeId}/saved${query.toString() ? `?${query}` : ''}`);
+  else void live();
+
+  async function floats(wav: Blob) {
+    const reader = await WavReader.open(wav);
+    return reader.read(reader.frames);
+  }
+
+  const outside = (duration: number, cuts: Range[]): Range[] => {
+    const out: Range[] = []; let at = 0;
+    for (const [a, b] of merge(cuts)) { if (a > at) out.push([at, a]); at = Math.max(at, b); }
+    if (at < duration) out.push([at, duration]);
+    return out;
+  };
+
+  async function withTones(wav: Blob, tones: PlacedTone[], settings: ToneSettings) {
+    const reader = await WavReader.open(wav);
+    const chunks: Uint8Array[] = []; const step = reader.info.sampleRate * 5; let frame = 0;
+    for (let samples = await reader.read(step); samples.length; samples = await reader.read(step)) {
+      chunks.push(pcmBytes(mixTones(samples, reader.info.channels, reader.info.sampleRate, frame, tones, settings), reader.info.bitDepth as 16 | 24));
+      frame += samples.length / reader.info.channels;
+    }
+    return new Blob([wavHeader(reader.frames, { sampleRate: reader.info.sampleRate, channels: reader.info.channels as 1 | 2, bitDepth: reader.info.bitDepth as 16 | 24 }) as BlobPart, ...(chunks as BlobPart[])], { type: 'audio/wav' });
+  }
+
+  const peaksOf = (audio: Float32Array, channels: number, rate: number, seconds = .5) => {
+    const step = Math.max(1, Math.round(rate * seconds));
+    const out: number[] = [];
+    for (let from = 0; from < audio.length / channels; from += step) {
+      let peak = 0;
+      const end = Math.min(audio.length / channels, from + step);
+      for (let f = from; f < end; f++) for (let c = 0; c < channels; c++) peak = Math.max(peak, Math.abs(audio[f * channels + c]));
+      out.push(peak);
+    }
+    return out;
+  };
+
+  async function live() {
+    const requested = query.get('take');
+    let all = await listTakes(episodeId);
+    const take = (requested ? await getTake(requested) : null) ?? all.filter((t) => t.kind === 'session' && t.status === 'done').at(-1) ?? null;
+    if (!take) {
+      root.querySelector('[data-loading]')!.textContent = 'No completed session is available in this browser.';
+      return;
+    }
+    // Guest segments can finish moments after the host. Stay on the editor and
+    // prepare them here instead of sending the user through another workflow.
+    if (take.guest && !all.some((t) => t.id !== take.id && t.group === take.group && t.status === 'done')) {
+      root.querySelector('[data-loading]')!.textContent = `Preparing editor · waiting for ${take.guest.name}’s track…`;
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const remote = await fetch(`/api/takes?episode=${encodeURIComponent(episodeId)}`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { takes: [] }).catch(() => ({ takes: [] })) as { takes: { id: string; meta: TakeMeta; segments: number; done: boolean }[] };
+        const match = remote.takes.find((r) => r.id !== take.id && r.meta.group === take.group && r.done && r.segments > 0);
+        if (match) {
+          root.querySelector('[data-loading]')!.textContent = `Preparing editor · downloading ${take.guest.name}’s track…`;
+          await saveRemoteTake({ ...match.meta, id: match.id, segments: match.segments, remote: true }, async (n) => {
+            const response = await fetch(`/api/takes/${encodeURIComponent(match.id)}/segments/${n}`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(`Guest segment ${n} is unavailable`);
+            return response.arrayBuffer();
+          }, (n) => root.querySelector('[data-loading]')!.textContent = `Preparing editor · guest audio ${n} of ${match.segments}…`);
+          all = await listTakes(episodeId);
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+    const duration = take.samples / take.sampleRate;
+    const tracks = [take, ...all.filter((t) => t.id !== take.id && t.group && t.group === take.group && t.status === 'done')];
+    const lu = lineUp(take);
+    const audioMarkers = onAudio(take.markers ?? [], take.lineLog ?? []);
+    const settings = loadSettings();
+    const sources: EditorSources = new Map();
+    const sourceInfo: EditorSource[] = [];
+    const views: EditorTrackView[] = [];
+    const colors = ['var(--color-spk-yellow)', 'var(--color-spk-teal)', 'var(--color-spk-purple)', 'var(--color-spk-green)'];
+
+    tracks.forEach((track, index) => {
+      sourceInfo.push({ id: track.id, kind: 'voice', role: index ? 'guest' : 'host', name: index ? track.speaker || `Guest ${index}` : track.speaker || 'Host', duration, channels: track.channels ?? 1, sampleRate: track.sampleRate });
+      views.push({ id: `track-${track.id}`, peaks: track.peaks ?? [], color: colors[index % colors.length] });
+      sources.set(track.id, {
+        channels: track.channels ?? 1,
+        sampleRate: track.sampleRate,
+        read: async (from, seconds) => {
+          const ranges = track === take ? [[from, from + seconds] as [number, number]] : lu.ranges(track, [[from, from + seconds]]);
+          return floats(await rangesWav(track, ranges, [], undefined, [], null));
+        },
+      });
+    });
+
+    if (hasPads(take)) {
+      await renderPads(take);
+      const id = `pads-${take.id}`;
+      sourceInfo.push({ id, kind: 'pads', name: 'Pads', duration, channels: 2, sampleRate: take.sampleRate });
+      views.push({ id: `track-${id}`, peaks: [], color: 'var(--color-spk-green)' });
+      sources.set(id, { channels: 2, sampleRate: take.sampleRate, read: async (from, seconds) => floats(await rangesWav(stereoOf(take), [[from, from + seconds]], [], 'pads', [], null)) });
+    }
+
+    const server = await fetch(`/api/editor-projects/${encodeURIComponent(take.id)}`, { credentials: 'same-origin' }).then(async (r) => r.ok ? r.json() as Promise<{ project: unknown; revision: number }> : { project: null, revision: 0 }).catch(() => ({ project: null, revision: 0 }));
+    const local = cleanEditorProject(JSON.parse(localStorage.getItem(`podstudio-editor-${take.id}`) ?? 'null'));
+    const created = createEditorProject({ takeId: take.id, episodeId, name: title, sources: sourceInfo, markers: audioMarkers.markers, lineLog: audioMarkers.lineLog, loudness: settings.recording.publish.loudness, noise: settings.recording.noiseSuppression, level: settings.recording.publish.level, tones: settings.recording.publish.voices });
+    let project = local ?? cleanEditorProject(server.project) ?? created;
+    const revision = server.revision;
+
+    // Rehydrate imported media referenced by a saved project.
+    for (const track of project.tracks.filter((t) => t.kind === 'import')) {
+      if (sources.has(track.sourceId)) continue;
+      const id = track.sourceId.replace(/^media:/, '');
+      sources.set(track.sourceId, { channels: 2, sampleRate: 48000, read: async (from, seconds) => (await readLibraryFile(id)).slice(Math.round(from * 48000) * 2, Math.round((from + seconds) * 48000) * 2) });
+      views.push({ id: track.id, peaks: [], color: 'var(--color-adlib)' });
+    }
+
+    // Quiet stretches shared by all voice tracks become suggestions only.
+    if (!project.pauses.some((p) => p.source === 'detected')) {
+      const voicePeaks = tracks.map((t) => t.peaks ?? []);
+      const known = project.pauses;
+      project.pauses = [...known, ...detectPauses(voicePeaks).filter((p) => !known.some((x) => Math.max(x.start, p.start) < Math.min(x.end, p.end)))];
+    }
+
+    const onpreview = async (value: EditorProjectV1, from: number, seconds: number, solo: string[]): Promise<EditorPreview> => {
+      const length = Math.min(seconds, Math.max(0, duration - from));
+      const audio = await renderEditorWindow(finishedProject(value), sources, from, length, solo, 48000);
+      const wav = encodeWav([audio], { sampleRate: 48000, bitDepth: 16, channels: 2 });
+      return { url: URL.createObjectURL(wav), duration: length };
+    };
+    const onsave = async (value: EditorProjectV1, baseRevision: number, force = false): Promise<EditorSaveResult> => {
+      const response = await fetch(`/api/editor-projects/${encodeURIComponent(take.id)}`, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: value, baseRevision, force }) });
+      const result = await response.json();
+      if (response.status === 409) return { revision: result.revision, conflict: { project: result.project, revision: result.revision } as EditorConflict };
+      if (!response.ok) throw new Error(result.error ?? `Save failed (${response.status})`);
+      return { revision: result.revision };
+    };
+    const onimport = async (file: File, at: number) => {
+      const stereo = await decodeToLibraryRate(await file.arrayBuffer());
+      const media = await saveLibraryFile(stereo, { name: file.name, source: 'Editor import' });
+      const sourceId = `media:${media.id}`;
+      sources.set(sourceId, { channels: 2, sampleRate: 48000, read: async (from, seconds) => (await readLibraryFile(media.id)).slice(Math.round(from * 48000) * 2, Math.round((from + seconds) * 48000) * 2) });
+      const track: EditorTrack = { id: `track-${sourceId}`, sourceId, kind: 'import', name: file.name, channels: 2, sampleRate: 48000, gainDb: 0, muted: false, fx: defaultFx(false), clips: [{ id: `clip-${media.id}`, sourceId, sourceStart: 0, sourceEnd: media.seconds, timelineStart: at, linked: false, fadeInMs: 0, fadeOutMs: 0 }] };
+      return { track, peaks: peaksOf(stereo, 2, 48000) };
+    };
+    const onexport = async (value: EditorProjectV1, progress: (s: string) => void): Promise<EditorExportResult> => {
+      progress('Rendering finished mix…');
+      const ready = finishedProject(value);
+      const audible = ready.tracks.filter((track) => !track.muted);
+      if (!audible.length) throw new Error('Unmute at least one track before exporting.');
+      const premaster: { wav: Blob; level: boolean }[] = [];
+      for (const [index, track] of audible.entries()) {
+        const wav = await renderProjectWav({ ...ready, tracks: [track] }, sources, (done) => progress(`Rendering finished mix… ${Math.round(((index + done) / audible.length) * 100)}%`), { finished: false });
+        premaster.push({ wav, level: false });
+      }
+      const parts: Uint8Array[] = [];
+      const target = value.master.loudness === 'off' ? null : TARGETS[value.master.loudness];
+      const mastered = await renderMaster(premaster, { rate: 48000, channels: target?.channels ?? 2, lufs: target?.lufs ?? null, levelling: false }, async (chunk) => { parts.push(pcmBytes(chunk, 24)); }, (_, done) => progress(`Mastering… ${Math.round(done * 100)}%`));
+      const finished = new Blob([wavHeader(mastered.frames, { sampleRate: 48000, channels: target?.channels ?? 2, bitDepth: 24 }) as BlobPart, ...(parts as BlobPart[])], { type: 'audio/wav' });
+      const entries: ZipEntry[] = [{ name: `${label}_Finished.wav`, data: finished }];
+      if (value.master.mp3) { progress('Encoding MP3…'); entries.push({ name: `${label}_Finished.mp3`, data: await encodeMp3(finished, title, (d) => progress(`Encoding MP3… ${Math.round(d * 100)}%`)) }); }
+      if (value.master.rawTracks) {
+        const toneSettings = settings.recording.tones;
+        const kinds = (Object.keys(toneSettings.kinds) as ToneKind[]).filter((k) => toneSettings.kinds[k]);
+        const pauseCuts = audioMarkers.markers.filter((m) => m.kind === 'pause' && m.end != null && m.end > m.t).map((m) => [m.t, m.end!] as Range);
+        const rawRanges = outside(duration, pauseCuts);
+        const placed: PlacedTone[] = audioMarkers.markers.filter((m) => kinds.includes(m.kind as ToneKind) && !(m.kind === 'cut' && m.who === 'guest')).flatMap((m) => { const at = mapTime(m.t, rawRanges); return at == null ? [] : [{ at: Math.round(at * take.sampleRate), kind: m.kind as ToneKind }]; });
+        for (const [index, track] of tracks.entries()) {
+          progress(`Adding raw ${track.speaker || `track ${index + 1}`}…`);
+          const base = await rangesWav(track, track === take ? rawRanges : lu.ranges(track, rawRanges), [], undefined, [], null);
+          const raw = index === 0 ? await withTones(base, placed, toneSettings) : base;
+          entries.push({ name: `${label}_${index === 0 ? 'Host' : track.speaker || `Guest${index}`}_raw.wav`, data: raw });
+        }
+        if (hasPads(take)) entries.push({ name: `${label}_Pads_raw.wav`, data: await rangesWav(stereoOf(take), rawRanges, [], 'pads', [], null) });
+        for (const track of value.tracks.filter((t) => t.kind === 'import')) {
+          const source = sources.get(track.sourceId)!; const seconds = Math.max(...track.clips.map((c) => c.sourceEnd)); const audio = await source.read(0, seconds);
+          entries.push({ name: `${label}_${track.name.replace(/[^A-Za-z0-9_-]/g, '_')}_raw.wav`, data: encodeWav([audio], { sampleRate: source.sampleRate, channels: source.channels, bitDepth: 24 }) });
+        }
+      }
+      progress('Packaging download…');
+      const archive = await zip(entries);
+      const filename = `${label}_Podstudio.zip`;
+      download(archive, filename);
+      return { filename, downloadAgain: () => download(archive, filename) };
+    };
+
+    root.querySelector('[data-loading]')?.remove();
+    const [{ mount }, { default: EditorFlow }] = await Promise.all([import('svelte'), import('@/components/app/EditorFlow.svelte')]);
+    mount(EditorFlow, { target: root.querySelector('[data-editor-mount]')!, props: { sessionsHref: `/episodes/${episodeId}/sessions`, initial: project, revision, views, onpreview, onsave, onimport, onexport } });
+  }
+</script>

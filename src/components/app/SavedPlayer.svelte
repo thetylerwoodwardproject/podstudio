@@ -61,5 +61,5 @@
   progress={pos / length}
   {playing}
   onplay={play}
-  next={{ label: 'Export', onclick: () => (location.href = exportHref), attrs: { 'data-export': '' } }}
+  next={{ label: 'Open editor', onclick: () => (location.href = exportHref), attrs: { 'data-export': '' } }}
 />
