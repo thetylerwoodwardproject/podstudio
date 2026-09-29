@@ -11,19 +11,36 @@ interface StoredProject {
   updated_at: number;
 }
 
+const numberIn = (n: unknown, low: number, high: number) => typeof n === 'number' && Number.isFinite(n) && n >= low && n <= high;
 const validProject = (value: unknown, takeId: string): value is { version: 1; takeId: string; episodeId: string; tracks: unknown[] } => {
   if (!value || typeof value !== 'object') return false;
   const p = value as Record<string, unknown>;
   if (p.version !== 1 || p.takeId !== takeId || typeof p.episodeId !== 'string' || !Array.isArray(p.tracks) || p.tracks.length > 64) return false;
+  if (p.master != null) {
+    if (typeof p.master !== 'object') return false;
+    const m = p.master as Record<string, unknown>;
+    if (m.loudness != null && !['stereo','mono','off','custom'].includes(String(m.loudness))) return false;
+    if (m.targetLufs != null && !numberIn(m.targetLufs, -30, -10)) return false;
+    if (m.ceilingDb != null && !numberIn(m.ceilingDb, -3, -.1)) return false;
+    if (m.channels != null && m.channels !== 1 && m.channels !== 2) return false;
+  }
   return p.tracks.every((value) => {
     if (!value || typeof value !== 'object') return false;
     const track = value as Record<string, unknown>;
     if (typeof track.id !== 'string' || typeof track.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(String(track.kind)) || !Array.isArray(track.clips) || track.clips.length > 10_000) return false;
+    const fx = track.fx as Record<string, unknown> | undefined;
+    if (fx?.tone != null) {
+      const tone = fx.tone as { eq?: { gains?: unknown[] }; comp?: Record<string, unknown> };
+      if (!Array.isArray(tone?.eq?.gains) || tone.eq.gains.length !== 10 || !tone.eq.gains.every((n) => numberIn(n, -12, 12)) || !tone.comp) return false;
+      for (const [key, min, max] of [['threshold', -40, 0], ['ratio', 1, 10], ['knee', 0, 18], ['makeup', 0, 12]] as const) if (!numberIn(tone.comp[key], min, max)) return false;
+      if (tone.comp.attackMs != null && !numberIn(tone.comp.attackMs, .1, 100)) return false;
+      if (tone.comp.releaseMs != null && !numberIn(tone.comp.releaseMs, 10, 2000)) return false;
+    }
     return track.clips.every((value) => {
       if (!value || typeof value !== 'object') return false;
       const clip = value as Record<string, unknown>;
       const start = Number(clip.sourceStart), end = Number(clip.sourceEnd), timeline = Number(clip.timelineStart);
-      return typeof clip.id === 'string' && typeof clip.sourceId === 'string' && [start, end, timeline].every(Number.isFinite) && start >= 0 && end > start && timeline >= 0;
+      return typeof clip.id === 'string' && typeof clip.sourceId === 'string' && [start, end, timeline].every(Number.isFinite) && start >= 0 && end > start && timeline >= 0 && (clip.sourceDuration == null || numberIn(clip.sourceDuration, end, Number.MAX_SAFE_INTEGER));
     });
   });
 };

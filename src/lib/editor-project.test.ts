@@ -57,3 +57,47 @@ test('long quiet stretches are suggested without changing the project', () => {
   const pauses = detectPauses([a, b]);
   assert.deepEqual(pauses.map((p) => [p.start, p.end, p.action]), [[1, 4, 'keep']]);
 });
+
+test('trim edges can restore source audio and clamp linked clips together', () => {
+  const p = make(); const track = p.tracks[0], id = track.clips[0].id;
+  const shorter = trimClip(p, track.id, id, 'end', 4);
+  assert.equal(shorter.tracks[0].clips[0].sourceEnd, 26);
+  assert.equal(trimClip(shorter, track.id, id, 'end', -20).tracks[0].clips[0].sourceEnd, 30);
+  const start = trimClip(p, track.id, id, 'start', 3);
+  const restored = trimClip(start, track.id, id, 'start', -10);
+  assert.equal(restored.tracks[0].clips[0].sourceStart, 0);
+  assert.equal(restored.tracks[1].clips[0].timelineStart, 0);
+});
+
+import { cleanEditorProject, cleanMaster, timelineMarkers, deleteClip, masterOptions } from './editor-project.ts';
+import { cleanTone, flatTone } from './audio/tone.ts';
+test('advanced settings round-trip and old projects retain defaults', () => {
+  const p = make(); const tone = flatTone(); tone.eq.on = true; tone.eq.gains[3] = -7; tone.comp.attackMs = 42;
+  p.tracks[0].fx.tone = tone;
+  const loaded = cleanEditorProject(JSON.parse(JSON.stringify(p)))!;
+  assert.deepEqual(toneFromFx(loaded.tracks[0].fx), cleanTone(tone));
+  assert.equal(loaded.master.ceilingDb, -1);
+  assert.equal(cleanTone(flatTone()).comp.releaseMs, 150);
+  assert.equal(cleanMaster({ targetLufs: 3, ceilingDb: 5 }).targetLufs, -10);
+  assert.equal(masterOptions({ loudness: 'custom', targetLufs: -22, channels: 1, mp3: false, rawTracks: false }).lufs, -22);
+});
+test('markers follow moved and trimmed source clips and selected deletion leaves other clips alone', () => {
+  const p = make(); p.tracks[1].role = 'guest';
+  p.sourceMarkers = [{ kind: 'cut', t: 5, end: 7, line: 0 }];
+  const moved = moveClip(p, p.tracks[0].id, p.tracks[0].clips[0].id, 10, true);
+  assert.equal(timelineMarkers(moved)[0].t, 15);
+  const split = splitProject(moved, 20, p.tracks[0].id);
+  const deleted = deleteClip(split, p.tracks[0].id, split.tracks[0].clips[0].id);
+  assert.equal(deleted.tracks[0].clips.length, 1);
+  assert.equal(timelineMarkers(deleted).length, 0);
+});
+
+test('independent edits never split or cut linked voices on other tracks', () => {
+  const p = make(); p.tracks[0].clips[0].linked = false;
+  const split = splitProject(p, 10, p.tracks[0].id);
+  assert.equal(split.tracks[1].clips.length, 1);
+  const cut = deleteRange(p, 5, 10, true, p.tracks[0].id);
+  assert.equal(cut.tracks[1].clips.length, 1);
+  assert.equal(cut.tracks[1].clips[0].timelineStart, 0);
+  assert.equal(cut.tracks[1].clips[0].sourceEnd, 30);
+});

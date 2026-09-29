@@ -177,24 +177,37 @@ async function put(dir: FileSystemDirectoryHandle, name: string, data: BlobPart)
 }
 
 /** Save stereo float audio (interleaved, 48 kHz) to the library as a 16-bit WAV. */
-export async function saveLibraryFile(stereo: Float32Array, info: { name: string; source?: string }): Promise<LibraryFile> {
+export async function saveLibraryFile(stereo: Float32Array, info: { name: string; source?: string; id?: string; onProgress?: (percent: number) => void }): Promise<LibraryFile> {
   const { encodeWav } = await import('./audio/wav');
-  const id = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const id = info.id ?? `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const file: LibraryFile = { id, name: info.name, source: info.source, seconds: stereo.length / 2 / LIBRARY_RATE, addedAt: Date.now() };
   const dir = await libraryDir();
   const wav = encodeWav([stereo], { sampleRate: LIBRARY_RATE, bitDepth: 16, channels: 2 });
   await put(dir, `${id}.wav`, wav);
   await put(dir, `${id}.json`, JSON.stringify(file));
-  // To the server's library too, so other browsers (and the Pads track at export) have it.
-  const q = new URLSearchParams({ name: file.name, seconds: String(file.seconds), ...(file.source ? { source: file.source } : {}) });
-  let res: Response;
-  try {
-    res = await fetch(`/api/media/${id}?${q}`, { method: 'PUT', body: wav, credentials: 'same-origin' });
-  } catch {
-    throw new Error('Can’t reach the Podstudio server. The file remains in this browser.');
-  }
-  if (!res.ok) throw new Error(`The server refused this sound (${res.status}).`);
+  await uploadLibraryFile(file, info.onProgress);
   return file;
+}
+
+/** Retry the same id and disk-backed WAV; a failed upload never creates another sound. */
+export async function uploadLibraryFile(file: LibraryFile, progress?: (percent: number) => void): Promise<void> {
+  const dir = await libraryDir();
+  const wav = await (await dir.getFileHandle(`${file.id}.wav`)).getFile();
+  if (wav.size > 200 * 1024 * 1024) throw new Error('This audio exceeds the 200 MB upload limit after conversion. Choose a shorter clip.');
+  const q = new URLSearchParams({ name: file.name, seconds: String(file.seconds), ...(file.source ? { source: file.source } : {}) });
+  await new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('PUT', `/api/media/${file.id}?${q}`);
+    request.timeout = 15 * 60 * 1000;
+    request.upload.onprogress = (event) => { if (event.lengthComputable) progress?.(Math.round(event.loaded / event.total * 100)); };
+    request.onerror = () => reject(new Error('Connection lost. Your audio remains in this browser. Retry when connected.'));
+    request.ontimeout = () => reject(new Error('The upload timed out. Your audio remains in this browser. Try again.'));
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) { resolve(); return; }
+      reject(new Error(request.status >= 500 ? `The audio server is temporarily unavailable (${request.status}). Your audio is retained; retry the upload.` : request.status === 413 ? 'This audio exceeds the server upload limit. Choose a shorter clip.' : request.status === 401 ? 'Sign in again, then retry the upload.' : `Upload failed (${request.status}). Your audio remains in this browser.`));
+    };
+    request.send(wav);
+  });
 }
 
 /** A library file's audio: interleaved stereo floats at 48 kHz. */

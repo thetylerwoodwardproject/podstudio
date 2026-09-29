@@ -11,6 +11,8 @@ export interface EditorFx {
   high: number;
   compression: CompressionPreset;
   level: boolean;
+  /** Present only after advanced editing; authoritative over simple controls. */
+  tone?: VoiceTone;
 }
 
 export interface EditorClip {
@@ -18,6 +20,7 @@ export interface EditorClip {
   sourceId: string;
   sourceStart: number;
   sourceEnd: number;
+  sourceDuration?: number;
   timelineStart: number;
   linked: boolean;
   fadeInMs: number;
@@ -65,7 +68,10 @@ export interface EditorPause {
 }
 
 export interface EditorMaster {
-  loudness: 'stereo' | 'mono' | 'off';
+  loudness: 'stereo' | 'mono' | 'off' | 'custom';
+  targetLufs?: number;
+  ceilingDb?: number;
+  channels?: 1 | 2;
   mp3: boolean;
   rawTracks: boolean;
 }
@@ -77,6 +83,8 @@ export interface EditorProjectV1 {
   name: string;
   tracks: EditorTrack[];
   markers: SessionMarker[];
+  /** Immutable markers in aligned source time, used after clip edits. */
+  sourceMarkers?: SessionMarker[];
   retakes: EditorRetake[];
   pauses: EditorPause[];
   master: EditorMaster;
@@ -145,14 +153,14 @@ export function createEditorProject(input: {
     return {
       id: uid('track', s.id), sourceId: s.id, kind: s.kind, role: s.role, name: s.name,
       channels: s.channels, sampleRate: s.sampleRate, gainDb: 0, muted: false, fx,
-      clips: [{ id: uid('clip', s.id, 0), sourceId: s.id, sourceStart: 0, sourceEnd: s.duration, timelineStart: 0, linked: true, fadeInMs: 0, fadeOutMs: 0 }],
+      clips: [{ id: uid('clip', s.id, 0), sourceId: s.id, sourceStart: 0, sourceEnd: s.duration, sourceDuration: s.duration, timelineStart: 0, linked: true, fadeInMs: 0, fadeOutMs: 0 }],
     } satisfies EditorTrack;
   });
   const pauses = markers.filter((m) => m.kind === 'pause' && m.end != null && m.end > m.t).map((m, i) => ({
     id: uid('pause', i, Math.round(m.t * 1000)), start: m.t, end: m.end!, source: 'marker' as const, action: 'keep' as const, keepSeconds: 1,
   }));
   return {
-    version: 1, takeId: input.takeId, episodeId: input.episodeId, name: input.name, tracks, markers,
+    version: 1, takeId: input.takeId, episodeId: input.episodeId, name: input.name, tracks, markers, sourceMarkers: structuredClone(markers),
     retakes: deriveRetakes(markers, input.lineLog ?? [], duration), pauses,
     master: { loudness: input.loudness ?? 'stereo', mp3: false, rawTracks: false }, updatedAt: Date.now(),
   };
@@ -160,6 +168,7 @@ export function createEditorProject(input: {
 
 /** Map the simple Low/Mid/High UI to the existing ten-band export processor. */
 export function toneFromFx(fx: EditorFx): VoiceTone {
+  if (fx.tone) return cleanTone(fx.tone);
   const tone = flatTone();
   tone.eq.on = fx.low !== 0 || fx.mid !== 0 || fx.high !== 0;
   tone.eq.gains = [fx.low, fx.low, fx.low, fx.mid, fx.mid, fx.mid, fx.high, fx.high, fx.high, fx.high];
@@ -173,7 +182,7 @@ export function toneFromFx(fx: EditorFx): VoiceTone {
 export function fxFromTone(tone: VoiceTone, noise = 0, level = false): EditorFx {
   const avg = (xs: number[]) => Math.round(xs.reduce((n, x) => n + x, 0) / Math.max(1, xs.length));
   return {
-    noise: clamp(noise, 0, 100), low: avg(tone.eq.gains.slice(0, 3)), mid: avg(tone.eq.gains.slice(3, 6)), high: avg(tone.eq.gains.slice(6)),
+    ...(tone.eq.on || tone.comp.on ? { tone: cleanTone(tone) } : {}), noise: clamp(noise, 0, 100), low: avg(tone.eq.gains.slice(0, 3)), mid: avg(tone.eq.gains.slice(3, 6)), high: avg(tone.eq.gains.slice(6)),
     compression: tone.comp.on && ['Light', 'Medium', 'Heavy'].includes(tone.comp.preset ?? '') ? (tone.comp.preset as CompressionPreset) : tone.comp.on ? 'Medium' : 'Off', level,
   };
 }
@@ -215,7 +224,8 @@ const splitClip = (clip: EditorClip, at: number): EditorClip[] => {
 
 export function splitProject(project: EditorProjectV1, at: number, trackId?: string): EditorProjectV1 {
   const p = structuredClone(project);
-  for (const track of p.tracks) if (!trackId || track.id === trackId || track.clips.some((c) => c.linked)) track.clips = track.clips.flatMap((c) => splitClip(c, at));
+  const linked = !trackId || p.tracks.find((t) => t.id === trackId)?.clips.some((c) => c.linked && at > c.timelineStart && at < c.timelineStart + c.sourceEnd - c.sourceStart);
+  for (const track of p.tracks) track.clips = track.clips.flatMap((c) => !trackId || track.id === trackId || (linked && c.linked) ? splitClip(c, at) : [c]);
   p.updatedAt = Date.now();
   return p;
 }
@@ -233,11 +243,11 @@ export function deleteRange(project: EditorProjectV1, start: number, end: number
   const p = structuredClone(project);
   start = Math.max(0, Math.min(start, end)); end = Math.max(start, end);
   const amount = end - start;
+  const linked = !trackId || p.tracks.find((t) => t.id === trackId)?.clips.some((c) => c.linked && end > c.timelineStart && start < c.timelineStart + c.sourceEnd - c.sourceStart);
   for (const track of p.tracks) {
-    const linked = track.clips.some((c) => c.linked);
-    if (trackId && track.id !== trackId && !linked) continue;
-    track.clips = track.clips.flatMap((c) => removeFromClip(c, start, end));
-    if (ripple && amount) for (const clip of track.clips) if (clip.timelineStart >= end) clip.timelineStart -= amount;
+    const affects = (c: EditorClip) => !trackId || track.id === trackId || (!!linked && c.linked);
+    track.clips = track.clips.flatMap((c) => affects(c) ? removeFromClip(c, start, end) : [c]);
+    if (ripple && amount) for (const clip of track.clips) if (affects(clip) && clip.timelineStart >= end) clip.timelineStart -= amount;
   }
   if (ripple && amount) {
     const shift = (t: number) => (t <= start ? t : t >= end ? t - amount : start);
@@ -265,14 +275,13 @@ export function trimClip(project: EditorProjectV1, trackId: string, clipId: stri
   const p = structuredClone(project);
   const clip = p.tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
   if (!clip) return p;
-  const originalStart = clip.timelineStart;
-  for (const track of p.tracks) for (const candidate of track.clips) {
-    if (candidate.id !== clipId && !(clip.linked && candidate.linked && Math.abs(candidate.timelineStart - originalStart) < 1e-6)) continue;
-    const next = clamp(seconds, 0, candidate.sourceEnd - candidate.sourceStart - 0.01);
-    if (edge === 'start') {
-      candidate.sourceStart += next;
-      candidate.timelineStart += next;
-    } else candidate.sourceEnd -= next;
+  const candidates = p.tracks.flatMap((t) => t.clips).filter((c) => c.id === clipId || (clip.linked && c.linked && Math.abs(c.timelineStart - clip.timelineStart) < 1e-6));
+  const minimum = Math.max(...candidates.map((c) => edge === 'start' ? -Math.min(c.sourceStart, c.timelineStart) : -(Math.max(c.sourceEnd, c.sourceDuration ?? c.sourceEnd) - c.sourceEnd)));
+  const maximum = Math.min(...candidates.map((c) => c.sourceEnd - c.sourceStart - .01));
+  const delta = clamp(seconds, minimum, maximum);
+  for (const c of candidates) {
+    if (edge === 'start') { c.sourceStart += delta; c.timelineStart += delta; }
+    else c.sourceEnd -= delta;
   }
   p.updatedAt = Date.now();
   return p;
@@ -285,10 +294,42 @@ export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
   if (p.tracks.some((t) => !t || typeof t.id !== 'string' || typeof t.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(t.kind) || !Array.isArray(t.clips) || t.clips.length > 10_000)) return null;
   if (p.tracks.some((t) => t.clips.some((c) => !c || typeof c.id !== 'string' || typeof c.sourceId !== 'string' || ![c.sourceStart, c.sourceEnd, c.timelineStart].every(Number.isFinite) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart || c.timelineStart < 0))) return null;
   const copy = structuredClone(p);
-  copy.tracks = copy.tracks.map((t) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx }, clips: Array.isArray(t.clips) ? t.clips : [] }));
+  copy.tracks = copy.tracks.map((t) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) }));
   copy.markers = Array.isArray(copy.markers) ? copy.markers : [];
   copy.retakes = Array.isArray(copy.retakes) ? copy.retakes : [];
   copy.pauses = Array.isArray(copy.pauses) ? copy.pauses : [];
-  copy.master = { loudness: copy.master?.loudness ?? 'stereo', mp3: !!copy.master?.mp3, rawTracks: !!copy.master?.rawTracks };
+  copy.master = cleanMaster(copy.master);
+  copy.sourceMarkers = Array.isArray(copy.sourceMarkers) ? copy.sourceMarkers : sourceMarkersFromTimeline(copy);
   return copy;
+}
+
+export function cleanMaster(m: Partial<EditorMaster> = {}): EditorMaster {
+  return { loudness: ['stereo','mono','off','custom'].includes(m.loudness ?? '') ? m.loudness! : 'stereo', targetLufs: clamp(m.targetLufs ?? -16, -30, -10), ceilingDb: clamp(m.ceilingDb ?? -1, -3, -.1), channels: m.channels === 1 ? 1 : 2, mp3: !!m.mp3, rawTracks: !!m.rawTracks };
+}
+export function masterOptions(m: EditorMaster) {
+  const c = cleanMaster(m);
+  return { rate: 48000, channels: (c.loudness === 'mono' ? 1 : c.loudness === 'stereo' ? 2 : c.channels!) as 1 | 2, lufs: c.loudness === 'off' ? null : c.loudness === 'custom' ? c.targetLufs! : c.loudness === 'mono' ? -19 : -16, ceilingDb: c.ceilingDb!, levelling: false };
+}
+function sourceMarkersFromTimeline(p: EditorProjectV1): SessionMarker[] {
+  return p.markers.flatMap((m) => {
+    const track = p.tracks.find((t) => t.kind === 'voice' && (t.role ?? 'host') === (m.who ?? 'host'));
+    const clip = track?.clips.find((c) => m.t >= c.timelineStart && m.t < c.timelineStart + c.sourceEnd - c.sourceStart);
+    return clip ? [{ ...m, t: m.t + clip.sourceStart - clip.timelineStart, ...(m.end != null ? { end: m.end + clip.sourceStart - clip.timelineStart } : {}) }] : [];
+  });
+}
+/** Markers follow their source audio, including duplicated or independently moved clips. */
+export function timelineMarkers(p: EditorProjectV1): SessionMarker[] {
+  if (!p.sourceMarkers) return p.markers;
+  return p.sourceMarkers.flatMap((m) => p.tracks.filter((t) => t.kind === 'voice' && (t.role ?? 'host') === (m.who ?? 'host')).flatMap((t) => t.clips.flatMap((c) => {
+    if ((m.end ?? m.t) < c.sourceStart || m.t >= c.sourceEnd) return [];
+    const offset = c.timelineStart - c.sourceStart;
+    return [{ ...m, t: Math.max(m.t, c.sourceStart) + offset, ...(m.end != null ? { end: Math.min(m.end, c.sourceEnd) + offset } : {}) }];
+  })));
+}
+export function deleteClip(p: EditorProjectV1, trackId: string, clipId: string): EditorProjectV1 {
+  const next = structuredClone(p);
+  const clip = p.tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
+  if (!clip) return next;
+  for (const t of next.tracks) t.clips = t.clips.filter((c) => c.id !== clipId && !(clip.linked && c.linked && c.timelineStart === clip.timelineStart && c.sourceEnd - c.sourceStart === clip.sourceEnd - clip.sourceStart));
+  return next;
 }

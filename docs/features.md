@@ -127,6 +127,39 @@ start times only.
 
 ## Podstudio Editor
 
+**Open editor** is available on recorded episodes in the library and studio,
+and on each session card. It opens the latest completed recording by recording
+date; use the session switcher for older sessions. Explicit take links never
+substitute another recording. Browser and server recordings are combined, so a
+fresh browser can open a server session directly. Phones retain Session Saved.
+
+The **Select** tool (A) selects time by dragging over a waveform; **Move** (V)
+moves a clip on its track. Linked tracks move together; Alt-drag unlinks.
+Trim handles and numeric Position/Trim fields can shorten and restore source
+audio. Escape cancels a drag. One completed gesture is one undo step. Delete
+removes a selected clip or range without closing time; Ripple cut closes a range.
+Overlapping clips mix. Cough markers follow their source clips through edits.
+
+**FX → Advanced** exposes a ten-band EQ (31 Hz–16 kHz, ±12 dB), response graph,
+presets and bypass, plus threshold, ratio, knee, makeup gain, attack and release
+for compression. Simple remains the default. Collapsing advanced settings
+preserves them; Reset to simple requires an explicit confirmation. Preview FX
+listens to the unsaved draft in the mix, Bypass compares it, Apply commits it,
+and Cancel restores the prior sound.
+
+**Loudness** controls the finished mix: −16 LUFS stereo, −19 LUFS mono, custom
+−30 to −10 LUFS, or normalization off. The true-peak ceiling is adjustable
+from −3 to −0.1 dBTP (default −1). Analyze mix measures the whole edited mix,
+with progress and cancellation. Edits mark measurements stale. Mastered
+playback and export share the same rendered audio; raw tracks are unaffected.
+
+**Import audio** reports reading, conversion, upload percentage, server
+confirmation and track insertion. Failed uploads offer Retry and reuse the
+same local file ID. Converted WAV uploads are limited to 200 MiB; larger
+files receive an explicit size message. WAV, MP3, M4A, FLAC and other
+browser-decodable inputs are supported.
+
+
 The desktop workflow is **Record → Editor → Export → Optional AI tools**. End Session opens `/episodes/:id/editor?take=:takeId`; the old `/session` URL redirects there. Phones remain on Session Saved because the full editing surface is desktop-only.
 
 - **Timeline:** a large ruler, one quiet marker lane (`RET`, `COUGH`, `AD-LIB`, `PAUSE`) and one readable waveform lane for each host, guest, pads or imported source. Existing timestamps and sync logs align tracks automatically. Audio is read in bounded windows around the playhead and waveform peaks are cached, so a long session is not decoded into memory at once.

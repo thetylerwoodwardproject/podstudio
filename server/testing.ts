@@ -36,6 +36,7 @@ export async function signedIn() {
   await call('/api/auth/totp/confirm', { body: { code: totpAt(base32Decode(secret), Math.floor(Date.now() / 30000)) } });
   return {
     call,
+    ctx,
     anon: (path: string) => fetch(base + path).then((r) => r.status),
     done: () => {
       server.closeAllConnections();

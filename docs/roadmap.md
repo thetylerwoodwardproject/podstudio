@@ -24,6 +24,13 @@ days.
 
 ## Editor follow-through
 
+Direct editor access, server-session discovery, explicit Select/Move tools,
+reversible trims, SVG transport icons, advanced EQ/compression, configurable
+loudness analysis and import progress/retry are implemented. Validate the reported
+VPS import 502 with real uploads and service/proxy logs. Check Chrome translation
+behavior with the editor's English and no-translation metadata on the lab machine.
+
+
 The editor core is deliberately podcast-focused: synchronized waveforms,
 linked edits, retake and pause review, imports, simple per-track FX, cumulative
 playback, autosave and compact export. Near-term work is refinement found in
@@ -54,3 +61,7 @@ Before a public release:
 - finish real-device browser coverage and accessibility review;
 - document practical browser-memory and recording-length limits from measured
   VPS and laptop tests.
+
+Mobile follow-up: [reported bugs](bugs.md) tracks the misleading Open editor action after phone recording, the intended simplified mobile panel, and hotkeys that should be removed on mobile only. These remain open.
+
+Deferred timeline correction: remove Select/Move modes in favor of click-to-select and direct clip dragging, with automatic overlap crossfades. See [reported bugs](bugs.md#timeline-interaction-correction-direct-dragging-and-overlap-crossfades). The current mode-based controls remain until that follow-up.

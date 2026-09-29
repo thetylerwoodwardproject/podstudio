@@ -79,6 +79,9 @@ The recording workflow also includes:
   device and channel selection, and Original / Cleaned / Removed previews.
 - **Recording safeguards:** mic-stop, clipping, battery and storage warnings,
   offline upload retries, crash recovery, and voice-follow diagnostics.
+- **Direct editor access:** Open editor from a recorded episode or its sessions, with the latest completed session selected and a switcher for older sessions. Server recordings also open on a new computer.
+- **Advanced audio, when needed:** optional ten-band EQ, compressor threshold/ratio/knee/makeup/attack/release, draft FX preview and bypass, plus custom LUFS and true-peak targets with whole-mix analysis and mastered playback.
+- **Audio imports:** visible read/conversion/upload progress and retry after a failed upload, retaining the same file without duplicate tracks.
 - **Editor after recording:** desktop users go straight from End Session to a synchronized timeline. Select, split, trim, move, delete or ripple-cut clips; review retakes and long-pause suggestions; use Mute, Solo, Level and a focused FX sheet per track; import browser-decodable audio; and undo or redo edits. Phones keep the Session Saved screen and link to the desktop editor.
 - **Non-destructive projects:** source WAV and PCM segments never change. Clip boundaries, link groups, markers, FX, track levels and export choices autosave as compact, revisioned project metadata, with a browser recovery copy for offline work.
 - **One cumulative preview:** playback always reflects the current edits, gain, mute and FX. It streams a rolling 30-second window around the playhead and prefetches the next window, so long sessions play continuously without loading the whole recording into memory.

@@ -16,13 +16,15 @@ const day = (t: number) => {
   return d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 const library = ctx.library.list().map((e) => ({
+  id: e.id,
+  recorded: !!e.sessions,
   title: e.fullTitle,
   status: (e.sessions ? 'Recorded' : 'Draft') as keyof typeof statusColor,
   words: e.words != null ? `${e.words.toLocaleString('en-US')} words` : e.id === '142' ? 'Example' : '—',
   sessions: e.sessions ? `${e.sessions} session${e.sessions === 1 ? '' : 's'}` : '—',
   length: '—',
   updated: day(e.updatedAt),
-  href: `/episodes/${e.id}/script`,
+  href: `/episodes/${e.id}/${e.sessions ? 'editor' : 'script'}`,
 }));
 // The data folder's disk: warn when it's getting full (24-bit / 48 kHz mono is about 518 MB an hour).
 let storage: { usedGb: number; totalGb: number; pct: number; hoursLeft: number } | null = null;
@@ -90,7 +92,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
                 data-filter={filterOf[ep.status]}
                 data-title={ep.title.toLowerCase()}
               >
-                <td>{ep.href ? <a href={ep.href} class="text-fg hover:text-white">{ep.title}</a> : ep.title}</td>
+                <td><a href={ep.href} class="text-fg hover:text-white">{ep.title}</a><div class="mt-2 flex gap-3 text-[12px]"><a data-editor-entry data-episode={ep.id} hidden={!ep.recorded} class="text-text underline" href={`/episodes/${ep.id}/editor`}>Open editor</a><a class="text-text-2" href={`/episodes/${ep.id}/studio`}>Record new session</a></div></td>
                 <td class="flex items-center gap-2 text-[13px] text-fg-soft">
                   <Dot color={statusColor[ep.status]} />
                   {ep.status}
@@ -110,6 +112,9 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
 </AppShell>
 
 <script>
+  import { listTakes } from '@/lib/audio/takes';
+  void listTakes().then((takes) => { for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-editor-entry]')) if (takes.some((t) => t.episodeId === link.dataset.episode && t.status === 'done')) link.hidden = false; });
+
   import { api } from '@/lib/api';
 
   document.querySelector('[data-new-episode]')!.addEventListener('click', async () => {

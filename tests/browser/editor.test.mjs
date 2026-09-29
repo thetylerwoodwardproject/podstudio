@@ -1,5 +1,5 @@
 import { chromium } from './auth.mjs';
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { OUT, B, CHROME, FIX } from './env.mjs';
 
 let fails = 0;
@@ -10,15 +10,22 @@ const ctx = await browser.newContext({ ignoreHTTPSErrors: true, permissions: ['m
 const page = await ctx.newPage();
 const errors = []; page.on('pageerror', (e) => errors.push(e.message));
 
-await page.goto(`${B}/episodes/142/recording`); await page.waitForTimeout(2500);
-await page.click('[data-start]');
-ok('recording starts', await until(async () => (await page.locator('#recording').getAttribute('data-state')) === 'rec', 15000), await page.locator('#recording').getAttribute('data-state'));
-await page.waitForTimeout(3000); await page.keyboard.press('r'); await page.waitForTimeout(4000);
-await page.locator('[data-end]').evaluate((button) => button instanceof HTMLButtonElement && button.click()); await page.click('dialog [value=end]');
-await page.waitForURL('**/editor?take=*'); await page.waitForTimeout(2500);
-if (!(await page.locator('[data-editor]').count())) console.log('EDITOR DEBUG', page.url(), errors.join(' | '), await page.locator('[data-loading]').textContent().catch(() => 'no loading'));
+await page.goto(B);
+// Seed a completed recording through the real API. Editor tests do not depend on
+// microphone availability; recording-to-editor routing is covered by solo/guest flows.
+await page.evaluate(async () => {
+  const rate = 48000, seconds = 12, id = 'editor-browser-main';
+  const pcm = new Int16Array(rate * seconds);
+  for (let i = 0; i < pcm.length; i++) pcm[i] = Math.round(Math.sin(i * 2 * Math.PI * 220 / rate) * 4000 + Math.sin(i * 2 * Math.PI * 900 / rate) * 1800);
+  const meta = { id, episodeId: '142', name: 'Session', kind: 'session', speaker: 'Host', number: 1, startLine: 0, startText: '', device: 'Browser fixture', sampleRate: rate, bitDepth: 16, channels: 1, samples: pcm.length, segments: 3, startedAt: Date.now(), updatedAt: Date.now(), status: 'done', peaks: Array(24).fill(.2), markers: [{ kind: 'retake', t: 3, line: 0 }], lineLog: [{ t: 0, line: 0 }, { t: 3, line: 0 }, { t: 7, line: 1 }] };
+  const put = async (url, body, json = true) => { const response = await fetch(url, { method: 'PUT', headers: json ? { 'Content-Type': 'application/json' } : {}, body: json ? JSON.stringify(body) : body }); if (!response.ok) throw new Error(`Fixture failed: ${response.status}`); };
+  await put(`/api/takes/${id}`, { meta, done: false });
+  for (let n = 0; n < 3; n++) await put(`/api/takes/${id}/segments/${n + 1}`, pcm.slice(n * rate * 4, (n + 1) * rate * 4).buffer, false);
+  await put(`/api/takes/${id}`, { meta, done: true });
+});
+await page.goto(`${B}/episodes/142/editor?take=editor-browser-main`);
 await page.waitForSelector('[data-editor]', { timeout: 30000 });
-ok('desktop End Session opens editor', page.url().includes('/editor?take='));
+ok('completed session opens editor directly', page.url().includes('/editor?take='));
 ok('timeline has a host track', (await page.locator('[data-track]').count()) >= 1);
 ok('top and bottom controls are present', (await page.locator('[data-export-open]').count()) === 1 && (await page.locator('[data-editor-play]').count()) === 1);
 await page.screenshot({ path: `${OUT}/editor-desktop.png`, fullPage: true });
@@ -31,6 +38,13 @@ if (await page.locator('[data-retakes-open]').textContent().then((x) => x.includ
 }
 await page.locator('[data-track-fx]').first().click();
 ok('FX opens in a sheet', await page.locator('#fx-title').isVisible());
+await page.getByRole('button', { name: 'Advanced', exact: true }).click();
+ok('advanced EQ has ten bands', await page.locator('input[aria-label^="EQ "]').count() === 10);
+await page.getByLabel('EQ 1000 Hz', { exact: true }).fill('3');
+await page.getByLabel('Attack', { exact: false }).fill('25');
+await page.screenshot({ path: `${OUT}/editor-advanced.png`, fullPage: true });
+await page.getByRole('button', { name: 'Simple', exact: true }).click();
+ok('collapsing advanced retains custom settings', await page.getByText('Advanced EQ and compression are active.', { exact: false }).isVisible());
 await page.getByRole('button', { name: 'Apply FX' }).click();
 ok('server autosave confirms', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'saved'));
 await ctx.setOffline(true);
@@ -38,11 +52,69 @@ await page.locator('input[aria-label$=" level"]').first().evaluate((input) => { 
 ok('offline edits wait for connection', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'offline'));
 await ctx.setOffline(false);
 ok('autosave resumes online', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'saved'));
+let failedUpload = false; const uploadIds = [];
+await page.route('**/api/media/*', async (route) => {
+  if (route.request().method() !== 'PUT') return route.continue();
+  uploadIds.push(new URL(route.request().url()).pathname);
+  if (!failedUpload) { failedUpload = true; await new Promise((r) => setTimeout(r, 600)); return route.fulfill({ status: 502, body: 'Bad gateway' }); }
+  return route.continue();
+});
 await page.locator('label:has-text("Import audio") input').setInputFiles(`${FIX}/sting.wav`);
+ok('import reports progress immediately', await until(async () => await page.locator('[data-import-status]').isVisible(), 2000));
+await page.getByRole('button', { name: 'Retry upload' }).waitFor();
+ok('502 gives an actionable retry', await page.getByRole('alert').textContent().then((s) => s.includes('502') && s.includes('retained')));
+await page.getByRole('button', { name: 'Retry upload' }).click();
 ok('browser-decodable import becomes a track', await until(async () => (await page.locator('[data-track]').count()) === 2));
+ok('retry reuses the same upload id', uploadIds.length === 2 && uploadIds[0] === uploadIds[1]);
+ok('English editor opts out of translation', await page.locator('html').getAttribute('lang') === 'en' && await page.locator('meta[name="google"]').getAttribute('content') === 'notranslate');
+const clip = page.locator('[data-clip]').first();
+await clip.click({ position: { x: 20, y: 35 } });
+await page.getByLabel('Trim end seconds').fill('5'); await page.getByLabel('Trim end seconds').press('Tab');
+ok('trim changes the source end', await page.getByLabel('Trim end seconds').inputValue() === '5');
+await page.getByLabel('Trim end seconds').fill('6'); await page.getByLabel('Trim end seconds').press('Tab');
+ok('trim restores source audio', await page.getByLabel('Trim end seconds').inputValue() === '6');
+await page.getByRole('button', { name: 'Undo', exact: true }).click();
+await page.getByRole('button', { name: 'Undo', exact: true }).click();
+await page.getByRole('button', { name: 'Move', exact: true }).click();
+const box = await clip.boundingBox();
+await page.mouse.move(box.x + 20, box.y + 35); await page.mouse.down(); await page.mouse.move(box.x + 60, box.y + 35, { steps: 5 }); await page.mouse.up();
+ok('move tool drags waveform', Number(await page.getByLabel('Position seconds').inputValue()) > 1);
+await page.getByRole('button', { name: 'Undo', exact: true }).click();
+const restored = await clip.boundingBox();
+await page.mouse.move(restored.x + 20, restored.y + 35); await page.mouse.down(); await page.mouse.move(restored.x + 55, restored.y + 35, { steps: 5 }); await page.keyboard.press('Escape'); await page.mouse.up();
+ok('Escape cancels a move', Number(await page.getByLabel('Position seconds').inputValue()) === 0);
+await page.getByRole('button', { name: 'Select', exact: true }).click();
+await page.mouse.move(restored.x + 12, restored.y + 35); await page.mouse.down(); await page.mouse.move(restored.x + 32, restored.y + 35, { steps: 5 }); await page.mouse.up();
+ok('dragging waveform selects a time interval', await page.getByRole('button', { name: 'Ripple cut', exact: true }).isEnabled());
+const beforeSplit = await page.locator('[data-clip]').count();
+await page.getByRole('button', { name: 'Split', exact: true }).click();
+ok('split produces another clip', await page.locator('[data-clip]').count() > beforeSplit);
+await page.getByRole('button', { name: 'Undo', exact: true }).click();
+await page.getByRole('button', { name: 'Ripple cut', exact: true }).click();
+ok('ripple cut changes waveform clips', await page.locator('[data-clip]').count() > beforeSplit);
+await page.getByRole('button', { name: 'Undo', exact: true }).click();
+await page.locator('[data-track]').last().locator('[data-clip]').click();
+await page.getByRole('button', { name: 'Delete', exact: true }).click();
+ok('selected clip can be deleted without a range', await page.locator('[data-clip]').count() === beforeSplit - 1);
+await page.getByRole('button', { name: 'Undo', exact: true }).click();
+await page.locator('[data-track]').last().locator('[data-clip]').focus();
+await page.keyboard.press('Delete');
+ok('Delete shortcut edits a focused clip', await page.locator('[data-clip]').count() === beforeSplit - 1);
+await page.keyboard.press('Control+z');
+ok('undo shortcut restores the deleted clip', await page.locator('[data-clip]').count() === beforeSplit);
+await page.getByRole('button', { name: 'Loudness', exact: true }).click();
+await page.getByRole('button', { name: 'Analyze mix' }).click();
+ok('full mix loudness analysis completes', await until(async () => await page.getByText('Analysis complete', { exact: true }).isVisible(), 120000));
+await page.screenshot({ path: `${OUT}/editor-loudness.png`, fullPage: true });
+await page.getByRole('button', { name: 'Apply loudness' }).click();
 await page.locator('[data-editor-play]').click();
 ok('full-session player starts', await until(async () => (await page.locator('[data-editor-play]').getAttribute('aria-label')) === 'Pause'));
+ok('pause is drawn as an icon', await page.locator('[data-editor-play] svg rect').count() === 2);
 await page.locator('[data-editor-play]').click();
+// Trimming an imported clip must not truncate its raw export.
+await page.locator('[data-track]').nth(1).locator('[data-clip]').first().focus();
+await page.keyboard.press('Enter');
+await page.getByLabel('Trim end seconds').fill('0.1'); await page.getByLabel('Trim end seconds').press('Tab');
 await page.locator('[data-export-open]').click();
 ok('compact export has fixed WAV and two options', await page.getByText('Finished WAV', { exact: true }).isVisible() && (await page.locator('#export-title').count()) === 1);
 await page.getByText('Include raw tracks', { exact: true }).click();
@@ -51,8 +123,22 @@ const [download] = await Promise.all([page.waitForEvent('download', { timeout: 1
 const zipPath = `${OUT}/editor-project.zip`; await download.saveAs(zipPath);
 const files = execSync(`unzip -Z1 '${zipPath}'`).toString().trim().split('\n');
 ok('export contains finished, host raw, and imported raw files', files.some((x) => x.endsWith('_Finished.wav')) && files.some((x) => x.endsWith('_Host_raw.wav')) && files.some((x) => x.includes('sting_wav_raw.wav')), files.join(' | '));
+const rawDuration = Number(execFileSync('python3', ['-c', 'import io,sys,wave,zipfile; z=zipfile.ZipFile(sys.argv[1]); name=next(n for n in z.namelist() if "sting_wav_raw.wav" in n); w=wave.open(io.BytesIO(z.read(name))); print(w.getnframes()/w.getframerate())', zipPath]).toString());
+ok('raw import preserves audio beyond the trimmed clip', rawDuration > .1);
 ok('completion offers sessions, repeat download, and future AI tools', await page.getByText('Your export is ready').isVisible() && await page.getByText('Back to sessions').isVisible() && await page.getByText('Download again').isVisible() && await page.getByText('Optional AI tools').isVisible());
 
+// A fresh browser has no OPFS takes: direct access must discover the server host.
+const isolated = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
+const remotePage = await isolated.newPage();
+await remotePage.goto(`${B}/episodes/142/editor`);
+await remotePage.waitForSelector('[data-editor]', { timeout: 30000 });
+ok('server-only recording opens directly', remotePage.url().includes('/editor?take='));
+ok('session switcher is visible', await remotePage.getByLabel('Recorded session').isVisible());
+await remotePage.goto(`${B}/episodes/142/editor?take=missing-session`);
+ok('missing explicit session never substitutes another', await until(async () => (await remotePage.locator('[data-loading]').textContent()).includes('unavailable')) && remotePage.url().includes('missing-session'));
+await remotePage.goto(B);
+ok('episode library has a direct editor action', await remotePage.locator('[data-editor-entry]').first().isVisible());
+await isolated.close();
 const phone = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 const mobile = await phone.newPage();
 await mobile.goto(page.url());

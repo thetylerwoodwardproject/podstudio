@@ -158,7 +158,7 @@ const CHUNK_SECONDS = 5;
  */
 export async function renderMaster(
   tracks: MasterTrack[],
-  o: { rate: number; channels: 1 | 2; lufs: number | null; levelling: boolean; gain?: number },
+  o: { rate: number; channels: 1 | 2; lufs: number | null; levelling: boolean; gain?: number; ceilingDb?: number; signal?: AbortSignal },
   write: (x: Float32Array) => Promise<void>,
   onProgress?: (stage: 'level' | 'master', done: number) => void,
 ): Promise<MasterResult> {
@@ -169,6 +169,7 @@ export async function renderMaster(
 
   /** One pass over the mix; `each` gets every chunk of it. */
   const pass = async (withCopies: boolean, each: (mix: Float32Array) => Promise<void> | void, stage: 'level' | 'master') => {
+    o.signal?.throwIfAborted();
     const readers = await Promise.all(tracks.map((t) => WavReader.open(t.wav)));
     const levellers = readers.map((r, i) => (o.levelling && tracks[i].level ? new Leveler(r.info.sampleRate, r.info.channels) : null));
     const tones = readers.map((r, i) => (toneActive(tracks[i].tone) ? new ToneProcessor(r.info.sampleRate, r.info.channels, tracks[i].tone!) : null));
@@ -197,6 +198,7 @@ export async function renderMaster(
         const y = toChannels(use, ch, o.channels);
         for (let k = 0; k < y.length; k++) mix[k] += y[k];
       }
+      o.signal?.throwIfAborted();
       await each(mix);
       onProgress?.(stage, Math.min(1, (done + n) / total));
     }
@@ -216,7 +218,7 @@ export async function renderMaster(
   const measured = meter.integrated();
   const gainDb = o.gain ?? (o.lufs == null || !Number.isFinite(measured) ? 0 : Math.min(30, o.lufs - measured));
   const g = 10 ** (gainDb / 20);
-  const limiter = new TruePeakLimiter(o.rate, o.channels, -1);
+  const limiter = new TruePeakLimiter(o.rate, o.channels, o.ceilingDb ?? -1);
   const after = new LoudnessMeter(o.rate, o.channels);
   let tp = 0;
   const out = async (y: Float32Array) => {

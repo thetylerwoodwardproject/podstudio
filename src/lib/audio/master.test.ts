@@ -163,3 +163,12 @@ test('resampling 44.1 kHz to 48 kHz keeps the length and the tone', () => {
   for (let i = 1000; i < n - 1000; i++) err = Math.max(err, Math.abs(y[i] - Math.sin((2 * Math.PI * 1000 * (i * (from / 48000))) / from) * 0.5));
   assert.ok(err < 0.01, `max error ${err}`);
 });
+
+test('custom loudness and ceiling are honored and analysis can be cancelled', async () => {
+  const wav = encodeWav([voice(48000, 6, -24, 39)], { sampleRate: 48000, channels: 1, bitDepth: 24 });
+  const result = await renderMaster([{ wav, level: false }], { rate: 48000, channels: 1, lufs: -22, ceilingDb: -3, levelling: false }, async () => {});
+  assert.ok(Math.abs(result.result + 22) < .7, String(result.result));
+  assert.ok(result.truePeak <= -2.9, String(result.truePeak));
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(renderMaster([{ wav, level: false }], { rate: 48000, channels: 1, lufs: -22, levelling: false, signal: controller.signal }, async () => {}), { name: 'AbortError' });
+});

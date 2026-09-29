@@ -30,7 +30,7 @@ export function readBody(req: IncomingMessage, limit = 1 << 20): Promise<Buffer>
       size += c.length;
       if (size > limit) {
         reject(new HttpError(413, 'Too large'));
-        req.destroy();
+        req.resume();
         return;
       }
       parts.push(c);
@@ -58,6 +58,7 @@ export async function readJson<T = Record<string, unknown>>(req: IncomingMessage
 export function streamToFile(req: IncomingMessage, file: string, limit: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const tmp = `${file}.part-${process.pid}-${Date.now()}`;
+    if (Number(req.headers['content-length'] ?? 0) > limit) { req.resume(); reject(new HttpError(413, 'Too large')); return; }
     const out = createWriteStream(tmp);
     let size = 0;
     let failed = false;
@@ -72,7 +73,7 @@ export function streamToFile(req: IncomingMessage, file: string, limit: number):
       size += c.length;
       if (size > limit) {
         fail(new HttpError(413, 'Too large'));
-        req.destroy();
+        req.resume();
       }
     });
     req.on('error', fail);

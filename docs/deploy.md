@@ -192,3 +192,15 @@ Browsers only allow the microphone on HTTPS, so another device can't record from
 `npm run preview` (HTTPS with a self-signed certificate; accept the warning once
 on each device), or give Caddy an internal certificate by replacing the domain
 in the Caddyfile with your hostname and adding `tls internal`.
+
+### Diagnosing editor audio uploads
+
+Converted library WAV files are limited to 200 MiB; the supplied Caddy site permits
+210 MB. The app streams uploads to disk and allows up to 15 minutes per request.
+An oversize upload should return 413, not a dropped upstream connection. The editor
+shows upload progress and preserves the file for Retry after a 502 or lost connection.
+If 502 persists on the VPS, inspect `sudo journalctl -u podstudio -u caddy --since
+"10 minutes ago"`, free disk space and any upstream proxy limits. Local tests cover
+502 handling and a four-minute converted WAV (about 46 MB). The reported input
+was a 12 MB, four-minute MP3, so the converted upload should fit the limit;
+these tests do not establish the cause of that VPS failure.

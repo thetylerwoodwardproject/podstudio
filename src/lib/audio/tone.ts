@@ -31,6 +31,8 @@ export interface CompSettings {
   ratio: number;
   knee: number;
   makeup: number;
+  attackMs?: number;
+  releaseMs?: number;
   preset: string | null;
 }
 export interface VoiceTone {
@@ -63,7 +65,7 @@ const OLD_COMP: Record<string, string> = { Gentle: 'Light', Voice: 'Medium', Bro
 /** Off: a flat EQ and no compression, so the voice goes through untouched. */
 export const flatTone = (): VoiceTone => ({
   eq: { on: false, gains: [...EQ_PRESETS.Flat], preset: 'Flat' },
-  comp: { on: false, ...COMP_PRESETS.Medium, preset: 'Medium' },
+  comp: { on: false, ...COMP_PRESETS.Medium, attackMs: 10, releaseMs: 150, preset: 'Medium' },
 });
 
 export const eqActive = (t: VoiceTone) => t.eq.on && t.eq.gains.some((g) => g !== 0);
@@ -90,6 +92,8 @@ export function cleanTone(t: Partial<VoiceTone> | undefined): VoiceTone {
       ratio: clamp(Number(c.ratio), 1, 10),
       knee: clamp(Number(c.knee), 0, 18),
       makeup: clamp(Number(c.makeup), 0, 12),
+      attackMs: clamp(Number(c.attackMs ?? 10), .1, 100),
+      releaseMs: clamp(Number(c.releaseMs ?? 150), 10, 2000),
       preset: typeof c.preset === 'string' ? (OLD_COMP[c.preset] ?? c.preset) : null,
     },
   };
@@ -189,8 +193,8 @@ export class ToneProcessor {
         if (g && usable(BANDS[i], rate)) this.eq.push({ c: peaking(BANDS[i], g, rate), z: new Float64Array(4 * channels) });
       });
     this.comp = tone.comp.on ? tone.comp : null;
-    this.att = Math.exp(-1 / (0.01 * rate));
-    this.rel = Math.exp(-1 / (0.15 * rate));
+    this.att = Math.exp(-1 / ((tone.comp.attackMs ?? 10) / 1000 * rate));
+    this.rel = Math.exp(-1 / ((tone.comp.releaseMs ?? 150) / 1000 * rate));
     this.envRel = Math.exp(-1 / (0.05 * rate));
     this.makeup = tone.comp.on ? 10 ** (tone.comp.makeup / 20) : 1;
   }

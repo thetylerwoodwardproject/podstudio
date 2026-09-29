@@ -46,6 +46,8 @@ if (flag('https')) {
 } else {
   server = createHttp(listener);
 }
+// Match the media client timeout so slow, streamed uploads can finish.
+server.requestTimeout = 15 * 60 * 1000;
 api.attach(server);
 server.listen(config.port, config.host, () => {
   console.log(`Podstudio on ${flag('https') ? 'https' : 'http'}://${config.host}:${config.port} · data in ${config.data}`);

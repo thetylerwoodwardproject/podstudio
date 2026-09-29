@@ -156,8 +156,12 @@ await toStep(host, 'export');
 ok('export waits for the guest', (await host.locator('[data-guest-missing]').isVisible()) && (await host.locator('[data-export]').isDisabled()), await host.locator('[data-guest-missing]').textContent());
 await host.goto(`${B}/episodes/142/sessions`);
 await host.waitForTimeout(1000);
-ok('sessions list points to the wrap-up', /wrap\?take=/.test(await host.locator('[data-open]').first().getAttribute('href')) && /waiting for Sam/.test(await host.locator('[data-card] [data-summary]').first().textContent()));
+ok('sessions list opens the editor', /editor\?take=/.test(await host.locator('[data-open]').first().getAttribute('href')) && /waiting for Sam/.test(await host.locator('[data-card] [data-summary]').first().textContent()));
 await host.locator('[data-open]').first().click();
+await host.waitForSelector('[data-editor]', { timeout: 30000 });
+ok('editor reads the server-only guest track', await host.locator('[data-track]').count() >= 2);
+// Keep the existing wrap-up recovery path covered for legacy sessions.
+await host.goto(`${B}/episodes/142/wrap?take=${hostTake}`);
 ok('wrap-up fetches it again', await throughWrap(host, until));
 await host.goto(`${B}/episodes/142/export-legacy?take=${hostTake}`);
 await toStep(host, 'export');

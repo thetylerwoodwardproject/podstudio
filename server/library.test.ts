@@ -69,3 +69,22 @@ test('media: a WAV goes up and comes back; empty uploads are refused', async () 
     s.done();
   }
 });
+
+test('media accepts a four-minute converted stereo upload and an idempotent retry', async () => {
+  const s = await signedIn();
+  try {
+    // Browser imports convert MP3 to 48 kHz stereo PCM16, regardless of compressed size.
+    const bytes = 240 * 48000 * 2 * 2;
+    const wav = Buffer.alloc(44 + bytes);
+    wav.write('RIFF'); wav.writeUInt32LE(36 + bytes, 4); wav.write('WAVEfmt ', 8);
+    wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(2, 22);
+    wav.writeUInt32LE(48000, 24); wav.writeUInt32LE(192000, 28);
+    wav.writeUInt16LE(4, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(bytes, 40);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      assert.equal((await s.call('/api/media/four-minute?name=Four%20minutes&seconds=240', { method: 'PUT', raw: wav })).status, 200);
+    }
+    const media = (await s.call('/api/media')).body.media;
+    assert.equal(media.filter((item: { id: string }) => item.id === 'four-minute').length, 1);
+    assert.deepEqual((await s.call('/api/media/four-minute')).buf, wav);
+  } finally { s.done(); }
+});

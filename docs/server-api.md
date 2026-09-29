@@ -116,6 +116,30 @@ own track. Older recordings without sync logs use the start-time offset
 report describes corrections. See [track sync](features.md#keeping-tracks-in-sync).
 
 
+## Editor project compatibility
+
+`GET /api/takes/:id` additionally returns `segmentBytes`, the byte length of each
+PCM segment in order. This lets the editor request only segments overlapping a
+playback window, including recordings whose segments differ from five seconds.
+Missing files are represented by zero and shown as unavailable audio.
+Completed guest uploads in the legacy session store also appear as read-only
+`<hostTakeId>-guest` sources through these authenticated GET endpoints. PCM stays
+in its existing location; the host recording must reference a session belonging
+to the same episode. No room token or audio copy is stored in editor metadata.
+
+`EditorProjectV1` keeps its version and revision protocol. Optional clip
+`sourceDuration` permits restoring trims. Optional `sourceMarkers` stores original
+aligned marker times so marker display and cough suppression follow clip edits.
+Optional `fx.tone` uses the existing ten-band `VoiceTone`, with compressor
+`attackMs` (0.1–100, default 10) and `releaseMs` (10–2000, default 150).
+When present it overrides the simple EQ and compression controls.
+
+Master settings accept `loudness: custom`, `targetLufs` (−30 to −10),
+`ceilingDb` (−3 to −0.1, default −1), and `channels` (1 or 2).
+Old records normalize to equivalent processing without a database migration.
+`PUT /api/media/:id` remains idempotent for retrying a retained upload. Its
+200 MiB limit returns HTTP 413 without resetting the connection.
+
 ## Editor projects
 
 Signed-in editor clients store compact, non-destructive project metadata. Audio remains in existing take segments and media files.

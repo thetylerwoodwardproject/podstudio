@@ -38,3 +38,29 @@ test('bad ids and meta are refused', async () => {
     s.done();
   }
 });
+
+test('completed legacy guest uploads are discoverable as read-only take sources', async () => {
+  const s = await signedIn();
+  try {
+    const room = (await s.call('/api/sessions', { body: { episodeId: '142' } })).body;
+    const guest = (await s.call('/api/join', { body: { code: room.codes.guest, name: 'Sam' } })).body;
+    s.ctx.live.admit(room.sessionId, s.ctx.live.member(room.sessionId, guest.token)!.id);
+    const path = `/api/sessions/${room.sessionId}/tracks/guest`;
+    const query = `?token=${guest.token}`;
+    const pcm = Buffer.alloc(480, 2);
+    assert.equal((await s.call(`${path}/segments/1${query}`, { method: 'PUT', raw: pcm })).status, 204);
+    await s.call(`${path}/meta${query}`, { method: 'PUT', body: { name: 'Sam', sampleRate: 48000, bitDepth: 16, channels: 1, segments: 1, done: true } });
+    await s.call('/api/takes/t1', { method: 'PUT', body: { meta: meta({ group: 'g1', guest: { name: 'Sam', sessionId: room.sessionId } }), done: true } });
+    const list = (await s.call('/api/takes?episode=142')).body.takes;
+    const source = list.find((t: { id: string }) => t.id === 't1-guest');
+    assert.equal(source.meta.samples, 240);
+    assert.equal(source.meta.group, 'g1');
+    assert.equal(source.meta.guest, undefined);
+    assert.deepEqual((await s.call('/api/takes/t1-guest')).body.segmentBytes, [480]);
+    assert.deepEqual((await s.call('/api/takes/t1-guest/segments/1')).buf, pcm);
+    assert.equal(await s.anon('/api/takes/t1-guest/segments/1'), 401);
+    assert.equal((await s.call('/api/takes/t1-guest/segments/1', { method: 'PUT', raw: pcm })).status, 404);
+    await s.call('/api/takes/t1', { method: 'PUT', body: { meta: meta({ episodeId: 'another', guest: { sessionId: room.sessionId } }), done: true } });
+    assert.equal((await s.call('/api/takes/t1-guest')).status, 404, 'a session must belong to the host episode');
+  } finally { s.done(); }
+});

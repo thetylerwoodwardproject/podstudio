@@ -17,6 +17,26 @@ tools**. The previous five-step export implementation remains at
 `export-legacy.astro` for compatibility and regression coverage, while
 `/episodes/:id/session` redirects to `/episodes/:id/editor`.
 
+## Editor usability and advanced audio
+
+The editor now has direct entry points on recorded episodes, a session switcher,
+and local/server discovery. Existing take-detail responses include a segment byte
+index for exact lazy reads. Completed legacy guest uploads are exposed through
+the authenticated take reader without copying their audio. The selected session's pads still require preparation
+of its host audio for ducking; other sessions are never downloaded speculatively.
+
+Select/Move tools, signed reversible trim gestures, numeric clip fields and SVG
+transport controls replace the ambiguous interactions. `EditorFxControls.svelte`
+provides optional advanced EQ/compression. `fx.tone` is authoritative when present;
+older simple projects retain their sound. Loudness analysis and mastered preview
+share export rendering, with cancellation and stale-result indication.
+
+Imports display progress and retry the same file ID. Oversize request handling
+now returns 413 without destroying the socket, and the Node request timeout matches
+the 15-minute upload timeout. The user's specific VPS 502 still needs verification
+against Caddy and service logs; do not claim that its cause has been proven locally.
+Editor-specific no-translation markup supplements the existing English language tag.
+
 ## Editor core
 
 - `src/pages/episodes/[id]/editor.astro` loads local and server takes, aligns
@@ -74,6 +94,14 @@ recovery path.
 
 ## Tests and publishing
 
+Editor usability verification (2026-09-28): 259 unit/server tests pass; Astro
+and Svelte checks have zero errors; the build passes. All 14 browser flows
+passed across the full run and targeted editor/guest reruns after correcting
+legacy guest discovery and navigation expectations. Tests used installed Chrome.
+Desktop timeline/FX/loudness screenshots were reviewed against the UI standards;
+`docs/images/editor.png` is current. Chrome's profile-dependent translation
+prompt and the reported VPS 502 still need real-environment verification.
+
 Run all of these before publishing:
 
 ```sh
@@ -110,3 +138,7 @@ the feature branch, fast-forward `feat/ui-build`, push it, then fast-forward
    processing in the browser and VPS requirements low.
 5. Optional AI tools, transcription and episode-package features remain future
    work. Do not let those controls imply a working service yet.
+
+Mobile follow-up: [reported bugs](bugs.md) tracks the misleading Open editor action after phone recording, the intended simplified mobile panel, and hotkeys that should be removed on mobile only. These remain open.
+
+Deferred timeline correction: remove Select/Move modes in favor of click-to-select and direct clip dragging, with automatic overlap crossfades. See [reported bugs](bugs.md#timeline-interaction-correction-direct-dragging-and-overlap-crossfades). The current mode-based controls remain until that follow-up.

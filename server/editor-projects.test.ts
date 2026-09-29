@@ -36,3 +36,19 @@ test('editor projects validate take identity', async () => {
     s.done();
   }
 });
+
+import { createEditorProject } from '../src/lib/editor-project.ts';
+import { flatTone } from '../src/lib/audio/tone.ts';
+test('advanced processing metadata round-trips and invalid controls are refused', async () => {
+  const s = await signedIn();
+  try {
+    await s.call('/api/takes/edit-take', { method: 'PUT', body: { meta } });
+    const p = createEditorProject({ takeId: 'edit-take', episodeId: '142', name: 'Advanced', sources: [{ id: 'edit-take', kind: 'voice', name: 'Host', channels: 1, sampleRate: 48000, duration: 1 }] });
+    p.tracks[0].fx.tone = flatTone(); p.tracks[0].fx.tone.comp.attackMs = 35;
+    p.master = { loudness: 'custom', targetLufs: -22, ceilingDb: -2, channels: 1, mp3: false, rawTracks: false };
+    assert.equal((await s.call('/api/editor-projects/edit-take', { method: 'PUT', body: { project: p, baseRevision: 0 } })).status, 200);
+    assert.deepEqual((await s.call('/api/editor-projects/edit-take')).body.project, JSON.parse(JSON.stringify(p)));
+    p.tracks[0].fx.tone.comp.attackMs = -4;
+    assert.equal((await s.call('/api/editor-projects/edit-take', { method: 'PUT', body: { project: p, baseRevision: 1 } })).status, 400);
+  } finally { s.done(); }
+});

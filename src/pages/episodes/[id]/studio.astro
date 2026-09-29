@@ -146,7 +146,8 @@ const menu = [
         <p class="text-[12px] leading-normal text-muted" data-mode-text>{modeHelp.voice}</p>
       </div>
 
-      <div class="mt-auto flex gap-2.5 p-5">
+      <div class="mt-auto flex flex-col gap-2.5 p-5">
+        <Button href={`${base}/editor`} data-editor-entry hidden>Open editor</Button>
         <Button type="submit" variant="record" size="xl" class="flex-1 gap-2.5">
           <span class="size-2.5 rounded-full bg-white"></span>
           <span>Start session</span>
@@ -178,6 +179,14 @@ const menu = [
 </AppShell>
 
 <script>
+  import { listTakes as recordedTakes } from '@/lib/audio/takes';
+  import { serverTakes as recordedServerTakes } from '@/lib/take-upload';
+  const editorEntry = document.querySelector<HTMLAnchorElement>('[data-editor-entry]');
+  if (editorEntry) {
+    const episode = location.pathname.split('/')[2];
+    void Promise.all([recordedTakes(episode), recordedServerTakes(episode)]).then(([local, remote]) => { editorEntry.hidden = !local.some((t) => t.status === 'done') && !remote.some((t) => t.done); });
+  }
+
   import { mbPerMinute } from '@/lib/audio/format';
   import { describeInput } from '@/lib/audio/devices';
   import { sessionUrl } from '@/lib/flow';

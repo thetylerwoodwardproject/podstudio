@@ -5,15 +5,16 @@ import TopBar, { type Crumb } from '@/components/app/TopBar.astro';
 
 interface Props {
   title: string;
+  noTranslate?: boolean;
   crumbs: Crumb[];
   avatar?: boolean;
   /** Skip the browser check (pages that don't record) */
   anyBrowser?: boolean;
 }
-const { title, crumbs, avatar, anyBrowser } = Astro.props;
+const { noTranslate = false, title, crumbs, avatar, anyBrowser } = Astro.props;
 ---
 
-<Base title={title} anyBrowser={anyBrowser}>
+<Base noTranslate={noTranslate} title={title} anyBrowser={anyBrowser}>
   <div class="flex h-dvh flex-col">
     <TopBar crumbs={crumbs} avatar={avatar}>
       <slot name="topbar-center" slot="center" />
