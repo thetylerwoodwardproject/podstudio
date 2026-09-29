@@ -25,7 +25,7 @@ index for exact lazy reads. Completed legacy guest uploads are exposed through
 the authenticated take reader without copying their audio. The selected session's pads still require preparation
 of its host audio for ducking; other sessions are never downloaded speculatively.
 
-Select/Move tools, signed reversible trim gestures, numeric clip fields and SVG
+Direct clip dragging, ruler/Shift range selection, signed reversible trim gestures, numeric clip fields and SVG
 transport controls replace the ambiguous interactions. `EditorFxControls.svelte`
 provides optional advanced EQ/compression. `fx.tone` is authoritative when present;
 older simple projects retain their sound. Loudness analysis and mastered preview
@@ -112,7 +112,7 @@ npm run build
 npm run test:browser
 ```
 
-The browser suite contains 15 Chromium flows and writes logs/screenshots to
+The browser suite contains 16 Chromium flows and writes logs/screenshots to
 `tests/browser/.out`. Review new desktop and phone screenshots against
 `docs/ui-framework.md`. The editor unit coverage includes project validation,
 linked/ripple commands, retakes, pause suggestions, bounded source reads and
@@ -141,6 +141,6 @@ the feature branch, fast-forward `feat/ui-build`, push it, then fast-forward
 
 Mobile review now replaces the editor loop with bounded playback/scrubbing, server status/retry and selected raw downloads. Local/server sources share discovery and raw rendering with the editor. `mobile.ts` centralizes the boundary; mobile pads and setup are excluded. Chromium portrait/landscape checks cover these changes; real iOS/Android validation remains pending.
 
-Deferred timeline correction: remove Select/Move modes in favor of click-to-select and direct clip dragging, with automatic overlap crossfades. See [reported bugs](bugs.md#timeline-interaction-correction-direct-dragging-and-overlap-crossfades). The current mode-based controls remain until that follow-up.
-
 Mobile verification (2026-09-29): 261 unit/server tests pass, Astro and Svelte checks have zero errors, and the build passes. Browser coverage includes server-only phone host/guest review, portrait/landscape, selected raw downloads, missing IDs, offline status and desktop pads. Legacy Saved-screen tests now exercise raw review while retaining the legacy export/noise regressions. Real iOS Safari and Android Chrome checks remain pending.
+
+The editor-direct-drag branch stores optional same-track crossfade references in project metadata. New partial overlaps use equal-power fades over their full span; old projects keep their old overlap sound until a clip is moved or trimmed. Imported media readers seek into cached WAV Blobs and no longer decode a full file on every preview window. The previous VPS 502 and newly reported repeated playback stalls still require updated-VPS reproduction with the original MP3.

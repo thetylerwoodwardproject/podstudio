@@ -30,7 +30,8 @@ const episode = { ...mockEpisode, ...data.episode };
   import { rawRecordingWav } from '@/lib/audio/raw-export';
   import { WavReader, renderMaster } from '@/lib/audio/master';
   import { encodeMp3 } from '@/lib/audio/mp3';
-  import { decodeToLibraryRate, listLibrary, readLibraryFile, saveLibraryFile } from '@/lib/pads';
+  import { mediaSource } from '@/lib/audio/media-source';
+  import { decodeToLibraryRate, listLibrary, libraryWav, readLibraryFile, saveLibraryFile } from '@/lib/pads';
   import { encodeWav, pcmBytes, wavHeader } from '@/lib/audio/wav';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadSettings } from '@/lib/settings';
@@ -164,7 +165,7 @@ const episode = { ...mockEpisode, ...data.episode };
       const id = track.sourceId.replace(/^media:/, '');
       const originalDuration = importedMedia.find((file) => file.id === id)?.seconds;
       for (const clip of track.clips) clip.sourceDuration = Math.max(clip.sourceDuration ?? clip.sourceEnd, originalDuration ?? 0);
-      sources.set(track.sourceId, { channels: 2, sampleRate: 48000, read: async (from, seconds) => (await readLibraryFile(id)).slice(Math.round(from * 48000) * 2, Math.round((from + seconds) * 48000) * 2) });
+      sources.set(track.sourceId, mediaSource(() => libraryWav(id)));
       views.push({ id: track.id, peaks: [], color: 'var(--color-adlib)' });
     }
 
@@ -177,7 +178,7 @@ const episode = { ...mockEpisode, ...data.episode };
 
     let renderState = createRenderState(); let previewKey = ''; let previewEnd = -1;
     let masterCache: { key: string; wav: Blob; result: Awaited<ReturnType<typeof renderMaster>> } | null = null;
-    const audioKey = (value: EditorProjectV1) => JSON.stringify({ tracks: value.tracks, markers: value.markers, sourceMarkers: value.sourceMarkers, retakes: value.retakes, pauses: value.pauses, master: masterOptions(value.master) });
+    const audioKey = (value: EditorProjectV1) => JSON.stringify({ tracks: value.tracks, markers: value.markers, sourceMarkers: value.sourceMarkers, retakes: value.retakes, pauses: value.pauses, master: masterOptions(value.master), crossfades: value.crossfades });
     const master = async (value: EditorProjectV1, progress: (s: string) => void, signal?: AbortSignal) => {
       const key = audioKey(value);
       if (masterCache?.key === key) return masterCache;
@@ -223,7 +224,7 @@ const episode = { ...mockEpisode, ...data.episode };
       const media = await saveLibraryFile(stereo, { id, name: file.name, source: 'Editor import', onProgress: (percent) => progress(percent === 100 ? 'Upload sent · waiting for server…' : `Uploading… ${percent}%`) });
       progress('Adding track…');
       const sourceId = `media:${media.id}`;
-      sources.set(sourceId, { channels: 2, sampleRate: 48000, read: async (from, seconds) => (await readLibraryFile(media.id)).slice(Math.round(from * 48000) * 2, Math.round((from + seconds) * 48000) * 2) });
+      sources.set(sourceId, mediaSource(() => libraryWav(media.id)));
       const track: EditorTrack = { id: `track-${sourceId}`, sourceId, kind: 'import', name: file.name, channels: 2, sampleRate: 48000, gainDb: 0, muted: false, fx: defaultFx(false), clips: [{ id: `clip-${media.id}`, sourceId, sourceStart: 0, sourceEnd: media.seconds, sourceDuration: media.seconds, timelineStart: at, linked: false, fadeInMs: 0, fadeOutMs: 0 }] };
       return { track, peaks: peaksOf(stereo, 2, 48000) };
     };

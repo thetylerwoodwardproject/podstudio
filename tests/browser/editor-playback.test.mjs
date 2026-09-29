@@ -1,0 +1,42 @@
+import { chromium } from './auth.mjs';
+import { B, CHROME, OUT } from './env.mjs';
+let fails = 0;
+const ok = (name, condition, detail = '') => { if (!condition) fails++; console.log(condition ? 'PASS' : 'FAIL', name, detail); };
+const until = async (fn, timeout = 20000) => { const start = Date.now(); while (Date.now() - start < timeout) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--autoplay-policy=no-user-gesture-required', '--disable-audio-output'] });
+const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
+await ctx.addInitScript(() => {
+  const NativeAudio = window.Audio;
+  window.testAudio = [];
+  window.Audio = new Proxy(NativeAudio, { construct(target, args) { const audio = Reflect.construct(target, args); window.testAudio.push(audio); return audio; } });
+  const arrayBuffer = Blob.prototype.arrayBuffer;
+  window.readSizes = [];
+  Blob.prototype.arrayBuffer = function () { window.readSizes.push(this.size); return arrayBuffer.call(this); };
+});
+const page = await ctx.newPage(), errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+await page.goto(B);
+await page.evaluate(async () => {
+  const meta = { id: 'editor-playback', episodeId: '142', kind: 'session', name: 'Long import', speaker: 'Host', sampleRate: 48000, channels: 1, bitDepth: 16, samples: 96000, segments: 1, startedAt: Date.now(), updatedAt: Date.now(), status: 'done', markers: [], lineLog: [] };
+  const put = (url, body, json = true) => fetch(url, { method: 'PUT', headers: json ? { 'Content-Type': 'application/json' } : {}, body: json ? JSON.stringify(body) : body });
+  await put('/api/takes/editor-playback', { meta }); await put('/api/takes/editor-playback/segments/1', new Int16Array(96000).buffer, false); await put('/api/takes/editor-playback', { meta, done: true });
+});
+await page.goto(`${B}/episodes/142/editor?take=editor-playback`); await page.waitForSelector('[data-editor]');
+// Four minutes, matching the reported duration, without a codec dependency in CI.
+const frames = 48000 * 240, wav = Buffer.alloc(44 + frames * 2);
+wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(48000, 24); wav.writeUInt32LE(96000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(frames * 2, 40);
+for (let i = 0; i < frames; i++) wav.writeInt16LE(Math.round(Math.sin(i * Math.PI * 2 * 440 / 48000) * 3000), 44 + i * 2);
+await page.locator('label:has-text("Import audio") input').setInputFiles({ name: 'four-minute.wav', mimeType: 'audio/wav', buffer: wav });
+ok('four-minute upload becomes one imported track', await until(async () => await page.locator('[data-track]').count() === 2, 60000));
+await page.getByRole('button', { name: /^Mute / }).first().click();
+await page.evaluate(() => { window.readSizes = []; });
+await page.locator('[data-editor-play]').click();
+ok('playback starts', await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause'));
+ok('next window prepares early', await until(async () => await page.evaluate(() => window.testAudio.length >= 2), 10000));
+await page.evaluate(() => window.testAudio[0].currentTime = 29.8);
+ok('player continues past its first window', await until(async () => await page.evaluate(() => window.testAudio[1] && !window.testAudio[1].paused && window.testAudio[1].currentTime > .2)));
+ok('playback reads only bounded PCM slices', await page.evaluate(() => window.readSizes.length > 0 && Math.max(...window.readSizes) <= 48000 * 30 * 4), JSON.stringify(await page.evaluate(() => window.readSizes)));
+await page.screenshot({ path: `${OUT}/editor-long-import.png` });
+ok('no playback errors', !errors.length, errors.join(' | '));
+console.log(fails ? `${fails} FAILED` : 'ALL PASS'); process.exitCode = fails ? 1 : 0;
+await browser.close();

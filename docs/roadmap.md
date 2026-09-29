@@ -19,12 +19,12 @@ The first real VPS install is active. Validate:
 - server CPU, memory and disk use while browsers do the audio processing.
 
 The checks workflow runs unit/server tests, Astro and Svelte checks, the build
-and all 14 browser tests. Browser logs and screenshots are retained for seven
+and all browser tests. Browser logs and screenshots are retained for seven
 days.
 
 ## Editor follow-through
 
-Direct editor access, server-session discovery, explicit Select/Move tools,
+Direct editor access, server-session discovery, direct clip dragging and ruler/Shift range selection,
 reversible trims, SVG transport icons, advanced EQ/compression, configurable
 loudness analysis and import progress/retry are implemented. Validate the reported
 VPS import 502 with real uploads and service/proxy logs. Check Chrome translation
@@ -64,4 +64,4 @@ Before a public release:
 
 Mobile recording review and pad removal are implemented; validate raw downloads, playback and synchronization on real iOS/Android devices. The 502 and reported endless import buffering still need updated-VPS reproduction.
 
-Deferred timeline correction: remove Select/Move modes in favor of click-to-select and direct clip dragging, with automatic overlap crossfades. See [reported bugs](bugs.md#timeline-interaction-correction-direct-dragging-and-overlap-crossfades). The current mode-based controls remain until that follow-up.
+Direct clip dragging and automatic equal-power crossfades are implemented in the editor-direct-drag branch, with source-preserving project metadata. A bounded imported-WAV reader and earlier playback prefetch address a demonstrated per-window decoding cost. Validate continuous playback with the original four-minute MP3 on the upgraded VPS; the previous 502 cannot yet be attributed to a specific proxy or server cause.

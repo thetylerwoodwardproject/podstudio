@@ -30,15 +30,16 @@ Mobile fixes now provide Review recording, bounded playback, synchronization ret
 
 ## Timeline interaction correction: direct dragging and overlap crossfades
 
-- Status: deferred, requested on 2026-09-28; not implemented in the current editor usability change.
+- Status: implemented in feat/editor-direct-drag; browser and VPS verification pending.
 - Remove the separate **Select** and **Move** tool buttons.
 - Clicking a waveform block selects it. Holding the mouse button and dragging moves that block directly.
 - Overlapping waveform blocks should automatically crossfade across their overlap, with matching playback and finished export. Keep sources unchanged and the gesture undoable.
 - Preserve trim handles, linked-track behavior, keyboard editing, and cancellation. Define a separate discoverable time-range selection gesture so Cut/Delete remain available without the mode switch.
 - Acceptance: click selects without moving; drag moves without a mode change; overlap produces an audible crossfade rather than simply summing the clips; undo restores clip positions and fades; saved projects reopen with the same result.
 
-## Imported audio buffers indefinitely during playback
+## Imported audio buffers during playback
 
-- Status: open; reported on 2026-09-29 after the same MP3 uploaded successfully.
-- The VPS checkout was verified at `c53b6fc`, predating the latest editor/upload improvements; no recent Podstudio/Caddy journal entries were reported by the user.
-- The user confirmed playback starts and then repeatedly stalls. Reproduce on the updated editor with the four-minute MP3 and measure preparation/prefetch time across playback windows. Verify bounded media reads and cumulative processing before closing the report.
+- Status: mitigation implemented in feat/editor-direct-drag; original VPS report remains open.
+- Report: a four-minute, approximately 12 MB MP3 now uploads but playback starts and repeatedly stalls. The deployed VPS checkout was `c53b6fc` when inspected.
+- Cause found in current source: every playback window decoded the entire converted WAV before slicing it, and prefetch began only eight seconds before the window ended. Imports now use cached Blob-backed bounded WAV frame reads with independent cursors and prepare the next window shortly after playback begins.
+- Verification: a four-minute WAV bounded-read unit test passes and a long import browser regression is prepared. No recent Podstudio/Caddy journal entries were reported by the user. The original MP3 must play across multiple window boundaries on the updated VPS before this report can close. The earlier 502 upload also remains unconfirmed.

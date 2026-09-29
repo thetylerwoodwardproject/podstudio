@@ -52,3 +52,17 @@ test('advanced processing metadata round-trips and invalid controls are refused'
     assert.equal((await s.call('/api/editor-projects/edit-take', { method: 'PUT', body: { project: p, baseRevision: 1 } })).status, 400);
   } finally { s.done(); }
 });
+
+import { moveClip, splitProject } from '../src/lib/editor-project.ts';
+test('crossfade references persist and invalid participant IDs are rejected', async () => {
+  const s = await signedIn();
+  try {
+    await s.call('/api/takes/edit-take', { method: 'PUT', body: { meta } });
+    let p = createEditorProject({ takeId: 'edit-take', episodeId: '142', name: 'Fade', sources: [{ id: 's', kind: 'import', name: 'Audio', duration: 20, channels: 2, sampleRate: 48000 }] });
+    p = splitProject(p, 10); p = moveClip(p, p.tracks[0].id, p.tracks[0].clips[1].id, 8);
+    const save = (value: unknown, revision: number) => s.call('/api/editor-projects/edit-take', { method: 'PUT', body: { project: value, baseRevision: revision } });
+    assert.equal((await save(p, 0)).status, 200);
+    assert.deepEqual((await s.call('/api/editor-projects/edit-take')).body.project.crossfades, p.crossfades);
+    p.crossfades![0].from = ['nonexistent']; assert.equal((await save(p, 1)).status, 400);
+  } finally { s.done(); }
+});

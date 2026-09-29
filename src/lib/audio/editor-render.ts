@@ -1,6 +1,7 @@
 /* Bounded-window renderer for the Podstudio editor. It reads only clip regions
  * that overlap the requested window; source audio remains immutable. */
-import { deleteRange, projectDuration, toneFromFx, type EditorProjectV1, type EditorTrack } from '../editor-project.ts';
+import { deleteRange, projectDuration, toneFromFx, type EditorCrossfade, type EditorProjectV1, type EditorTrack } from '../editor-project.ts';
+import { crossfadeSpan } from '../editor-crossfades.ts';
 import { Leveler } from './loudness.ts';
 import { ToneProcessor } from './tone.ts';
 import { pcmBytes, wavHeader, type BitDepth } from './wav.ts';
@@ -40,11 +41,18 @@ function resample(input: Float32Array, channels: number, from: number, to: numbe
   return out;
 }
 
-export async function renderTrackWindow(track: EditorTrack, sources: EditorSources, from: number, seconds: number, rate = 48000, coughs: [number, number][] = [], leveler?: Leveler, state?: RenderState, sourceCoughs?: [number, number][]): Promise<Float32Array> {
+export async function renderTrackWindow(track: EditorTrack, sources: EditorSources, from: number, seconds: number, rate = 48000, coughs: [number, number][] = [], leveler?: Leveler, state?: RenderState, sourceCoughs?: [number, number][], crossfades: EditorCrossfade[] = []): Promise<Float32Array> {
   const frames = Math.max(0, Math.round(seconds * rate));
   const output = new Float32Array(frames * 2);
   if (track.muted) return output;
   const trackGain = gain(track.gainDb);
+  const envelopes = new Map<string, { start: number; end: number; outgoing: boolean }[]>();
+  for (const fade of crossfades) {
+    const span = crossfadeSpan(track, fade); if (!span) continue;
+    for (const [ids, outgoing] of [[fade.from, true], [fade.to, false]] as const) for (const id of ids) {
+      const values = envelopes.get(id) ?? []; values.push({ start: span[0], end: span[1], outgoing }); envelopes.set(id, values);
+    }
+  }
   for (const clip of track.clips) {
     const clipEnd = clip.timelineStart + clip.sourceEnd - clip.sourceStart;
     const a = Math.max(from, clip.timelineStart);
@@ -72,10 +80,15 @@ export async function renderTrackWindow(track: EditorTrack, sources: EditorSourc
     }
     const stereo = toStereo(samples, source.channels);
     const startFrame = Math.round((a - from) * rate);
+    const fades = envelopes.get(clip.id) ?? [];
     const fadeIn = Math.round(clip.fadeInMs * rate / 1000);
     const fadeOut = Math.round(clip.fadeOutMs * rate / 1000);
     for (let i = 0; i < stereo.length / 2 && startFrame + i < frames; i++) {
       let envelope = 1;
+      for (const fade of fades) {
+        const p = Math.max(0, Math.min(1, (a + i / rate - fade.start) / (fade.end - fade.start)));
+        envelope *= fade.outgoing ? Math.cos(p * Math.PI / 2) : Math.sin(p * Math.PI / 2);
+      }
       if (fadeIn) envelope *= Math.sin(Math.min(1, ((a - clip.timelineStart) * rate + i) / fadeIn) * Math.PI / 2);
       if (fadeOut) envelope *= Math.sin(Math.min(1, ((clipEnd - a) * rate - i) / fadeOut) * Math.PI / 2);
       output[(startFrame + i) * 2] += stereo[i * 2] * trackGain * envelope;
@@ -109,7 +122,7 @@ export async function renderEditorWindow(project: EditorProjectV1, sources: Edit
       leveler = new Leveler(rate, track.channels);
       levelers.set(track.id, leveler);
     }
-    const audio = await renderTrackWindow(track, sources, from, seconds, rate, coughs, leveler, state, track.kind === 'voice' ? project.sourceMarkers?.filter((m) => m.kind === 'cut' && (m.who ?? 'host') === who).map((m) => [m.t, m.end ?? m.t]) : undefined);
+    const audio = await renderTrackWindow(track, sources, from, seconds, rate, coughs, leveler, state, track.kind === 'voice' ? project.sourceMarkers?.filter((m) => m.kind === 'cut' && (m.who ?? 'host') === who).map((m) => [m.t, m.end ?? m.t]) : undefined, (project.crossfades ?? []).filter((f) => f.trackId === track.id));
     for (let i = 0; i < mix.length; i++) mix[i] += audio[i] ?? 0;
   }
   return mix;

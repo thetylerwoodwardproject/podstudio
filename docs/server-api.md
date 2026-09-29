@@ -172,3 +172,7 @@ Phone review reuses the take list/detail/segment readers and existing media IDs;
 there is no new review API. Audio previews read at most 30 seconds, while each raw
 download fetches only its selected source. Guest tracks share the host's alignment
 and recorded-pause removal. Editor edits and FX do not affect raw downloads.
+
+### Editor crossfade metadata
+
+`EditorProjectV1.crossfades` is optional. Each record contains `trackId` and nonempty `from`/`to` clip-ID arrays on that same track. Split fragments may share an envelope; the overlap bounds are derived from current clip positions. The existing authenticated project PUT validates referenced clips and their edge overlap. Older projects without this field retain their previous sound. No new endpoint or database migration is required.

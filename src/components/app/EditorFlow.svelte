@@ -25,6 +25,7 @@
   import { onDestroy, tick } from 'svelte';
   import EditorFxControls from './EditorFxControls.svelte';
   import { cleanMaster, cleanEditorProject, deleteClip, timelineMarkers, defaultFx } from '@/lib/editor-project';
+  import { crossfadeSpan } from '@/lib/editor-crossfades';
   import Sheet from '@/components/ui/Sheet.svelte';
   import {
     deleteRange,
@@ -61,7 +62,6 @@
   let importStatus = $state('');
   let pendingImport = $state<File | undefined>();
   let importAt = 0;
-  let tool = $state<'select' | 'move'>('select');
   let gestureCancel: (() => void) | null = null;
   let loudnessOpen = $state(false);
   let masterDraft = $state(cleanMaster(initial.master));
@@ -77,7 +77,7 @@
   let prefetching = false;
   const selected = $derived(project.tracks.find((t) => t.id === selectedTrack)?.clips.find((c) => c.id === selectedClip));
   const visibleMarkers = $derived(timelineMarkers(project));
-  const soundKey = (value: EditorProjectV1) => JSON.stringify({ tracks: value.tracks, markers: value.markers, retakes: value.retakes, pauses: value.pauses, master: cleanMaster(value.master) });
+  const soundKey = (value: EditorProjectV1) => JSON.stringify({ tracks: value.tracks, markers: value.markers, retakes: value.retakes, pauses: value.pauses, master: cleanMaster(value.master), crossfades: value.crossfades });
   const measurementStale = $derived(measurementKey !== soundKey({ ...project, master: masterDraft }));
   function invalidateAudio() {
     ++playTimer; prefetching = false;
@@ -245,15 +245,15 @@
     target.addEventListener('pointermove', move); target.addEventListener('pointerup', up); target.addEventListener('pointercancel', cancelEvent); window.addEventListener('keydown', key);
   }
   function beginSelection(e: PointerEvent, track?: EditorTrack, clipId?: string) {
-    const node = (e.currentTarget as HTMLElement).closest('[data-lane]') as HTMLElement;
+    const node = (e.currentTarget as HTMLElement).closest('[data-lane], [data-ruler]') as HTMLElement;
     if (!node) return;
-    if (track) selectedTrack = track.id;
+    selectedTrack = track?.id ?? '';
     selectedClip = clipId ?? '';
     const start = point(e, node); selectionStart = selectionEnd = start; seek(start);
     gesture(e, (dx) => selectionEnd = Math.max(0, Math.min(duration, start + dx)), false);
   }
   function dragClip(e: PointerEvent, track: EditorTrack, clipId: string) {
-    if (tool === 'select' && !e.altKey) { beginSelection(e, track, clipId); return; }
+    if (e.shiftKey) { beginSelection(e, track, clipId); return; }
     selectedTrack = track.id; selectedClip = clipId; selectionStart = selectionEnd = playhead;
     const original = plain(project), clip = track.clips.find((c) => c.id === clipId)!;
     const at = clip.timelineStart; const unlink = e.altKey;
@@ -326,7 +326,7 @@
     };
     element.ontimeupdate = () => {
       playhead = Math.min(duration, at + element.currentTime);
-      if (!nextAudio && !prefetching && seconds > 20 && element.currentTime > seconds - 8 && at + seconds < duration) void prefetch(at + seconds);
+      if (!nextAudio && !prefetching && seconds > 20 && element.currentTime > .25 && at + seconds < duration) void prefetch(at + seconds);
     };
   }
   async function prefetch(at: number) {
@@ -402,8 +402,6 @@
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(false); }
     else if (mod && e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); redo(); }
     else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
-    else if (e.key.toLowerCase() === 'v') { tool = 'move'; }
-    else if (e.key.toLowerCase() === 'a') { tool = 'select'; }
     else if (e.key.toLowerCase() === 's') { e.preventDefault(); split(); }
     else if (e.key.toLowerCase() === 'x') { e.preventDefault(); remove(true); }
   }
@@ -433,15 +431,14 @@
   {#if importStatus}<div role="status" data-import-status class="border-b border-divider px-4 py-2 text-[12px] text-text-2" aria-live="polite">{importing ? '◌ ' : ''}{importStatus}</div>{/if}
   {#if importError}<div role="alert" class="border-b border-rec/30 bg-rec/5 px-4 py-2 text-[12px] text-rec">{importError}{#if pendingImport}<button class="ml-4 underline" disabled={importing} onclick={() => importFile(pendingImport)}>Retry upload</button>{/if}</div>{/if}
   <div class="flex flex-wrap items-center gap-3 border-b border-divider px-4 py-2 text-[12px]">
-    <div class="flex rounded-[10px] border border-border p-1">{#each ['select', 'move'] as mode}<button class="h-8 rounded-[7px] px-3 capitalize" class:bg-text={tool === mode} class:text-page={tool === mode} aria-pressed={tool === mode} title={mode === 'select' ? 'Select a time range (A)' : 'Move clips (V); Alt-drag to unlink'} onclick={() => tool = mode as 'select'|'move'}>{mode === 'select' ? 'Select' : 'Move'}</button>{/each}</div>
-    <span class="text-text-3">{tool === 'select' ? 'Drag a waveform to select time. Drag its edges to trim.' : 'Drag clips to move. Linked tracks move together. Alt-drag unlinks.'}</span>
+    <span class="text-text-3">Click a waveform to select. Drag to move; drag edges to trim. Shift-drag or drag the ruler to select time. Alt-drag unlinks.</span>
     {#if selected}<div class="ml-auto flex gap-3">{#each [{ key: 'position', name: 'Position', value: selected.timelineStart }, { key: 'start', name: 'Trim start', value: selected.sourceStart }, { key: 'end', name: 'Trim end', value: selected.sourceEnd }] as field}<label class="flex items-center gap-2 text-text-2">{field.name}<input aria-label={`${field.name} seconds`} class="h-8 w-20 rounded-[8px] border border-border bg-page px-2 font-mono text-text" type="number" min="0" step=".01" value={Number(field.value.toFixed(3))} onchange={(e) => numericClip(field.key as 'position'|'start'|'end', e.currentTarget.valueAsNumber)} /></label>{/each}</div>{/if}
   </div>
   <div class="flex min-h-0 flex-1 overflow-auto" data-timeline-scroll>
     <div class="relative min-w-full" style={`width:${HEADER + timelineWidth}px`}>
       <div class="sticky top-0 z-30 flex h-10 border-b border-divider bg-page/95 backdrop-blur">
         <div class="sticky left-0 z-40 flex w-[176px] flex-none items-center border-r border-divider bg-page px-4 text-[11px] font-mono text-text-3">TRACKS</div>
-        <div class="relative flex-1" role="button" tabindex="0" aria-label="Timeline ruler" style={`width:${timelineWidth}px`} onclick={(e) => seek(point(e, e.currentTarget))} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') seek(playhead); }}>
+        <div class="relative flex-1" role="button" tabindex="0" aria-label="Timeline ruler" style={`width:${timelineWidth}px`} data-ruler onpointerdown={(e) => beginSelection(e)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') seek(playhead); }}>
           {#each Array(Math.ceil(duration / (zoom < 1 ? 30 : zoom > 3 ? 5 : 10)) + 1) as _, i}
             {@const step = zoom < 1 ? 30 : zoom > 3 ? 5 : 10}
             <div class="absolute top-0 h-full border-l border-divider" style={`left:${i * step * pxPerSecond}px`}><span class="ml-1.5 font-mono text-[10px] text-text-3">{fmt(i * step)}</span></div>
@@ -472,7 +469,7 @@
           <div class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex="-1" onpointerdown={(e) => beginSelection(e, track)}>
             {#each track.clips as clip}
               {@const clipDuration = clip.sourceEnd - clip.sourceStart}
-              <button data-clip class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onclick={() => { selectedTrack = track.id; selectedClip = clip.id; }} title={tool === 'move' ? 'Drag to move clip' : 'Drag to select time'} onpointerdown={(e) => dragClip(e, track, clip.id)}>
+              <button data-clip class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onclick={() => { selectedTrack = track.id; selectedClip = clip.id; }} title="Drag to move clip; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
                 <span role="slider" aria-label="Trim clip start" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceStart} tabindex="0" class="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'start')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'start', e.key === 'ArrowRight' ? .01 : -.01)); } }}></span>
                 <span role="slider" aria-label="Trim clip end" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceEnd} tabindex="0" class="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'end')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'end', e.key === 'ArrowLeft' ? .01 : -.01)); } }}></span>
                 <span class="absolute left-2 top-1 font-mono text-[9px] text-text-3">{clip.linked ? 'LINKED' : 'UNLINKED'}</span>
@@ -482,6 +479,10 @@
                   {/each}
                 </span>
               </button>
+            {/each}
+            {#each project.crossfades?.filter((f) => f.trackId === track.id) ?? [] as fade}
+              {@const span = crossfadeSpan(track, fade)}
+              {#if span}<div data-crossfade class="pointer-events-none absolute top-3 h-[78px] border-x border-text/40 bg-text/5" style={`left:${span[0] * pxPerSecond}px;width:${(span[1] - span[0]) * pxPerSecond}px`} title="Equal-power crossfade"><svg class="h-full w-full" viewBox="0 0 100 78" preserveAspectRatio="none" aria-label="Crossfade"><path d="M0 0 Q64 0 100 78 M0 78 Q36 0 100 0" fill="none" stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".5" /></svg></div>{/if}
             {/each}
             {#if hasSelection}<div class="pointer-events-none absolute inset-y-0 bg-info/15 outline outline-1 outline-info" style={`left:${selection[0] * pxPerSecond}px;width:${(selection[1] - selection[0]) * pxPerSecond}px`}></div>{/if}
           </div>

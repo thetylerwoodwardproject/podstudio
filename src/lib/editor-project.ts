@@ -1,3 +1,4 @@
+import { clampOverlapEdit, crossfadeSpan, refreshCrossfades, remapCrossfades } from './editor-crossfades.ts';
 import type { SessionMarker, LineStart } from './audio/assemble.ts';
 import { cleanTone, COMP_PRESETS, flatTone, type VoiceTone } from './audio/tone.ts';
 
@@ -76,12 +77,16 @@ export interface EditorMaster {
   rawTracks: boolean;
 }
 
+export interface EditorCrossfade { trackId: string; from: string[]; to: string[] }
+
 export interface EditorProjectV1 {
   version: 1;
   takeId: string;
   episodeId: string;
   name: string;
   tracks: EditorTrack[];
+  /** Explicit joins: absent on legacy projects until clips are moved/trimmed. */
+  crossfades?: EditorCrossfade[];
   markers: SessionMarker[];
   /** Immutable markers in aligned source time, used after clip edits. */
   sourceMarkers?: SessionMarker[];
@@ -225,7 +230,9 @@ const splitClip = (clip: EditorClip, at: number): EditorClip[] => {
 export function splitProject(project: EditorProjectV1, at: number, trackId?: string): EditorProjectV1 {
   const p = structuredClone(project);
   const linked = !trackId || p.tracks.find((t) => t.id === trackId)?.clips.some((c) => c.linked && at > c.timelineStart && at < c.timelineStart + c.sourceEnd - c.sourceStart);
-  for (const track of p.tracks) track.clips = track.clips.flatMap((c) => !trackId || track.id === trackId || (linked && c.linked) ? splitClip(c, at) : [c]);
+  const replacements = new Map<string, string[]>();
+  for (const track of p.tracks) track.clips = track.clips.flatMap((c) => { const next = !trackId || track.id === trackId || (linked && c.linked) ? splitClip(c, at) : [c]; replacements.set(c.id, next.map((x) => x.id)); return next; });
+  remapCrossfades(project, p, replacements);
   p.updatedAt = Date.now();
   return p;
 }
@@ -244,11 +251,13 @@ export function deleteRange(project: EditorProjectV1, start: number, end: number
   start = Math.max(0, Math.min(start, end)); end = Math.max(start, end);
   const amount = end - start;
   const linked = !trackId || p.tracks.find((t) => t.id === trackId)?.clips.some((c) => c.linked && end > c.timelineStart && start < c.timelineStart + c.sourceEnd - c.sourceStart);
+  const replacements = new Map<string, string[]>();
   for (const track of p.tracks) {
     const affects = (c: EditorClip) => !trackId || track.id === trackId || (!!linked && c.linked);
-    track.clips = track.clips.flatMap((c) => affects(c) ? removeFromClip(c, start, end) : [c]);
+    track.clips = track.clips.flatMap((c) => { const next = affects(c) ? removeFromClip(c, start, end) : [c]; replacements.set(c.id, next.map((x) => x.id)); return next; });
     if (ripple && amount) for (const clip of track.clips) if (affects(clip) && clip.timelineStart >= end) clip.timelineStart -= amount;
   }
+  remapCrossfades(project, p, replacements);
   if (ripple && amount) {
     const shift = (t: number) => (t <= start ? t : t >= end ? t - amount : start);
     p.markers = p.markers.map((m) => ({ ...m, t: shift(m.t), ...(m.end != null ? { end: shift(m.end) } : {}) }));
@@ -259,32 +268,35 @@ export function deleteRange(project: EditorProjectV1, start: number, end: number
 }
 
 export function moveClip(project: EditorProjectV1, trackId: string, clipId: string, timelineStart: number, unlink = false): EditorProjectV1 {
-  const p = structuredClone(project);
-  const track = p.tracks.find((t) => t.id === trackId);
-  const clip = track?.clips.find((c) => c.id === clipId);
-  if (!clip) return p;
-  const originalStart = clip.timelineStart;
-  const delta = Math.max(0, timelineStart) - originalStart;
-  if (unlink) clip.linked = false;
-  for (const t of p.tracks) for (const c of t.clips) if (c.id === clipId || (!unlink && clip.linked && c.linked && Math.abs(c.timelineStart - originalStart) < 1e-6)) c.timelineStart = Math.max(0, c.timelineStart + delta);
-  p.updatedAt = Date.now();
-  return p;
+  const clip = project.tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
+  if (!clip) return structuredClone(project);
+  const changed = new Set(project.tracks.flatMap((t) => t.clips).filter((c) => c.id === clipId || (!unlink && clip.linked && c.linked && Math.abs(c.timelineStart - clip.timelineStart) < 1e-6)).map((c) => c.id));
+  const minimum = -Math.min(...project.tracks.flatMap((t) => t.clips).filter((c) => changed.has(c.id)).map((c) => c.timelineStart));
+  const result = clampOverlapEdit(project, timelineStart - clip.timelineStart, minimum, Number.MAX_SAFE_INTEGER, (delta) => {
+    const p = structuredClone(project);
+    for (const t of p.tracks) for (const c of t.clips) if (changed.has(c.id)) { c.timelineStart += delta; if (unlink && c.id === clipId) c.linked = false; }
+    return p;
+  });
+  if (result.tracks.some((t) => t.clips.some((c) => changed.has(c.id) && c.timelineStart !== project.tracks.find((x) => x.id === t.id)!.clips.find((x) => x.id === c.id)!.timelineStart))) refreshCrossfades(result, changed);
+  result.updatedAt = Date.now(); return result;
 }
 
 export function trimClip(project: EditorProjectV1, trackId: string, clipId: string, edge: 'start' | 'end', seconds: number): EditorProjectV1 {
-  const p = structuredClone(project);
-  const clip = p.tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
-  if (!clip) return p;
-  const candidates = p.tracks.flatMap((t) => t.clips).filter((c) => c.id === clipId || (clip.linked && c.linked && Math.abs(c.timelineStart - clip.timelineStart) < 1e-6));
+  const clip = project.tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
+  if (!clip) return structuredClone(project);
+  const candidates = project.tracks.flatMap((t) => t.clips).filter((c) => c.id === clipId || (clip.linked && c.linked && Math.abs(c.timelineStart - clip.timelineStart) < 1e-6));
+  const changed = new Set(candidates.map((c) => c.id));
   const minimum = Math.max(...candidates.map((c) => edge === 'start' ? -Math.min(c.sourceStart, c.timelineStart) : -(Math.max(c.sourceEnd, c.sourceDuration ?? c.sourceEnd) - c.sourceEnd)));
   const maximum = Math.min(...candidates.map((c) => c.sourceEnd - c.sourceStart - .01));
-  const delta = clamp(seconds, minimum, maximum);
-  for (const c of candidates) {
-    if (edge === 'start') { c.sourceStart += delta; c.timelineStart += delta; }
-    else c.sourceEnd -= delta;
-  }
-  p.updatedAt = Date.now();
-  return p;
+  const result = clampOverlapEdit(project, seconds, minimum, maximum, (delta) => {
+    const p = structuredClone(project);
+    for (const t of p.tracks) for (const c of t.clips) if (changed.has(c.id)) {
+      if (edge === 'start') { c.sourceStart += delta; c.timelineStart += delta; } else c.sourceEnd -= delta;
+    }
+    return p;
+  });
+  if (result.tracks.some((t) => t.clips.some((c) => changed.has(c.id) && (c.sourceStart !== project.tracks.find((x) => x.id === t.id)!.clips.find((x) => x.id === c.id)!.sourceStart || c.sourceEnd !== project.tracks.find((x) => x.id === t.id)!.clips.find((x) => x.id === c.id)!.sourceEnd)))) refreshCrossfades(result, changed);
+  result.updatedAt = Date.now(); return result;
 }
 
 export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
@@ -295,6 +307,11 @@ export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
   if (p.tracks.some((t) => t.clips.some((c) => !c || typeof c.id !== 'string' || typeof c.sourceId !== 'string' || ![c.sourceStart, c.sourceEnd, c.timelineStart].every(Number.isFinite) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart || c.timelineStart < 0))) return null;
   const copy = structuredClone(p);
   copy.tracks = copy.tracks.map((t) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) }));
+  copy.crossfades = Array.isArray(copy.crossfades) ? copy.crossfades.filter((f) => {
+    if (!f || typeof f.trackId !== 'string' || !Array.isArray(f.from) || !Array.isArray(f.to) || !f.from.length || !f.to.length || ![...f.from, ...f.to].every((id) => typeof id === 'string')) return false;
+    const track = copy.tracks.find((t) => t.id === f.trackId);
+    return track && [...f.from, ...f.to].every((id) => track.clips.some((c) => c.id === id)) && !f.from.some((id) => f.to.includes(id)) && crossfadeSpan(track, f);
+  }) : [];
   copy.markers = Array.isArray(copy.markers) ? copy.markers : [];
   copy.retakes = Array.isArray(copy.retakes) ? copy.retakes : [];
   copy.pauses = Array.isArray(copy.pauses) ? copy.pauses : [];
@@ -331,5 +348,6 @@ export function deleteClip(p: EditorProjectV1, trackId: string, clipId: string):
   const clip = p.tracks.find((t) => t.id === trackId)?.clips.find((c) => c.id === clipId);
   if (!clip) return next;
   for (const t of next.tracks) t.clips = t.clips.filter((c) => c.id !== clipId && !(clip.linked && c.linked && c.timelineStart === clip.timelineStart && c.sourceEnd - c.sourceStart === clip.sourceEnd - clip.sourceStart));
+  remapCrossfades(p, next);
   return next;
 }

@@ -24,7 +24,7 @@ const validProject = (value: unknown, takeId: string): value is { version: 1; ta
     if (m.ceilingDb != null && !numberIn(m.ceilingDb, -3, -.1)) return false;
     if (m.channels != null && m.channels !== 1 && m.channels !== 2) return false;
   }
-  return p.tracks.every((value) => {
+  if (!p.tracks.every((value) => {
     if (!value || typeof value !== 'object') return false;
     const track = value as Record<string, unknown>;
     if (typeof track.id !== 'string' || typeof track.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(String(track.kind)) || !Array.isArray(track.clips) || track.clips.length > 10_000) return false;
@@ -42,6 +42,19 @@ const validProject = (value: unknown, takeId: string): value is { version: 1; ta
       const start = Number(clip.sourceStart), end = Number(clip.sourceEnd), timeline = Number(clip.timelineStart);
       return typeof clip.id === 'string' && typeof clip.sourceId === 'string' && [start, end, timeline].every(Number.isFinite) && start >= 0 && end > start && timeline >= 0 && (clip.sourceDuration == null || numberIn(clip.sourceDuration, end, Number.MAX_SAFE_INTEGER));
     });
+  })) return false;
+  if (p.crossfades == null) return true;
+  if (!Array.isArray(p.crossfades) || p.crossfades.length > 10_000) return false;
+  return p.crossfades.every((value) => {
+    if (!value || typeof value !== 'object') return false;
+    const f = value as { trackId?: unknown; from?: unknown; to?: unknown };
+    if (typeof f.trackId !== 'string' || !Array.isArray(f.from) || !Array.isArray(f.to) || !f.from.length || !f.to.length) return false;
+    const track = (p.tracks as { id: string; clips: { id: string; timelineStart: number; sourceStart: number; sourceEnd: number }[] }[]).find((t) => t.id === f.trackId);
+    const ids = [...f.from, ...f.to];
+    if (!track || new Set(ids).size !== ids.length || !ids.every((id) => typeof id === 'string' && track.clips.some((c) => c.id === id))) return false;
+    const bounds = (group: unknown[]) => { const clips = track.clips.filter((c) => group.includes(c.id)); return [Math.min(...clips.map((c) => c.timelineStart)), Math.max(...clips.map((c) => c.timelineStart + c.sourceEnd - c.sourceStart))]; };
+    const a = bounds(f.from), b = bounds(f.to);
+    return a[0] < b[0] && a[1] < b[1] && b[0] < a[1];
   });
 };
 
