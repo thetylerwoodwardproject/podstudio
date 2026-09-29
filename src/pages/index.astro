@@ -112,6 +112,8 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
 </AppShell>
 
 <script>
+  import { recordingLink } from '@/lib/mobile';
+  for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-editor-entry]')) recordingLink(link, link.dataset.episode!);
   import { listTakes } from '@/lib/audio/takes';
   void listTakes().then((takes) => { for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-editor-entry]')) if (takes.some((t) => t.episodeId === link.dataset.episode && t.status === 'done')) link.hidden = false; });
 

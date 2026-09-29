@@ -61,6 +61,8 @@ const View = current.view;
 </AppShell>
 
 <script>
+  import { isMobile } from '@/lib/mobile';
+  if (isMobile()) document.querySelector<HTMLAnchorElement>('nav a[href="/settings/pads"]')?.setAttribute('hidden', '');
   import { api } from '@/lib/api';
 
   const saveMount = document.querySelector<HTMLElement>('[data-save-status-mount]');

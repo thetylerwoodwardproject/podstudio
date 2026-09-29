@@ -19,20 +19,22 @@ const episode = { ...mockEpisode, ...data.episode };
 </AppShell>
 
 <script>
-  import { mapTime, merge, onAudio, type Range } from '@/lib/audio/assemble';
+  import { onAudio, type Range } from '@/lib/audio/assemble';
   import { renderPads, hasPads, stereoOf } from '@/lib/audio/pads-export';
   import { lineUp } from '@/lib/audio/line-up';
   import { cleanEditorProject, projectDuration, masterOptions, createEditorProject, detectPauses, defaultFx, type EditorProjectV1, type EditorTrack, type EditorSource } from '@/lib/editor-project';
   import { createRenderState, finishedProject, renderEditorWindow, renderProjectWav, type EditorSources } from '@/lib/audio/editor-render';
   import { mergeEditorTakes, editorSessions, remoteSource, type RemoteTake } from '@/lib/editor-sessions';
   import { listTakes, rangesWav, saveRemoteTake, type TakeMeta } from '@/lib/audio/takes';
+  import { isMobile } from '@/lib/mobile';
+  import { rawRecordingWav } from '@/lib/audio/raw-export';
   import { WavReader, renderMaster } from '@/lib/audio/master';
   import { encodeMp3 } from '@/lib/audio/mp3';
   import { decodeToLibraryRate, listLibrary, readLibraryFile, saveLibraryFile } from '@/lib/pads';
   import { encodeWav, pcmBytes, wavHeader } from '@/lib/audio/wav';
   import { download, zip, type ZipEntry } from '@/lib/zip';
   import { loadSettings } from '@/lib/settings';
-  import { mixTones, type PlacedTone, type ToneKind, type ToneSettings } from '@/lib/audio/tones';
+  import { type ToneSettings } from '@/lib/audio/tones';
   import type { EditorConflict, EditorExportResult, EditorPreview, EditorSaveResult, EditorTrackView } from '@/components/app/EditorFlow.svelte';
 
   const root = document.getElementById('editor-root')!;
@@ -40,7 +42,7 @@ const episode = { ...mockEpisode, ...data.episode };
   const label = root.dataset.label!;
   const title = root.dataset.title!;
   const query = new URL(location.href).searchParams;
-  const phone = matchMedia('(max-width: 700px), (pointer: coarse) and (max-width: 900px)').matches;
+  const phone = isMobile();
   if (phone) location.replace(`/episodes/${episodeId}/saved${query.toString() ? `?${query}` : ''}`);
   else void live().catch((error) => {
     const loading = root.querySelector('[data-loading]')!;
@@ -52,23 +54,6 @@ const episode = { ...mockEpisode, ...data.episode };
   async function floats(wav: Blob) {
     const reader = await WavReader.open(wav);
     return reader.read(reader.frames);
-  }
-
-  const outside = (duration: number, cuts: Range[]): Range[] => {
-    const out: Range[] = []; let at = 0;
-    for (const [a, b] of merge(cuts)) { if (a > at) out.push([at, a]); at = Math.max(at, b); }
-    if (at < duration) out.push([at, duration]);
-    return out;
-  };
-
-  async function withTones(wav: Blob, tones: PlacedTone[], settings: ToneSettings) {
-    const reader = await WavReader.open(wav);
-    const chunks: Uint8Array[] = []; const step = reader.info.sampleRate * 5; let frame = 0;
-    for (let samples = await reader.read(step); samples.length; samples = await reader.read(step)) {
-      chunks.push(pcmBytes(mixTones(samples, reader.info.channels, reader.info.sampleRate, frame, tones, settings), reader.info.bitDepth as 16 | 24));
-      frame += samples.length / reader.info.channels;
-    }
-    return new Blob([wavHeader(reader.frames, { sampleRate: reader.info.sampleRate, channels: reader.info.channels as 1 | 2, bitDepth: reader.info.bitDepth as 16 | 24 }) as BlobPart, ...(chunks as BlobPart[])], { type: 'audio/wav' });
   }
 
   const peaksOf = (audio: Float32Array, channels: number, rate: number, seconds = .5) => {
@@ -253,17 +238,12 @@ const episode = { ...mockEpisode, ...data.episode };
           localIds.add(track.id);
         }
         const toneSettings = settings.recording.tones;
-        const kinds = (Object.keys(toneSettings.kinds) as ToneKind[]).filter((k) => toneSettings.kinds[k]);
-        const pauseCuts = audioMarkers.markers.filter((m) => m.kind === 'pause' && m.end != null && m.end > m.t).map((m) => [m.t, m.end!] as Range);
-        const rawRanges = outside(duration, pauseCuts);
-        const placed: PlacedTone[] = audioMarkers.markers.filter((m) => kinds.includes(m.kind as ToneKind) && !(m.kind === 'cut' && m.who === 'guest')).flatMap((m) => { const at = mapTime(m.t, rawRanges); return at == null ? [] : [{ at: Math.round(at * take.sampleRate), kind: m.kind as ToneKind }]; });
         for (const [index, track] of tracks.entries()) {
           progress(`Adding raw ${track.speaker || `track ${index + 1}`}…`);
-          const base = await rangesWav(track, track === take ? rawRanges : lu.ranges(track, rawRanges), [], undefined, [], null);
-          const raw = index === 0 ? await withTones(base, placed, toneSettings) : base;
+          const raw = await rawRecordingWav(take, track, toneSettings);
           entries.push({ name: `${label}_${index === 0 ? 'Host' : track.speaker || `Guest${index}`}_raw.wav`, data: raw });
         }
-        if (hasPads(take)) entries.push({ name: `${label}_Pads_raw.wav`, data: await rangesWav(stereoOf(take), rawRanges, [], 'pads', [], null) });
+        if (hasPads(take)) entries.push({ name: `${label}_Pads_raw.wav`, data: await rawRecordingWav(take, stereoOf(take), toneSettings, 'pads') });
         for (const track of value.tracks.filter((t) => t.kind === 'import')) {
           const source = sources.get(track.sourceId)!;
           // Raw exports retain the complete imported source even after all clips are deleted.

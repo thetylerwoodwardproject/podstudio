@@ -165,3 +165,10 @@ for the fully signed-in account using its session cookie:
 sends changes after 400 ms, and synchronizes on page load. Recording and
 prompter settings sync; the client leaves `recording.deviceId` out of uploads
 and preserves its local value when applying server settings.
+
+### Mobile recording review
+
+Phone review reuses the take list/detail/segment readers and existing media IDs;
+there is no new review API. Audio previews read at most 30 seconds, while each raw
+download fetches only its selected source. Guest tracks share the host's alignment
+and recorded-pause removal. Editor edits and FX do not affect raw downloads.

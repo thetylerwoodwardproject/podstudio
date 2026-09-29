@@ -1,133 +1,68 @@
 ---
-// 1i / step flow 1e · Session saved: what was saved, a player (Original / Cleaned) and Export
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
-import { episode as mockEpisode } from '@/data/mock';
-
 export const prerender = false;
 const data = episodePage(Astro.params.id);
 if (!data) return new Response('No such episode', { status: 404 });
-const episode = { ...mockEpisode, ...data.episode };
-
-const row = 'flex items-baseline gap-4 px-5 py-4';
-const rule = 'mx-5 h-px bg-divider';
+const episode = data.episode;
 ---
-
-<AppShell title="Session saved" avatar={false} crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/studio` }, { label: 'Saved' }]}>
+<AppShell title="Recording review" crumbs={[{ label: episode.label, href: `/episodes/${episode.id}/sessions` }, { label: 'Review' }]}>
   <EpisodeData data={data} />
-  <div class="flex h-full min-h-0 flex-col" id="saved" data-episode={episode.id}>
-    <div class="min-h-0 flex-1 overflow-y-auto">
-      <div class="mx-auto flex max-w-[760px] flex-col gap-7 px-5 pt-7 pb-10">
-        <div class="flex flex-col gap-1.5">
-          <h1 class="page-title">Session saved</h1>
-          <p class="text-[14px] leading-normal text-text-2" data-summary><span data-demo-only>18:42 recorded · 7 retakes marked</span></p>
-        </div>
-        <dl class="flex flex-col rounded-[14px] bg-surface text-[14px]">
-          <div class={row}>
-            <dt class="w-[140px] flex-none text-text-2">Raw WAV</dt>
-            <dd class="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3" data-raw><span data-demo-only>18:42</span></dd>
-          </div>
-          <div class={rule}></div>
-          <div class={row}>
-            <dt class="w-[140px] flex-none text-text-2">Assembled edit</dt>
-            <dd class="min-w-0 flex-1" data-edit><span data-demo-only>14:05</span></dd>
-          </div>
-          <div class={rule}></div>
-          <div class={row}>
-            <dt class="w-[140px] flex-none text-text-2">On the server</dt>
-            <dd class="min-w-0 flex-1" data-server>Checking…</dd>
-          </div>
-        </dl>
-        <p class="text-[13px] leading-normal text-text-3">
-          Noise suppression is only a way of listening in the player below. You set it for real in Export. The recording is kept in this browser until you delete it.
-        </p>
-        <div class="flex flex-wrap gap-2.5">
-          <a href={`/episodes/${episode.id}/transcribing`} class="inline-flex h-9 items-center rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle" data-transcribe>Transcribe</a>
-          <a href={`/episodes/${episode.id}/recording`} class="inline-flex h-9 items-center rounded-[10px] border border-border px-3.5 text-[14px] hover:border-handle" data-again>Record another</a>
-        </div>
+  <main class="h-full overflow-y-auto" id="saved" data-episode={episode.id}>
+    <div class="mx-auto flex max-w-[760px] flex-col gap-5 px-5 py-7 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <h1 class="page-title">Session saved</h1>
+      <p class="help" data-summary role="status">Opening recording…</p>
+      <p class="help">Full editing and finished-mix export are available on desktop. Your original recordings remain available below.</p>
+      <div data-review-mount></div>
+      <div class="flex flex-wrap gap-3">
+        <a class="inline-flex h-11 items-center rounded-[10px] border border-border px-4 text-[14px]" href={`/episodes/${episode.id}/sessions`}>Back to sessions</a>
+        <a class="inline-flex h-11 items-center rounded-[10px] border border-border px-4 text-[14px]" data-again href={`/episodes/${episode.id}/studio`}>Record another</a>
+        <a class="inline-flex h-11 items-center rounded-[10px] bg-text px-4 text-[14px] text-page" data-desktop-editor data-export hidden>Open editor</a>
       </div>
     </div>
-    <div data-player-mount>
-      <div class="border-t border-divider bg-surface px-5 py-4" data-demo-only>
-        <a href={`/episodes/${episode.id}/session`} class="mx-auto flex max-w-[760px] justify-end text-[14px]">Export</a>
-      </div>
-    </div>
-  </div>
+  </main>
 </AppShell>
-
 <script>
-  import { assemble } from '@/lib/audio/assemble';
-  import { formatBytes, formatDuration, getTake, listTakes, takeBytes, takeWav, type TakeMeta } from '@/lib/audio/takes';
-  import { sessionUrl } from '@/lib/flow';
+  import { openRecordingReview } from '@/lib/recording-review';
+  import { formatDuration } from '@/lib/audio/takes';
   import { markerCounts } from '@/lib/markers';
   import { resumeUploads } from '@/lib/take-upload';
-
+  import { isMobile } from '@/lib/mobile';
+  import { sessionUrl } from '@/lib/flow';
   const root = document.getElementById('saved')!;
-  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
-  const episodeId = root.dataset.episode!;
-
-  if (!new URL(location.href).searchParams.has('demo')) live();
-
-  // The server's copy: finish sending it if the recording page closed before it was all up.
-  async function serverState(id: string, segments: number) {
-    const el = $('[data-server]');
-    const check = async () => {
-      try {
-        const r = await fetch(`/api/takes/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
-        if (!r.ok) return false;
-        const t = (await r.json()) as { segments: number; done: boolean };
-        el.textContent = t.done && t.segments >= segments ? 'All of it' : `${t.segments} of ${segments} pieces · sending the rest`;
-        return t.done && t.segments >= segments;
-      } catch {
-        el.textContent = 'Not yet · offline';
-        return false;
+  const episode = root.dataset.episode!;
+  const summary = root.querySelector<HTMLElement>('[data-summary]')!;
+  root.querySelector<HTMLAnchorElement>('[data-again]')!.href = sessionUrl(episode);
+  async function run() {
+    const legacy = new URL(location.href).searchParams.has('legacy');
+    const review = await openRecordingReview(episode, new URL(location.href).searchParams.get('take'));
+    const id = review.host.id;
+    history.replaceState(null, '', `/episodes/${episode}/saved?take=${encodeURIComponent(id)}${legacy ? '&legacy=1' : ''}`);
+    summary.textContent = `${formatDuration(review.duration)} recorded${markerCounts(review.host.markers ?? []) ? ` · ${markerCounts(review.host.markers ?? [])}` : ''} · ${review.host.sampleRate / 1000} kHz · ${review.host.bitDepth}-bit`;
+    const sync = async () => {
+      if (!navigator.onLine) return 'Waiting for connection';
+      if (review.local) await resumeUploads(episode);
+      const response = await fetch(`/api/takes/${encodeURIComponent(id)}`);
+      if (!response.ok) return 'Waiting for connection';
+      const copy = await response.json();
+      if (review.missingGuest) {
+        const refreshed = await openRecordingReview(episode, id);
+        if (!refreshed.missingGuest) location.reload();
       }
+      return copy.done && copy.segments >= review.host.segments ? 'Saved on server' : `${copy.segments} of ${review.host.segments} pieces saved · retry when connected`;
     };
-    if (await check()) return;
-    await resumeUploads(episodeId);
-    if (!(await check())) el.textContent = 'Not yet · it goes up when the server can be reached';
+    const [{ mount }, { default: RecordingReview }] = await Promise.all([import('svelte'), import('@/components/app/RecordingReview.svelte')]);
+    mount(RecordingReview, { target: root.querySelector('[data-review-mount]')!, props: { ...review, sync, initialStatus: navigator.onLine ? 'Checking server copy…' : 'Waiting for connection', recoveryHref: `/episodes/${episode}/wrap?take=${encodeURIComponent(id)}` } });
+    const editor = root.querySelector<HTMLAnchorElement>('[data-desktop-editor]')!;
+    editor.href = `/episodes/${episode}/${new URL(location.href).searchParams.has('legacy') ? 'export-legacy' : 'editor'}?take=${encodeURIComponent(id)}`; editor.hidden = isMobile();
   }
-
-  async function live() {
-    const id = new URL(location.href).searchParams.get('take');
-    const take: TakeMeta | null =
-      (id ? await getTake(id) : null) ?? (await listTakes(episodeId)).filter((t) => t.kind === 'session' && t.status === 'done').at(-1) ?? null;
-    $<HTMLAnchorElement>('[data-again]').href = sessionUrl(episodeId);
-    if (!take) {
-      $('[data-summary]').textContent = 'Nothing was recorded in this session.';
-      return;
-    }
-    if (take.remote) $('[data-server]').textContent = 'Yes';
-    else serverState(take.id, take.segments);
-    const seconds = take.samples / take.sampleRate;
-    const markers = take.markers ?? [];
-    const counts = markerCounts(markers.filter((m) => m.kind !== 'pause'));
-    $('[data-summary]').textContent = `${formatDuration(seconds)} recorded${counts ? ` · ${counts}` : ''}`;
-    const raw = $('[data-raw]');
-    raw.replaceChildren(
-      Object.assign(document.createElement('span'), { textContent: formatDuration(seconds) }),
-      Object.assign(document.createElement('span'), {
-        className: 'font-mono text-[12px] text-text-3',
-        textContent: `${formatBytes(takeBytes(take))} · ${take.sampleRate / 1000} kHz · ${take.bitDepth}-bit${take.channels === 2 ? ' · stereo' : ''}`,
-      }),
-    );
-    const edit = assemble(seconds, markers, take.lineLog ?? [], 'cut');
-    $('[data-edit]').textContent = edit.removed ? `${formatDuration(seconds - edit.removed)} after cuts` : `${formatDuration(seconds)} · nothing to cut`;
-
-    let original = '';
-    const [{ mount }, { default: SavedPlayer }] = await Promise.all([import('svelte'), import('@/components/app/SavedPlayer.svelte')]);
-    const slot = $('[data-player-mount]');
-    slot.replaceChildren();
-    mount(SavedPlayer, {
-      target: slot,
-      props: {
-        take,
-        original: async () => (original ||= URL.createObjectURL(await takeWav(take))),
-        exportHref: new URL(location.href).searchParams.has('legacy')
-          ? `/episodes/${episodeId}/export-legacy?take=${encodeURIComponent(take.id)}`
-          : `/episodes/${episodeId}/editor?take=${encodeURIComponent(take.id)}`,
-      },
-    });
-  }
+  void run().catch((error) => {
+    summary.textContent = `${error.message} `;
+    const retry = document.createElement('button'); retry.textContent = 'Retry'; retry.className = 'underline'; retry.onclick = () => location.reload(); summary.append(retry);
+  });
 </script>
+
+<style is:global>
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 900px) { [data-desktop-editor] { display: none !important; } }
+</style>

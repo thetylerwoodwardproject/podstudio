@@ -10,8 +10,13 @@ import { episode, pkg } from '@/data/mock';
 <div data-pads-mount data-episode={episode.id} data-episode-label={episode.label} data-bites={JSON.stringify(pkg.soundbites)}></div>
 
 <script>
+  import { isMobile } from '@/lib/mobile';
   const target = document.querySelector<HTMLElement>('[data-pads-mount]');
-  if (target)
+  if (target && isMobile()) {
+    target.textContent = 'Configure sound pads on desktop. Pads are unavailable in mobile recording.';
+    target.setAttribute('role', 'status');
+  }
+  if (target && !isMobile())
     Promise.all([import('svelte'), import('./PadsEditor.svelte')]).then(([{ mount }, { default: PadsEditor }]) =>
       mount(PadsEditor, {
         target,

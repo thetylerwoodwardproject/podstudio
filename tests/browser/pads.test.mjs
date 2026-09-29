@@ -211,27 +211,17 @@ const padsThere = Number(execSync(`python3 ${TOOLS}/rms.py ${P}/x/Ep142_Session_
 ok('the bed is still there in the Pads edit', padsThere > 1e-3, padsThere.toExponential(1));
 ok('rough mix same length', Math.abs(get('_RoughMix.wav').sec - mic.sec) < 0.001);
 
-// ── Phone: the strip and the pull-up panel ──
+// Phone recording excludes the pad engine, strip, setup links and shortcuts.
 const pctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 820 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
 const phone = await pctx.newPage();
 phone.on('pageerror', (x) => errs.push('phone ' + x.message));
 await phone.goto(B + e + '/recording?legacy=1');
 await phone.waitForTimeout(2500);
-ok('phone: strip shows, rail doesn\'t', (await phone.locator('[data-pad-strip]').isVisible()) && (await phone.locator('[data-pad-rail]').isHidden()));
-const stripRing = (k) => phone.evaluate((k) => !!document.querySelector(`[data-pad-strip-row] [data-pad-key="${k}"]`).style.boxShadow, k);
-await phone.tap('[data-pad-strip-row] [data-pad-key="2"]');
-ok('phone: tap fires the loop', await until(() => stripRing(2), 1500));
-ok('phone: strip says what\'s playing', await until(async () => /2 PLAYING/.test(await phone.locator('[data-pad-strip-status]').textContent())));
-await phone.screenshot({ path: `${P}/phone-strip.png` });
-await phone.tap('[data-pad-strip-handle]');
-ok('phone: panel pulls up with nine pads', (await phone.locator('[data-pad-sheet]').isVisible()) && (await phone.locator('[data-pad-sheet-grid] [data-pad-key]').count()) === 9);
-await phone.waitForTimeout(400);
-await phone.screenshot({ path: `${P}/phone-sheet.png` });
-await phone.tap('[data-pad-sheet-grid] [data-pad-key="1"]');
-ok('phone: a one-shot drops back to the strip', await until(async () => await phone.locator('[data-pad-sheet]').isHidden(), 1500));
-await phone.tap('[data-pad-strip-handle]');
-await phone.tap('[data-pad-sheet-stop]');
-ok('phone: Stop all', await until(async () => !(await stripRing(2)), 1500));
+for (const hook of ['data-pad-strip', 'data-pad-rail', 'data-pad-sheet', 'data-pad-setup']) {
+  ok(`phone: ${hook} is absent or hidden`, await phone.locator(`[${hook}]`).count() === 0 || await phone.locator(`[${hook}]`).isHidden());
+}
+await phone.screenshot({ path: `${P}/phone-recording.png` });
+await pctx.close();
 
 // Preview in its own page so its AudioContext cannot interfere with the fake-mic recording test.
 const audition = await ctx.newPage();

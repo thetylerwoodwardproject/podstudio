@@ -112,7 +112,7 @@ npm run build
 npm run test:browser
 ```
 
-The browser suite contains 14 Chromium flows and writes logs/screenshots to
+The browser suite contains 15 Chromium flows and writes logs/screenshots to
 `tests/browser/.out`. Review new desktop and phone screenshots against
 `docs/ui-framework.md`. The editor unit coverage includes project validation,
 linked/ripple commands, retakes, pause suggestions, bounded source reads and
@@ -139,6 +139,8 @@ the feature branch, fast-forward `feat/ui-build`, push it, then fast-forward
 5. Optional AI tools, transcription and episode-package features remain future
    work. Do not let those controls imply a working service yet.
 
-Mobile follow-up: [reported bugs](bugs.md) tracks the misleading Open editor action after phone recording, the intended simplified mobile panel, and hotkeys that should be removed on mobile only. These remain open.
+Mobile review now replaces the editor loop with bounded playback/scrubbing, server status/retry and selected raw downloads. Local/server sources share discovery and raw rendering with the editor. `mobile.ts` centralizes the boundary; mobile pads and setup are excluded. Chromium portrait/landscape checks cover these changes; real iOS/Android validation remains pending.
 
 Deferred timeline correction: remove Select/Move modes in favor of click-to-select and direct clip dragging, with automatic overlap crossfades. See [reported bugs](bugs.md#timeline-interaction-correction-direct-dragging-and-overlap-crossfades). The current mode-based controls remain until that follow-up.
+
+Mobile verification (2026-09-29): 261 unit/server tests pass, Astro and Svelte checks have zero errors, and the build passes. Browser coverage includes server-only phone host/guest review, portrait/landscape, selected raw downloads, missing IDs, offline status and desktop pads. Legacy Saved-screen tests now exercise raw review while retaining the legacy export/noise regressions. Real iOS Safari and Android Chrome checks remain pending.

@@ -210,6 +210,19 @@ export async function uploadLibraryFile(file: LibraryFile, progress?: (percent: 
   });
 }
 
+/** Disk-backed library WAV for raw downloads; no whole-file PCM decoding. */
+export async function libraryWav(id: string): Promise<Blob> {
+  const dir = await libraryDir();
+  try { return await (await dir.getFileHandle(`${id}.wav`)).getFile(); }
+  catch {
+    const response = await fetch(`/api/media/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`Sound unavailable (${response.status})`);
+    const blob = await response.blob();
+    await put(dir, `${id}.wav`, blob);
+    return blob;
+  }
+}
+
 /** A library file's audio: interleaved stereo floats at 48 kHz. */
 export async function readLibraryFile(id: string): Promise<Float32Array> {
   const { parseWav, wavFloats } = await import('./audio/wav-read');

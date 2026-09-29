@@ -16,12 +16,11 @@ await page.click('[data-start]');
 await page.waitForTimeout(12000);
 await page.keyboard.press('m'); await page.click('[data-end]'); await page.click('dialog [value=end]');
 await page.waitForURL('**/saved?take=*');
-await page.click('[data-play]');
-await page.waitForTimeout(500);
-await page.click('[data-ab] button:has-text("Cleaned")');
-for (let i = 0; i < 60 && !/Cleaned/.test(await page.locator('[data-chain]').textContent()); i++) await page.waitForTimeout(500);
-ok('saved: cleaned plays', !(await page.evaluate(() => document.querySelector('[data-player]').paused)), await page.locator('[data-chain]').textContent());
-await page.click('[data-ab] button:has-text("Original")');
+await page.getByRole('button', { name: /^(Play|Pause) recording$/ }).click();
+await page.getByRole('button', { name: 'Pause recording', exact: true }).waitFor();
+ok('saved: raw recording plays', !(await page.evaluate(() => document.querySelector('[data-review-audio]').paused)));
+await page.getByRole('button', { name: /^(Play|Pause) recording$/ }).click();
+
 await page.click('[data-export]'); await page.waitForURL('**/export-legacy?take=*'); await page.evaluate(() => sessionStorage.clear()); await page.reload();
 await toStep(page, 'noise');
 await page.evaluate(() => { const r = document.querySelector('[data-ns-amount]'); r.value = 70; r.dispatchEvent(new Event('input', { bubbles: true })); });

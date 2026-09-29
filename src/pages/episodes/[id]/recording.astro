@@ -141,7 +141,7 @@ const zones = [
       >
         <span class="min-w-0 truncate" data-toast-text></span>
         <button type="button" class="flex flex-none items-center gap-2 text-muted hover:text-fg" data-undo>
-          Undo <span class={kbd}>U</span>
+          Undo <span data-keyboard-hint class={kbd}>U</span>
         </button>
       </div>
 
@@ -184,7 +184,7 @@ const zones = [
         </button>
         <button type="button" class:list={[btn, 'col-span-3 hidden flex-row! gap-3! bg-fg text-[16px] text-ink group-data-[state=paused]/r:flex lg:px-8']} data-resume>
           <svg viewBox="0 0 12 14" class="size-3.5 fill-current" aria-hidden="true"><path d="M0 0l12 7-12 7z" /></svg>Resume · 3-2-1
-          <span class={kbd}>P</span>
+          <span data-keyboard-hint class={kbd}>P</span>
         </button>
         <button
           type="button"
@@ -192,10 +192,10 @@ const zones = [
           style="touch-action:none;-webkit-touch-callout:none"
           data-cough
         >
-          Cough <span class={sub} data-cough-sub>HOLD</span><span class={kbd}>HOLD C</span>
+          Cough <span class={sub} data-cough-sub>HOLD</span><span data-keyboard-hint class={kbd}>HOLD C</span>
         </button>
         <button type="button" class:list={[btn, dim, 'hidden bg-warn font-semibold text-ink group-data-[state=rec]/r:flex']} data-retake>
-          Retake <span class={sub}>DOUBLE-TAP</span><span class={kbd}>R</span>
+          Retake <span class={sub}>DOUBLE-TAP</span><span data-keyboard-hint class={kbd}>R</span>
         </button>
         <button
           type="button"
@@ -203,7 +203,7 @@ const zones = [
           aria-pressed="false"
           data-adlib-btn
         >
-          <span data-adlib-label>Ad-lib</span><span class={sub} data-adlib-sub>AUTO</span><span class={kbd}>A</span>
+          <span data-adlib-label>Ad-lib</span><span class={sub} data-adlib-sub>AUTO</span><span data-keyboard-hint class={kbd}>A</span>
         </button>
         <button
           type="button"
@@ -212,7 +212,7 @@ const zones = [
           aria-label="More"
           data-more-btn
         >
-          ··· <span class={kbd}>M</span>
+          ··· <span data-keyboard-hint class={kbd}>M</span>
         </button>
       </div>
       <p class="mt-2.5 hidden text-center font-mono text-[11px] leading-normal text-subtle group-data-[state=ready]/r:block lg:hidden!" data-format-line></p>
@@ -241,7 +241,7 @@ const zones = [
           data-more-pause
         >
           <span class="flex items-center gap-3"><span class="font-semibold tracking-[-0.1em]" aria-hidden="true" data-pause-icon>❚❚</span><span data-pause-text>Pause</span></span>
-          <span class={kbd}>P</span>
+          <span data-keyboard-hint class={kbd}>P</span>
         </button>
 
         <div class="rounded-xl bg-raised px-3.5 py-3 lg:py-2.5">
@@ -362,6 +362,7 @@ const zones = [
   import { waitingRoom } from '@/lib/waiting-room';
   import { hz, loadSettings, saveSettings } from '@/lib/settings';
   import { VoiceFollow, voiceErrorText, voiceFollowSupported } from '@/lib/voice/follow';
+  import { isMobile, recordingUrl } from '@/lib/mobile';
   import { padColor, padInk, padsFor } from '@/lib/pads';
   import { mountPadRail, type PadRail } from '@/lib/pad-rail';
   import { mountMixer } from '@/lib/mixer-view';
@@ -395,7 +396,7 @@ const zones = [
   // ── The script ─────────────────────────────────────────────────────────────
   const viewport = $('[data-viewport]');
   const track = $('[data-track]');
-  const cuePads = new Map(padsFor(episodeId).map((p) => [p.key, p]));
+  const cuePads = new Map((isMobile() ? [] : padsFor(episodeId)).map((p) => [p.key, p]));
   const renderTrack = () => track.replaceChildren(
     ...lines.map((l, n) => {
       const row = document.createElement('div');
@@ -406,7 +407,7 @@ const zones = [
       body.className =
         '-ml-4 border-l-2 border-transparent pl-3.5 text-[0.74em] leading-[1.32] text-subtle transition-[font-size,color] group-data-[l=now]/l:border-(--rule) group-data-[l=now]/l:text-[1em] group-data-[l=now]/l:text-fg group-data-[l=past]/l:text-ghost';
       // [pad N] cues from the script: reminder chips in the pad's colour (they never fire).
-      if (l.cues?.length) {
+      if (!isMobile() && l.cues?.length) {
         const chips = document.createElement('div');
         chips.className = 'mb-1.5 flex flex-wrap gap-1.5';
         for (const c of l.cues) {
@@ -1039,7 +1040,7 @@ const zones = [
     else if (key === 'u') undo();
     else if (isMoreOpen() && /^[1-9]$/.test(key)) jumpToSection(Number(key) - 1);
     // Hotkey pads: 1–9 fire while rehearsing or recording (not paused); 0 stops all, Shift+0 fades all.
-    else if (pads && /^Digit[0-9]$/.test(e.code)) {
+    else if (!isMobile() && pads && /^Digit[0-9]$/.test(e.code)) {
       const n = Number(e.code.slice(5));
       if (n === 0) e.shiftKey ? pads.fadeAll() : pads.stopAll();
       else if (padsArmed()) pads.press(n);
@@ -1054,7 +1055,7 @@ const zones = [
   });
   addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 'c') coughUp();
-    if (pads && /^Digit[1-9]$/.test(e.code)) pads.release(Number(e.code.slice(5)));
+    if (!isMobile() && pads && /^Digit[1-9]$/.test(e.code)) pads.release(Number(e.code.slice(5)));
   });
 
   $('[data-retake]').addEventListener('click', retake);
@@ -1595,8 +1596,7 @@ const zones = [
       location.href = `/episodes/${episodeId}/${room ? 'wrap' : 'saved'}?take=${encodeURIComponent(meta.id)}&legacy=1`;
       return;
     }
-    const mobile = matchMedia('(max-width: 700px), (pointer: coarse) and (max-width: 900px)').matches;
-    location.href = `/episodes/${episodeId}/${mobile ? 'saved' : 'editor'}?take=${encodeURIComponent(meta.id)}`;
+    location.href = recordingUrl(episodeId, meta.id);
   }
 
   addEventListener('beforeunload', (e) => {
@@ -1833,7 +1833,7 @@ const zones = [
   const padsArmed = () => state !== 'paused' && !counting;
   const padMarkers = new Map<object, SessionMarker>();
   mountPadRail(root, episodeId, padsArmed).then((rail) => {
-    $('[data-pads-setup]').hidden = !!rail;
+    $('[data-pads-setup]').hidden = isMobile() || !!rail;
     if (!rail) return;
     pads = rail;
     rail.engine.clock = () => (writer && state !== 'ready' ? now() : null);
@@ -1945,3 +1945,9 @@ const zones = [
     tick();
   }
 </script>
+
+<style is:global>
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 900px) {
+    [data-pad-rail], [data-pad-strip], [data-pad-sheet], [data-pad-sheet-scrim], [data-pads-meter], [data-pads-setup], [data-keyboard-hint] { display: none !important; }
+  }
+</style>

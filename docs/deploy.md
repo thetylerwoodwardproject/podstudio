@@ -63,6 +63,24 @@ sudo ./deploy/install.sh --domain podcast.example.com --email you@example.com --
 `--proxy nginx` picks Nginx; `--no-firewall` and `--no-backups` skip those
 steps; `--help` lists the options.
 
+## Update an existing VPS
+
+Run these commands from the source checkout, not from your home directory or
+`/opt/podstudio` (the installed runtime):
+
+```sh
+cd ~/podstudio
+git switch main
+git pull --ff-only origin main
+sudo ./deploy/install.sh
+```
+
+The installer detects the existing installation and offers an upgrade with a
+database backup. On the lab VPS, the source checkout is
+`/home/tyler/podstudio`; the installed app is `/opt/podstudio`. After the
+upgrade, confirm the reported four-minute MP3 uploads and plays through
+several 30-second windows.
+
 ## Other sites on the same Caddy
 
 `/etc/caddy/Caddyfile` only holds the global options (the certificate email)

@@ -29,7 +29,7 @@ await a.click('[data-end]');
 await a.click('dialog [value=end]');
 await a.waitForURL('**/saved?take=*');
 const takeId = new URL(a.url()).searchParams.get("take");
-ok('saved page: all of it on the server', await until(async () => (await a.locator('[data-server]').textContent()) === 'All of it'), await a.locator('[data-server]').textContent());
+ok('saved page: all of it on the server', await until(async () => (await a.locator('[data-review-server]').textContent()) .includes('Saved on server')), await a.locator('[data-review-server]').textContent());
 const local = await a.evaluate(async (id) => {
   const root = await navigator.storage.getDirectory();
   const dir = await (await root.getDirectoryHandle('takes')).getDirectoryHandle(id);

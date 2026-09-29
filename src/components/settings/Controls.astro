@@ -11,6 +11,8 @@ import { shortcuts } from '@/data/mock';
   title="Controls"
   description="Shortcuts work on every screen. Bluetooth page turners and foot pedals show up as keyboards, so any key they send can be mapped."
 />
+<p class="help" data-mobile-controls hidden>Use the recording screen’s touch controls. Keyboard shortcuts and sound pads are available on desktop.</p>
+<div data-desktop-controls>
 <Card label="Keyboard" rows>
   <dl class="grid md:grid-cols-2">
     {
@@ -36,10 +38,16 @@ import { shortcuts } from '@/data/mock';
   </Row>
 </Card>
 
+</div>
 <script>
+  import { isMobile } from '@/lib/mobile';
+  if (isMobile()) {
+    document.querySelector<HTMLElement>('[data-desktop-controls]')!.hidden = true;
+    document.querySelector<HTMLElement>('[data-mobile-controls]')!.hidden = false;
+  }
   // While "Listening", the next key the pedal sends becomes Pause / resume.
   const pedal = document.querySelector<HTMLElement>('[data-pedal]');
-  if (pedal) {
+  if (pedal && !isMobile()) {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).matches('input, textarea, select, [contenteditable]')) return;
       e.preventDefault();

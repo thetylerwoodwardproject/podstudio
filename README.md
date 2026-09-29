@@ -66,7 +66,7 @@ kept in step.
 | ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
 | ✂️ **Podcast editor** | A desktop timeline with synchronized waveforms, retake and pause review, linked edits, undo/redo, per-track podcast FX, autosave, and a continuous cumulative preview |
 | 📦 **A finished mix or raw tracks** | Export a mastered WAV, optional MP3, and optional aligned host, guest, pads and imported raw tracks. Finished mixes contain the edits and no marker tones; host raw exports can carry configured marker tones |
-| 🎛️ **Hotkey pads** | Nine sounds on the number keys, configured in a desktop or phone sheet from uploads, previous sessions or the library, previewed live, ducked under your voice and saved as their own track |
+| 🎛️ **Hotkey pads** | Nine sounds on the number keys, configured in a desktop sheet from uploads, previous sessions or the library, previewed live, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |
 | 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
 
@@ -82,7 +82,7 @@ The recording workflow also includes:
 - **Direct editor access:** Open editor from a recorded episode or its sessions, with the latest completed session selected and a switcher for older sessions. Server recordings also open on a new computer.
 - **Advanced audio, when needed:** optional ten-band EQ, compressor threshold/ratio/knee/makeup/attack/release, draft FX preview and bypass, plus custom LUFS and true-peak targets with whole-mix analysis and mastered playback.
 - **Audio imports:** visible read/conversion/upload progress and retry after a failed upload, retaining the same file without duplicate tracks.
-- **Editor after recording:** desktop users go straight from End Session to a synchronized timeline. Select, split, trim, move, delete or ripple-cut clips; review retakes and long-pause suggestions; use Mute, Solo, Level and a focused FX sheet per track; import browser-decodable audio; and undo or redo edits. Phones keep the Session Saved screen and link to the desktop editor.
+- **Editor after recording:** desktop users go straight from End Session to a synchronized timeline. Select, split, trim, move, delete or ripple-cut clips; review retakes and long-pause suggestions; use Mute, Solo, Level and a focused FX sheet per track; import browser-decodable audio; and undo or redo edits. Phones use a simplified recording review with scrubbing, synchronization status/retry, and individual raw downloads; full editing/export is available on desktop.
 - **Non-destructive projects:** source WAV and PCM segments never change. Clip boundaries, link groups, markers, FX, track levels and export choices autosave as compact, revisioned project metadata, with a browser recovery copy for offline work.
 - **One cumulative preview:** playback always reflects the current edits, gain, mute and FX. It streams a rolling 30-second window around the playhead and prefetches the next window, so long sessions play continuously without loading the whole recording into memory.
 - **Simple export:** a compact sheet always includes the finished WAV and can add MP3 and aligned raw tracks. Completion shows Back to sessions and Download again; Optional AI tools is reserved for a later release.
@@ -120,13 +120,13 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 <table>
   <tr>
-    <td width="34%" align="center"><img src="docs/images/phone-recording.png" alt="Recording on a phone: the script, the level meter and the control bar" width="260"></td>
+    <td width="34%" align="center"><img src="docs/images/phone-recording.png" alt="Recording on a phone: the script, level meter and touch controls" width="260"></td>
     <td width="66%" valign="middle">
       <h3>On a phone, too</h3>
       <p>The same control bar works on a phone: Cough, Retake and Ad-lib under your thumb, the level meter above them, and the script taking the rest of the screen. iPhone and iPad recording uses the AudioWorklet path on supported iOS 17+ browsers; real-device validation is still pending. Android uses Chrome.</p>
       <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
-      <img src="docs/images/saved.png" alt="Session saved: the raw WAV and edit, with a player and Export">
-      <p><sub><b>Session saved</b>: length, markers, file size, what's on the server, and a player (original or cleaned)</sub></p>
+      <img src="docs/images/saved.png" alt="Session saved on a phone: recording player, server status and raw track downloads">
+      <p><sub><b>Session saved</b>: playable recording, marker count, server synchronization and individual raw downloads</sub></p>
     </td>
   </tr>
 </table>
@@ -135,7 +135,7 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 | | |
 |---|---|
-| ✅ **Works now** | Solo recording with voice follow, markers and warnings · a desktop, non-destructive podcast editor with synchronized tracks, retake and pause review, linked editing, imports, per-track FX, autosave and undo/redo · finished WAV/MP3 and optional aligned raw-track exports · guest and producer sessions with drift and gap correction · a mixer view on a laptop or phone · hotkey pads with phone faders · accounts with two-factor · episodes, scripts, recordings and editor projects stored on the server · the guided installer |
+| ✅ **Works now** | Solo recording with voice follow, markers and warnings · a desktop, non-destructive podcast editor with synchronized tracks, retake and pause review, linked editing, imports, per-track FX, autosave and undo/redo · finished WAV/MP3 and optional aligned raw-track exports · guest and producer sessions with drift and gap correction · a mixer view on a laptop or phone · desktop hotkey pads · accounts with two-factor · episodes, scripts, recordings and editor projects stored on the server · the guided installer |
 | 🚧 **Validation underway** | The first real VPS is installed for real-world testing · checking upgrades, iPhone recording and guest sessions on real devices and networks |
 | 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and transcription. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |

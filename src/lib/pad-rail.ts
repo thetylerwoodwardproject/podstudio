@@ -5,6 +5,7 @@
  * them on tap or click, and show what's playing. Keys are handled by the page,
  * which knows when pads are armed.
  */
+import { isMobile } from './mobile';
 import { PadEngine, type Playing } from './audio/pad-engine';
 import { loadPadSettings, padColor, padInk, padLength, padTag, padsFor, savePadSettings, type Pad } from './pads';
 import { detentBetween, faderPos, faderTop, slideLevel } from './pad-fader';
@@ -85,6 +86,7 @@ function padButton(key: number, p: PadInfo | undefined, engine: PadEngine, armed
 }
 
 export async function mountPadRail(root: HTMLElement, episodeId: string, armed: () => boolean): Promise<PadRail | null> {
+  if (isMobile()) return null;
   const pads = padsFor(episodeId);
   if (!pads.length) return null;
   const layout = padsAvailable() ? 'rail' : 'strip';

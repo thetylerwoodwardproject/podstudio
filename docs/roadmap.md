@@ -62,6 +62,6 @@ Before a public release:
 - document practical browser-memory and recording-length limits from measured
   VPS and laptop tests.
 
-Mobile follow-up: [reported bugs](bugs.md) tracks the misleading Open editor action after phone recording, the intended simplified mobile panel, and hotkeys that should be removed on mobile only. These remain open.
+Mobile recording review and pad removal are implemented; validate raw downloads, playback and synchronization on real iOS/Android devices. The 502 and reported endless import buffering still need updated-VPS reproduction.
 
 Deferred timeline correction: remove Select/Move modes in favor of click-to-select and direct clip dragging, with automatic overlap crossfades. See [reported bugs](bugs.md#timeline-interaction-correction-direct-dragging-and-overlap-crossfades). The current mode-based controls remain until that follow-up.

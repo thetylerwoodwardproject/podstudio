@@ -113,11 +113,12 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
   import { importTrack } from '@/lib/audio/import';
   import { Room, fetchSegment, hostMembership, trackInfo, type GuestStatus } from '@/lib/room';
 
+  import { isMobile, recordingUrl } from '@/lib/mobile';
   const root = document.getElementById('wrap')!;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const episodeId = root.dataset.episode!;
   const id = new URL(location.href).searchParams.get('take');
-  const exportUrl = () => `/episodes/${episodeId}/${new URL(location.href).searchParams.has('legacy') ? 'export-legacy' : 'editor'}?take=${encodeURIComponent(id ?? '')}`;
+  const exportUrl = () => isMobile() ? recordingUrl(episodeId, id ?? undefined) : `/episodes/${episodeId}/${new URL(location.href).searchParams.has('legacy') ? 'export-legacy' : 'editor'}?take=${encodeURIComponent(id ?? '')}`;
   const cap = (n: string) => `${n.charAt(0)}${n.slice(1).toLowerCase()}`;
 
   // ── The steps (lib/step-shell.svelte.ts). Line up and Review open once the guest's track is here. ──
@@ -155,7 +156,7 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
     bar.next =
       i < steps.length - 1
         ? { label: `Next: ${steps[i + 1].label}`, onclick: () => go(i + 1), disabled: !guestTake }
-        : { label: 'Open editor', onclick: () => (location.href = exportUrl()), attrs: { 'data-continue': '' } };
+        : { label: isMobile() ? 'Review recording' : 'Open editor', onclick: () => (location.href = exportUrl()), attrs: { 'data-continue': '' } };
     if (step.id !== 'uploads' && guestTake) showLineUp();
     if (step.id === 'lineup' && guestTake && !player.ready) build();
     playing.update();
@@ -259,7 +260,7 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
     b.addEventListener('click', (e) => e.detail === 0 && nudge(dir));
   });
   $('[data-skip]').addEventListener('click', () => {
-    if (confirm('Export without the guest’s track? You can come back for it while the session is on the server.')) location.href = exportUrl();
+    if (confirm(`${isMobile() ? 'Review recording' : 'Open editor'} without the guest’s track? You can come back for it while the session is on the server.`)) location.href = exportUrl();
   });
 
   const setGuest = (text: string, color: string, name?: string) => {

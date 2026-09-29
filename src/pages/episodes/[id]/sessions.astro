@@ -63,6 +63,7 @@ const base = `/episodes/${episode.id}`;
 </AppShell>
 
 <script>
+  import { isMobile, recordingLink } from '@/lib/mobile';
   import { deleteTake, formatBytes, formatDuration, listTakes, saveRemoteTake, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { fetchTakeSegment, resumeUploads, serverTakes } from '@/lib/take-upload';
   import { sessionUrl } from '@/lib/flow';
@@ -111,7 +112,7 @@ const base = `/episodes/${episode.id}`;
         }
       });
       if (t.done) {
-        const open = document.createElement('a'); open.textContent = 'Open editor'; open.href = `/episodes/${episodeId}/editor?take=${encodeURIComponent(t.id)}`;
+        const open = document.createElement('a'); open.textContent = 'Open editor'; recordingLink(open, episodeId, t.id);
         open.className = 'inline-flex h-9 items-center rounded-[10px] bg-text px-3.5 text-[14px] text-page';
         row.insertBefore(open, btn);
       }
@@ -159,9 +160,9 @@ const base = `/episodes/${episode.id}`;
       const open = q<HTMLAnchorElement>('[data-open]');
       // A guest's track still to come: open the wrap-up, which waits for it, instead of Export.
       const waitingFor = t.guest && tracks.length === 1 ? t.guest.name : null;
-      open.href = `/episodes/${episodeId}/editor?take=${encodeURIComponent(t.id)}`;
+      recordingLink(open, episodeId, t.id);
       if (waitingFor) {
-        open.textContent = `Get ${waitingFor}'s track →`;
+        if (!isMobile()) open.textContent = `Get ${waitingFor}'s track →`;
         q('[data-summary]').textContent += ` · waiting for ${waitingFor}'s track`;
       }
       // WAVs are disk-backed Blobs, so a URL per session costs nothing up front.

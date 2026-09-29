@@ -118,12 +118,11 @@ await page.waitForURL('**/saved?take=*');
 await page.waitForTimeout(800);
 const summary = await page.locator('[data-summary]').textContent();
 ok('saved summary', /2 retakes · 1 cough · 1 ad-lib/.test(summary), summary);
-const edit = await page.locator('[data-edit]').textContent();
-ok('assembled edit length', /after cuts/.test(edit), edit);
+ok('review does not imply an assembled edit', await page.locator('[data-edit]').count() === 0);
 await page.screenshot({ path: `${S}/shots/rec/saved-${process.argv[2] ?? 'laptop'}.png` });
-await page.click('[data-play]');
+await page.getByRole('button', { name: /^(Play|Pause) recording$/ }).click();
 await page.waitForTimeout(800);
-ok('listen plays', await page.evaluate(() => !document.querySelector('[data-player]').paused));
+ok('listen plays', await page.evaluate(() => !document.querySelector('[data-review-audio]').paused));
 
 // Export: raw WAV + markers + edit
 await page.click('[data-export]');

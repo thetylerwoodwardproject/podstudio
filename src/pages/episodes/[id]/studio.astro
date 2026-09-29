@@ -179,11 +179,13 @@ const menu = [
 </AppShell>
 
 <script>
+  import { recordingLink } from '@/lib/mobile';
   import { listTakes as recordedTakes } from '@/lib/audio/takes';
   import { serverTakes as recordedServerTakes } from '@/lib/take-upload';
   const editorEntry = document.querySelector<HTMLAnchorElement>('[data-editor-entry]');
   if (editorEntry) {
     const episode = location.pathname.split('/')[2];
+    recordingLink(editorEntry, episode);
     void Promise.all([recordedTakes(episode), recordedServerTakes(episode)]).then(([local, remote]) => { editorEntry.hidden = !local.some((t) => t.status === 'done') && !remote.some((t) => t.done); });
   }
 
