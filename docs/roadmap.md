@@ -52,6 +52,13 @@ VPS testing: waveform performance, accessibility, clearer edit affordances and
 recovery for unusual media or network failures. MIDI, instruments, automation
 lanes, routing matrices and a large mixer are outside the product direction.
 
+The editor now prepares missing waveforms from bounded source reads, including
+server-only and imported audio; compact menus give the timeline more room.
+Tracks can be removed and restored without deleting source recordings. The
+theme choice is in Settings → General, and the studio setup footer keeps Start
+session at full height. Validate these changes with long, real recordings on
+the VPS; the reported MP3 playback stall remains open until tested there.
+
 ## Calibration
 
 A future guided calibration can measure room noise, speaking level and mic

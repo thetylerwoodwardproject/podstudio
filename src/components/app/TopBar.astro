@@ -1,7 +1,6 @@
 ---
 import Logo from '@/components/ui/Logo.astro';
 import Avatar from '@/components/ui/Avatar.astro';
-import ThemePicker from '@/components/ui/ThemePicker.astro';
 import { user } from '@/data/mock';
 
 export interface Crumb {
@@ -42,7 +41,6 @@ const { crumbs, avatar = true } = Astro.props;
   <slot name="center" />
   <div class="flex flex-none items-center gap-3.5">
     <slot />
-    <ThemePicker compact />
     {
       avatar && (
         <a href="/settings/general" aria-label="Account settings">

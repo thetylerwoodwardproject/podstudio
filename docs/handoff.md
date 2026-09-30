@@ -68,6 +68,9 @@ Editor-specific no-translation markup supplements the existing English language 
 - `src/lib/editor-project.ts` is the versioned, non-destructive project model
   and edit command layer. Source PCM/WAV is only referenced; it is never
   rewritten.
+- `src/lib/audio/editor-peaks.ts` builds and caches waveform peaks from bounded
+  source reads for recorded, server-only and imported tracks. The timeline
+  loads visible regions first and shows preparation or retry when a read fails.
 - `src/lib/audio/editor-render.ts` renders only clips overlapping the requested
   window. Playback uses rolling 30-second windows with prefetch, so it is not
   limited to 30 seconds and does not decode a whole long session at once.
@@ -83,6 +86,14 @@ unlinking, selection, zoom, keyboard shortcuts, retake review, pause choices,
 imports, per-track mute/solo/level and focused FX. Retake groups must be
 reviewed before a finished export. Autosave writes a local recovery copy first,
 then uses server revisions and exposes offline and conflict states.
+The compact Tools and Edit menus hold secondary actions, and clip position/trim
+fields appear only for a selection. Removing a track is an undoable project edit:
+its source stays intact and the track can be restored after reopening. Recorded
+raw exports still include original sources; removed imports remain in the media
+library but are omitted from that project's raw ZIP. The top bar no longer has
+a theme picker; Settings → General retains the synced System/Light/Dark choice.
+The studio setup panel scrolls independently above a fixed-height Start session
+footer.
 
 ## Recording and synchronization
 

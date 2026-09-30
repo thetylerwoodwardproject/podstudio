@@ -31,6 +31,7 @@ const episode = { ...mockEpisode, ...data.episode };
   import { WavReader, renderMaster } from '@/lib/audio/master';
   import { encodeMp3 } from '@/lib/audio/mp3';
   import { mediaSource } from '@/lib/audio/media-source';
+  import { sourcePeaks } from '@/lib/audio/editor-peaks';
   import { decodeToLibraryRate, listLibrary, libraryWav, readLibraryFile, saveLibraryFile } from '@/lib/pads';
   import { encodeWav, pcmBytes, wavHeader } from '@/lib/audio/wav';
   import { download, zip, type ZipEntry } from '@/lib/zip';
@@ -46,7 +47,7 @@ const episode = { ...mockEpisode, ...data.episode };
   const phone = isMobile();
   if (phone) location.replace(`/episodes/${episodeId}/saved${query.toString() ? `?${query}` : ''}`);
   else void live().catch((error) => {
-    const loading = root.querySelector('[data-loading]')!;
+    const loading = root.querySelector('[data-loading]') ?? root.appendChild(document.createElement('div'));
     loading.textContent = `Couldn’t open editor: ${error.message} `;
     const retry = document.createElement('button'); retry.textContent = 'Retry'; retry.className = 'ml-3 underline'; retry.onclick = () => location.reload(); loading.append(retry);
     const sessions = document.createElement('a'); sessions.href = `/episodes/${episodeId}/sessions`; sessions.textContent = ' Recorded sessions'; sessions.className = 'ml-3 underline'; loading.append(sessions);
@@ -56,18 +57,6 @@ const episode = { ...mockEpisode, ...data.episode };
     const reader = await WavReader.open(wav);
     return reader.read(reader.frames);
   }
-
-  const peaksOf = (audio: Float32Array, channels: number, rate: number, seconds = .5) => {
-    const step = Math.max(1, Math.round(rate * seconds));
-    const out: number[] = [];
-    for (let from = 0; from < audio.length / channels; from += step) {
-      let peak = 0;
-      const end = Math.min(audio.length / channels, from + step);
-      for (let f = from; f < end; f++) for (let c = 0; c < channels; c++) peak = Math.max(peak, Math.abs(audio[f * channels + c]));
-      out.push(peak);
-    }
-    return out;
-  };
 
   async function live() {
     const requested = query.get('take');
@@ -125,7 +114,7 @@ const episode = { ...mockEpisode, ...data.episode };
         reader = remoteSource(track, detail.segmentBytes);
       }
       sourceInfo.push({ id: track.id, kind: 'voice', role: index ? 'guest' : 'host', name: index ? track.speaker || `Guest ${index}` : track.speaker || 'Host', duration, channels: track.channels ?? 1, sampleRate: track.sampleRate });
-      views.push({ id: `track-${track.id}`, peaks: track.peaks ?? [], color: colors[index % colors.length] });
+      views.push({ id: `track-${track.id}`, peaks: track.peaks ?? [], peakMax: Math.max(0, ...(track.peaks ?? [])), color: colors[index % colors.length] });
       sources.set(track.id, {
         channels: track.channels ?? 1,
         sampleRate: track.sampleRate,
@@ -159,14 +148,15 @@ const episode = { ...mockEpisode, ...data.episode };
     const revision = server.revision;
 
     // Rehydrate imported media referenced by a saved project.
-    const importedMedia = project.tracks.some((t) => t.kind === 'import') ? await listLibrary() : [];
-    for (const track of project.tracks.filter((t) => t.kind === 'import')) {
+    const referencedTracks = [...project.tracks, ...(project.removedTracks ?? [])];
+    const importedMedia = referencedTracks.some((t) => t.kind === 'import') ? await listLibrary() : [];
+    for (const track of referencedTracks.filter((t) => t.kind === 'import')) {
       if (sources.has(track.sourceId)) continue;
       const id = track.sourceId.replace(/^media:/, '');
       const originalDuration = importedMedia.find((file) => file.id === id)?.seconds;
       for (const clip of track.clips) clip.sourceDuration = Math.max(clip.sourceDuration ?? clip.sourceEnd, originalDuration ?? 0);
       sources.set(track.sourceId, mediaSource(() => libraryWav(id)));
-      views.push({ id: track.id, peaks: [], color: 'var(--color-adlib)' });
+      if (!views.some((view) => view.id === track.id)) views.push({ id: track.id, peaks: [], color: 'var(--color-adlib)' });
     }
 
     // Quiet stretches shared by all voice tracks become suggestions only.
@@ -226,7 +216,7 @@ const episode = { ...mockEpisode, ...data.episode };
       const sourceId = `media:${media.id}`;
       sources.set(sourceId, mediaSource(() => libraryWav(media.id)));
       const track: EditorTrack = { id: `track-${sourceId}`, sourceId, kind: 'import', name: file.name, channels: 2, sampleRate: 48000, gainDb: 0, muted: false, fx: defaultFx(false), clips: [{ id: `clip-${media.id}`, sourceId, sourceStart: 0, sourceEnd: media.seconds, sourceDuration: media.seconds, timelineStart: at, linked: false, fadeInMs: 0, fadeOutMs: 0 }] };
-      return { track, peaks: peaksOf(stereo, 2, 48000) };
+      return { track, peaks: [] };
     };
     const onexport = async (value: EditorProjectV1, progress: (s: string) => void): Promise<EditorExportResult> => {
       if (!value.tracks.some((track) => !track.muted)) throw new Error('Unmute at least one track before exporting.');
@@ -259,8 +249,14 @@ const episode = { ...mockEpisode, ...data.episode };
       return { filename, downloadAgain: () => download(archive, filename) };
     };
 
-    root.querySelector('[data-loading]')?.remove();
     const [{ mount }, { default: EditorFlow }] = await Promise.all([import('svelte'), import('@/components/app/EditorFlow.svelte')]);
-    mount(EditorFlow, { target: root.querySelector('[data-editor-mount]')!, props: { sessionsHref: `/episodes/${episodeId}/sessions`, initial: project, revision, views, sessions: sessions.map((t) => ({ id: t.id, name: new Date(t.startedAt).toLocaleString() })), onpreview, onanalyze, onsave, onimport, onexport } });
+    const onpeaks = (track: EditorTrack, from: number, to: number, onChunk: (chunk: { start: number; peaks: number[] }) => void) => {
+      const reader = sources.get(track.sourceId);
+      if (!reader) throw new Error('Source audio is unavailable. Retry after it has synchronized.');
+      const length = Math.max(...track.clips.map((clip) => clip.sourceDuration ?? clip.sourceEnd), 0);
+      return sourcePeaks(track.sourceId, reader, length, from, to, onChunk);
+    };
+    mount(EditorFlow, { target: root.querySelector('[data-editor-mount]')!, props: { sessionsHref: `/episodes/${episodeId}/sessions`, initial: project, revision, views, sessions: sessions.map((t) => ({ id: t.id, name: new Date(t.startedAt).toLocaleString() })), onpreview, onanalyze, onsave, onimport, onexport, onpeaks } });
+    root.querySelector('[data-loading]')?.remove();
   }
 </script>

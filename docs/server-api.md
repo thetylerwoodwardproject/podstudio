@@ -176,3 +176,8 @@ and recorded-pause removal. Editor edits and FX do not affect raw downloads.
 ### Editor crossfade metadata
 
 `EditorProjectV1.crossfades` is optional. Each record contains `trackId` and nonempty `from`/`to` clip-ID arrays on that same track. Split fragments may share an envelope; the overlap bounds are derived from current clip positions. The existing authenticated project PUT validates referenced clips and their edge overlap. Older projects without this field retain their previous sound. No new endpoint or database migration is required.
+
+`EditorProjectV1.removedTracks` is optional and stores complete track metadata
+for later restoration. The server validates these tracks and requires IDs to be
+unique across active and removed tracks. Only active tracks render into the
+finished mix; the original take and media files remain untouched.

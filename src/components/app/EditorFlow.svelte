@@ -5,7 +5,7 @@
   export interface EditorPreview { url: string; duration: number }
   export interface EditorExportResult { filename: string; downloadAgain: () => void }
   export interface EditorConflict { project: EditorProjectV1; revision: number }
-  export interface EditorTrackView { id: string; peaks: number[]; color: string }
+  export interface EditorTrackView { id: string; peaks: number[]; color: string; peakMax?: number; status?: 'loading' | 'ready' | 'error'; error?: string }
   export interface EditorSaveResult { revision: number; conflict?: EditorConflict }
   export interface EditorProps {
     sessions: { id: string; name: string }[];
@@ -18,15 +18,21 @@
     onsave: (project: EditorProjectV1, revision: number, force?: boolean) => Promise<EditorSaveResult>;
     onimport: (file: File, at: number, progress: (s: string) => void) => Promise<{ track: EditorTrack; peaks: number[] }>;
     onexport: (project: EditorProjectV1, progress: (message: string) => void) => Promise<EditorExportResult>;
+    onpeaks: (track: EditorTrack, from: number, to: number, onChunk: (chunk: { start: number; peaks: number[] }) => void) => Promise<void>;
   }
 </script>
 
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import EditorFxControls from './EditorFxControls.svelte';
-  import { cleanMaster, cleanEditorProject, deleteClip, timelineMarkers, defaultFx } from '@/lib/editor-project';
+  import { cleanMaster, cleanEditorProject, deleteClip, timelineMarkers, defaultFx, removeEditorTrack, restoreEditorTrack } from '@/lib/editor-project';
   import { crossfadeSpan } from '@/lib/editor-crossfades';
   import Sheet from '@/components/ui/Sheet.svelte';
+  import { Button } from '@/components/shadcn/button';
+  import * as DropdownMenu from '@/components/shadcn/dropdown-menu';
+  import * as AlertDialog from '@/components/shadcn/alert-dialog';
+  import { Input } from '@/components/shadcn/input';
+  import { Slider } from '@/components/shadcn/slider';
   import {
     deleteRange,
     moveClip,
@@ -35,7 +41,7 @@
     trimClip,
   } from '@/lib/editor-project';
 
-  let { sessions, onanalyze, sessionsHref, initial, revision: initialRevision, views, onpreview, onsave, onimport, onexport }: EditorProps = $props();
+  let { sessions, onanalyze, sessionsHref, initial, revision: initialRevision, views, onpreview, onsave, onimport, onexport, onpeaks }: EditorProps = $props();
   let project = $state(structuredClone(initial));
   let revision = $state(initialRevision);
   let saveState = $state<EditorSaveState>('idle');
@@ -74,6 +80,10 @@
   let fxBypass = $state(false);
   let fxPreviewing = $state(false);
   let fxTimer = 0;
+  let removingTrack = $state<string | null>(null);
+  let removeOpen = $state(false);
+  let editMenuOpen = $state(false);
+  let waveformGeneration = 0;
   let prefetching = false;
   const selected = $derived(project.tracks.find((t) => t.id === selectedTrack)?.clips.find((c) => c.id === selectedClip));
   const visibleMarkers = $derived(timelineMarkers(project));
@@ -126,7 +136,7 @@
   const timelineWidth = $derived(Math.max(900, duration * pxPerSecond));
   const selection = $derived([Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd)] as [number, number]);
   const hasSelection = $derived(selection[1] - selection[0] > 0.01);
-  const pendingRetakes = $derived(project.retakes.filter((r) => !r.reviewed).length);
+  const pendingRetakes = $derived(project.tracks.some((t) => t.kind === 'voice' && t.role === 'host') ? project.retakes.filter((r) => !r.reviewed).length : 0);
   const plain = <T,>(value: T): T => structuredClone($state.snapshot(value) as T);
 
   const fmt = (seconds: number) => {
@@ -136,6 +146,47 @@
   };
   const label = (kind: string) => ({ retake: 'RET', cut: 'COUGH', adlib: 'AD-LIB', pause: 'PAUSE', gap: 'MIC' }[kind] ?? '');
   const viewFor = (id: string) => views.find((v) => v.id === id);
+
+  async function loadPeaks(track: EditorTrack, from: number, to: number) {
+    const generation = waveformGeneration;
+    const existing = viewFor(track.id);
+    if (existing && Array.from({ length: Math.ceil(to * 2) - Math.floor(from * 2) }, (_, index) => existing.peaks[Math.floor(from * 2) + index]).every((peak) => peak !== undefined)) return;
+    views = views.map((view) => view.id === track.id ? { ...view, status: 'loading', error: undefined } : view);
+    try {
+      await onpeaks(track, from, to, (chunk) => {
+        if (generation !== waveformGeneration) return;
+        views = views.map((view) => {
+          if (view.id !== track.id) return view;
+          const peaks = [...view.peaks];
+          for (let i = 0; i < chunk.peaks.length; i++) peaks[chunk.start + i] = chunk.peaks[i];
+          return { ...view, peaks, peakMax: Math.max(view.peakMax ?? 0, ...chunk.peaks), status: 'ready' };
+        });
+      });
+      if (generation === waveformGeneration) views = views.map((view) => view.id === track.id && view.status === 'loading' ? { ...view, status: 'ready' } : view);
+    } catch (error) {
+      if (generation === waveformGeneration) views = views.map((view) => view.id === track.id ? { ...view, status: 'error', error: (error as Error).message } : view);
+    }
+  }
+
+  async function visiblePeaks(scroll: HTMLElement) {
+    const from = Math.max(0, (scroll.scrollLeft - HEADER) / pxPerSecond);
+    const to = Math.min(duration, (scroll.scrollLeft + scroll.clientWidth - HEADER) / pxPerSecond);
+    await Promise.all(project.tracks.flatMap((track) => track.clips.flatMap((clip) => {
+      const start = Math.max(from, clip.timelineStart);
+      const end = Math.min(to, clip.timelineStart + clip.sourceEnd - clip.sourceStart);
+      return end > start ? [loadPeaks(track, clip.sourceStart + start - clip.timelineStart, clip.sourceStart + end - clip.timelineStart)] : [];
+    })));
+  }
+
+  onMount(() => {
+    const scroll = document.querySelector<HTMLElement>('[data-timeline-scroll]');
+    if (!scroll) return;
+    let timer = 0;
+    const onScroll = () => { clearTimeout(timer); timer = window.setTimeout(() => void visiblePeaks(scroll), 100); };
+    scroll.addEventListener('scroll', onScroll);
+    void visiblePeaks(scroll);
+    return () => { ++waveformGeneration; clearTimeout(timer); scroll.removeEventListener('scroll', onScroll); };
+  });
 
   function update(next: EditorProjectV1, record = true) {
     if (record) {
@@ -230,19 +281,20 @@
       change((x - start + scroll.scrollLeft - scrollStart) / pxPerSecond, x);
       frame = requestAnimationFrame(paint);
     };
-    const move = (ev: PointerEvent) => { x = ev.clientX; if (Math.abs(x - start) > 3) { changed = true; if (!frame) paint(); } };
+    const move = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; x = ev.clientX; if (Math.abs(x - start) > 3) { changed = true; if (!frame) paint(); } };
     const finish = (cancel = false) => {
-      cancelAnimationFrame(frame); target.removeEventListener('pointermove', move); target.removeEventListener('pointerup', up); target.removeEventListener('pointercancel', cancelEvent); window.removeEventListener('keydown', key);
+      if (!cancel && changed) change((x - start + scroll.scrollLeft - scrollStart) / pxPerSecond, x);
+      cancelAnimationFrame(frame); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancelEvent); window.removeEventListener('keydown', key);
       if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
       gestureCancel = null;
       if (cancel) { project = original; playhead = originalPlayhead; selectionStart = selectionEnd = playhead; }
       else if (edit && changed) { const final = project; project = original; update(final); }
       else if (!changed) click?.();
     };
-    const up = () => finish(); const cancelEvent = () => finish(true);
+    const up = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) finish(); }; const cancelEvent = () => finish(true);
     const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); finish(true); } };
     gestureCancel = cancelEvent;
-    target.addEventListener('pointermove', move); target.addEventListener('pointerup', up); target.addEventListener('pointercancel', cancelEvent); window.addEventListener('keydown', key);
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancelEvent); window.addEventListener('keydown', key);
   }
   function beginSelection(e: PointerEvent, track?: EditorTrack, clipId?: string) {
     const node = (e.currentTarget as HTMLElement).closest('[data-lane], [data-ruler]') as HTMLElement;
@@ -281,6 +333,22 @@
     const clip = next.tracks.find((t) => t.id === selectedTrack)?.clips.find((c) => c.id === selectedClip);
     if (clip) clip.linked = !clip.linked;
     update(next);
+  }
+
+  function confirmRemoveTrack() {
+    if (!removingTrack) return;
+    const id = removingTrack;
+    update(removeEditorTrack(plain(project), id));
+    solo = solo.filter((value) => value !== id);
+    if (selectedTrack === id) { selectedTrack = project.tracks[0]?.id ?? ''; selectedClip = ''; }
+    removingTrack = null;
+    removeOpen = false;
+  }
+  function restoreTrack(id: string) {
+    update(restoreEditorTrack(plain(project), id));
+    selectedTrack = id; selectedClip = '';
+    const track = project.tracks.find((value) => value.id === id);
+    if (track) for (const clip of track.clips) void loadPeaks(track, clip.sourceStart, clip.sourceEnd);
   }
 
   function toggleMute(id: string) {
@@ -356,6 +424,7 @@
       const result = await onimport(file, importAt, (s) => importStatus = s);
       views = [...views, { id: result.track.id, peaks: result.peaks, color: 'var(--color-adlib)' }];
       update({ ...plain(project), tracks: [...plain(project.tracks), result.track] });
+      void loadPeaks(result.track, 0, Math.min(60, result.track.clips[0]?.sourceEnd ?? 0));
       selectedTrack = result.track.id; pendingImport = undefined; importStatus = 'Audio added';
     } catch (error) { importError = (error as Error).message; }
     finally { importing = false; }
@@ -413,27 +482,40 @@
 </script>
 
 <div class="flex h-full min-h-[620px] flex-col overflow-hidden bg-page" data-editor>
-  <div class="flex h-14 flex-none items-center gap-3 border-b border-divider px-4">
+  <div class="flex h-12 flex-none items-center gap-3 border-b border-divider px-4">
     <a href={sessionsHref} class="text-[13px] text-text-2 hover:text-text">‹ Sessions</a>
     <div class="h-5 w-px bg-divider"></div>
     <div class="min-w-0 flex-1 truncate text-[14px]">{project.name}</div>
-    <select aria-label="Recorded session" class="h-9 max-w-[200px] rounded-[10px] border border-border bg-page px-2 text-[12px]" value={project.takeId} onchange={(e) => void switchSession(e.currentTarget.value)}>{#each sessions as session}<option value={session.id}>{session.name}</option>{/each}</select>
-    <button class="h-9 rounded-[10px] border border-border px-3 text-[13px]" onclick={() => { masterDraft = cleanMaster(plain(project.master)); loudnessOpen = true; }}>Loudness</button>
     <div class="flex items-center gap-2 text-[12px] text-text-2" aria-live="polite" data-save-state={saveState}>
       <span class:animate-pulse={saveState === 'saving'} class="size-1.5 rounded-full" class:bg-ok={saveState === 'saved'} class:bg-warn={saveState === 'saving' || saveState === 'offline'} class:bg-rec={saveState === 'failed' || saveState === 'conflict'}></span>
       {saveMessage}
     </div>
-    <button data-retakes-open class="h-9 rounded-[10px] border border-border px-3 text-[13px] hover:border-handle" onclick={() => retakesOpen = true}>Retakes {pendingRetakes ? `(${pendingRetakes})` : ''}</button>
-    <button data-pauses-open class="h-9 rounded-[10px] border border-border px-3 text-[13px] hover:border-handle" onclick={() => pausesOpen = true}>Pauses {project.pauses.length ? `(${project.pauses.length})` : ''}</button>
-    <label class="flex h-9 cursor-pointer items-center rounded-[10px] border border-border px-3 text-[13px] hover:border-handle">{importing ? 'Importing…' : 'Import audio'}<input class="sr-only" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac" disabled={importing} onchange={(e) => importFile(e.currentTarget.files?.[0])} /></label>
-    <button data-export-open class="h-9 rounded-[10px] bg-primary px-4 text-[13px] font-medium text-primary-fg" onclick={() => exportOpen = true}>Export</button>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Editor tools">Tools {pendingRetakes ? `· ${pendingRetakes}` : ''}</DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" class="w-56">
+        <DropdownMenu.Item data-retakes-open onclick={() => retakesOpen = true}>Review retakes {pendingRetakes ? `(${pendingRetakes})` : ''}</DropdownMenu.Item>
+        <DropdownMenu.Item data-pauses-open onclick={() => pausesOpen = true}>Review pauses {project.pauses.length ? `(${project.pauses.length})` : ''}</DropdownMenu.Item>
+        <DropdownMenu.Item onclick={() => { masterDraft = cleanMaster(plain(project.master)); loudnessOpen = true; }}>Loudness</DropdownMenu.Item>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item onclick={() => document.querySelector<HTMLInputElement>('[data-editor-import]')?.click()} disabled={importing}>Import audio</DropdownMenu.Item>
+        {#if project.removedTracks?.length}
+          <DropdownMenu.Separator />
+          {#each project.removedTracks as track}<DropdownMenu.Item onclick={() => restoreTrack(track.id)}>Restore {track.name}</DropdownMenu.Item>{/each}
+        {/if}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger class="h-8 max-w-40 truncate rounded-lg border border-border px-3 text-[12px]" aria-label="Recorded session">{sessions.find((session) => session.id === project.takeId)?.name ?? 'Session'}</DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" class="w-56">
+        {#each sessions as session}<DropdownMenu.Item onclick={() => void switchSession(session.id)}>{session.name}{session.id === project.takeId ? ' ✓' : ''}</DropdownMenu.Item>{/each}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+    <input data-editor-import class="sr-only" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac" disabled={importing} onchange={(e) => importFile(e.currentTarget.files?.[0])} />
+    <Button data-export-open size="sm" onclick={() => exportOpen = true}>Export</Button>
   </div>
   {#if importStatus}<div role="status" data-import-status class="border-b border-divider px-4 py-2 text-[12px] text-text-2" aria-live="polite">{importing ? '◌ ' : ''}{importStatus}</div>{/if}
   {#if importError}<div role="alert" class="border-b border-rec/30 bg-rec/5 px-4 py-2 text-[12px] text-rec">{importError}{#if pendingImport}<button class="ml-4 underline" disabled={importing} onclick={() => importFile(pendingImport)}>Retry upload</button>{/if}</div>{/if}
-  <div class="flex flex-wrap items-center gap-3 border-b border-divider px-4 py-2 text-[12px]">
-    <span class="text-text-3">Click a waveform to select. Drag to move; drag edges to trim. Shift-drag or drag the ruler to select time. Alt-drag unlinks.</span>
-    {#if selected}<div class="ml-auto flex gap-3">{#each [{ key: 'position', name: 'Position', value: selected.timelineStart }, { key: 'start', name: 'Trim start', value: selected.sourceStart }, { key: 'end', name: 'Trim end', value: selected.sourceEnd }] as field}<label class="flex items-center gap-2 text-text-2">{field.name}<input aria-label={`${field.name} seconds`} class="h-8 w-20 rounded-[8px] border border-border bg-page px-2 font-mono text-text" type="number" min="0" step=".01" value={Number(field.value.toFixed(3))} onchange={(e) => numericClip(field.key as 'position'|'start'|'end', e.currentTarget.valueAsNumber)} /></label>{/each}</div>{/if}
-  </div>
+  {#if selected}<div class="flex flex-none items-center justify-end gap-3 border-b border-divider px-4 py-1 text-[12px]">{#each [{ key: 'position', name: 'Position', value: selected.timelineStart }, { key: 'start', name: 'Trim start', value: selected.sourceStart }, { key: 'end', name: 'Trim end', value: selected.sourceEnd }] as field}<label class="flex items-center gap-2 text-text-2">{field.name}<Input aria-label={`${field.name} seconds`} class="w-20 font-mono" type="number" min="0" step=".01" value={Number(field.value.toFixed(3))} onchange={(e) => numericClip(field.key as 'position'|'start'|'end', e.currentTarget.valueAsNumber)} /></label>{/each}</div>{/if}
   <div class="flex min-h-0 flex-1 overflow-auto" data-timeline-scroll>
     <div class="relative min-w-full" style={`width:${HEADER + timelineWidth}px`}>
       <div class="sticky top-0 z-30 flex h-10 border-b border-divider bg-page/95 backdrop-blur">
@@ -457,7 +539,15 @@
         {@const view = viewFor(track.id)}
         <div data-track={track.id} class="flex h-[104px] border-b border-divider" class:bg-surface={track.id === selectedTrack}>
           <div class="sticky left-0 z-20 flex w-[176px] flex-none flex-col justify-center gap-2 border-r border-divider bg-page px-3">
-            <div class="flex items-center gap-2"><span class="size-2 rounded-full" style={`background:${view?.color ?? 'var(--color-text-3)'}`}></span><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id}>{track.name}</button></div>
+            <div class="flex items-center gap-2"><span class="size-2 rounded-full" style={`background:${view?.color ?? 'var(--color-text-3)'}`}></span><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger class="size-6 rounded-md text-text-2 hover:bg-control" aria-label={`${track.name} track actions`}>⋯</DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end" class="w-44">
+                  {#if view?.status === 'error'}<DropdownMenu.Item onclick={() => { for (const clip of track.clips) void loadPeaks(track, clip.sourceStart, clip.sourceEnd); }}>Retry waveform</DropdownMenu.Item>{/if}
+                  <DropdownMenu.Item variant="destructive" onclick={() => { removingTrack = track.id; removeOpen = true; }}>Remove track</DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+            </div>
             <div class="flex items-center gap-1.5">
               <button class="size-7 rounded-[7px] border border-border text-[11px]" class:bg-text={track.muted} class:text-page={track.muted} onclick={() => toggleMute(track.id)} aria-label={`Mute ${track.name}`}>M</button>
               <button class="size-7 rounded-[7px] border border-border text-[11px]" class:bg-text={solo.includes(track.id)} class:text-page={solo.includes(track.id)} onclick={() => toggleSolo(track.id)} aria-label={`Solo ${track.name}`}>S</button>
@@ -469,13 +559,16 @@
           <div class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex="-1" onpointerdown={(e) => beginSelection(e, track)}>
             {#each track.clips as clip}
               {@const clipDuration = clip.sourceEnd - clip.sourceStart}
+              {@const clipPeaks = (view?.peaks ?? []).slice(Math.floor(clip.sourceStart * 2), Math.ceil(clip.sourceEnd * 2))}
               <button data-clip class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onclick={() => { selectedTrack = track.id; selectedClip = clip.id; }} title="Drag to move clip; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
                 <span role="slider" aria-label="Trim clip start" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceStart} tabindex="0" class="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'start')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'start', e.key === 'ArrowRight' ? .01 : -.01)); } }}></span>
                 <span role="slider" aria-label="Trim clip end" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceEnd} tabindex="0" class="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'end')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'end', e.key === 'ArrowLeft' ? .01 : -.01)); } }}></span>
                 <span class="absolute left-2 top-1 font-mono text-[9px] text-text-3">{clip.linked ? 'LINKED' : 'UNLINKED'}</span>
+                {#if view?.status === 'loading' && !clipPeaks.some((peak) => peak !== undefined)}<span class="absolute inset-0 flex items-center justify-center text-[11px] text-text-2">Preparing waveform…</span>{/if}
+                {#if view?.status === 'error'}<span class="absolute inset-0 flex items-center justify-center px-3 text-center text-[11px] text-rec">Waveform unavailable · retry from track menu</span>{/if}
                 <span class="absolute inset-x-0 bottom-2 top-5 flex items-center gap-px opacity-80" aria-hidden="true">
-                  {#each (view?.peaks ?? []).slice(Math.floor(clip.sourceStart * 2), Math.ceil(clip.sourceEnd * 2)) as peak}
-                    <i class="min-w-px flex-1 rounded-full" style={`height:${Math.max(2, peak * 46)}px;background:${view?.color ?? 'var(--color-text-3)'}`}></i>
+                  {#each clipPeaks as peak}
+                    <i data-waveform-peak class="min-w-px flex-1 rounded-full" style={`height:${Math.max(2, (peak ?? 0) * 46 * Math.min(8, .75 / Math.max(.01, view?.peakMax ?? .75)))}px;background:${view?.color ?? 'var(--color-text-3)'}`}></i>
                   {/each}
                 </span>
               </button>
@@ -491,20 +584,26 @@
       <div class="pointer-events-none absolute bottom-0 top-0 z-40 w-px bg-rec" style={`left:${HEADER + playhead * pxPerSecond}px`}><span class="absolute -left-1.5 top-0 size-3 rotate-45 bg-rec"></span></div>
     </div>
   </div>
-  <div class="flex min-h-[66px] flex-wrap py-2 flex-none items-center gap-3 border-t border-divider bg-surface px-4">
+  <div class="flex min-h-[56px] flex-none items-center gap-3 border-t border-divider bg-surface px-4 py-2">
     <button data-editor-play class="size-9 rounded-full bg-text text-page" onclick={() => playing ? pause() : void play()} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if playing}<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>{:else}<path d="M7 4L21 12L7 20Z"/>{/if}</svg></button>
     <button class="size-9 rounded-[10px] border border-border text-[12px]" onclick={stop} aria-label="Stop" title="Stop"><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
     <span class="w-[58px] font-mono text-[12px]">{fmt(playhead)}</span>
     <input class="min-w-[160px] flex-1" aria-label="Playhead" type="range" min="0" max={Math.max(.01, duration)} step=".01" value={playhead} oninput={(e) => seek(Number(e.currentTarget.value))} />
     <span class="font-mono text-[12px] text-text-2">{fmt(duration)}</span>
     <div class="h-6 w-px bg-divider"></div>
-    <button class="h-8 rounded-[8px] border border-border px-2 text-[12px] disabled:opacity-30" disabled={!history.length} onclick={undo}>Undo</button>
-    <button class="h-8 rounded-[8px] border border-border px-2 text-[12px] disabled:opacity-30" disabled={!future.length} onclick={redo}>Redo</button>
-    <button class="h-8 rounded-[8px] border border-border px-2 text-[12px]" onclick={split}>Split</button>
-    <button class="h-8 rounded-[8px] border border-border px-2 text-[12px] disabled:opacity-30" disabled={!selectedClip} onclick={unlinkSelected}>{project.tracks.find((t) => t.id === selectedTrack)?.clips.find((c) => c.id === selectedClip)?.linked === false ? 'Link' : 'Unlink'}</button>
-    <button class="h-8 rounded-[8px] border border-border px-2 text-[12px] disabled:opacity-30" disabled={!hasSelection && !selectedClip} onclick={() => remove(false)}>Delete</button>
-    <button class="h-8 rounded-[8px] border border-border px-2 text-[12px] disabled:opacity-30" disabled={!hasSelection} onclick={() => remove(true)}>Ripple cut</button>
-    <span class="ml-2 text-[11px] text-text-3">Zoom</span><input class="w-24" aria-label="Timeline zoom" type="range" min=".5" max="6" step=".5" bind:value={zoom} />
+    <DropdownMenu.Root bind:open={editMenuOpen}>
+      <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Edit actions">Edit</DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" class="w-44">
+        <DropdownMenu.Item disabled={!history.length} onclick={() => { editMenuOpen = false; undo(); }}>Undo</DropdownMenu.Item>
+        <DropdownMenu.Item disabled={!future.length} onclick={() => { editMenuOpen = false; redo(); }}>Redo</DropdownMenu.Item>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item onclick={() => { editMenuOpen = false; split(); }}>Split</DropdownMenu.Item>
+        <DropdownMenu.Item disabled={!selectedClip} onclick={() => { editMenuOpen = false; unlinkSelected(); }}>{selected?.linked === false ? 'Link' : 'Unlink'}</DropdownMenu.Item>
+        <DropdownMenu.Item disabled={!hasSelection && !selectedClip} onclick={() => { editMenuOpen = false; remove(false); }}>Delete</DropdownMenu.Item>
+        <DropdownMenu.Item disabled={!hasSelection} onclick={() => { editMenuOpen = false; remove(true); }}>Ripple cut</DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+    <span class="text-[11px] text-text-3">Zoom</span><Slider type="single" class="w-24" aria-label="Timeline zoom" min={0.5} max={6} step={0.5} bind:value={zoom} />
     {#if loadingAudio}<span class="font-mono text-[10px] text-text-3">BUFFERING</span>{/if}
   </div>
 </div>
@@ -584,6 +683,19 @@
   <p class="text-[13px] leading-relaxed text-text-2">Load the server version, or keep this browser’s edits and overwrite it.</p>
   {#snippet footer()}<div class="flex justify-end gap-2"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={reloadConflict}>Reload server version</button><button class="h-9 rounded-[9px] bg-primary px-4 text-[13px] text-primary-fg" onclick={overwriteConflict}>Overwrite with this version</button></div>{/snippet}
 </Sheet>
+
+<AlertDialog.Root bind:open={removeOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>Remove track?</AlertDialog.Title>
+      <AlertDialog.Description>{project.tracks.find((track) => track.id === removingTrack)?.name ?? 'This track'} will leave the timeline and finished mix. Its source audio remains available to restore.</AlertDialog.Description>
+    </AlertDialog.Header>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel onclick={() => removingTrack = null}>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructive" onclick={confirmRemoveTrack}>Remove track</AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
 
 <style>
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--color-text); outline-offset: 3px; }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createEditorProject, deleteRange, deriveRetakes, detectPauses, moveClip, projectDuration, splitProject, toneFromFx, trimClip } from './editor-project.ts';
+import { createEditorProject, deleteRange, deriveRetakes, detectPauses, moveClip, projectDuration, splitProject, toneFromFx, trimClip, removeEditorTrack, restoreEditorTrack, cleanEditorProject } from './editor-project.ts';
 
 const source = (id: string) => ({ id, kind: 'voice' as const, name: id, duration: 30, channels: 1 as const, sampleRate: 48000 });
 const make = () => createEditorProject({ takeId: 'take', episodeId: 'ep', name: 'Episode', sources: [source('host'), source('guest')] });
@@ -69,7 +69,24 @@ test('trim edges can restore source audio and clamp linked clips together', () =
   assert.equal(restored.tracks[1].clips[0].timelineStart, 0);
 });
 
-import { cleanEditorProject, cleanMaster, timelineMarkers, deleteClip, masterOptions } from './editor-project.ts';
+import { cleanMaster, timelineMarkers, deleteClip, masterOptions } from './editor-project.ts';
+
+test('removing a track is undoable project metadata and retains its immutable source', () => {
+  let original = splitProject(make(), 10);
+  original = moveClip(original, original.tracks[0].id, original.tracks[0].clips[1].id, 8);
+  const id = original.tracks[0].id;
+  assert.ok(original.crossfades?.some((fade) => fade.trackId === id));
+  const removed = removeEditorTrack(original, id);
+  assert.equal(removed.tracks.length, 1);
+  assert.equal(removed.removedTracks?.[0].sourceId, 'host');
+  assert.ok(!removed.crossfades?.some((fade) => fade.trackId === id));
+  assert.equal(original.tracks.length, 2);
+  const reopened = cleanEditorProject(JSON.parse(JSON.stringify(removed)))!;
+  const restored = restoreEditorTrack(reopened, id);
+  assert.equal(restored.tracks.length, 2);
+  assert.equal(restored.removedTracks?.length, 0);
+  assert.equal(restored.tracks.find((track) => track.id === id)?.clips[0].sourceId, 'host');
+});
 import { cleanTone, flatTone } from './audio/tone.ts';
 test('advanced settings round-trip and old projects retain defaults', () => {
   const p = make(); const tone = flatTone(); tone.eq.on = true; tone.eq.gains[3] = -7; tone.comp.attackMs = 42;

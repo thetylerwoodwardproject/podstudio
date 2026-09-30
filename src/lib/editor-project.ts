@@ -85,6 +85,8 @@ export interface EditorProjectV1 {
   episodeId: string;
   name: string;
   tracks: EditorTrack[];
+  /** Removed from the mix, but retained for non-destructive restoration. */
+  removedTracks?: EditorTrack[];
   /** Explicit joins: absent on legacy projects until clips are moved/trimmed. */
   crossfades?: EditorCrossfade[];
   markers: SessionMarker[];
@@ -302,11 +304,16 @@ export function trimClip(project: EditorProjectV1, trackId: string, clipId: stri
 export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
   if (!value || typeof value !== 'object') return null;
   const p = value as EditorProjectV1;
-  if (p.version !== 1 || typeof p.takeId !== 'string' || typeof p.episodeId !== 'string' || !Array.isArray(p.tracks) || p.tracks.length > 64) return null;
-  if (p.tracks.some((t) => !t || typeof t.id !== 'string' || typeof t.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(t.kind) || !Array.isArray(t.clips) || t.clips.length > 10_000)) return null;
-  if (p.tracks.some((t) => t.clips.some((c) => !c || typeof c.id !== 'string' || typeof c.sourceId !== 'string' || ![c.sourceStart, c.sourceEnd, c.timelineStart].every(Number.isFinite) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart || c.timelineStart < 0))) return null;
+  if (p.version !== 1 || typeof p.takeId !== 'string' || typeof p.episodeId !== 'string' || !Array.isArray(p.tracks) || p.tracks.length + (p.removedTracks?.length ?? 0) > 64) return null;
+  if (p.removedTracks != null && !Array.isArray(p.removedTracks)) return null;
+  const allTracks = [...p.tracks, ...(p.removedTracks ?? [])];
+  if (new Set(allTracks.map((t) => t?.id)).size !== allTracks.length) return null;
+  if (allTracks.some((t) => !t || typeof t.id !== 'string' || typeof t.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(t.kind) || !Array.isArray(t.clips) || t.clips.length > 10_000)) return null;
+  if (allTracks.some((t) => t.clips.some((c) => !c || typeof c.id !== 'string' || typeof c.sourceId !== 'string' || ![c.sourceStart, c.sourceEnd, c.timelineStart].every(Number.isFinite) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart || c.timelineStart < 0))) return null;
   const copy = structuredClone(p);
-  copy.tracks = copy.tracks.map((t) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) }));
+  const cleanTrack = (t: EditorTrack) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) });
+  copy.tracks = copy.tracks.map(cleanTrack);
+  copy.removedTracks = (copy.removedTracks ?? []).map(cleanTrack);
   copy.crossfades = Array.isArray(copy.crossfades) ? copy.crossfades.filter((f) => {
     if (!f || typeof f.trackId !== 'string' || !Array.isArray(f.from) || !Array.isArray(f.to) || !f.from.length || !f.to.length || ![...f.from, ...f.to].every((id) => typeof id === 'string')) return false;
     const track = copy.tracks.find((t) => t.id === f.trackId);
@@ -318,6 +325,27 @@ export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
   copy.master = cleanMaster(copy.master);
   copy.sourceMarkers = Array.isArray(copy.sourceMarkers) ? copy.sourceMarkers : sourceMarkersFromTimeline(copy);
   return copy;
+}
+
+export function removeEditorTrack(project: EditorProjectV1, trackId: string): EditorProjectV1 {
+  const next = structuredClone(project);
+  const index = next.tracks.findIndex((track) => track.id === trackId);
+  if (index < 0) return next;
+  const [track] = next.tracks.splice(index, 1);
+  next.removedTracks = [...(next.removedTracks ?? []), track];
+  next.crossfades = (next.crossfades ?? []).filter((fade) => fade.trackId !== trackId);
+  next.updatedAt = Date.now();
+  return next;
+}
+
+export function restoreEditorTrack(project: EditorProjectV1, trackId: string): EditorProjectV1 {
+  const next = structuredClone(project);
+  const index = next.removedTracks?.findIndex((track) => track.id === trackId) ?? -1;
+  if (index < 0) return next;
+  const [track] = next.removedTracks!.splice(index, 1);
+  next.tracks.push(track);
+  next.updatedAt = Date.now();
+  return next;
 }
 
 export function cleanMaster(m: Partial<EditorMaster> = {}): EditorMaster {

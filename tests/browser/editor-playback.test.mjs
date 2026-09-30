@@ -26,7 +26,7 @@ await page.goto(`${B}/episodes/142/editor?take=editor-playback`); await page.wai
 const frames = 48000 * 240, wav = Buffer.alloc(44 + frames * 2);
 wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(48000, 24); wav.writeUInt32LE(96000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(frames * 2, 40);
 for (let i = 0; i < frames; i++) wav.writeInt16LE(Math.round(Math.sin(i * Math.PI * 2 * 440 / 48000) * 3000), 44 + i * 2);
-await page.locator('label:has-text("Import audio") input').setInputFiles({ name: 'four-minute.wav', mimeType: 'audio/wav', buffer: wav });
+await page.locator('[data-editor-import]').setInputFiles({ name: 'four-minute.wav', mimeType: 'audio/wav', buffer: wav });
 ok('four-minute upload becomes one imported track', await until(async () => await page.locator('[data-track]').count() === 2, 60000));
 await page.getByRole('button', { name: /^Mute / }).first().click();
 await page.evaluate(() => { window.readSizes = []; });

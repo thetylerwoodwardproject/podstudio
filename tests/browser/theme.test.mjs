@@ -36,6 +36,7 @@ check('theme selection saves to the server', await until(async () => {
 }));
 await page.reload();
 check('theme survives reload', (await theme()) === 'light');
+check('theme control only appears in Settings', await page.locator('header [data-ui-theme]').count() === 0 && await page.locator('[data-ui-theme]').count() === 1);
 
 await page.goto(`${B}/settings/about`);
 const credits = await page.locator('body').textContent();
@@ -48,11 +49,14 @@ const licensesReachable = await page.locator('a[href^="/vendor/"]').evaluateAll(
 check('license notices are served', licensesReachable);
 await page.screenshot({ path: `${OUT}/theme-about-light.png`, fullPage: true });
 
-await page.locator('[data-ui-theme]').first().selectOption('dark');
+await page.goto(`${B}/settings/general`);
+await page.locator('[data-ui-theme]').selectOption('dark');
 check('dark choice is applied', (await theme()) === 'dark');
+await page.goto(`${B}/settings/about`);
 await page.screenshot({ path: `${OUT}/theme-about-dark.png`, fullPage: true });
 
-await page.locator('[data-ui-theme]').first().selectOption('system');
+await page.goto(`${B}/settings/general`);
+await page.locator('[data-ui-theme]').selectOption('system');
 check('no browser errors', errors.length === 0, errors.join(' | '));
 console.log(failures ? `${failures} FAILED` : 'ALL PASS');
 process.exitCode = failures ? 1 : 0;

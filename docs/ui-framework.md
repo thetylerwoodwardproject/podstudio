@@ -16,6 +16,10 @@ for surfaces, text, borders and actions, so each screen works in both themes.
 `src/components/shadcn/` holds locally adapted shadcn-svelte components;
 Astro still owns routes and simple markup, while Svelte owns interactive
 panels. The full screen migration and shared audio transport remain planned.
+The account theme selector belongs in Settings → General rather than the
+shared page header. In the desktop editor, use the local shadcn-svelte Button,
+Input, Slider, Dropdown Menu and Alert Dialog primitives for suitable controls;
+the synchronized editable waveform remains a Podstudio component.
 
 ## In the code
 

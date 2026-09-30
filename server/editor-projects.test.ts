@@ -37,7 +37,7 @@ test('editor projects validate take identity', async () => {
   }
 });
 
-import { createEditorProject } from '../src/lib/editor-project.ts';
+import { createEditorProject, removeEditorTrack } from '../src/lib/editor-project.ts';
 import { flatTone } from '../src/lib/audio/tone.ts';
 test('advanced processing metadata round-trips and invalid controls are refused', async () => {
   const s = await signedIn();
@@ -64,5 +64,19 @@ test('crossfade references persist and invalid participant IDs are rejected', as
     assert.equal((await save(p, 0)).status, 200);
     assert.deepEqual((await s.call('/api/editor-projects/edit-take')).body.project.crossfades, p.crossfades);
     p.crossfades![0].from = ['nonexistent']; assert.equal((await save(p, 1)).status, 400);
+  } finally { s.done(); }
+});
+
+test('removed tracks persist while malformed or duplicate track IDs are rejected', async () => {
+  const s = await signedIn();
+  try {
+    await s.call('/api/takes/edit-take', { method: 'PUT', body: { meta } });
+    const initial = createEditorProject({ takeId: 'edit-take', episodeId: '142', name: 'Removed', sources: [{ id: 'edit-take', kind: 'voice', name: 'Host', channels: 1, sampleRate: 48000, duration: 1 }] });
+    const removed = removeEditorTrack(initial, initial.tracks[0].id);
+    const save = (value: unknown, revision: number) => s.call('/api/editor-projects/edit-take', { method: 'PUT', body: { project: value, baseRevision: revision } });
+    assert.equal((await save(removed, 0)).status, 200);
+    assert.equal((await s.call('/api/editor-projects/edit-take')).body.project.removedTracks.length, 1);
+    assert.equal((await save({ ...removed, tracks: [removed.removedTracks![0]] }, 1)).status, 400);
+    assert.equal((await save({ ...removed, removedTracks: [{ id: 'bad' }] }, 1)).status, 400);
   } finally { s.done(); }
 });

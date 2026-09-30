@@ -24,7 +24,10 @@ const validProject = (value: unknown, takeId: string): value is { version: 1; ta
     if (m.ceilingDb != null && !numberIn(m.ceilingDb, -3, -.1)) return false;
     if (m.channels != null && m.channels !== 1 && m.channels !== 2) return false;
   }
-  if (!p.tracks.every((value) => {
+  if (p.removedTracks != null && (!Array.isArray(p.removedTracks) || p.removedTracks.length > 64 || p.tracks.length + p.removedTracks.length > 64)) return false;
+  const allTracks = [...p.tracks, ...(p.removedTracks as unknown[] | undefined ?? [])];
+  if (new Set(allTracks.map((value) => (value as { id?: unknown } | null)?.id)).size !== allTracks.length) return false;
+  if (!allTracks.every((value) => {
     if (!value || typeof value !== 'object') return false;
     const track = value as Record<string, unknown>;
     if (typeof track.id !== 'string' || typeof track.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(String(track.kind)) || !Array.isArray(track.clips) || track.clips.length > 10_000) return false;
