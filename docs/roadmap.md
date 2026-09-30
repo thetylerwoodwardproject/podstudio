@@ -31,6 +31,8 @@ Review every route in both themes on desktop and phone, including focus,
 loading, offline and error states. Verify the original imported MP3 plays
 continuously across multiple render windows on the VPS before closing that
 regression; the earlier 502 remains unproven.
+The phased component migration, including Astro/Svelte boundaries and release
+checks, is detailed in [the shadcn component migration plan](shadcn-component-migration.md).
 
 The checks workflow runs unit/server tests, Astro and Svelte checks, the build
 and all browser tests. Browser logs and screenshots are retained for seven
