@@ -279,7 +279,7 @@ fi
 rsync -a --delete --exclude /node_modules --exclude /dist --exclude /.git --exclude /.podstudio-dev --exclude /data --exclude "/*.zip" "$SRC/" "$APP/"
 chown -R podstudio:podstudio "$APP"
 echo "   Building (a minute or two)…"
-runuser -u podstudio -- bash -c "cd $APP && npm ci --cache /tmp/podstudio-npm --no-audit --no-fund --loglevel=error >/dev/null && npm run build >/dev/null" || fail "The build failed. Run it by hand to see why: cd $APP && runuser -u podstudio -- npm run build"
+runuser -u podstudio -- bash -c "cd $APP && npm ci --cache /tmp/podstudio-npm --no-audit --no-fund --loglevel=error >/dev/null && npm run build:deploy >/dev/null" || fail "The build failed. Run it by hand to see why: cd $APP && runuser -u podstudio -- npm run build:deploy"
 rm -rf /tmp/podstudio-npm
 ok "Podstudio $(version_of "$APP/package.json") built in $APP"
 

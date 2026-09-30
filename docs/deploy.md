@@ -81,6 +81,13 @@ database backup. On the lab VPS, the source checkout is
 upgrade, confirm the reported four-minute MP3 uploads and plays through
 several 30-second windows.
 
+The installer runs `npm run build:deploy`, which bundles the app without
+repeating the full type check on a low-memory VPS. Releases still require
+`npm run build` (including `astro check`) before they are pushed. If an earlier
+upgrade stopped at the build step with a Node heap error, pull the latest
+`main` in the source checkout and rerun the installer. The database backup
+from the earlier attempt remains in `/var/backups/podstudio`.
+
 ## Other sites on the same Caddy
 
 `/etc/caddy/Caddyfile` only holds the global options (the certificate email)

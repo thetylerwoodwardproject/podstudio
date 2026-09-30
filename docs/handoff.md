@@ -32,6 +32,12 @@ player, remaining screen migrations, and full light/dark visual review are
 still outstanding. The original four-minute MP3 stall and VPS 502 report
 remain open until verified on the updated VPS.
 
+The 939 MB lab VPS hit Node's heap limit while the installer ran `astro check`
+as part of `npm run build`. The installer now runs `npm run build:deploy` to
+bundle without rechecking types on the VPS; the full build remains a required
+pre-push check. Rerun the installer after pulling this fix, then validate the
+MP3 upload and playback on the VPS.
+
 ## Editor usability and advanced audio
 
 The editor now has direct entry points on recorded episodes, a session switcher,

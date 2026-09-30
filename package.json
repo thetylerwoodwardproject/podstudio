@@ -10,6 +10,7 @@
     "dev": "astro dev",
     "dev:phone": "astro dev --host",
     "build": "astro check && astro build",
+    "build:deploy": "astro build",
     "start": "node --disable-warning=ExperimentalWarning server/main.ts",
     "preview": "node --disable-warning=ExperimentalWarning server/main.ts --https --host 0.0.0.0",
     "check": "astro check",
