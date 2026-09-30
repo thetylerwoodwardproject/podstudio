@@ -17,6 +17,21 @@ tools**. The previous five-step export implementation remains at
 `export-legacy.astro` for compatibility and regression coverage, while
 `/episodes/:id/session` redirects to `/episodes/:id/editor`.
 
+## UI theme foundation
+
+The app now has account-synced System, Light and Dark choices, applied before
+page paint. Light uses indigo primary actions and dark uses lime. The
+prompter's reading theme remains independent. Selected shadcn-svelte and
+Bits UI components are copied into `src/components/shadcn`; the mobile
+recording-review play control uses the local button. The README and Settings
+→ About & credits list the UI sources and link their license notices.
+
+This is the foundation of the planned full-app facelift, not the completed
+redesign. The shared transport interface, adaptation of the community audio
+player, remaining screen migrations, and full light/dark visual review are
+still outstanding. The original four-minute MP3 stall and VPS 502 report
+remain open until verified on the updated VPS.
+
 ## Editor usability and advanced audio
 
 The editor now has direct entry points on recorded episodes, a session switcher,

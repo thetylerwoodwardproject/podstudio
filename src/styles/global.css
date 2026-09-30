@@ -1,6 +1,8 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 @import '@fontsource/atkinson-hyperlegible/400.css';
 @import '@fontsource/atkinson-hyperlegible/700.css';
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /*
  * Podstudio design tokens: the UI framework (docs/ui-framework.md, from
@@ -71,6 +73,27 @@
   --color-spk-black: #3a3b3f;
   --color-spk-pink: oklch(78% 0.13 330); /* graphs: a right channel (framework) */
 
+  /* Facelift: primary is lime on dark surfaces and indigo on light ones. */
+  --color-primary: #ccf568;
+  --color-primary-fg: #172120;
+  --color-accent: #9285ff;
+  --color-accent-fg: #151229;
+
+  /* Local shadcn-svelte components share Podstudio's semantic palette. */
+  --color-background: var(--color-page);
+  --color-foreground: var(--color-text);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text);
+  --color-popover: var(--color-sheet);
+  --color-popover-foreground: var(--color-text);
+  --color-primary-foreground: var(--color-primary-fg);
+  --color-secondary: var(--color-control);
+  --color-secondary-foreground: var(--color-text);
+  --color-muted-foreground: var(--color-text-2);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-primary);
+  --color-destructive: var(--color-rec);
+
   /* Radius: 4 key hint and checkbox, 7 segment inside, 10 input and small button, 12 large button, 14 card */
   --radius-hint: 4px;
   --radius-seg: 7px;
@@ -111,6 +134,80 @@
   color-scheme: dark;
 }
 
+html[data-theme='dark'] {
+  --color-page: #121225;
+  --color-surface: #1b1c34;
+  --color-nav: #242443;
+  --color-plot: #17182c;
+  --color-sheet: #191a30;
+  --color-control: #2b2d4a;
+  --color-divider: #31334e;
+  --color-border: #42445f;
+  --color-track-off: #42445f;
+  --color-handle: #656783;
+  --color-text: #f5f5fa;
+  --color-text-2: #b9bad0;
+  --color-text-3: #9294af;
+  --color-void: var(--color-page);
+  --color-ink: var(--color-page);
+  --color-panel: var(--color-surface);
+  --color-raised: var(--color-control);
+  --color-line-soft: var(--color-divider);
+  --color-line: var(--color-divider);
+  --color-edge: var(--color-border);
+  --color-edge-strong: var(--color-handle);
+  --color-fg: var(--color-text);
+  --color-fg-soft: var(--color-text);
+  --color-fg-dim: var(--color-text-2);
+  --color-muted: var(--color-text-2);
+  --color-subtle: var(--color-text-3);
+  --color-faint: var(--color-text-3);
+  --color-primary: #ccf568;
+  --color-primary-fg: #172120;
+  --color-accent: #9285ff;
+  --color-accent-fg: #151229;
+  color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  --color-page: #f7f8fc;
+  --color-surface: #ffffff;
+  --color-nav: #e9eafb;
+  --color-plot: #eef0fa;
+  --color-sheet: #ffffff;
+  --color-control: #ebedfa;
+  --color-divider: #e2e5f0;
+  --color-border: #cbd1e3;
+  --color-track-off: #cbd1e3;
+  --color-handle: #8d97b1;
+  --color-text: #1c2141;
+  --color-text-2: #505a77;
+  --color-text-3: #65718e;
+  --color-void: var(--color-page);
+  --color-ink: var(--color-page);
+  --color-panel: var(--color-surface);
+  --color-raised: var(--color-control);
+  --color-line-soft: var(--color-divider);
+  --color-line: var(--color-divider);
+  --color-edge: var(--color-border);
+  --color-edge-strong: var(--color-handle);
+  --color-fg: var(--color-text);
+  --color-fg-soft: var(--color-text);
+  --color-fg-dim: var(--color-text-2);
+  --color-muted: var(--color-text-2);
+  --color-subtle: var(--color-text-3);
+  --color-faint: var(--color-text-3);
+  --color-primary: #4f42c7;
+  --color-primary-fg: #ffffff;
+  --color-accent: #bddb49;
+  --color-accent-fg: #202b17;
+  --color-rec: #d63733;
+  --color-warn: #a45a00;
+  --color-ok: #127c42;
+  --pad-black: #4e5572;
+  color-scheme: light;
+}
+
 @layer base {
   /* The design was drawn with the browser default line height, not Tailwind's 1.5. */
   html {
@@ -124,6 +221,8 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+
+  html[data-theme='light'] body { background: var(--color-page); }
 
   button,
   [role='button'],

@@ -266,7 +266,7 @@
       <button type="button" class="h-9 rounded-[10px] border border-rec/70 px-3 text-[14px] text-rec disabled:opacity-40" disabled={!setOf().some((p) => p.key === key) || busy} onclick={clearPad} data-d-clear>Clear pad</button>
       <span class="flex-1"></span>
       <button type="button" class="h-9 rounded-[10px] px-3 text-[14px] text-text-2 hover:text-text" onclick={() => (open = false)}>Cancel</button>
-      <button type="button" class="h-9 rounded-[10px] bg-text px-4 text-[14px] font-medium text-page disabled:opacity-40" disabled={!draft?.fileId || !dirty || busy} onclick={savePad} data-d-save>{busy ? 'Working…' : 'Save pad'}</button>
+      <button type="button" class="h-9 rounded-[10px] bg-primary px-4 text-[14px] font-medium text-primary-fg disabled:opacity-40" disabled={!draft?.fileId || !dirty || busy} onclick={savePad} data-d-save>{busy ? 'Working…' : 'Save pad'}</button>
     </div>
   {/snippet}
 </Sheet>

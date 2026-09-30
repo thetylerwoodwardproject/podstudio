@@ -3,6 +3,7 @@ import Section from './Section.astro';
 import Block from '@/components/ui/Block.astro';
 import Card from '@/components/ui/Card.astro';
 import Select from '@/components/ui/Select.astro';
+import ThemePicker from '@/components/ui/ThemePicker.astro';
 import { inputClass } from '@/lib/ui';
 
 const zones = ['America/Chicago', 'America/New_York', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'UTC'];
@@ -10,6 +11,12 @@ const label = 'text-[14px] text-text';
 ---
 
 <Section title="General" description="What the show is called and where it's recorded." />
+<Card label="Appearance">
+  <Block>
+    <ThemePicker />
+    <p class="help">Follow this device, or use your chosen theme on every device.</p>
+  </Block>
+</Card>
 <Card label="Show" rows>
   <Block>
     <label for="show-name" class={label}>Show name</label>

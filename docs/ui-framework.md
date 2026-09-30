@@ -1,9 +1,21 @@
 # Podstudio UI framework
 
-Every screen follows this, old and new. The source of truth is
+The current token implementation is in `src/styles/global.css`. The original
 [`design/Podstudio_UI_Framework.dc.html`](design/Podstudio_UI_Framework.dc.html)
-(open it in a browser); this is the short version, and where each part lives
-in the code.
+is a reference for existing layouts; its dark-only palette is being replaced
+by the light/dark facelift described below.
+
+## Theme foundation
+
+The interface follows the device's light or dark preference until the user
+chooses a theme. The choice is cached locally, applied before paint, and synced
+through account settings. It is separate from the prompter reading theme.
+Light surfaces use indigo `primary` actions; dark surfaces use lime `primary`
+actions. Recording and destructive states keep `rec` red. Use semantic tokens
+for surfaces, text, borders and actions, so each screen works in both themes.
+`src/components/shadcn/` holds locally adapted shadcn-svelte components;
+Astro still owns routes and simple markup, while Svelte owns interactive
+panels. The full screen migration and shared audio transport remain planned.
 
 ## In the code
 

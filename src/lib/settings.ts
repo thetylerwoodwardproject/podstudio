@@ -64,10 +64,12 @@ export interface PrompterSettings {
 export interface Settings {
   recording: RecordingSettings;
   prompter: PrompterSettings;
+  ui: { theme: 'system' | 'light' | 'dark' };
 }
 
 export const defaults: Settings = {
   recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { loudness: 'stereo', level: false, meter: true, voices: {} }, exportFiles: null },
+  ui: { theme: 'system' },
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -111,6 +113,7 @@ export function loadSettings(): Settings {
         exportFiles: Array.isArray(files) ? files.filter((k) => typeof k === 'string') : null,
       },
       prompter: { ...defaults.prompter, ...saved.prompter },
+      ui: { ...defaults.ui, ...saved.ui },
     };
   } catch {
     return structuredClone(defaults);
@@ -133,6 +136,7 @@ export function saveSettings<K extends keyof Settings>(group: K, patch: Partial<
     clearTimeout(pushTimer);
     pushTimer = setTimeout(pushSettings, 400);
   }
+  window.dispatchEvent(new CustomEvent('podstudio:settings', { detail: { source: 'local' } }));
   return s;
 }
 
@@ -163,7 +167,7 @@ const ls = {
 /** What goes to the server: everything but what belongs to this device. */
 export function portable(s: Settings) {
   const { deviceId: _device, ...recording } = s.recording;
-  return { recording, prompter: s.prompter, version: VERSION };
+  return { recording, prompter: s.prompter, ui: s.ui, version: VERSION };
 }
 
 async function pushSettings() {
@@ -215,7 +219,7 @@ async function pull() {
   ls.set(KEY, JSON.stringify({ ...server, recording: { ...server.recording, deviceId }, version: VERSION }));
   ls.set(AT, String(r.updatedAt));
   ls.set(DIRTY, null);
-  window.dispatchEvent(new Event('podstudio:settings'));
+  window.dispatchEvent(new CustomEvent('podstudio:settings', { detail: { source: 'remote' } }));
 }
 
 /** Sample rate in Hz for a UI rate. */

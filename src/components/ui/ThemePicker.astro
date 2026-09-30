@@ -1,0 +1,13 @@
+---
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+---
+
+<label class:list={['inline-flex items-center gap-2 text-[13px] text-text-2', compact && 'max-sm:gap-0']}>
+  <span class:list={[compact && 'sr-only']}>Appearance</span>
+  <select data-ui-theme aria-label="Appearance" class="h-9 rounded-[10px] border border-border bg-control px-2.5 text-[13px] text-text focus-visible:outline-primary">
+    <option value="system">System</option>
+    <option value="light">Light</option>
+    <option value="dark">Dark</option>
+  </select>
+</label>

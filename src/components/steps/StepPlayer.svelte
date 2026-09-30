@@ -43,7 +43,7 @@
     {:else}
       <button
         type="button"
-        class="flex size-11 flex-none items-center justify-center gap-1 rounded-full bg-text disabled:opacity-40 sm:size-10"
+        class="flex size-11 flex-none items-center justify-center gap-1 rounded-full bg-primary disabled:opacity-40 sm:size-10"
         style:padding-left={playing ? '0' : '3px'}
         aria-label={playing ? 'Pause preview' : 'Play preview'}
         disabled={!canPlay}
@@ -51,9 +51,9 @@
         onclick={() => onplay?.()}
       >
         {#if playing}
-          <span class="h-3.5 w-1 rounded-[1px] bg-page"></span><span class="h-3.5 w-1 rounded-[1px] bg-page"></span>
+          <span class="h-3.5 w-1 rounded-[1px] bg-primary-fg"></span><span class="h-3.5 w-1 rounded-[1px] bg-primary-fg"></span>
         {:else}
-          <span class="size-0 border-y-[7px] border-l-[12px] border-y-transparent border-l-page"></span>
+          <span class="size-0 border-y-[7px] border-l-[12px] border-y-transparent border-l-primary-fg"></span>
         {/if}
       </button>
       <div class="flex min-w-0 flex-1 basis-[calc(100%-56px)] flex-col gap-2 sm:basis-0">
@@ -76,7 +76,7 @@
         {#if next}
           <button
             type="button"
-            class="h-12 flex-1 rounded-[12px] bg-text px-4 text-[15px] font-medium whitespace-nowrap text-page disabled:opacity-40 sm:h-9 sm:flex-none sm:rounded-[10px] sm:text-[14px]"
+            class="h-12 flex-1 rounded-[12px] bg-primary px-4 text-[15px] font-medium whitespace-nowrap text-primary-fg disabled:opacity-40 sm:h-9 sm:flex-none sm:rounded-[10px] sm:text-[14px]"
             data-next
             {...next.attrs}
             disabled={next.disabled}

@@ -426,7 +426,7 @@
     <button data-retakes-open class="h-9 rounded-[10px] border border-border px-3 text-[13px] hover:border-handle" onclick={() => retakesOpen = true}>Retakes {pendingRetakes ? `(${pendingRetakes})` : ''}</button>
     <button data-pauses-open class="h-9 rounded-[10px] border border-border px-3 text-[13px] hover:border-handle" onclick={() => pausesOpen = true}>Pauses {project.pauses.length ? `(${project.pauses.length})` : ''}</button>
     <label class="flex h-9 cursor-pointer items-center rounded-[10px] border border-border px-3 text-[13px] hover:border-handle">{importing ? 'Importing…' : 'Import audio'}<input class="sr-only" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac" disabled={importing} onchange={(e) => importFile(e.currentTarget.files?.[0])} /></label>
-    <button data-export-open class="h-9 rounded-[10px] bg-text px-4 text-[13px] font-medium text-page" onclick={() => exportOpen = true}>Export</button>
+    <button data-export-open class="h-9 rounded-[10px] bg-primary px-4 text-[13px] font-medium text-primary-fg" onclick={() => exportOpen = true}>Export</button>
   </div>
   {#if importStatus}<div role="status" data-import-status class="border-b border-divider px-4 py-2 text-[12px] text-text-2" aria-live="polite">{importing ? '◌ ' : ''}{importStatus}</div>{/if}
   {#if importError}<div role="alert" class="border-b border-rec/30 bg-rec/5 px-4 py-2 text-[12px] text-rec">{importError}{#if pendingImport}<button class="ml-4 underline" disabled={importing} onclick={() => importFile(pendingImport)}>Retry upload</button>{/if}</div>{/if}
@@ -522,7 +522,7 @@
             <button class="h-9 rounded-[9px] border px-3 text-[12px]" class:border-text={retake.selected === attempt.id} class:border-border={retake.selected !== attempt.id} onclick={() => reviewRetake(retake.id, attempt.id)}>Attempt {attempt.number} · {fmt(attempt.start)}–{fmt(attempt.end)}</button>
           {/each}
         </div>
-        <button class="mt-3 h-9 rounded-[9px] bg-text px-3 text-[12px] text-page" onclick={() => reviewRetake(retake.id, retake.attempts.at(-1)!.id)}>Keep last take</button>
+        <button class="mt-3 h-9 rounded-[9px] bg-primary px-3 text-[12px] text-primary-fg" onclick={() => reviewRetake(retake.id, retake.attempts.at(-1)!.id)}>Keep last take</button>
         {#if chosen}<div class="mt-4 grid grid-cols-[1fr_auto] gap-3 border-t border-divider pt-4">
           <div class="flex flex-col gap-3">
             <label class="text-[11px] text-text-3">Take start · {retake.trimStart.toFixed(2)} s<input class="mt-1 w-full" type="range" min={chosen.start} max={chosen.end - .05} step=".01" value={retake.trimStart} oninput={(e) => retakeTrim(retake.id, 'start', Number(e.currentTarget.value))} /></label>
@@ -548,7 +548,7 @@
 <Sheet open={!!fxTrack} labelledby="fx-title" onclose={closeFx}>
   {#snippet header()}<div><h2 id="fx-title" class="text-[18px]">{fxTrack?.name} FX</h2><p class="mt-1 text-[13px] text-text-2">Preview changes in the mix before applying.</p></div>{/snippet}
   {#if fxTrack}<EditorFxControls bind:fx={fxTrack.fx} voice={fxTrack.kind === 'voice'} />{/if}
-  {#snippet footer()}<div class="flex items-center gap-3"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={() => { fxPreviewing = !fxPreviewing; if (!fxPreviewing) pause(); else { invalidateAudio(); void loadWindow(playhead, true); } }}>{fxPreviewing ? 'Stop preview' : 'Preview FX'}</button><label class="text-[12px]">Bypass<input class="ml-2" type="checkbox" bind:checked={fxBypass} /></label><div class="flex-1"></div><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={closeFx}>Cancel</button><button class="h-9 rounded-[9px] bg-text px-4 text-[13px] text-page" onclick={saveFx}>Apply FX</button></div>{/snippet}
+  {#snippet footer()}<div class="flex items-center gap-3"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={() => { fxPreviewing = !fxPreviewing; if (!fxPreviewing) pause(); else { invalidateAudio(); void loadWindow(playhead, true); } }}>{fxPreviewing ? 'Stop preview' : 'Preview FX'}</button><label class="text-[12px]">Bypass<input class="ml-2" type="checkbox" bind:checked={fxBypass} /></label><div class="flex-1"></div><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={closeFx}>Cancel</button><button class="h-9 rounded-[9px] bg-primary px-4 text-[13px] text-primary-fg" onclick={saveFx}>Apply FX</button></div>{/snippet}
 </Sheet>
 
 <Sheet open={loudnessOpen} labelledby="loudness-title" onclose={closeLoudness}>
@@ -563,12 +563,12 @@
     <label class="text-[13px]">Listen to mastered mix <input class="ml-2" type="checkbox" bind:checked={mastered} onchange={() => { solo = []; if (mastered) { update({ ...plain(project), master: cleanMaster(plain(masterDraft)) }); } else refreshAudio(); }} /></label>
     <p class="help">Mastered playback uses the full mix and the same processing as export. Raw tracks stay unchanged.</p>
   </div>
-  {#snippet footer()}<div class="flex justify-end gap-3"><button class="h-9 rounded-[10px] border border-border px-3 text-[13px]" onclick={closeLoudness}>Close</button><button class="h-9 rounded-[10px] bg-text px-3 text-[13px] text-page" onclick={applyMaster}>Apply loudness</button></div>{/snippet}
+  {#snippet footer()}<div class="flex justify-end gap-3"><button class="h-9 rounded-[10px] border border-border px-3 text-[13px]" onclick={closeLoudness}>Close</button><button class="h-9 rounded-[10px] bg-primary px-3 text-[13px] text-primary-fg" onclick={applyMaster}>Apply loudness</button></div>{/snippet}
 </Sheet>
 
 <Sheet bind:open={exportOpen} labelledby="export-title" onclose={() => { completed = null; exportStatus = ''; }}>
   {#snippet header()}<div><h2 id="export-title" class="text-[18px]">Export episode</h2><p class="mt-1 text-[13px] text-text-2">The finished WAV includes every reviewed edit and track setting.</p></div>{/snippet}
-  {#if completed}<div class="py-8 text-center" data-export-complete><div class="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-ok/15 text-ok">✓</div><h3 class="text-[17px]">Your export is ready</h3><p class="mt-2 text-[13px] text-text-2">{completed.filename}</p><div class="mt-5 flex justify-center gap-2"><a class="flex h-9 items-center rounded-[9px] bg-text px-3 text-[13px] text-page" href={sessionsHref}>Back to sessions</a><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={completed.downloadAgain}>Download again</button></div><div class="mt-8 rounded-[12px] border border-dashed border-border p-4 text-left opacity-50"><div class="text-[13px]">Optional AI tools</div><div class="mt-1 text-[12px] text-text-3">Coming soon</div></div></div>
+  {#if completed}<div class="py-8 text-center" data-export-complete><div class="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-ok/15 text-ok">✓</div><h3 class="text-[17px]">Your export is ready</h3><p class="mt-2 text-[13px] text-text-2">{completed.filename}</p><div class="mt-5 flex justify-center gap-2"><a class="flex h-9 items-center rounded-[9px] bg-primary px-3 text-[13px] text-primary-fg" href={sessionsHref}>Back to sessions</a><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={completed.downloadAgain}>Download again</button></div><div class="mt-8 rounded-[12px] border border-dashed border-border p-4 text-left opacity-50"><div class="text-[13px]">Optional AI tools</div><div class="mt-1 text-[12px] text-text-3">Coming soon</div></div></div>
   {:else}<div class="flex flex-col gap-3">
     <label class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]">Finished WAV <input type="checkbox" checked disabled /></label>
     <label class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]">Also make MP3 <input type="checkbox" bind:checked={project.master.mp3} onchange={queueSave} /></label>
@@ -576,13 +576,13 @@
     {#if pendingRetakes}<p class="rounded-[10px] bg-warn/10 p-3 text-[12px] text-warn">Review every retake group before exporting the finished mix.</p>{/if}
     {#if exportStatus}<p class="text-[12px] text-text-2" aria-live="polite">{exportStatus}</p>{/if}
   </div>{/if}
-  {#snippet footer()}{#if !completed}<div class="flex justify-end gap-2"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={() => exportOpen = false}>Cancel</button><button class="h-9 rounded-[9px] bg-text px-4 text-[13px] text-page disabled:opacity-40" disabled={exporting || !!pendingRetakes} onclick={runExport}>{exporting ? 'Exporting…' : 'Export'}</button></div>{/if}{/snippet}
+  {#snippet footer()}{#if !completed}<div class="flex justify-end gap-2"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={() => exportOpen = false}>Cancel</button><button class="h-9 rounded-[9px] bg-primary px-4 text-[13px] text-primary-fg disabled:opacity-40" disabled={exporting || !!pendingRetakes} onclick={runExport}>{exporting ? 'Exporting…' : 'Export'}</button></div>{/if}{/snippet}
 </Sheet>
 
 <Sheet open={!!conflict} labelledby="conflict-title">
   {#snippet header()}<div><h2 id="conflict-title" class="text-[18px]">Project changed elsewhere</h2><p class="mt-1 text-[13px] text-text-2">Autosave is paused so neither version is overwritten.</p></div>{/snippet}
   <p class="text-[13px] leading-relaxed text-text-2">Load the server version, or keep this browser’s edits and overwrite it.</p>
-  {#snippet footer()}<div class="flex justify-end gap-2"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={reloadConflict}>Reload server version</button><button class="h-9 rounded-[9px] bg-text px-4 text-[13px] text-page" onclick={overwriteConflict}>Overwrite with this version</button></div>{/snippet}
+  {#snippet footer()}<div class="flex justify-end gap-2"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={reloadConflict}>Reload server version</button><button class="h-9 rounded-[9px] bg-primary px-4 text-[13px] text-primary-fg" onclick={overwriteConflict}>Overwrite with this version</button></div>{/snippet}
 </Sheet>
 
 <style>

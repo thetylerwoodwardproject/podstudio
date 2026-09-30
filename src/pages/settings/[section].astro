@@ -82,7 +82,9 @@ const View = current.view;
   // something): show it, unless you've already started changing things here.
   let touched = false;
   form.addEventListener('input', () => (touched = true));
-  addEventListener('podstudio:settings', () => !touched && location.reload());
+  addEventListener('podstudio:settings', (event) => {
+    if ((event as CustomEvent<{ source?: string }>).detail?.source === 'remote' && !touched) location.reload();
+  });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const btn = e.submitter;

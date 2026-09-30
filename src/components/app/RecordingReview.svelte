@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import type { ReviewDownload } from '@/lib/recording-review';
   import { formatDuration } from '@/lib/audio/takes';
+  import { Button } from '@/components/shadcn/button';
   let { duration, preview, downloads, sync, initialStatus, missingGuest = false, recoveryHref }: { duration: number; preview: (from: number, seconds: number) => Promise<string>; downloads: ReviewDownload[]; sync: () => Promise<string>; initialStatus: string; missingGuest?: boolean; recoveryHref: string } = $props();
   let audio: HTMLAudioElement;
   let position = $state(0), playing = $state(false), loading = $state(false), busy = $state(''), message = $state(''), error = $state('');
@@ -42,9 +43,9 @@
 <div class="flex flex-col gap-5" data-recording-review>
   <div class="rounded-[14px] bg-surface p-5">
     <div class="mb-4 flex items-center gap-4">
-      <button class="flex size-12 flex-none items-center justify-center rounded-full bg-text text-page disabled:opacity-40" aria-label={playing ? 'Pause recording' : 'Play recording'} disabled={loading || !duration} onclick={toggle}>
+      <Button variant="default" size="icon" class="size-12 flex-none rounded-full" aria-label={playing ? 'Pause recording' : 'Play recording'} disabled={loading || !duration} onclick={toggle}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">{#if playing}<rect x="4" y="3" width="4" height="14" rx="1"/><rect x="12" y="3" width="4" height="14" rx="1"/>{:else}<path d="M5 2 18 10 5 18Z"/>{/if}</svg>
-      </button>
+      </Button>
       <span class="font-mono text-[13px]" data-review-time>{clock(position)} / {clock(duration)}</span>
       {#if loading}<span role="status" class="text-[13px] text-text-2">Preparing playback…</span>{/if}
     </div>

@@ -18,6 +18,20 @@ The first real VPS install is active. Validate:
 - finished WAV/MP3 loudness and raw-track contents with real material;
 - server CPU, memory and disk use while browsers do the audio processing.
 
+## UI facelift follow-through
+
+The first theme and component foundation is in place: System, Light and Dark
+choices sync through account settings; the semantic palette and local
+shadcn-svelte components are available; UI-source credits and license notices
+are included. Finish the coordinated screen redesign across setup, library,
+recording, mobile review, editor, export and Settings. Adapt the community
+audio-player controls to a shared Podstudio transport interface while
+retaining bounded editor rendering and specialized capture/pad engines.
+Review every route in both themes on desktop and phone, including focus,
+loading, offline and error states. Verify the original imported MP3 plays
+continuously across multiple render windows on the VPS before closing that
+regression; the earlier 502 remains unproven.
+
 The checks workflow runs unit/server tests, Astro and Svelte checks, the build
 and all browser tests. Browser logs and screenshots are retained for seven
 days.

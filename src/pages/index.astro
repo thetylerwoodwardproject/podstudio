@@ -92,7 +92,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
                 data-filter={filterOf[ep.status]}
                 data-title={ep.title.toLowerCase()}
               >
-                <td><a href={ep.href} class="text-fg hover:text-white">{ep.title}</a><div class="mt-2 flex gap-3 text-[12px]"><a data-editor-entry data-episode={ep.id} hidden={!ep.recorded} class="text-text underline" href={`/episodes/${ep.id}/editor`}>Open editor</a><a class="text-text-2" href={`/episodes/${ep.id}/studio`}>Record new session</a></div></td>
+                <td><a href={ep.href} class="text-fg hover:text-primary">{ep.title}</a><div class="mt-2 flex gap-3 text-[12px]"><a data-editor-entry data-episode={ep.id} hidden={!ep.recorded} class="text-text underline" href={`/episodes/${ep.id}/editor`}>Open editor</a><a class="text-text-2" href={`/episodes/${ep.id}/studio`}>Record new session</a></div></td>
                 <td class="flex items-center gap-2 text-[13px] text-fg-soft">
                   <Dot color={statusColor[ep.status]} />
                   {ep.status}

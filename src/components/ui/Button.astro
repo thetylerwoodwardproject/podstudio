@@ -23,9 +23,9 @@ const classes = [
   'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors disabled:opacity-40',
   large ? 'h-12 rounded-[12px] px-5 text-[15px] font-medium' : 'h-9 rounded-[10px] px-3.5 text-[14px]',
   {
-    primary: 'bg-text font-medium text-page hover:bg-white hover:text-page',
+    primary: 'bg-primary font-medium text-primary-fg hover:brightness-110',
     // Large secondary buttons are the control fill; small ones an outline.
-    secondary: large ? 'bg-control text-text hover:bg-[#232326] hover:text-text' : 'border border-border text-text hover:border-handle hover:text-text',
+    secondary: large ? 'bg-control text-text hover:bg-nav hover:text-text' : 'border border-border text-text hover:border-handle hover:bg-control hover:text-text',
     ghost: 'text-text-2 hover:text-text',
     destructive: 'border border-rec/70 text-rec hover:border-rec hover:text-rec',
     record: 'bg-rec font-medium text-white hover:bg-[#ff5a50] hover:text-white',

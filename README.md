@@ -211,10 +211,21 @@ days; see [the browser test guide](tests/browser/README.md).
 - [docs/handoff.md](docs/handoff.md): where the project is now, known issues, and the next steps
 - [site/](site/README.md): the podstudio.dev landing page
 
-Built with [Astro](https://astro.build), Svelte 5 for stateful panels, and
-[Tailwind CSS](https://tailwindcss.com);
-noise suppression by [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet).
-Credits for everything Podstudio ships are in Settings → About & credits.
+## Credits
+
+Podstudio is built with [Astro](https://astro.build),
+[Svelte](https://svelte.dev), and [Tailwind CSS](https://tailwindcss.com).
+The interface uses locally adapted [shadcn-svelte](https://shadcn-svelte.com)
+components and [Bits UI](https://www.bits-ui.com) controls. Its audio-player
+controls are being adapted from [More Shadcn Svelte](https://github.com/kevwpl/more-shadcn-svelte)
+by kevwpl. Icons are from [Lucide](https://lucide.dev), including portions
+derived from Feather by Cole Bemis. Noise suppression uses
+[DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet).
+
+shadcn-svelte, Bits UI, and More Shadcn Svelte are MIT-licensed. Lucide uses
+the ISC license, with MIT-licensed Feather portions. The copied component
+license notices are in [`public/vendor/`](public/vendor/); the full list of
+bundled work and licenses is also in **Settings → About & credits**.
 
 ## Licence
 
