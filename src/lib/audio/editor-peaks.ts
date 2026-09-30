@@ -1,9 +1,32 @@
 import type { EditorSourceReader } from './editor-render.ts';
 
-export const PEAK_SECONDS = 0.5;
+export const PEAK_SECONDS = 0.02;
 const CHUNK_SECONDS = 10;
+const CACHE_VERSION = 2;
 const memory = new Map<string, number[]>();
 const pending = new Map<string, Promise<number[]>>();
+
+export interface WaveformBar { left: number; height: number }
+
+/** Positions bars in source time, so split or moved clips retain the same shape. */
+export function waveformBars(peaks: number[], sourceStart: number, sourceEnd: number, pxPerSecond: number, visibleFrom: number, visibleTo: number): WaveformBar[] {
+  const stride = Math.max(1, Math.round(3 / (pxPerSecond * PEAK_SECONDS)));
+  const first = Math.max(0, Math.floor(Math.max(sourceStart, visibleFrom) / (stride * PEAK_SECONDS)));
+  const last = Math.ceil(Math.min(sourceEnd, visibleTo) / (stride * PEAK_SECONDS));
+  const bars: WaveformBar[] = [];
+  for (let group = first; group < last; group++) {
+    const start = group * stride;
+    const end = Math.min(peaks.length, start + stride);
+    let peak = 0;
+    let loaded = false;
+    for (let i = start; i < end; i++) {
+      if (peaks[i] !== undefined) { peak = Math.max(peak, peaks[i]); loaded = true; }
+    }
+    if (!loaded) continue;
+    bars.push({ left: (start * PEAK_SECONDS - sourceStart) * pxPerSecond, height: Math.max(2, Math.min(46, Math.sqrt(peak) * 46)) });
+  }
+  return bars;
+}
 
 function database(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
@@ -59,7 +82,7 @@ export async function sourcePeaks(sourceId: string, reader: EditorSourceReader, 
   const last = Math.min(Math.ceil(duration / CHUNK_SECONDS), Math.ceil(to / CHUNK_SECONDS));
   for (let index = first; index < last; index++) {
     const start = index * CHUNK_SECONDS;
-    const key = `${sourceId}:${reader.sampleRate}:${reader.channels}:${duration}:${index}`;
+    const key = `v${CACHE_VERSION}:${sourceId}:${reader.sampleRate}:${reader.channels}:${duration}:${index}`;
     let peaks = memory.get(key);
     if (!peaks) {
       let request = pending.get(key);

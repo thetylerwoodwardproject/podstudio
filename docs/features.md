@@ -133,10 +133,11 @@ date; use the session switcher for older sessions. Explicit take links never
 substitute another recording. Browser and server recordings are combined, so a
 fresh browser can open a server session directly. Phones retain Session Saved.
 
-The **Select** tool (A) selects time by dragging over a waveform; **Move** (V)
-moves a clip on its track. Linked tracks move together; Alt-drag unlinks.
-Trim handles and numeric Position/Trim fields can shorten and restore source
-audio. Escape cancels a drag. One completed gesture is one undo step. Delete
+Clicking a waveform selects its clip and opens compact clip details. Dragging
+moves it on its track; ruler or Shift-drag selects time. Linked tracks move
+together; Alt-drag unlinks. Trim handles or the popover's timeline position
+and source in/out fields can shorten and restore source audio. Escape cancels
+a drag or closes the popover. One completed gesture is one undo step. Delete
 removes a selected clip or range without closing time; Ripple cut closes a range.
 Overlapping clips mix. Cough markers follow their source clips through edits.
 
@@ -154,7 +155,7 @@ with progress and cancellation. Edits mark measurements stale. Mastered
 playback and export share the same rendered audio; raw tracks are unaffected.
 
 **Import audio** reports reading, conversion, upload percentage, server
-confirmation and track insertion. Failed uploads offer Retry and reuse the
+confirmation and track insertion in a lower-corner status card. Failed uploads offer Retry and reuse the
 same local file ID. Converted WAV uploads are limited to 200 MiB; larger
 files receive an explicit size message. WAV, MP3, M4A, FLAC and other
 browser-decodable inputs are supported.
@@ -162,13 +163,13 @@ browser-decodable inputs are supported.
 
 The desktop workflow is **Record → Editor → Export → Optional AI tools**. End Session opens `/episodes/:id/editor?take=:takeId`; the old `/session` URL redirects there. Phones remain on Session Saved because the full editing surface is desktop-only.
 
-- **Timeline:** a large ruler, one quiet marker lane (`RET`, `COUGH`, `AD-LIB`, `PAUSE`) and one readable waveform lane for each host, guest, pads or imported source. Existing timestamps and sync logs align tracks automatically. Audio is read in bounded windows around the playhead and waveform peaks are cached, so a long session is not decoded into memory at once.
+- **Timeline:** a large ruler, one quiet marker lane (`RET`, `COUGH`, `AD-LIB`, `PAUSE`) and one readable waveform lane for each host, guest, pads or imported source. Existing timestamps and sync logs align tracks automatically. Waveforms use cached 20 ms source-time peaks from bounded reads and a fixed display scale, so split or moved clips retain the same shape without decoding a whole long recording.
 - **Editing:** click a waveform to select it, drag it to move, drag its edge to trim, Shift-drag the waveform or drag the ruler to select a range, split, delete to leave a gap, or ripple-cut across linked synchronized tracks. Alt-drag unlinks a clip before moving it. Same-track edge overlaps crossfade across the full overlap; different tracks mix normally. Tracks stay linked unless explicitly unlinked. Space plays or pauses; Delete removes; S splits; X ripple-cuts; ⌘/Ctrl-Z and ⌘/Ctrl-Shift-Z undo and redo. Shortcuts do nothing while typing in a control.
 - **Retakes:** markers and script history form attempt groups. The last attempt is suggested, but every group must be reviewed before export. Choose another attempt if needed, adjust its boundaries, loop either join, then confirm **Keep last take** or the selected attempt. Source recordings remain untouched.
 - **Pauses:** shared quiet stretches of at least three seconds become suggestions. Leave each one alone, shorten it to one second and adjust the boundary, or remove it. Podstudio never strips natural pauses automatically.
 - **Tracks and FX:** every track has Mute, Solo, FX and Level. Solo changes listening only; mute and level also affect the finished mix. The FX sheet gives voice tracks noise amount, Low/Mid/High tone, Off/Light/Medium/Heavy compression and speech leveling. Pads and imports get tone and compression.
 - **Imports:** WAV, MP3, M4A, FLAC and other formats the browser can decode become a new track at the playhead and use the existing media store.
-- **Playback:** one persistent player previews the cumulative project. It keeps the playhead while edits and FX change. Internally it renders a rolling 30-second window, reads imported PCM from bounded WAV slices and prepares the next window early; this is not a 30-second playback limit.
+- **Playback:** one persistent player previews the cumulative project. It keeps the playhead while edits and FX change. Initial playback renders roughly four seconds, then prefetches larger bounded windows toward 30 seconds. The transport reports preparation and waits; this is not a 30-second playback limit.
 - **Autosave and recovery:** project metadata saves locally immediately and then to `/api/editor-projects/:takeId` after a short delay. The header reports Saving, Saved, Waiting for connection, Failed or Conflict. A conflict stops autosave until **Reload server version** or **Overwrite with this version** is chosen. Past Sessions reconstructs the timeline from immutable source references and saved metadata.
 
 ### Export

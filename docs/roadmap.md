@@ -54,6 +54,11 @@ lanes, routing matrices and a large mixer are outside the product direction.
 
 The editor now prepares missing waveforms from bounded source reads, including
 server-only and imported audio; compact menus give the timeline more room.
+The current editor polish pass moves import progress to a lower-corner status
+card, makes clip fields a popover, fixes destructive-dialog contrast, derives
+consistent source-time waveforms, and shortens the first playback render. Test
+the original MP3 across multiple windows on the VPS before closing the stall;
+the earlier 502 remains open until reproduced or conclusively resolved there.
 Tracks can be removed and restored without deleting source recordings. The
 theme choice is in Settings → General, and the studio setup footer keeps Start
 session at full height. Validate these changes with long, real recordings on

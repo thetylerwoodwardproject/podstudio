@@ -114,7 +114,7 @@ const episode = { ...mockEpisode, ...data.episode };
         reader = remoteSource(track, detail.segmentBytes);
       }
       sourceInfo.push({ id: track.id, kind: 'voice', role: index ? 'guest' : 'host', name: index ? track.speaker || `Guest ${index}` : track.speaker || 'Host', duration, channels: track.channels ?? 1, sampleRate: track.sampleRate });
-      views.push({ id: `track-${track.id}`, peaks: track.peaks ?? [], peakMax: Math.max(0, ...(track.peaks ?? [])), color: colors[index % colors.length] });
+      views.push({ id: `track-${track.id}`, peaks: [], color: colors[index % colors.length] });
       sources.set(track.id, {
         channels: track.channels ?? 1,
         sampleRate: track.sampleRate,

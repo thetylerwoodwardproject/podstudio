@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { peakChunk, sourcePeaks } from './editor-peaks.ts';
+import { peakChunk, sourcePeaks, waveformBars } from './editor-peaks.ts';
 
 test('waveform peaks are read in bounded chunks and cached for later requests', async () => {
   const reads: [number, number][] = [];
@@ -11,9 +11,18 @@ test('waveform peaks are read in bounded chunks and cached for later requests', 
   const chunks: { start: number; peaks: number[] }[] = [];
   await sourcePeaks('bounded-test-source', reader, 25, 0, 25, (chunk) => chunks.push(chunk));
   assert.deepEqual(reads, [[0, 10], [10, 10], [20, 5]]);
-  assert.deepEqual(chunks.map((chunk) => [chunk.start, chunk.peaks.length, chunk.peaks[0]]), [[0, 20, .25], [20, 20, .75], [40, 10, .75]]);
+  assert.deepEqual(chunks.map((chunk) => [chunk.start, chunk.peaks.length, chunk.peaks[0]]), [[0, 500, .25], [500, 500, .75], [1000, 250, .75]]);
   await sourcePeaks('bounded-test-source', reader, 25, 10, 20);
   assert.equal(reads.length, 3);
+});
+
+test('waveform shape is stable across clip splits and follows source time', () => {
+  const peaks = Array.from({ length: 500 }, (_, i) => i % 100 < 30 ? .64 : .04);
+  const whole = waveformBars(peaks, 0, 10, 20, 0, 10);
+  const left = waveformBars(peaks, 0, 5, 20, 0, 5);
+  const right = waveformBars(peaks, 5, 10, 20, 5, 10);
+  assert.deepEqual(left, whole.filter((bar) => bar.left < 100));
+  assert.deepEqual(right.map((bar) => [Math.round((bar.left + 100) * 1000), bar.height]), whole.filter((bar) => bar.left >= 99).map((bar) => [Math.round(bar.left * 1000), bar.height]));
 });
 
 test('stereo peaks use the louder channel without changing source samples', async () => {

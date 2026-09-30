@@ -46,7 +46,7 @@ index for exact lazy reads. Completed legacy guest uploads are exposed through
 the authenticated take reader without copying their audio. The selected session's pads still require preparation
 of its host audio for ducking; other sessions are never downloaded speculatively.
 
-Direct clip dragging, ruler/Shift range selection, signed reversible trim gestures, numeric clip fields and SVG
+Direct clip dragging, ruler/Shift range selection, signed reversible trim gestures, clip details popover and SVG
 transport controls replace the ambiguous interactions. `EditorFxControls.svelte`
 provides optional advanced EQ/compression. `fx.tone` is authoritative when present;
 older simple projects retain their sound. Loudness analysis and mastered preview
@@ -87,13 +87,19 @@ imports, per-track mute/solo/level and focused FX. Retake groups must be
 reviewed before a finished export. Autosave writes a local recovery copy first,
 then uses server revisions and exposes offline and conflict states.
 The compact Tools and Edit menus hold secondary actions, and clip position/trim
-fields appear only for a selection. Removing a track is an undoable project edit:
+fields open in a popover on selection. Removing a track is an undoable project edit:
 its source stays intact and the track can be restored after reopening. Recorded
 raw exports still include original sources; removed imports remain in the media
 library but are omitted from that project's raw ZIP. The top bar no longer has
 a theme picker; Settings → General retains the synced System/Light/Dark choice.
 The studio setup panel scrolls independently above a fixed-height Start session
 footer.
+Editor polish on `feat/editor-ui-playback-polish`: an anchored clip
+popover replaces the position/trim row, uploads report progress in a lower
+corner, Alert Dialog footers use the correct surface token, and waveforms use
+versioned 20 ms source-time peaks with stable visual scaling. Initial playback
+renders a short window and prefetches larger windows. The original VPS MP3
+stall and 502 are still open until verified on that VPS.
 
 ## Recording and synchronization
 

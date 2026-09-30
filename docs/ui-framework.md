@@ -20,6 +20,11 @@ The account theme selector belongs in Settings → General rather than the
 shared page header. In the desktop editor, use the local shadcn-svelte Button,
 Input, Slider, Dropdown Menu and Alert Dialog primitives for suitable controls;
 the synchronized editable waveform remains a Podstudio component.
+The clip's position and source boundaries live in an anchored Popover rather
+than a permanent row above the timeline. Import progress uses a lower-right
+status card that does not cover the waveform or transport. Alert Dialog footers
+use `surface`, not `muted`, because `muted` is a text color in Podstudio's
+palette. Destructive actions use a red outline in both themes.
 
 ## In the code
 

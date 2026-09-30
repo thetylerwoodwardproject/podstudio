@@ -22,6 +22,7 @@
 <AlertDialogPrimitive.Cancel
 	bind:ref
 	data-slot="alert-dialog-cancel"
-	class={cn(buttonVariants({ variant, size }), "", className)}
+	style="background-color: var(--color-control); color: var(--color-text);"
+	class={cn(buttonVariants({ variant, size }), "border-border bg-control text-text hover:bg-handle/40 dark:bg-control dark:hover:bg-handle/40", className)}
 	{...restProps}
 />

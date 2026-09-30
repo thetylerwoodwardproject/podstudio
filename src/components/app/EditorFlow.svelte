@@ -5,7 +5,7 @@
   export interface EditorPreview { url: string; duration: number }
   export interface EditorExportResult { filename: string; downloadAgain: () => void }
   export interface EditorConflict { project: EditorProjectV1; revision: number }
-  export interface EditorTrackView { id: string; peaks: number[]; color: string; peakMax?: number; status?: 'loading' | 'ready' | 'error'; error?: string }
+  export interface EditorTrackView { id: string; peaks: number[]; color: string; status?: 'loading' | 'ready' | 'error'; error?: string }
   export interface EditorSaveResult { revision: number; conflict?: EditorConflict }
   export interface EditorProps {
     sessions: { id: string; name: string }[];
@@ -31,8 +31,10 @@
   import { Button } from '@/components/shadcn/button';
   import * as DropdownMenu from '@/components/shadcn/dropdown-menu';
   import * as AlertDialog from '@/components/shadcn/alert-dialog';
+  import * as Popover from '@/components/shadcn/popover';
   import { Input } from '@/components/shadcn/input';
   import { Slider } from '@/components/shadcn/slider';
+  import { PEAK_SECONDS, waveformBars } from '@/lib/audio/editor-peaks';
   import {
     deleteRange,
     moveClip,
@@ -66,6 +68,9 @@
   let importing = $state(false);
   let importError = $state('');
   let importStatus = $state('');
+  let playbackError = $state('');
+  let playbackStatus = $state('');
+  let importDismissTimer = 0;
   let pendingImport = $state<File | undefined>();
   let importAt = 0;
   let gestureCancel: (() => void) | null = null;
@@ -83,14 +88,21 @@
   let removingTrack = $state<string | null>(null);
   let removeOpen = $state(false);
   let editMenuOpen = $state(false);
+  let clipPopoverOpen = $state(false);
+  let clipAnchor = $state<HTMLElement | null>(null);
+  let clipDraft = $state({ position: '', start: '', end: '' });
+  let clipInputError = $state('');
   let waveformGeneration = 0;
   let prefetching = false;
+  let prefetchTask: Promise<void> | null = null;
+  let visibleFrom = $state(0);
+  let visibleTo = $state(150);
   const selected = $derived(project.tracks.find((t) => t.id === selectedTrack)?.clips.find((c) => c.id === selectedClip));
   const visibleMarkers = $derived(timelineMarkers(project));
   const soundKey = (value: EditorProjectV1) => JSON.stringify({ tracks: value.tracks, markers: value.markers, retakes: value.retakes, pauses: value.pauses, master: cleanMaster(value.master), crossfades: value.crossfades });
   const measurementStale = $derived(measurementKey !== soundKey({ ...project, master: masterDraft }));
   function invalidateAudio() {
-    ++playTimer; prefetching = false;
+    ++playTimer; prefetching = false; prefetchTask = null;
     audio?.pause(); audio = null;
     if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = '';
     if (nextAudio) URL.revokeObjectURL(nextAudio.url); nextAudio = null;
@@ -144,13 +156,33 @@
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
     return h ? `${h}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${m}:${String(s % 60).padStart(2, '0')}`;
   };
+  const fmtPrecise = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${(Math.max(0, seconds) % 60).toFixed(3).padStart(6, '0')}`;
+  function parseTime(text: string) {
+    const match = /^(?:(\d+):)?(\d+(?:\.\d{1,3})?)$/.exec(text.trim());
+    if (!match) return NaN;
+    return Number(match[1] ?? 0) * 60 + Number(match[2]);
+  }
+  function openClipPopover(node: HTMLElement, clip: { timelineStart: number; sourceStart: number; sourceEnd: number }) {
+    clipAnchor = node;
+    clipDraft = { position: fmtPrecise(clip.timelineStart), start: fmtPrecise(clip.sourceStart), end: fmtPrecise(clip.sourceEnd) };
+    clipInputError = ''; clipPopoverOpen = true;
+  }
+  function commitClipField(field: 'position' | 'start' | 'end') {
+    const value = parseTime(clipDraft[field]);
+    if (!Number.isFinite(value) || value < 0) { clipInputError = 'Use a time such as 1:23.456.'; return; }
+    const currentValue = field === 'position' ? selected?.timelineStart : field === 'start' ? selected?.sourceStart : selected?.sourceEnd;
+    if (currentValue !== undefined && Math.abs(value - currentValue) < .0005) { clipInputError = ''; return; }
+    clipInputError = ''; numericClip(field, value);
+    const current = project.tracks.find((track) => track.id === selectedTrack)?.clips.find((clip) => clip.id === selectedClip);
+    if (current) clipDraft = { position: fmtPrecise(current.timelineStart), start: fmtPrecise(current.sourceStart), end: fmtPrecise(current.sourceEnd) };
+  }
   const label = (kind: string) => ({ retake: 'RET', cut: 'COUGH', adlib: 'AD-LIB', pause: 'PAUSE', gap: 'MIC' }[kind] ?? '');
   const viewFor = (id: string) => views.find((v) => v.id === id);
 
   async function loadPeaks(track: EditorTrack, from: number, to: number) {
     const generation = waveformGeneration;
     const existing = viewFor(track.id);
-    if (existing && Array.from({ length: Math.ceil(to * 2) - Math.floor(from * 2) }, (_, index) => existing.peaks[Math.floor(from * 2) + index]).every((peak) => peak !== undefined)) return;
+    if (existing && Array.from({ length: Math.ceil(to / PEAK_SECONDS) - Math.floor(from / PEAK_SECONDS) }, (_, index) => existing.peaks[Math.floor(from / PEAK_SECONDS) + index]).every((peak) => peak !== undefined)) return;
     views = views.map((view) => view.id === track.id ? { ...view, status: 'loading', error: undefined } : view);
     try {
       await onpeaks(track, from, to, (chunk) => {
@@ -159,7 +191,7 @@
           if (view.id !== track.id) return view;
           const peaks = [...view.peaks];
           for (let i = 0; i < chunk.peaks.length; i++) peaks[chunk.start + i] = chunk.peaks[i];
-          return { ...view, peaks, peakMax: Math.max(view.peakMax ?? 0, ...chunk.peaks), status: 'ready' };
+          return { ...view, peaks, status: 'ready' };
         });
       });
       if (generation === waveformGeneration) views = views.map((view) => view.id === track.id && view.status === 'loading' ? { ...view, status: 'ready' } : view);
@@ -171,6 +203,7 @@
   async function visiblePeaks(scroll: HTMLElement) {
     const from = Math.max(0, (scroll.scrollLeft - HEADER) / pxPerSecond);
     const to = Math.min(duration, (scroll.scrollLeft + scroll.clientWidth - HEADER) / pxPerSecond);
+    visibleFrom = from; visibleTo = to;
     await Promise.all(project.tracks.flatMap((track) => track.clips.flatMap((clip) => {
       const start = Math.max(from, clip.timelineStart);
       const end = Math.min(to, clip.timelineStart + clip.sourceEnd - clip.sourceStart);
@@ -186,6 +219,10 @@
     scroll.addEventListener('scroll', onScroll);
     void visiblePeaks(scroll);
     return () => { ++waveformGeneration; clearTimeout(timer); scroll.removeEventListener('scroll', onScroll); };
+  });
+  $effect(() => {
+    zoom; project.tracks;
+    void tick().then(() => { const scroll = document.querySelector<HTMLElement>('[data-timeline-scroll]'); if (scroll) void visiblePeaks(scroll); });
   });
 
   function update(next: EditorProjectV1, record = true) {
@@ -288,7 +325,7 @@
       if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
       gestureCancel = null;
       if (cancel) { project = original; playhead = originalPlayhead; selectionStart = selectionEnd = playhead; }
-      else if (edit && changed) { const final = project; project = original; update(final); }
+      else if (edit && changed) { clipPopoverOpen = false; const final = project; project = original; update(final); }
       else if (!changed) click?.();
     };
     const up = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) finish(); }; const cancelEvent = () => finish(true);
@@ -309,8 +346,9 @@
     selectedTrack = track.id; selectedClip = clipId; selectionStart = selectionEnd = playhead;
     const original = plain(project), clip = track.clips.find((c) => c.id === clipId)!;
     const at = clip.timelineStart; const unlink = e.altKey;
+    const node = e.currentTarget as HTMLElement;
     const clickAt = point(e, (e.currentTarget as HTMLElement).closest('[data-lane]') as HTMLElement);
-    gesture(e, (dx) => project = moveClip(original, track.id, clipId, Math.max(0, at + dx), unlink), true, () => seek(clickAt));
+    gesture(e, (dx) => project = moveClip(original, track.id, clipId, Math.max(0, at + dx), unlink), true, () => { seek(clickAt); openClipPopover(node, clip); });
   }
   function trim(e: PointerEvent, track: EditorTrack, clipId: string, edge: 'start' | 'end') {
     selectedTrack = track.id; selectedClip = clipId;
@@ -319,6 +357,7 @@
   }
   function numericClip(field: 'position' | 'start' | 'end', value: number) {
     if (!selected || !Number.isFinite(value)) return;
+    if ((field === 'start' && value >= selected.sourceEnd - .01) || (field === 'end' && value <= selected.sourceStart + .01)) { clipInputError = 'Start must be before end.'; return; }
     update(field === 'position' ? moveClip(plain(project), selectedTrack, selectedClip, value) : trimClip(plain(project), selectedTrack, selectedClip, field, field === 'start' ? value - selected.sourceStart : selected.sourceEnd - value));
   }
   function remove(ripple: boolean) {
@@ -363,9 +402,9 @@
     update(next);
   }
 
-  async function loadWindow(at: number, autoplay: boolean, windowSeconds = 30, loop = false) {
+  async function loadWindow(at: number, autoplay: boolean, windowSeconds = 4, loop = false) {
     const token = ++playTimer;
-    loadingAudio = true;
+    loadingAudio = true; playbackError = ''; playbackStatus = 'Preparing audio…';
     try {
       const result = await onpreview(previewProject(), at, windowSeconds, $state.snapshot(solo), mastered && !fxTrack);
       if (token !== playTimer) { URL.revokeObjectURL(result.url); return; }
@@ -377,48 +416,59 @@
       audio = new Audio(result.url);
       audio.loop = loop;
       wireAudio(audio, at, result.duration);
-      if (autoplay) { await audio.play(); playing = true; }
+      if (autoplay) { await audio.play(); playing = true; if (!loop && at + result.duration < duration - .01) void prefetch(at + result.duration, 8); }
     } catch (error) {
-      importError = `Preview failed: ${(error as Error).message}`; playing = false;
-    } finally { if (token === playTimer) loadingAudio = false; }
+      playbackError = `Playback failed: ${(error as Error).message}`; playing = false;
+    } finally { if (token === playTimer) { loadingAudio = false; playbackStatus = ''; } }
   }
   async function previewJoin(at: number) { await loadWindow(Math.max(0, at - 2), true, 4, true); }
   function wireAudio(element: HTMLAudioElement, at: number, seconds: number) {
-    element.onended = () => {
+    element.onended = async () => {
+      const generation = playTimer;
       playhead = Math.min(duration, at + seconds);
+      if (!nextAudio && prefetchTask) { playbackStatus = 'Waiting for audio…'; await prefetchTask; playbackStatus = ''; }
+      if (generation !== playTimer || !playing) return;
       if (nextAudio && Math.abs(nextAudio.at - playhead) < .1) {
         URL.revokeObjectURL(previewUrl); previewUrl = nextAudio.url; audio = nextAudio.element; const nextAt = nextAudio.at; const nextSeconds = nextAudio.duration; nextAudio = null;
         wireAudio(audio, nextAt, nextSeconds); void audio.play();
+        if (nextAt + nextSeconds < duration - .01) void prefetch(nextAt + nextSeconds, Math.min(30, Math.max(16, nextSeconds * 2)));
       } else if (playhead < duration - .01) void loadWindow(playhead, true);
       else playing = false;
     };
     element.ontimeupdate = () => {
       playhead = Math.min(duration, at + element.currentTime);
-      if (!nextAudio && !prefetching && seconds > 20 && element.currentTime > .25 && at + seconds < duration) void prefetch(at + seconds);
+      if (!nextAudio && !prefetching && at + seconds < duration && element.currentTime > .25) void prefetch(at + seconds, Math.min(30, Math.max(8, seconds * 2)));
     };
   }
-  async function prefetch(at: number) {
+  function prefetch(at: number, seconds: number) {
+    if (prefetching || nextAudio) return prefetchTask ?? Promise.resolve();
     prefetching = true; const generation = playTimer;
-    try {
-      const result = await onpreview(previewProject(), at, 30, $state.snapshot(solo), mastered && !fxTrack);
-      if (generation !== playTimer) { URL.revokeObjectURL(result.url); return; }
-      if (nextAudio) URL.revokeObjectURL(nextAudio.url);
-      const element = new Audio(result.url); element.preload = 'auto'; element.load();
-      nextAudio = { at, element, url: result.url, duration: result.duration };
-    } catch {} finally { if (generation === playTimer) prefetching = false; }
+    const task = (async () => {
+      try {
+        const result = await onpreview(previewProject(), at, seconds, $state.snapshot(solo), mastered && !fxTrack);
+        if (generation !== playTimer) { URL.revokeObjectURL(result.url); return; }
+        const element = new Audio(result.url); element.preload = 'auto'; element.load();
+        nextAudio = { at, element, url: result.url, duration: result.duration };
+      } catch (error) { if (generation === playTimer) playbackError = `Next audio window failed: ${(error as Error).message}`; }
+      finally { if (generation === playTimer) { prefetching = false; prefetchTask = null; } }
+    })();
+    prefetchTask = task;
+    return task;
   }
   async function play() {
+    if (loadingAudio) return;
     if (audio && previewUrl && audio.paused && audio.currentTime < audio.duration - .05) { await audio.play(); playing = true; return; }
     await loadWindow(playhead, true);
   }
   function pause() { audio?.pause(); playing = false; }
-  function stop() { invalidateAudio(); playing = false; playhead = 0; }
+  function stop() { invalidateAudio(); playing = false; playbackStatus = ''; playhead = 0; }
   function seek(at: number) { invalidateAudio(); playing = false; playhead = Math.max(0, Math.min(duration, at)); }
 
   async function importFile(file: File | undefined) {
     if (!file) return;
     if (importing) return;
     if (file !== pendingImport) importAt = playhead;
+    clearTimeout(importDismissTimer);
     pendingImport = file; importing = true; importError = ''; importStatus = 'Reading audio…';
     try {
       const result = await onimport(file, importAt, (s) => importStatus = s);
@@ -426,6 +476,7 @@
       update({ ...plain(project), tracks: [...plain(project.tracks), result.track] });
       void loadPeaks(result.track, 0, Math.min(60, result.track.clips[0]?.sourceEnd ?? 0));
       selectedTrack = result.track.id; pendingImport = undefined; importStatus = 'Audio added';
+      importDismissTimer = window.setTimeout(() => { if (!importing && !importError) importStatus = ''; }, 5000);
     } catch (error) { importError = (error as Error).message; }
     finally { importing = false; }
   }
@@ -478,7 +529,7 @@
   const online = () => { if (saveState === 'offline') void save(); };
   window.addEventListener('online', online);
   window.addEventListener('keydown', shortcut);
-  onDestroy(() => { gestureCancel?.(); analysisAbort?.abort(); clearTimeout(fxTimer); ++playTimer; clearTimeout(timer); audio?.pause(); if (previewUrl) URL.revokeObjectURL(previewUrl); if (nextAudio) URL.revokeObjectURL(nextAudio.url); window.removeEventListener('online', online); window.removeEventListener('keydown', shortcut); });
+  onDestroy(() => { gestureCancel?.(); analysisAbort?.abort(); clearTimeout(fxTimer); clearTimeout(importDismissTimer); ++playTimer; clearTimeout(timer); audio?.pause(); if (previewUrl) URL.revokeObjectURL(previewUrl); if (nextAudio) URL.revokeObjectURL(nextAudio.url); window.removeEventListener('online', online); window.removeEventListener('keydown', shortcut); });
 </script>
 
 <div class="flex h-full min-h-[620px] flex-col overflow-hidden bg-page" data-editor>
@@ -513,9 +564,16 @@
     <input data-editor-import class="sr-only" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac" disabled={importing} onchange={(e) => importFile(e.currentTarget.files?.[0])} />
     <Button data-export-open size="sm" onclick={() => exportOpen = true}>Export</Button>
   </div>
-  {#if importStatus}<div role="status" data-import-status class="border-b border-divider px-4 py-2 text-[12px] text-text-2" aria-live="polite">{importing ? '◌ ' : ''}{importStatus}</div>{/if}
-  {#if importError}<div role="alert" class="border-b border-rec/30 bg-rec/5 px-4 py-2 text-[12px] text-rec">{importError}{#if pendingImport}<button class="ml-4 underline" disabled={importing} onclick={() => importFile(pendingImport)}>Retry upload</button>{/if}</div>{/if}
-  {#if selected}<div class="flex flex-none items-center justify-end gap-3 border-b border-divider px-4 py-1 text-[12px]">{#each [{ key: 'position', name: 'Position', value: selected.timelineStart }, { key: 'start', name: 'Trim start', value: selected.sourceStart }, { key: 'end', name: 'Trim end', value: selected.sourceEnd }] as field}<label class="flex items-center gap-2 text-text-2">{field.name}<Input aria-label={`${field.name} seconds`} class="w-20 font-mono" type="number" min="0" step=".01" value={Number(field.value.toFixed(3))} onchange={(e) => numericClip(field.key as 'position'|'start'|'end', e.currentTarget.valueAsNumber)} /></label>{/each}</div>{/if}
+  {#if importStatus || importError}
+    <div data-import-status class="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-40 w-[min(360px,calc(100vw-32px))] rounded-xl border border-border bg-surface p-4 text-[12px] text-text shadow-xl" role={importError ? 'alert' : 'status'} aria-live={importError ? 'assertive' : 'polite'}>
+      <div class="flex items-start gap-3">
+        <span class="mt-1 size-2 flex-none rounded-full" class:bg-rec={!!importError} class:bg-warn={importing && !importError} class:bg-ok={!importing && !importError}></span>
+        <div class="min-w-0 flex-1"><strong class="block font-medium">{importError ? 'Audio import failed' : importing ? 'Adding audio' : 'Audio added'}</strong><span class="mt-1 block break-words text-text-2">{importError || importStatus}</span></div>
+      </div>
+      {#if importing && /Uploading… \d+%/.test(importStatus)}<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-track-off"><div class="h-full bg-primary transition-[width]" style={`width:${Number(importStatus.match(/(\d+)%/)?.[1] ?? 0)}%`}></div></div>{/if}
+      {#if importError && pendingImport}<Button class="mt-3" variant="outline" size="sm" disabled={importing} onclick={() => importFile(pendingImport)}>Retry upload</Button>{/if}
+    </div>
+  {/if}
   <div class="flex min-h-0 flex-1 overflow-auto" data-timeline-scroll>
     <div class="relative min-w-full" style={`width:${HEADER + timelineWidth}px`}>
       <div class="sticky top-0 z-30 flex h-10 border-b border-divider bg-page/95 backdrop-blur">
@@ -559,16 +617,16 @@
           <div class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex="-1" onpointerdown={(e) => beginSelection(e, track)}>
             {#each track.clips as clip}
               {@const clipDuration = clip.sourceEnd - clip.sourceStart}
-              {@const clipPeaks = (view?.peaks ?? []).slice(Math.floor(clip.sourceStart * 2), Math.ceil(clip.sourceEnd * 2))}
-              <button data-clip class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onclick={() => { selectedTrack = track.id; selectedClip = clip.id; }} title="Drag to move clip; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
+              {@const clipPeaks = waveformBars(view?.peaks ?? [], clip.sourceStart, clip.sourceEnd, pxPerSecond, clip.sourceStart + Math.max(0, visibleFrom - clip.timelineStart), clip.sourceStart + Math.min(clipDuration, visibleTo - clip.timelineStart))}
+              <button data-clip class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedTrack = track.id; selectedClip = clip.id; openClipPopover(e.currentTarget, clip); } }} title="Click for clip details; drag to move; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
                 <span role="slider" aria-label="Trim clip start" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceStart} tabindex="0" class="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'start')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'start', e.key === 'ArrowRight' ? .01 : -.01)); } }}></span>
                 <span role="slider" aria-label="Trim clip end" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceEnd} tabindex="0" class="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'end')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'end', e.key === 'ArrowLeft' ? .01 : -.01)); } }}></span>
                 <span class="absolute left-2 top-1 font-mono text-[9px] text-text-3">{clip.linked ? 'LINKED' : 'UNLINKED'}</span>
-                {#if view?.status === 'loading' && !clipPeaks.some((peak) => peak !== undefined)}<span class="absolute inset-0 flex items-center justify-center text-[11px] text-text-2">Preparing waveform…</span>{/if}
+                {#if view?.status === 'loading' && !clipPeaks.length}<span class="absolute inset-0 flex items-center justify-center text-[11px] text-text-2">Preparing waveform…</span>{/if}
                 {#if view?.status === 'error'}<span class="absolute inset-0 flex items-center justify-center px-3 text-center text-[11px] text-rec">Waveform unavailable · retry from track menu</span>{/if}
-                <span class="absolute inset-x-0 bottom-2 top-5 flex items-center gap-px opacity-80" aria-hidden="true">
-                  {#each clipPeaks as peak}
-                    <i data-waveform-peak class="min-w-px flex-1 rounded-full" style={`height:${Math.max(2, (peak ?? 0) * 46 * Math.min(8, .75 / Math.max(.01, view?.peakMax ?? .75)))}px;background:${view?.color ?? 'var(--color-text-3)'}`}></i>
+                <span class="absolute inset-x-0 bottom-2 top-5 opacity-80" aria-hidden="true">
+                  {#each clipPeaks as bar}
+                    <i data-waveform-peak class="absolute top-1/2 w-[2px] -translate-y-1/2 rounded-full" style={`left:${bar.left}px;height:${bar.height}px;background:${view?.color ?? 'var(--color-text-3)'}`}></i>
                   {/each}
                 </span>
               </button>
@@ -584,8 +642,20 @@
       <div class="pointer-events-none absolute bottom-0 top-0 z-40 w-px bg-rec" style={`left:${HEADER + playhead * pxPerSecond}px`}><span class="absolute -left-1.5 top-0 size-3 rotate-45 bg-rec"></span></div>
     </div>
   </div>
+  <Popover.Root bind:open={clipPopoverOpen}>
+    {#if selected && clipAnchor}
+    <Popover.Content data-clip-popover customAnchor={clipAnchor} aria-label="Clip details" onInteractOutside={(e) => { if ((e.target as HTMLElement).closest('[data-clip]')) e.preventDefault(); }} onkeydown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); if (selected) clipDraft = { position: fmtPrecise(selected.timelineStart), start: fmtPrecise(selected.sourceStart), end: fmtPrecise(selected.sourceEnd) }; clipPopoverOpen = false; } }}>
+      <div class="mb-3 flex items-center justify-between"><strong>Clip details</strong><button aria-label="Close clip details" class="rounded px-1 text-text-2 hover:text-text" onclick={() => clipPopoverOpen = false}>×</button></div>
+      {#each [{ key: 'position', name: 'Timeline position' }, { key: 'start', name: 'Source in' }, { key: 'end', name: 'Source out' }] as field}
+        <label class="mb-2 flex items-center justify-between gap-3 text-text-2">{field.name}<Input class="w-28 font-mono text-right text-text" aria-label={field.name} type="text" value={clipDraft[field.key as 'position' | 'start' | 'end']} oninput={(e) => clipDraft[field.key as 'position' | 'start' | 'end'] = e.currentTarget.value} onchange={() => commitClipField(field.key as 'position' | 'start' | 'end')} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /></label>
+      {/each}
+      {#if clipInputError}<p role="alert" class="text-rec">{clipInputError}</p>{/if}
+      <p class="mt-2 text-[11px] text-text-3">Times are minutes:seconds.milliseconds.</p>
+    </Popover.Content>
+    {/if}
+  </Popover.Root>
   <div class="flex min-h-[56px] flex-none items-center gap-3 border-t border-divider bg-surface px-4 py-2">
-    <button data-editor-play class="size-9 rounded-full bg-text text-page" onclick={() => playing ? pause() : void play()} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if playing}<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>{:else}<path d="M7 4L21 12L7 20Z"/>{/if}</svg></button>
+    <button data-editor-play class="size-9 rounded-full bg-text text-page disabled:opacity-60" disabled={loadingAudio} onclick={() => playing ? pause() : void play()} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if playing}<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>{:else}<path d="M7 4L21 12L7 20Z"/>{/if}</svg></button>
     <button class="size-9 rounded-[10px] border border-border text-[12px]" onclick={stop} aria-label="Stop" title="Stop"><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
     <span class="w-[58px] font-mono text-[12px]">{fmt(playhead)}</span>
     <input class="min-w-[160px] flex-1" aria-label="Playhead" type="range" min="0" max={Math.max(.01, duration)} step=".01" value={playhead} oninput={(e) => seek(Number(e.currentTarget.value))} />
@@ -604,7 +674,8 @@
       </DropdownMenu.Content>
     </DropdownMenu.Root>
     <span class="text-[11px] text-text-3">Zoom</span><Slider type="single" class="w-24" aria-label="Timeline zoom" min={0.5} max={6} step={0.5} bind:value={zoom} />
-    {#if loadingAudio}<span class="font-mono text-[10px] text-text-3">BUFFERING</span>{/if}
+    {#if loadingAudio || playbackStatus}<span role="status" data-playback-status class="text-[11px] text-text-2" aria-live="polite">{playbackStatus || 'Preparing audio…'}</span>{/if}
+    {#if playbackError}<button data-playback-error class="max-w-40 truncate text-[11px] text-rec underline" title={playbackError} onclick={() => void play()}>{playbackError} · Retry</button>{/if}
   </div>
 </div>
 
@@ -692,7 +763,7 @@
     </AlertDialog.Header>
     <AlertDialog.Footer>
       <AlertDialog.Cancel onclick={() => removingTrack = null}>Cancel</AlertDialog.Cancel>
-      <AlertDialog.Action variant="destructive" onclick={confirmRemoveTrack}>Remove track</AlertDialog.Action>
+      <AlertDialog.Action variant="destructive" class="border border-rec bg-transparent text-rec hover:bg-rec/10 dark:bg-transparent dark:hover:bg-rec/10" onclick={confirmRemoveTrack}>Remove track</AlertDialog.Action>
     </AlertDialog.Footer>
   </AlertDialog.Content>
 </AlertDialog.Root>

@@ -1,0 +1,44 @@
+import { chromium } from './auth.mjs';
+import { B, CHROME, OUT } from './env.mjs';
+
+let failures = 0;
+const ok = (name, condition, detail = '') => { if (!condition) failures++; console.log(condition ? 'PASS' : 'FAIL', name, detail); };
+const until = async (predicate, timeout = 12000) => { const start = Date.now(); while (Date.now() - start < timeout) { if (await predicate()) return true; await new Promise((resolve) => setTimeout(resolve, 100)); } return false; };
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--autoplay-policy=no-user-gesture-required', '--disable-audio-output'] });
+const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
+const page = await context.newPage();
+const errors = []; page.on('pageerror', (error) => errors.push(error.message));
+await page.goto(B);
+await page.evaluate(async () => {
+  const rate = 48000, seconds = 19;
+  const wav = new ArrayBuffer(44 + rate * 2 * 2), view = new DataView(wav);
+  const text = (at, value) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
+  text(0, 'RIFF'); view.setUint32(4, wav.byteLength - 8, true); text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+  text(36, 'data'); view.setUint32(40, rate * 4, true);
+  for (let i = 0; i < rate; i++) { const sample = Math.round(Math.sin(i * Math.PI * 2 * 440 / rate) * 3000); view.setInt16(44 + i * 4, sample, true); view.setInt16(46 + i * 4, sample, true); }
+  const upload = await fetch('/api/media/editor-short-pad?name=Test%20pad&seconds=1', { method: 'PUT', body: wav });
+  if (!upload.ok) throw new Error(`Pad fixture failed: ${upload.status}`);
+  const pcm = new Int16Array(rate * seconds);
+  for (let i = 0; i < pcm.length; i++) pcm[i] = Math.round(Math.sin(i * Math.PI * 2 * 220 / rate) * 3000);
+  const meta = { id: 'editor-short-pads', episodeId: '142', kind: 'session', name: 'Short pads', speaker: 'Host', sampleRate: rate, channels: 1, bitDepth: 16, samples: pcm.length, segments: 1, startedAt: Date.now(), updatedAt: Date.now(), status: 'done', peaks: [], markers: [], lineLog: [], pads: { volume: [], presses: [{ t: 1, key: 1, padId: 'p1', name: 'Test pad', color: 'teal', fileId: 'editor-short-pad', mode: 'oneshot', gainDb: 0, fadeInMs: 0, fadeOutMs: 0, trimStart: 0, trimEnd: 1, duck: false, duckDb: 0 }] } };
+  const put = async (url, body, json = true) => { const response = await fetch(url, { method: 'PUT', headers: json ? { 'Content-Type': 'application/json' } : {}, body: json ? JSON.stringify(body) : body }); if (!response.ok) throw new Error(`Take fixture failed: ${response.status}`); };
+  await put('/api/takes/editor-short-pads', { meta });
+  await put('/api/takes/editor-short-pads/segments/1', pcm.buffer, false);
+  await put('/api/takes/editor-short-pads', { meta, done: true });
+});
+await page.goto(`${B}/episodes/142/editor?take=editor-short-pads`);
+ok('short host and pads recording opens with two tracks', await until(async () => await page.locator('[data-track]').count() === 2, 30000));
+const started = Date.now();
+await page.locator('[data-editor-play]').click();
+ok('19-second host and pads preview starts promptly', await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause') && Date.now() - started < 12000, `${Date.now() - started} ms`);
+ok('preview continues past the first render window', await until(async () => Number(await page.locator('[aria-label="Playhead"]').inputValue()) > 5));
+ok('no playback error', !errors.length && await page.locator('[data-playback-error]').count() === 0, errors.join(' | '));
+await page.screenshot({ path: `${OUT}/editor-short-pads.png`, fullPage: true });
+await page.getByRole('button', { name: 'Pads track actions' }).click();
+await page.getByRole('menuitem', { name: 'Remove track' }).click();
+await page.emulateMedia({ colorScheme: 'dark' });
+ok('remove dialog follows dark theme', await until(async () => await page.locator('[data-slot="alert-dialog-content"]').evaluate((node) => getComputedStyle(node).backgroundColor === 'rgb(25, 26, 48)' && getComputedStyle(node).color === 'rgb(245, 245, 250)'), 2000));
+console.log(failures ? `${failures} FAILED` : 'ALL PASS'); process.exitCode = failures ? 1 : 0;
+await browser.close();
