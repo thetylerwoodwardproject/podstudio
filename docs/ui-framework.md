@@ -26,6 +26,31 @@ status card that does not cover the waveform or transport. Alert Dialog footers
 use `surface`, not `muted`, because `muted` is a text color in Podstudio's
 palette. Destructive actions use a red outline in both themes.
 
+### Component choice during the migration
+
+The [Phase 0 inventory](shadcn-phase-0-inventory.md) records current callers,
+state owners, hooks and screenshot baselines. Use the locally adapted shadcn
+component when a Svelte panel already owns the interaction:
+
+| Interaction | Component |
+|---|---|
+| Modal task; consequential confirmation | Dialog or Sheet; Alert Dialog for confirmation |
+| One-of-many submitted choice; distinct content panels | Radio Group; Tabs for panels |
+| Immediate on/off state; independent form choice | Switch; Checkbox for the form choice |
+| Continuous value; exact numeric value | Slider; Input with a visible label for precision |
+| Short-lived progress; persistent error; brief success | Progress; Alert; Sonner, respectively |
+| Plain form options; searchable choices | Native Select; Select/Combobox only when needed |
+| Icon-only action | Button with an accessible name and Tooltip |
+
+Keep Astro links and static form controls server-rendered, with the same
+tokens, dimensions and focus treatment. A copied shadcn component must map
+its semantic colors through `global.css`: `background` → `page`, `card` →
+`surface`, `popover` → `sheet`, `secondary` → `control`, `accent-foreground` →
+`accent-fg`, `muted-foreground` → `text-2`, `destructive` → `rec`.
+Podstudio's legacy `muted` means secondary text, so copied `bg-muted` requires
+an explicit surface translation. Do not overwrite the global CSS with CLI
+defaults or add Svelte hydration solely to display a static card or button.
+
 ## In the code
 
 | Part | Where |

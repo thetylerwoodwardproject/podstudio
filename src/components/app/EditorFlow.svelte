@@ -543,7 +543,7 @@
     </div>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Editor tools">Tools {pendingRetakes ? `· ${pendingRetakes}` : ''}</DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end" class="w-56">
+      <DropdownMenu.Content align="end" preventScroll={false} class="w-56">
         <DropdownMenu.Item data-retakes-open onclick={() => retakesOpen = true}>Review retakes {pendingRetakes ? `(${pendingRetakes})` : ''}</DropdownMenu.Item>
         <DropdownMenu.Item data-pauses-open onclick={() => pausesOpen = true}>Review pauses {project.pauses.length ? `(${project.pauses.length})` : ''}</DropdownMenu.Item>
         <DropdownMenu.Item onclick={() => { masterDraft = cleanMaster(plain(project.master)); loudnessOpen = true; }}>Loudness</DropdownMenu.Item>
@@ -557,7 +557,7 @@
     </DropdownMenu.Root>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="h-8 max-w-40 truncate rounded-lg border border-border px-3 text-[12px]" aria-label="Recorded session">{sessions.find((session) => session.id === project.takeId)?.name ?? 'Session'}</DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end" class="w-56">
+      <DropdownMenu.Content align="end" preventScroll={false} class="w-56">
         {#each sessions as session}<DropdownMenu.Item onclick={() => void switchSession(session.id)}>{session.name}{session.id === project.takeId ? ' ✓' : ''}</DropdownMenu.Item>{/each}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
@@ -600,7 +600,7 @@
             <div class="flex items-center gap-2"><span class="size-2 rounded-full" style={`background:${view?.color ?? 'var(--color-text-3)'}`}></span><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger class="size-6 rounded-md text-text-2 hover:bg-control" aria-label={`${track.name} track actions`}>⋯</DropdownMenu.Trigger>
-                <DropdownMenu.Content align="end" class="w-44">
+                <DropdownMenu.Content align="end" preventScroll={false} class="w-44">
                   {#if view?.status === 'error'}<DropdownMenu.Item onclick={() => { for (const clip of track.clips) void loadPeaks(track, clip.sourceStart, clip.sourceEnd); }}>Retry waveform</DropdownMenu.Item>{/if}
                   <DropdownMenu.Item variant="destructive" onclick={() => { removingTrack = track.id; removeOpen = true; }}>Remove track</DropdownMenu.Item>
                 </DropdownMenu.Content>
@@ -644,7 +644,7 @@
   </div>
   <Popover.Root bind:open={clipPopoverOpen}>
     {#if selected && clipAnchor}
-    <Popover.Content data-clip-popover customAnchor={clipAnchor} aria-label="Clip details" onInteractOutside={(e) => { if ((e.target as HTMLElement).closest('[data-clip]')) e.preventDefault(); }} onkeydown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); if (selected) clipDraft = { position: fmtPrecise(selected.timelineStart), start: fmtPrecise(selected.sourceStart), end: fmtPrecise(selected.sourceEnd) }; clipPopoverOpen = false; } }}>
+    <Popover.Content data-clip-popover customAnchor={clipAnchor} preventScroll={false} aria-label="Clip details" onInteractOutside={(e) => { if ((e.target as HTMLElement).closest('[data-clip]')) e.preventDefault(); }} onkeydown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); if (selected) clipDraft = { position: fmtPrecise(selected.timelineStart), start: fmtPrecise(selected.sourceStart), end: fmtPrecise(selected.sourceEnd) }; clipPopoverOpen = false; } }}>
       <div class="mb-3 flex items-center justify-between"><strong>Clip details</strong><button aria-label="Close clip details" class="rounded px-1 text-text-2 hover:text-text" onclick={() => clipPopoverOpen = false}>×</button></div>
       {#each [{ key: 'position', name: 'Timeline position' }, { key: 'start', name: 'Source in' }, { key: 'end', name: 'Source out' }] as field}
         <label class="mb-2 flex items-center justify-between gap-3 text-text-2">{field.name}<Input class="w-28 font-mono text-right text-text" aria-label={field.name} type="text" value={clipDraft[field.key as 'position' | 'start' | 'end']} oninput={(e) => clipDraft[field.key as 'position' | 'start' | 'end'] = e.currentTarget.value} onchange={() => commitClipField(field.key as 'position' | 'start' | 'end')} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /></label>
@@ -663,7 +663,7 @@
     <div class="h-6 w-px bg-divider"></div>
     <DropdownMenu.Root bind:open={editMenuOpen}>
       <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Edit actions">Edit</DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end" class="w-44">
+      <DropdownMenu.Content align="end" preventScroll={false} class="w-44">
         <DropdownMenu.Item disabled={!history.length} onclick={() => { editMenuOpen = false; undo(); }}>Undo</DropdownMenu.Item>
         <DropdownMenu.Item disabled={!future.length} onclick={() => { editMenuOpen = false; redo(); }}>Redo</DropdownMenu.Item>
         <DropdownMenu.Separator />

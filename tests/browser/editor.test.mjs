@@ -105,13 +105,15 @@ ok('trim restores source audio', await page.getByLabel('Source out').inputValue(
 await page.getByLabel('Source out').fill('0:03.000'); await page.getByLabel('Source out').press('Escape');
 await clip.click({ position: { x: 20, y: 35 } });
 ok('Escape discards an uncommitted clip value', await page.getByLabel('Source out').inputValue() === '0:06.000');
+await page.getByRole('button', { name: 'Close clip details' }).click();
 await edit('Undo');
 await edit('Undo');
 ok('import remains after undoing trim changes', await page.locator('[data-track]').count() === 2);
+ok('editor menus release waveform pointer events', await until(async () => page.locator('body').evaluate((body) => getComputedStyle(body).pointerEvents !== 'none'), 2000));
 ok('Select and Move modes are absent', await page.getByRole('button', { name: /^(Select|Move)$/ }).count() === 0);
 const box = await clip.boundingBox();
 await page.mouse.move(box.x + 20, box.y + 35); await page.mouse.down(); await page.mouse.move(box.x + 60, box.y + 35, { steps: 5 }); await page.mouse.up();
-ok('direct drag moves waveform', Number.parseFloat((await clip.getAttribute('style')).match(/left:\s*([\d.]+)px/)?.[1] ?? '0') > 8, await clip.getAttribute('style'));
+ok('direct drag moves waveform', await until(async () => Number.parseFloat((await clip.getAttribute('style')).match(/left:\s*([\d.]+)px/)?.[1] ?? '0') > 8, 2000), await clip.getAttribute('style'));
 ok('import survives direct drag', await page.locator('[data-track]').count() === 2);
 await edit('Undo');
 ok('import survives direct-drag undo', await page.locator('[data-track]').count() === 2);

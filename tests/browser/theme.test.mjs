@@ -20,9 +20,26 @@ async function until(checker, timeout = 10000) {
   return false;
 }
 const theme = () => page.locator('html').getAttribute('data-theme');
+const accentText = () => page.evaluate(() => {
+  const sample = document.createElement('span');
+  sample.className = 'text-accent-foreground';
+  document.body.append(sample);
+  const color = getComputedStyle(sample).color;
+  sample.remove();
+  return color;
+});
 
+const initialSettings = page.waitForResponse((response) =>
+  response.url().endsWith('/api/me/settings') && response.request().method() === 'GET',
+);
 await page.goto(`${B}/settings/general`);
 await page.waitForSelector('[data-ui-theme]');
+await initialSettings;
+await page.waitForTimeout(500);
+check('Appearance select fills its settings row', await page.locator('[data-ui-theme]').evaluate((select) => {
+  const row = select.closest('.relative');
+  return !!row && Math.abs(select.getBoundingClientRect().width - row.getBoundingClientRect().width) < 1;
+}));
 await page.locator('[data-ui-theme]').first().selectOption('system');
 check('system follows a light device', (await theme()) === 'light');
 await page.emulateMedia({ colorScheme: 'dark' });
@@ -37,6 +54,12 @@ check('theme selection saves to the server', await until(async () => {
 await page.reload();
 check('theme survives reload', (await theme()) === 'light');
 check('theme control only appears in Settings', await page.locator('header [data-ui-theme]').count() === 0 && await page.locator('[data-ui-theme]').count() === 1);
+const lightAccentText = await accentText();
+check('shadcn accent text maps to the light theme', lightAccentText === 'rgb(32, 43, 23)', lightAccentText);
+await page.screenshot({ path: `${OUT}/theme-settings-desktop-light.png`, fullPage: true });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.screenshot({ path: `${OUT}/theme-settings-phone-light.png`, fullPage: true });
+await page.setViewportSize({ width: 1360, height: 900 });
 
 await page.goto(`${B}/settings/about`);
 const credits = await page.locator('body').textContent();
@@ -52,6 +75,13 @@ await page.screenshot({ path: `${OUT}/theme-about-light.png`, fullPage: true });
 await page.goto(`${B}/settings/general`);
 await page.locator('[data-ui-theme]').selectOption('dark');
 check('dark choice is applied', (await theme()) === 'dark');
+await until(async () => page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor === 'rgb(18, 18, 37)'));
+const darkAccentText = await accentText();
+check('shadcn accent text maps to the dark theme', darkAccentText === 'rgb(21, 18, 41)', darkAccentText);
+await page.screenshot({ path: `${OUT}/theme-settings-desktop-dark.png`, fullPage: true });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.screenshot({ path: `${OUT}/theme-settings-phone-dark.png`, fullPage: true });
+await page.setViewportSize({ width: 1360, height: 900 });
 await page.goto(`${B}/settings/about`);
 await page.screenshot({ path: `${OUT}/theme-about-dark.png`, fullPage: true });
 

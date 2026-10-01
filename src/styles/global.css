@@ -89,6 +89,7 @@
   --color-primary-foreground: var(--color-primary-fg);
   --color-secondary: var(--color-control);
   --color-secondary-foreground: var(--color-text);
+  --color-accent-foreground: var(--color-accent-fg);
   --color-muted-foreground: var(--color-text-2);
   --color-input: var(--color-border);
   --color-ring: var(--color-primary);

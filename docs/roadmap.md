@@ -33,6 +33,10 @@ continuously across multiple render windows on the VPS before closing that
 regression; the earlier 502 remains unproven.
 The phased component migration, including Astro/Svelte boundaries and release
 checks, is detailed in [the shadcn component migration plan](shadcn-component-migration.md).
+Phase 0 inventory, token contract, license audit, and desktop/phone baseline
+screenshots are recorded in [the migration inventory](shadcn-phase-0-inventory.md).
+Next, replace the custom interactive sheets and dialogs in Phase 1 while
+preserving their focus, cancellation, keyboard, and autosave behavior.
 
 The checks workflow runs unit/server tests, Astro and Svelte checks, the build
 and all browser tests. Browser logs and screenshots are retained for seven

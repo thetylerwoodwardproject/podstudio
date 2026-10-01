@@ -32,6 +32,14 @@ player, remaining screen migrations, and full light/dark visual review are
 still outstanding. The original four-minute MP3 stall and VPS 502 report
 remain open until verified on the updated VPS.
 
+Phase 0 of the [shadcn component migration](shadcn-component-migration.md)
+is complete on `feat/shadcn-component-migration`: the
+[component inventory and adapter contract](shadcn-phase-0-inventory.md)
+record the current callers, state owners, Astro/Svelte boundaries, theme
+tokens, licenses, and baseline desktop/phone screenshots. Settings → General
+now presents Appearance as one full-width field in both themes. Later phases
+will replace screen controls; Phase 0 does not claim the full migration is done.
+
 The 939 MB lab VPS hit Node's heap limit while the installer ran `astro check`
 as part of `npm run build`. The installer now runs `npm run build:deploy` to
 bundle without rechecking types on the VPS; the full build remains a required

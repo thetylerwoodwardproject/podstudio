@@ -6,10 +6,12 @@ browser, one Node process (`server/`) with SQLite behind Caddy. See README.md.
 ## UI
 
 Follow [docs/ui-framework.md](docs/ui-framework.md) on every screen: past,
-present and future. Use its tokens and the components in `src/components/ui/`
-rather than one-off styles; sentence case, units in mono, a real minus sign
-(−). When a screen changes, check it against the framework and take a
-screenshot.
+present and future. Use its tokens and the
+[component-choice map](docs/ui-framework.md#component-choice-during-the-migration):
+locally adapted shadcn components in interactive Svelte panels, and matching
+server-rendered controls in plain Astro pages. Avoid one-off styles; use
+sentence case, units in mono, a real minus sign (−). When a screen changes,
+check it against the framework and take a screenshot.
 
 ## Working here
 

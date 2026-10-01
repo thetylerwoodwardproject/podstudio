@@ -25,6 +25,9 @@ single-file community player for the editor's synchronized transport.
 
 ## Phase 0 — Inventory and component contract
 
+Completed in [the Phase 0 inventory and contract](shadcn-phase-0-inventory.md),
+including tracked light/dark editor and Settings reference screenshots.
+
 1. Record every custom Button, Select, Switch, Checkbox, Segmented, Sheet,
    status, dialog, and slider use, including its page, state owner, keyboard
    behavior, and test hooks. Mark each as interactive Svelte or plain Astro.
