@@ -58,7 +58,7 @@ export async function resetSettings(page, change = (s) => s, { clear = false } =
       }, [change.toString(), clear]);
       break;
     } catch (error) {
-      if (attempt === 2 || !String(error).includes('Execution context was destroyed')) throw error;
+      if (attempt === 2 || !/Execution context was destroyed|interrupted by another navigation/.test(String(error))) throw error;
     }
   }
   await page.goto(back);

@@ -102,6 +102,13 @@ library but are omitted from that project's raw ZIP. The top bar no longer has
 a theme picker; Settings → General retains the synced System/Light/Dark choice.
 The studio setup panel scrolls independently above a fixed-height Start session
 footer.
+The editor now also shows processed per-track sample-peak dBFS meters synchronized
+to its rolling player. Shift-drag and ruler ranges have clearer highlighting,
+and a shadcn-svelte Context Menu exposes the existing edit actions plus Play
+selection. Meter data is collected during rendering without another source read;
+mastered preview keeps the per-track readout before the final master.
+The footer has a stacked horizontal L/R meter for the preview output; the
+scrubber is shorter to make room. Mastered preview meters its mastered output.
 Editor polish on `feat/editor-ui-playback-polish`: an anchored clip
 popover replaces the position/trim row, uploads report progress in a lower
 corner, Alert Dialog footers use the correct surface token, and waveforms use

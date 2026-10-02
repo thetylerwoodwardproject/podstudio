@@ -46,11 +46,34 @@ ok('empty recording metadata generates a visible waveform', await until(async ()
 const playbackStarted = Date.now();
 await page.locator('[data-editor-play]').click();
 ok('short recording starts from a bounded first render', await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause', 10000) && Date.now() - playbackStarted < 10000);
+ok('host meter shows a live processed dBFS peak', await until(async () => Number.isFinite(Number(await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs'))) && Number(await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs')) > -60, 5000));
+ok('master output has stacked left and right dBFS meters', await until(async () => {
+  const left = await page.getByRole('meter', { name: 'Master left level' }).getAttribute('aria-valuetext');
+  const right = await page.getByRole('meter', { name: 'Master right level' }).getAttribute('aria-valuetext');
+  return left !== '−∞ dBFS' && right !== '−∞ dBFS';
+}, 5000) && await page.locator('[data-master-meter]').isVisible());
+ok('large playhead and duration flank the scrubber before master levels', await page.evaluate(() => {
+  const current = document.querySelector('[data-current-time]');
+  const scrubber = document.querySelector('input[aria-label="Playhead"]');
+  const duration = document.querySelector('[data-duration-time]');
+  const meter = document.querySelector('[data-master-meter]');
+  return !!current && !!scrubber && !!duration && !!meter
+    && current.getBoundingClientRect().right < scrubber.getBoundingClientRect().left
+    && scrubber.getBoundingClientRect().right < duration.getBoundingClientRect().left
+    && duration.getBoundingClientRect().right < meter.getBoundingClientRect().left
+    && parseFloat(getComputedStyle(current).fontSize) >= 15;
+}));
+await page.screenshot({ path: `${OUT}/editor-meter-light.png`, fullPage: true });
 ok('playback crosses the first render window', await until(async () => Number(await page.locator('input[aria-label="Playhead"]').inputValue()) > 5, 10000));
 await page.getByRole('button', { name: 'Stop', exact: true }).click();
+ok('meter resets when playback stops', await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs') === '-Infinity');
+ok('master meters reset when playback stops', await page.getByRole('meter', { name: 'Master left level' }).getAttribute('aria-valuetext') === '−∞ dBFS' && await page.getByRole('meter', { name: 'Master right level' }).getAttribute('aria-valuetext') === '−∞ dBFS');
 await page.screenshot({ path: `${OUT}/editor-desktop.png`, fullPage: true });
 await page.emulateMedia({ colorScheme: 'dark' });
-await page.screenshot({ path: `${OUT}/editor-desktop-dark.png`, fullPage: true });
+await page.locator('[data-editor-play]').click();
+await until(async () => Number.isFinite(Number(await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs'))), 5000);
+await page.screenshot({ path: `${OUT}/editor-meter-dark.png`, fullPage: true });
+await page.getByRole('button', { name: 'Stop', exact: true }).click();
 await page.emulateMedia({ colorScheme: 'light' });
 await page.getByRole('button', { name: 'Editor tools' }).click();
 if (await page.locator('[data-retakes-open]').textContent().then((x) => x.includes('('))) {
@@ -124,8 +147,25 @@ ok('import survives escape', await page.locator('[data-track]').count() === 2);
 await page.keyboard.down('Shift');
 await page.mouse.move(restored.x + 12, restored.y + 35); await page.mouse.down(); await page.mouse.move(restored.x + 32, restored.y + 35, { steps: 5 }); await page.mouse.up();
 await page.keyboard.up('Shift');
+ok('range has a visible start, end and duration', await page.locator('[data-selection-summary]').isVisible() && (await page.locator('[data-selection-summary]').textContent()).includes('→') && await page.locator('[data-time-selection]').count() >= 1);
+const selectedSummary = await page.locator('[data-selection-summary]').textContent();
+await clip.click({ button: 'right', position: { x: 20, y: 35 } });
+ok('right-click inside a range preserves it', await page.locator('[data-editor-context-menu]').isVisible() && await page.locator('[data-selection-summary]').textContent() === selectedSummary);
+ok('range context menu offers core edits', await page.getByRole('menuitem', { name: 'Play selection' }).isEnabled() && await page.getByRole('menuitem', { name: 'Ripple cut' }).isEnabled());
+await page.screenshot({ path: `${OUT}/editor-range-menu.png`, fullPage: true });
+await page.getByRole('menuitem', { name: 'Play selection' }).click();
+ok('Play selection starts and ends within the range', await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause', 10000) && await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Play', 10000));
+await clip.click({ button: 'right', position: { x: 55, y: 35 } });
+ok('right-click elsewhere selects a clip and clears the range', await page.locator('[data-editor-context-menu]').isVisible() && await page.locator('[data-selection-summary]').count() === 0 && await page.getByRole('menuitem', { name: 'Split at cursor' }).isEnabled() && await page.getByRole('menuitem', { name: 'Ripple cut' }).isDisabled());
+const beforeContextSplit = await page.locator('[data-clip]').count();
+await page.getByRole('menuitem', { name: 'Split at cursor' }).click();
+ok('context Split edits the chosen clip', await page.locator('[data-clip]').count() > beforeContextSplit);
+await edit('Undo');
+await clip.focus(); await page.keyboard.press('Shift+F10');
+ok('keyboard opens the waveform context menu', await page.locator('[data-editor-context-menu]').isVisible());
+await page.keyboard.press('Escape');
 await page.getByRole('button', { name: 'Edit actions' }).click();
-ok('Shift-dragging waveform selects a time interval', await page.getByRole('menuitem', { name: 'Ripple cut', exact: true }).isEnabled());
+ok('Edit menu stays available after contextual editing', await page.getByRole('menuitem', { name: 'Ripple cut', exact: true }).isDisabled());
 ok('import survives Shift selection', await page.locator('[data-track]').count() === 2);
 await page.keyboard.press('Escape');
 // Ruler selection also works without holding a modifier.
@@ -185,6 +225,19 @@ await page.locator('[data-editor-play]').click();
 ok('full-session player starts', await until(async () => (await page.locator('[data-editor-play]').getAttribute('aria-label')) === 'Pause'));
 ok('pause is drawn as an icon', await page.locator('[data-editor-play] svg rect').count() === 2);
 await page.locator('[data-editor-play]').click();
+await tool('Loudness');
+await page.getByRole('checkbox', { name: 'Listen to mastered mix' }).check();
+await page.getByRole('button', { name: 'Apply loudness' }).click();
+await page.locator('[data-editor-play]').click();
+ok('mastered preview drives the output L/R meters', await until(async () => {
+  const left = await page.getByRole('meter', { name: 'Master left level' }).getAttribute('aria-valuetext');
+  const right = await page.getByRole('meter', { name: 'Master right level' }).getAttribute('aria-valuetext');
+  return left !== '−∞ dBFS' && right !== '−∞ dBFS';
+}, 15000));
+await page.getByRole('button', { name: 'Stop', exact: true }).click();
+await tool('Loudness');
+await page.getByRole('checkbox', { name: 'Listen to mastered mix' }).uncheck();
+await page.getByRole('button', { name: 'Apply loudness' }).click();
 // Trimming an imported clip must not truncate its raw export.
 await page.locator('[data-track]').nth(1).locator('[data-clip]').first().focus();
 await page.keyboard.press('Enter');

@@ -25,6 +25,14 @@ than a permanent row above the timeline. Import progress uses a lower-right
 status card that does not cover the waveform or transport. Alert Dialog footers
 use `surface`, not `muted`, because `muted` is a text color in Podstudio's
 palette. Destructive actions use a red outline in both themes.
+The editor uses the local shadcn-svelte Context Menu for waveform and range
+actions. Its purpose-built mono/stereo track meters show processed sample peaks
+in dBFS during playback; the source waveform is not a level meter. Keep the
+meter compact within each track header and label its numeric readout `dBFS`.
+The editor footer reserves a compact, stacked horizontal L/R master meter beside
+the shortened scrubber. It measures the actual preview output and uses the same
+dBFS scale and colors as the track meters. Keep the larger elapsed and duration
+labels directly on either side of the scrubber, before the master meter.
 
 ### Component choice during the migration
 
@@ -60,7 +68,7 @@ defaults or add Svelte hydration solely to display a static card or button.
 | Components | `src/components/ui/`: `Button` (primary, secondary, ghost, destructive, record, retake; `sm` 36 / `lg` 48), `Segmented`, `Select`, `Switch`, `CheckChip`, `Checkbox`, `Card` (with `label` and `rows`), `Row`, `Block`, `Callout`, `Kbd`, `StatusRow`, `CodeBlock` |
 | Text inputs | `inputClass` in `src/lib/ui.ts` |
 | Sliders | plain `<input type="range">`: styled globally, `src/lib/range-fill.ts` keeps the fill in step |
-| Meter | `src/lib/audio/meter.ts` |
+| Meter | `src/lib/audio/meter.ts` for scale/ballistics; `src/lib/audio/editor-meter.ts` for processed track peaks |
 | Settings page | `src/components/settings/Section.astro` for the title; a `Card` per group, rows inside |
 | Graphs | `FreqGraph` and `StatusCard` in `src/components/ui/`; `lib/graph.ts` (axes, grid, paths; tested) and `lib/graph-view.ts` (`mountGraph`, draws the SVG). Live example at `/ui`. |
 

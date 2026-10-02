@@ -24,6 +24,7 @@ const episode = { ...mockEpisode, ...data.episode };
   import { lineUp } from '@/lib/audio/line-up';
   import { cleanEditorProject, projectDuration, masterOptions, createEditorProject, detectPauses, defaultFx, type EditorProjectV1, type EditorTrack, type EditorSource } from '@/lib/editor-project';
   import { createRenderState, finishedProject, renderEditorWindow, renderProjectWav, type EditorSources } from '@/lib/audio/editor-render';
+  import { joinMeterWindows, outputMeterWindow, trackMeterWindow, type EditorMeterWindows, type TrackMeterWindow } from '@/lib/audio/editor-meter';
   import { mergeEditorTakes, editorSessions, remoteSource, type RemoteTake } from '@/lib/editor-sessions';
   import { listTakes, rangesWav, saveRemoteTake, type TakeMeta } from '@/lib/audio/takes';
   import { isMobile } from '@/lib/mobile';
@@ -167,34 +168,46 @@ const episode = { ...mockEpisode, ...data.episode };
     }
 
     let renderState = createRenderState(); let previewKey = ''; let previewEnd = -1;
-    let masterCache: { key: string; wav: Blob; result: Awaited<ReturnType<typeof renderMaster>> } | null = null;
+    let masterCache: { key: string; wav: Blob; result: Awaited<ReturnType<typeof renderMaster>>; meters: EditorMeterWindows } | null = null;
     const audioKey = (value: EditorProjectV1) => JSON.stringify({ tracks: value.tracks, markers: value.markers, sourceMarkers: value.sourceMarkers, retakes: value.retakes, pauses: value.pauses, master: masterOptions(value.master), crossfades: value.crossfades });
     const master = async (value: EditorProjectV1, progress: (s: string) => void, signal?: AbortSignal) => {
       const key = audioKey(value);
       if (masterCache?.key === key) return masterCache;
-      const wav = await renderProjectWav(value, sources, (done) => progress(`Rendering mix… ${Math.round(done * 100)}%`), { signal });
+      const meterChunks = new Map<string, TrackMeterWindow[]>();
+      const wav = await renderProjectWav(value, sources, (done) => progress(`Rendering mix… ${Math.round(done * 100)}%`), { signal, onTrack: (track, audio, from, rate) => {
+        const chunks = meterChunks.get(track.id) ?? [];
+        chunks.push(trackMeterWindow(audio, track.channels, rate, from));
+        meterChunks.set(track.id, chunks);
+      } });
       const parts: Uint8Array[] = []; const options = masterOptions(value.master);
       const result = await renderMaster([{ wav, level: false }], { ...options, signal }, async (chunk) => { signal?.throwIfAborted(); parts.push(pcmBytes(chunk, 24)); }, (_, done) => progress(`Measuring and mastering… ${Math.round(done * 100)}%`));
       signal?.throwIfAborted();
-      masterCache = { key, result, wav: new Blob([wavHeader(result.frames, { sampleRate: 48000, channels: options.channels, bitDepth: 24 }) as BlobPart, ...(parts as BlobPart[])], { type: 'audio/wav' }) };
+      const meters: EditorMeterWindows = {};
+      for (const [id, chunks] of meterChunks) { const joined = joinMeterWindows(chunks); if (joined) meters[id] = joined; }
+      masterCache = { key, result, meters, wav: new Blob([wavHeader(result.frames, { sampleRate: 48000, channels: options.channels, bitDepth: 24 }) as BlobPart, ...(parts as BlobPart[])], { type: 'audio/wav' }) };
       return masterCache;
     };
     const onanalyze = async (value: EditorProjectV1, progress: (s: string) => void, signal: AbortSignal) => (await master(value, progress, signal)).result;
     const onpreview = async (value: EditorProjectV1, from: number, seconds: number, solo: string[], mastered = false): Promise<EditorPreview> => {
       const ready = finishedProject(value);
       const length = Math.min(seconds, Math.max(0, projectDuration(ready) - from));
-      if (mastered) {
+      if (mastered && !solo.length) {
         const rendered = await master(value, () => {}); const reader = await WavReader.open(rendered.wav);
         reader.seek(Math.round(from * 48000));
-        const wav = encodeWav([await reader.read(Math.round(length * 48000))], { sampleRate: 48000, bitDepth: 16, channels: reader.info.channels as 1 | 2 });
-        return { url: URL.createObjectURL(wav), duration: length };
+        const samples = await reader.read(Math.round(length * 48000));
+        const channels = reader.info.channels as 1 | 2;
+        const wav = encodeWav([samples], { sampleRate: 48000, bitDepth: 16, channels });
+        return { url: URL.createObjectURL(wav), duration: length, meters: rendered.meters, masterMeter: outputMeterWindow(samples, channels, 48000, from) };
       }
       const key = audioKey(value) + JSON.stringify(solo);
       if (key !== previewKey || Math.abs(from - previewEnd) > 1 / 48000) renderState = createRenderState();
       previewKey = key; previewEnd = from + length;
-      const audio = await renderEditorWindow(ready, sources, from, length, solo, 48000, undefined, renderState);
+      const meters: EditorMeterWindows = {};
+      const audio = await renderEditorWindow(ready, sources, from, length, solo, 48000, undefined, renderState, (track, samples, start, rate) => {
+        meters[track.id] = trackMeterWindow(samples, track.channels, rate, start);
+      });
       const wav = encodeWav([audio], { sampleRate: 48000, bitDepth: 16, channels: 2 });
-      return { url: URL.createObjectURL(wav), duration: length };
+      return { url: URL.createObjectURL(wav), duration: length, meters, masterMeter: outputMeterWindow(audio, 2, 48000, from) };
     };
     const onsave = async (value: EditorProjectV1, baseRevision: number, force = false): Promise<EditorSaveResult> => {
       const response = await fetch(`/api/editor-projects/${encodeURIComponent(take.id)}`, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: value, baseRevision, force }) });

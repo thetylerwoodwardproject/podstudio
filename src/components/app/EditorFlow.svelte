@@ -2,7 +2,8 @@
   import type { EditorProjectV1, EditorTrack } from '@/lib/editor-project';
 
   export type EditorSaveState = 'idle' | 'saving' | 'saved' | 'offline' | 'failed' | 'conflict';
-  export interface EditorPreview { url: string; duration: number }
+  import type { EditorMeterWindows, TrackMeterWindow } from '@/lib/audio/editor-meter';
+  export interface EditorPreview { url: string; duration: number; meters: EditorMeterWindows; masterMeter: TrackMeterWindow }
   export interface EditorExportResult { filename: string; downloadAgain: () => void }
   export interface EditorConflict { project: EditorProjectV1; revision: number }
   export interface EditorTrackView { id: string; peaks: number[]; color: string; status?: 'loading' | 'ready' | 'error'; error?: string }
@@ -25,15 +26,20 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import EditorFxControls from './EditorFxControls.svelte';
+  import TrackLevelMeter from './TrackLevelMeter.svelte';
+  import MasterLevelMeter from './MasterLevelMeter.svelte';
   import { cleanMaster, cleanEditorProject, deleteClip, timelineMarkers, defaultFx, removeEditorTrack, restoreEditorTrack } from '@/lib/editor-project';
   import { crossfadeSpan } from '@/lib/editor-crossfades';
   import Sheet from '@/components/ui/Sheet.svelte';
   import { Button } from '@/components/shadcn/button';
   import * as DropdownMenu from '@/components/shadcn/dropdown-menu';
+  import * as ContextMenu from '@/components/shadcn/context-menu';
   import * as AlertDialog from '@/components/shadcn/alert-dialog';
   import * as Popover from '@/components/shadcn/popover';
   import { Input } from '@/components/shadcn/input';
   import { Slider } from '@/components/shadcn/slider';
+  import { meterDbfs } from '@/lib/audio/editor-meter';
+  import { PeakMeter } from '@/lib/audio/meter';
   import { PEAK_SECONDS, waveformBars } from '@/lib/audio/editor-peaks';
   import {
     deleteRange,
@@ -88,6 +94,20 @@
   let removingTrack = $state<string | null>(null);
   let removeOpen = $state(false);
   let editMenuOpen = $state(false);
+  let contextTime = $state(0);
+  let rulerContextOpen = $state(false);
+  let trackContextOpen = $state<Record<string, boolean>>({});
+  let meterDisplay = $state<Record<string, { left: number; right: number; held: number }>>({});
+  let masterDisplay = $state({ left: -Infinity, right: -Infinity, leftHeld: -Infinity, rightHeld: -Infinity });
+  let activeMeters: EditorMeterWindows = {};
+  let activeMaster: TrackMeterWindow | undefined;
+  const meterBallistics = new Map<string, [PeakMeter, PeakMeter]>();
+  const masterBallistics: [PeakMeter, PeakMeter] = [new PeakMeter(), new PeakMeter()];
+  let meterFrame = 0;
+  let lastMeterPaint = 0;
+  let meterBuffering = false;
+  let audioAt = 0;
+  let playbackEnd: number | null = null;
   let clipPopoverOpen = $state(false);
   let clipAnchor = $state<HTMLElement | null>(null);
   let clipDraft = $state({ position: '', start: '', end: '' });
@@ -104,6 +124,7 @@
   function invalidateAudio() {
     ++playTimer; prefetching = false; prefetchTask = null;
     audio?.pause(); audio = null;
+    activeMeters = {}; activeMaster = undefined; meterBallistics.clear(); meterDisplay = {}; resetMasterMeters(); meterBuffering = false;
     if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = '';
     if (nextAudio) URL.revokeObjectURL(nextAudio.url); nextAudio = null;
   }
@@ -135,7 +156,7 @@
   function applyMaster() { update({ ...plain(project), master: cleanMaster(plain(masterDraft)) }); closeLoudness(); }
 
   let audio: HTMLAudioElement | null = null;
-  let nextAudio: { at: number; element: HTMLAudioElement; url: string; duration: number } | null = null;
+  let nextAudio: { at: number; element: HTMLAudioElement; url: string; duration: number; meters: EditorMeterWindows; masterMeter: TrackMeterWindow } | null = null;
   let previewUrl = '';
   let playing = $state(false);
   let loadingAudio = $state(false);
@@ -148,6 +169,7 @@
   const timelineWidth = $derived(Math.max(900, duration * pxPerSecond));
   const selection = $derived([Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd)] as [number, number]);
   const hasSelection = $derived(selection[1] - selection[0] > 0.01);
+  const selectionLength = $derived(selection[1] - selection[0]);
   const pendingRetakes = $derived(project.tracks.some((t) => t.kind === 'voice' && t.role === 'host') ? project.retakes.filter((r) => !r.reviewed).length : 0);
   const plain = <T,>(value: T): T => structuredClone($state.snapshot(value) as T);
 
@@ -302,6 +324,35 @@
     const rect = node.getBoundingClientRect();
     return Math.max(0, Math.min(duration, (e.clientX - rect.left) / pxPerSecond));
   }
+  function resetMasterMeters() {
+    masterBallistics[0] = new PeakMeter(); masterBallistics[1] = new PeakMeter();
+    masterDisplay = { left: -Infinity, right: -Infinity, leftHeld: -Infinity, rightHeld: -Infinity };
+  }
+  function paintMeters(now: number) {
+    if (!playing || !audio || audio.paused) return;
+    if (now - lastMeterPaint < 40) return;
+    lastMeterPaint = now;
+    const at = audioAt + audio.currentTime;
+    const display: Record<string, { left: number; right: number; held: number }> = {};
+    for (const track of project.tracks) {
+      let meters = meterBallistics.get(track.id);
+      if (!meters) { meters = [new PeakMeter(), new PeakMeter()]; meterBallistics.set(track.id, meters); }
+      const trackWindow = activeMeters[track.id];
+      const left = meters[0].update(meterBuffering ? -Infinity : meterDbfs(trackWindow, at, 0), now);
+      const right = meters[1].update(meterBuffering ? -Infinity : meterDbfs(trackWindow, at, 1), now);
+      display[track.id] = { left: left.db, right: right.db, held: Math.max(left.holdDb, track.channels === 2 ? right.holdDb : -Infinity) };
+    }
+    meterDisplay = display;
+    const left = masterBallistics[0].update(meterBuffering ? -Infinity : meterDbfs(activeMaster, at, 0), now);
+    const right = masterBallistics[1].update(meterBuffering ? -Infinity : meterDbfs(activeMaster, at, 1), now);
+    masterDisplay = { left: left.db, right: right.db, leftHeld: left.holdDb, rightHeld: right.holdDb };
+  }
+  $effect(() => {
+    if (!playing) { cancelAnimationFrame(meterFrame); meterDisplay = {}; meterBallistics.clear(); resetMasterMeters(); return; }
+    const loop = (now: number) => { paintMeters(now); meterFrame = requestAnimationFrame(loop); };
+    meterFrame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(meterFrame);
+  });
   function gesture(e: PointerEvent, change: (dx: number, x: number) => void, edit = true, click?: () => void) {
     e.preventDefault(); e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
@@ -334,6 +385,7 @@
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancelEvent); window.addEventListener('keydown', key);
   }
   function beginSelection(e: PointerEvent, track?: EditorTrack, clipId?: string) {
+    if (e.button !== 0) return;
     const node = (e.currentTarget as HTMLElement).closest('[data-lane], [data-ruler]') as HTMLElement;
     if (!node) return;
     selectedTrack = track?.id ?? '';
@@ -342,6 +394,7 @@
     gesture(e, (dx) => selectionEnd = Math.max(0, Math.min(duration, start + dx)), false);
   }
   function dragClip(e: PointerEvent, track: EditorTrack, clipId: string) {
+    if (e.button !== 0) return;
     if (e.shiftKey) { beginSelection(e, track, clipId); return; }
     selectedTrack = track.id; selectedClip = clipId; selectionStart = selectionEnd = playhead;
     const original = plain(project), clip = track.clips.find((c) => c.id === clipId)!;
@@ -351,6 +404,7 @@
     gesture(e, (dx) => project = moveClip(original, track.id, clipId, Math.max(0, at + dx), unlink), true, () => { seek(clickAt); openClipPopover(node, clip); });
   }
   function trim(e: PointerEvent, track: EditorTrack, clipId: string, edge: 'start' | 'end') {
+    if (e.button !== 0) return;
     selectedTrack = track.id; selectedClip = clipId;
     const original = plain(project);
     gesture(e, (dx) => project = trimClip(original, track.id, clipId, edge, edge === 'start' ? dx : -dx));
@@ -366,6 +420,38 @@
     playhead = selection[0]; selectionStart = selectionEnd = playhead;
   }
   function split() { update(splitProject(plain(project), playhead, selectedTrack || undefined)); }
+  function splitAtContext() {
+    playhead = contextTime;
+    update(splitProject(plain(project), contextTime, selectedTrack || undefined));
+  }
+  function canSplitAtContext() {
+    return project.tracks.some((track) => (!selectedTrack || selectedTrack === track.id) && track.clips.some((clip) => contextTime > clip.timelineStart + .001 && contextTime < clip.timelineStart + clip.sourceEnd - clip.sourceStart - .001));
+  }
+  function timelineContext(e: MouseEvent, track?: EditorTrack) {
+    const target = e.target as HTMLElement;
+    const clipNode = target.closest<HTMLElement>('[data-clip]');
+    const node = target.closest<HTMLElement>('[data-lane], [data-ruler]');
+    if (!node) return;
+    contextTime = point(e, node);
+    const insideRange = hasSelection && contextTime >= selection[0] && contextTime <= selection[1];
+    selectedTrack = track?.id ?? '';
+    selectedClip = clipNode?.dataset.clip ?? '';
+    clipPopoverOpen = false;
+    if (!insideRange) { selectionStart = selectionEnd = contextTime; seek(contextTime); }
+  }
+  function keyboardContext(e: KeyboardEvent, track?: EditorTrack) {
+    if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return;
+    e.preventDefault();
+    const clipNode = (e.target as HTMLElement).closest<HTMLElement>('[data-clip]');
+    selectedTrack = track?.id ?? '';
+    selectedClip = clipNode?.dataset.clip ?? '';
+    const clip = track?.clips.find((item) => item.id === selectedClip);
+    const clipEnd = clip ? clip.timelineStart + clip.sourceEnd - clip.sourceStart : 0;
+    contextTime = clip ? playhead > clip.timelineStart && playhead < clipEnd ? playhead : (clip.timelineStart + clipEnd) / 2 : playhead;
+    if (!hasSelection || contextTime < selection[0] || contextTime > selection[1]) selectionStart = selectionEnd = contextTime;
+    if (track) trackContextOpen[track.id] = true;
+    else rulerContextOpen = true;
+  }
   function unlinkSelected() {
     if (!selectedClip) return;
     const next = plain(project);
@@ -406,7 +492,8 @@
     const token = ++playTimer;
     loadingAudio = true; playbackError = ''; playbackStatus = 'Preparing audio…';
     try {
-      const result = await onpreview(previewProject(), at, windowSeconds, $state.snapshot(solo), mastered && !fxTrack);
+      const limit = playbackEnd ?? duration;
+      const result = await onpreview(previewProject(), at, Math.max(0, Math.min(windowSeconds, limit - at)), $state.snapshot(solo), mastered && !fxTrack);
       if (token !== playTimer) { URL.revokeObjectURL(result.url); return; }
       if (result.duration <= .001) { URL.revokeObjectURL(result.url); pause(); return; }
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -414,30 +501,35 @@
       previewUrl = result.url;
       audio?.pause();
       audio = new Audio(result.url);
+      activeMeters = result.meters; activeMaster = result.masterMeter; audioAt = at; meterBallistics.clear(); meterDisplay = {}; resetMasterMeters();
       audio.loop = loop;
       wireAudio(audio, at, result.duration);
-      if (autoplay) { await audio.play(); playing = true; if (!loop && at + result.duration < duration - .01) void prefetch(at + result.duration, 8); }
+      if (autoplay) { await audio.play(); playing = true; if (!loop && at + result.duration < limit - .01) void prefetch(at + result.duration, 8); }
     } catch (error) {
       playbackError = `Playback failed: ${(error as Error).message}`; playing = false;
     } finally { if (token === playTimer) { loadingAudio = false; playbackStatus = ''; } }
   }
-  async function previewJoin(at: number) { await loadWindow(Math.max(0, at - 2), true, 4, true); }
+  async function previewJoin(at: number) { playbackEnd = null; await loadWindow(Math.max(0, at - 2), true, 4, true); }
   function wireAudio(element: HTMLAudioElement, at: number, seconds: number) {
+    element.onwaiting = () => { if (element === audio) meterBuffering = true; };
+    element.onplaying = () => { if (element === audio) meterBuffering = false; };
     element.onended = async () => {
       const generation = playTimer;
-      playhead = Math.min(duration, at + seconds);
+      const limit = playbackEnd ?? duration;
+      playhead = Math.min(limit, at + seconds);
+      if (playhead >= limit - .01) { pause(); playbackEnd = null; return; }
       if (!nextAudio && prefetchTask) { playbackStatus = 'Waiting for audio…'; await prefetchTask; playbackStatus = ''; }
       if (generation !== playTimer || !playing) return;
       if (nextAudio && Math.abs(nextAudio.at - playhead) < .1) {
-        URL.revokeObjectURL(previewUrl); previewUrl = nextAudio.url; audio = nextAudio.element; const nextAt = nextAudio.at; const nextSeconds = nextAudio.duration; nextAudio = null;
+        URL.revokeObjectURL(previewUrl); previewUrl = nextAudio.url; audio = nextAudio.element; activeMeters = nextAudio.meters; activeMaster = nextAudio.masterMeter; audioAt = nextAudio.at; meterBuffering = false; const nextAt = nextAudio.at; const nextSeconds = nextAudio.duration; nextAudio = null;
         wireAudio(audio, nextAt, nextSeconds); void audio.play();
-        if (nextAt + nextSeconds < duration - .01) void prefetch(nextAt + nextSeconds, Math.min(30, Math.max(16, nextSeconds * 2)));
-      } else if (playhead < duration - .01) void loadWindow(playhead, true);
+        if (nextAt + nextSeconds < limit - .01) void prefetch(nextAt + nextSeconds, Math.min(30, Math.max(16, nextSeconds * 2)));
+      } else if (playhead < limit - .01) void loadWindow(playhead, true);
       else playing = false;
     };
     element.ontimeupdate = () => {
       playhead = Math.min(duration, at + element.currentTime);
-      if (!nextAudio && !prefetching && at + seconds < duration && element.currentTime > .25) void prefetch(at + seconds, Math.min(30, Math.max(8, seconds * 2)));
+      if (!nextAudio && !prefetching && at + seconds < (playbackEnd ?? duration) && element.currentTime > .25) void prefetch(at + seconds, Math.min(30, Math.max(8, seconds * 2)));
     };
   }
   function prefetch(at: number, seconds: number) {
@@ -445,10 +537,10 @@
     prefetching = true; const generation = playTimer;
     const task = (async () => {
       try {
-        const result = await onpreview(previewProject(), at, seconds, $state.snapshot(solo), mastered && !fxTrack);
+        const result = await onpreview(previewProject(), at, Math.max(0, Math.min(seconds, (playbackEnd ?? duration) - at)), $state.snapshot(solo), mastered && !fxTrack);
         if (generation !== playTimer) { URL.revokeObjectURL(result.url); return; }
         const element = new Audio(result.url); element.preload = 'auto'; element.load();
-        nextAudio = { at, element, url: result.url, duration: result.duration };
+        nextAudio = { at, element, url: result.url, duration: result.duration, meters: result.meters, masterMeter: result.masterMeter };
       } catch (error) { if (generation === playTimer) playbackError = `Next audio window failed: ${(error as Error).message}`; }
       finally { if (generation === playTimer) { prefetching = false; prefetchTask = null; } }
     })();
@@ -457,12 +549,20 @@
   }
   async function play() {
     if (loadingAudio) return;
+    playbackEnd = null;
     if (audio && previewUrl && audio.paused && audio.currentTime < audio.duration - .05) { await audio.play(); playing = true; return; }
     await loadWindow(playhead, true);
   }
+  async function playSelection() {
+    if (!hasSelection || loadingAudio) return;
+    invalidateAudio(); playing = false;
+    playbackEnd = selection[1];
+    playhead = selection[0];
+    await loadWindow(selection[0], true, Math.min(4, selectionLength));
+  }
   function pause() { audio?.pause(); playing = false; }
-  function stop() { invalidateAudio(); playing = false; playbackStatus = ''; playhead = 0; }
-  function seek(at: number) { invalidateAudio(); playing = false; playhead = Math.max(0, Math.min(duration, at)); }
+  function stop() { invalidateAudio(); playing = false; playbackEnd = null; playbackStatus = ''; playhead = 0; }
+  function seek(at: number) { invalidateAudio(); playing = false; playbackEnd = null; playhead = Math.max(0, Math.min(duration, at)); }
 
   async function importFile(file: File | undefined) {
     if (!file) return;
@@ -516,6 +616,7 @@
 
   function shortcut(e: KeyboardEvent) {
     if (gestureCancel || document.querySelector('dialog[open]')) return;
+    if ((e.target as HTMLElement).closest('[role="menu"]')) return;
     if ((e.target as HTMLElement).closest('input,textarea,select,button:not([data-clip]),[contenteditable="true"]')) return;
     const mod = e.metaKey || e.ctrlKey;
     if (e.code === 'Space') { e.preventDefault(); playing ? pause() : void play(); }
@@ -574,16 +675,30 @@
       {#if importError && pendingImport}<Button class="mt-3" variant="outline" size="sm" disabled={importing} onclick={() => importFile(pendingImport)}>Retry upload</Button>{/if}
     </div>
   {/if}
+  {#snippet timelineMenu()}
+    <ContextMenu.Content preventScroll={false} class="w-44" data-editor-context-menu>
+      <ContextMenu.Item disabled={!hasSelection} onclick={() => void playSelection()}>Play selection</ContextMenu.Item>
+      <ContextMenu.Separator />
+      <ContextMenu.Item disabled={!canSplitAtContext()} onclick={splitAtContext}>Split at cursor</ContextMenu.Item>
+      <ContextMenu.Item disabled={!selectedClip} onclick={unlinkSelected}>{selected?.linked === false ? 'Link' : 'Unlink'}</ContextMenu.Item>
+      <ContextMenu.Item disabled={!hasSelection && !selectedClip} onclick={() => remove(false)}>Delete</ContextMenu.Item>
+      <ContextMenu.Item disabled={!hasSelection} onclick={() => remove(true)}>Ripple cut</ContextMenu.Item>
+    </ContextMenu.Content>
+  {/snippet}
   <div class="flex min-h-0 flex-1 overflow-auto" data-timeline-scroll>
     <div class="relative min-w-full" style={`width:${HEADER + timelineWidth}px`}>
       <div class="sticky top-0 z-30 flex h-10 border-b border-divider bg-page/95 backdrop-blur">
         <div class="sticky left-0 z-40 flex w-[176px] flex-none items-center border-r border-divider bg-page px-4 text-[11px] font-mono text-text-3">TRACKS</div>
-        <div class="relative flex-1" role="button" tabindex="0" aria-label="Timeline ruler" style={`width:${timelineWidth}px`} data-ruler onpointerdown={(e) => beginSelection(e)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') seek(playhead); }}>
+        <ContextMenu.Root bind:open={rulerContextOpen}>
+        <ContextMenu.Trigger class="relative flex-1" role="button" tabindex={0} aria-label="Timeline ruler" style={`width:${timelineWidth}px`} data-ruler onpointerdown={(e) => beginSelection(e)} oncontextmenu={(e) => timelineContext(e)} onkeydown={(e) => { keyboardContext(e); if (e.key === 'Enter' || e.key === ' ') seek(playhead); }}>
           {#each Array(Math.ceil(duration / (zoom < 1 ? 30 : zoom > 3 ? 5 : 10)) + 1) as _, i}
             {@const step = zoom < 1 ? 30 : zoom > 3 ? 5 : 10}
             <div class="absolute top-0 h-full border-l border-divider" style={`left:${i * step * pxPerSecond}px`}><span class="ml-1.5 font-mono text-[10px] text-text-3">{fmt(i * step)}</span></div>
           {/each}
-        </div>
+          {#if hasSelection}<div data-selection-summary class="pointer-events-none absolute top-1 z-10 whitespace-nowrap rounded-md border border-primary/60 bg-sheet px-2 py-1 font-mono text-[10px] text-text shadow-sm" style={`left:${selection[0] * pxPerSecond}px`}>{fmtPrecise(selection[0])} → {fmtPrecise(selection[1])} · {fmtPrecise(selectionLength)}</div>{/if}
+        </ContextMenu.Trigger>
+        {@render timelineMenu()}
+        </ContextMenu.Root>
       </div>
       <div class="sticky top-10 z-20 flex h-9 border-b border-divider bg-sheet">
         <div class="sticky left-0 z-30 flex w-[176px] flex-none items-center border-r border-divider bg-sheet px-4 text-[11px] text-text-3">MARKERS</div>
@@ -596,7 +711,8 @@
       {#each project.tracks as track}
         {@const view = viewFor(track.id)}
         <div data-track={track.id} class="flex h-[104px] border-b border-divider" class:bg-surface={track.id === selectedTrack}>
-          <div class="sticky left-0 z-20 flex w-[176px] flex-none flex-col justify-center gap-2 border-r border-divider bg-page px-3">
+          <div class="sticky left-0 z-20 flex w-[176px] flex-none flex-col justify-center gap-2 border-r border-divider bg-page py-1 pl-2 pr-8">
+            <TrackLevelMeter name={track.name} channels={track.channels} left={meterDisplay[track.id]?.left} right={meterDisplay[track.id]?.right} held={meterDisplay[track.id]?.held} />
             <div class="flex items-center gap-2"><span class="size-2 rounded-full" style={`background:${view?.color ?? 'var(--color-text-3)'}`}></span><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger class="size-6 rounded-md text-text-2 hover:bg-control" aria-label={`${track.name} track actions`}>⋯</DropdownMenu.Trigger>
@@ -614,11 +730,12 @@
             </div>
             <input aria-label={`${track.name} level`} type="range" min="-24" max="12" step="1" value={track.gainDb} oninput={(e) => level(track.id, Number(e.currentTarget.value))} />
           </div>
-          <div class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex="-1" onpointerdown={(e) => beginSelection(e, track)}>
+          <ContextMenu.Root open={trackContextOpen[track.id] ?? false} onOpenChange={(open) => trackContextOpen[track.id] = open}>
+          <ContextMenu.Trigger class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex={0} onpointerdown={(e) => beginSelection(e, track)} oncontextmenu={(e) => timelineContext(e, track)} onkeydown={(e) => keyboardContext(e, track)}>
             {#each track.clips as clip}
               {@const clipDuration = clip.sourceEnd - clip.sourceStart}
               {@const clipPeaks = waveformBars(view?.peaks ?? [], clip.sourceStart, clip.sourceEnd, pxPerSecond, clip.sourceStart + Math.max(0, visibleFrom - clip.timelineStart), clip.sourceStart + Math.min(clipDuration, visibleTo - clip.timelineStart))}
-              <button data-clip class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedTrack = track.id; selectedClip = clip.id; openClipPopover(e.currentTarget, clip); } }} title="Click for clip details; drag to move; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
+              <button data-clip={clip.id} class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedTrack = track.id; selectedClip = clip.id; openClipPopover(e.currentTarget, clip); } }} title="Click for clip details; drag to move; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
                 <span role="slider" aria-label="Trim clip start" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceStart} tabindex="0" class="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'start')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'start', e.key === 'ArrowRight' ? .01 : -.01)); } }}></span>
                 <span role="slider" aria-label="Trim clip end" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceEnd} tabindex="0" class="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'end')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'end', e.key === 'ArrowLeft' ? .01 : -.01)); } }}></span>
                 <span class="absolute left-2 top-1 font-mono text-[9px] text-text-3">{clip.linked ? 'LINKED' : 'UNLINKED'}</span>
@@ -635,8 +752,10 @@
               {@const span = crossfadeSpan(track, fade)}
               {#if span}<div data-crossfade class="pointer-events-none absolute top-3 h-[78px] border-x border-text/40 bg-text/5" style={`left:${span[0] * pxPerSecond}px;width:${(span[1] - span[0]) * pxPerSecond}px`} title="Equal-power crossfade"><svg class="h-full w-full" viewBox="0 0 100 78" preserveAspectRatio="none" aria-label="Crossfade"><path d="M0 0 Q64 0 100 78 M0 78 Q36 0 100 0" fill="none" stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".5" /></svg></div>{/if}
             {/each}
-            {#if hasSelection}<div class="pointer-events-none absolute inset-y-0 bg-info/15 outline outline-1 outline-info" style={`left:${selection[0] * pxPerSecond}px;width:${(selection[1] - selection[0]) * pxPerSecond}px`}></div>{/if}
-          </div>
+            {#if hasSelection}<div data-time-selection class={`pointer-events-none absolute inset-y-0 border-x-2 border-primary ${track.id === selectedTrack ? 'bg-primary/30' : 'bg-primary/15'}`} style={`left:${selection[0] * pxPerSecond}px;width:${selectionLength * pxPerSecond}px`}></div>{/if}
+          </ContextMenu.Trigger>
+          {@render timelineMenu()}
+          </ContextMenu.Root>
         </div>
       {/each}
       <div class="pointer-events-none absolute bottom-0 top-0 z-40 w-px bg-rec" style={`left:${HEADER + playhead * pxPerSecond}px`}><span class="absolute -left-1.5 top-0 size-3 rotate-45 bg-rec"></span></div>
@@ -657,9 +776,10 @@
   <div class="flex min-h-[56px] flex-none items-center gap-3 border-t border-divider bg-surface px-4 py-2">
     <button data-editor-play class="size-9 rounded-full bg-text text-page disabled:opacity-60" disabled={loadingAudio} onclick={() => playing ? pause() : void play()} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if playing}<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>{:else}<path d="M7 4L21 12L7 20Z"/>{/if}</svg></button>
     <button class="size-9 rounded-[10px] border border-border text-[12px]" onclick={stop} aria-label="Stop" title="Stop"><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
-    <span class="w-[58px] font-mono text-[12px]">{fmt(playhead)}</span>
+    <span data-current-time class="w-[58px] font-mono text-[15px] font-medium tabular-nums">{fmt(playhead)}</span>
     <input class="min-w-[160px] flex-1" aria-label="Playhead" type="range" min="0" max={Math.max(.01, duration)} step=".01" value={playhead} oninput={(e) => seek(Number(e.currentTarget.value))} />
-    <span class="font-mono text-[12px] text-text-2">{fmt(duration)}</span>
+    <span data-duration-time class="font-mono text-[15px] font-medium tabular-nums text-text-2">{fmt(duration)}</span>
+    <div class="flex-none border-l border-divider pl-3"><MasterLevelMeter {...masterDisplay} /></div>
     <div class="h-6 w-px bg-divider"></div>
     <DropdownMenu.Root bind:open={editMenuOpen}>
       <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Edit actions">Edit</DropdownMenu.Trigger>

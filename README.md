@@ -64,7 +64,7 @@ kept in step.
 | ✂️ **Marked, not cut** | Retake, cough and ad-lib are one key each. The raw WAV stays whole; the export adds an edit that keeps your last attempt of each line |
 | 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and the session from anywhere |
 | ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
-| ✂️ **Podcast editor** | A desktop timeline with synchronized waveforms, retake and pause review, linked edits, undo/redo, per-track podcast FX, autosave, and a continuous cumulative preview |
+| ✂️ **Podcast editor** | A desktop timeline with synchronized waveforms, range editing and a right-click menu, live track and stereo master dBFS meters, retake and pause review, linked edits, undo/redo, podcast FX, autosave, and a continuous cumulative preview |
 | 📦 **A finished mix or raw tracks** | Export a mastered WAV, optional MP3, and optional aligned host, guest, pads and imported raw tracks. Finished mixes contain the edits and no marker tones; host raw exports can carry configured marker tones |
 | 🎛️ **Hotkey pads** | Nine sounds on the number keys, configured in a desktop sheet from uploads, previous sessions or the library, previewed live, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |

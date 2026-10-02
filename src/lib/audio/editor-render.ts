@@ -110,7 +110,7 @@ export async function renderTrackWindow(track: EditorTrack, sources: EditorSourc
   return output;
 }
 
-export async function renderEditorWindow(project: EditorProjectV1, sources: EditorSources, from: number, seconds: number, solo: string[] = [], rate = 48000, levelers?: Map<string, Leveler>, state?: RenderState): Promise<Float32Array> {
+export async function renderEditorWindow(project: EditorProjectV1, sources: EditorSources, from: number, seconds: number, solo: string[] = [], rate = 48000, levelers?: Map<string, Leveler>, state?: RenderState, onTrack?: (track: EditorTrack, audio: Float32Array, from: number, rate: number) => void): Promise<Float32Array> {
   const n = Math.max(0, Math.round(seconds * rate));
   const mix = new Float32Array(n * 2);
   const tracks = project.tracks.filter((t) => !solo.length || solo.includes(t.id));
@@ -123,6 +123,7 @@ export async function renderEditorWindow(project: EditorProjectV1, sources: Edit
       levelers.set(track.id, leveler);
     }
     const audio = await renderTrackWindow(track, sources, from, seconds, rate, coughs, leveler, state, track.kind === 'voice' ? project.sourceMarkers?.filter((m) => m.kind === 'cut' && (m.who ?? 'host') === who).map((m) => [m.t, m.end ?? m.t]) : undefined, (project.crossfades ?? []).filter((f) => f.trackId === track.id));
+    onTrack?.(track, audio, from, rate);
     for (let i = 0; i < mix.length; i++) mix[i] += audio[i] ?? 0;
   }
   return mix;
@@ -171,7 +172,7 @@ export async function renderProjectWav(
   project: EditorProjectV1,
   sources: EditorSources,
   onProgress?: (done: number) => void,
-  options: { finished?: boolean; rate?: number; bitDepth?: BitDepth; signal?: AbortSignal } = {},
+  options: { finished?: boolean; rate?: number; bitDepth?: BitDepth; signal?: AbortSignal; onTrack?: (track: EditorTrack, audio: Float32Array, from: number, rate: number) => void } = {},
 ): Promise<Blob> {
   const rate = options.rate ?? 48000;
   const bitDepth = options.bitDepth ?? 24;
@@ -184,7 +185,7 @@ export async function renderProjectWav(
   for (let from = 0; from < duration; from += step) {
     options.signal?.throwIfAborted();
     const seconds = Math.min(step, duration - from);
-    const mix = await renderEditorWindow(rendering, sources, from, seconds, [], rate, undefined, state);
+    const mix = await renderEditorWindow(rendering, sources, from, seconds, [], rate, undefined, state, options.onTrack);
     chunks.push(pcmBytes(mix, bitDepth));
     frames += mix.length / 2;
     onProgress?.(Math.min(1, (from + seconds) / Math.max(.001, duration)));
