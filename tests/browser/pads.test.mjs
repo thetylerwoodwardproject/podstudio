@@ -45,7 +45,12 @@ ok('sfx defaults: one-shot, no duck', (await page.getAttribute('[data-mode-picke
 ok('44.1 kHz file converted to 48 kHz', /0:01\.0 · 48 kHz/.test(await page.locator('[data-d-source]').textContent()), await page.locator('[data-d-source]').textContent());
 await page.click('[data-d-save]');
 ok('save indicator confirms the pad', await until(async () => (await page.locator('[data-save-status]').getAttribute('data-save-status')) === 'saved'));
-ok('Sonner save feedback appears at the top', await page.locator('[data-save-toast="saved"]').isVisible() && (await page.locator('[data-save-toast="saved"]').boundingBox()).y < 180);
+// The persistence event precedes Sonner's render; wait for the visible result.
+ok('Sonner save feedback appears at the top', await until(async () => {
+  const toast = page.locator('[data-save-toast="saved"]');
+  const bounds = await toast.boundingBox();
+  return await toast.isVisible() && !!bounds && bounds.y < 180;
+}));
 await page.click('[data-grid-key="1"]');
 await page.keyboard.press('Escape');
 ok('Escape closes the sheet and returns focus', await page.locator('[data-pad-editor-sheet]').isHidden() && await page.locator('[data-grid-key="1"]').evaluate((el) => el === document.activeElement));

@@ -20,6 +20,12 @@ The first real VPS install is active. Validate:
 
 ## UI facelift follow-through
 
+A [new-episode dialog mockup](design/new-episode/README.md) is ready for review.
+Next, replace the library browser prompt with that shadcn Field/Dialog flow,
+using the existing episode API and preserving creation/navigation behavior.
+The [October 2 handoff](handoffs/2026-10-02-ui-and-website.md) also records the
+public website refresh and its separate VPS deployment steps.
+
 The first theme and component foundation is in place: System, Light and Dark
 choices sync through account settings; the semantic palette and local
 shadcn-svelte components are available; UI-source credits and license notices

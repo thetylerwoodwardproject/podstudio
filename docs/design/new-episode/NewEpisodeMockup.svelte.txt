@@ -1,0 +1,77 @@
+<script lang="ts">
+  import * as Dialog from '@/components/shadcn/dialog';
+  import { Button } from '@/components/shadcn/button';
+  import { Input } from '@/components/shadcn/input';
+  import * as Field from '@mock/components/field';
+  import StatusDot from '@/components/ui/StatusDot.svelte';
+  import Spinner from '@/components/shadcn/spinner/Spinner.svelte';
+  let open = $state(true), title = $state(''), error = $state(''), saving = $state(false), created = $state('');
+  let theme = $state(new URL(location.href).searchParams.get('theme') === 'light' ? 'light' : 'dark');
+  $effect(() => { document.documentElement.dataset.theme = theme; });
+  function show() { title = ''; error = ''; created = ''; open = true; }
+  async function create(e: SubmitEvent) {
+    e.preventDefault();
+    if (!title.trim()) { error = 'Enter an episode title to continue.'; document.getElementById('episode-title')?.focus(); return; }
+    saving = true;
+    await new Promise((resolve) => setTimeout(resolve, 850));
+    saving = false; created = title.trim(); open = false;
+  }
+  const episodes = [
+    {number:'143',title:'A new signal',status:'Recorded',script:'318 words',sessions:'2 sessions',updated:'Today'},
+    {number:'142',title:'The Transmitter',status:'Recorded',script:'412 words',sessions:'1 session',updated:'Yesterday'},
+    {number:'141',title:'Room for another voice',status:'Draft',script:'256 words',sessions:'—',updated:'Sep 29'},
+  ];
+</script>
+
+<div class="min-h-screen bg-page text-text">
+  <header class="flex h-14 items-center gap-5 border-b border-divider px-6">
+    <span class="flex items-center gap-2 font-semibold"><StatusDot variant="recording" />Podstudio</span>
+    <span class="text-sm text-text-2">Episodes</span><span class="ml-auto flex size-8 items-center justify-center rounded-full bg-control text-xs">T</span>
+  </header>
+  <main class="px-6 py-8 sm:px-9">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-5">
+      <div class="flex gap-6 text-sm text-text-2"><span class="text-text">All</span><span>Drafts</span><span>Recorded</span><span>Published</span></div>
+      <div class="flex items-center gap-3"><Input class="hidden h-10 w-64 sm:block" placeholder="Search episodes and scripts" aria-label="Search episodes" /><Button variant="outline" class="h-10">Import script</Button><Button class="h-10 px-4" onclick={show}>+ New episode</Button></div>
+    </div>
+    <div class="overflow-hidden border-y border-divider">
+      <div class="library-row py-3 font-mono text-[11px] uppercase tracking-wide text-text-3"><span>Episode</span><span>Status</span><span>Script</span><span>Sessions</span><span>Updated</span></div>
+      {#each episodes as ep}<div class="library-row border-t border-divider py-5 text-sm"><div><span class="mr-2 text-text-3">Ep. {ep.number}</span>{ep.title}<p class="mt-2 text-xs text-text-2">{ep.status === 'Recorded' ? 'Open editor' : 'Edit script'}<span class="mx-3 text-border">/</span>Record new session</p></div><span class="flex items-center gap-2 text-text-2"><StatusDot variant={ep.status === 'Recorded' ? 'success' : 'muted'} />{ep.status}</span><span class="font-mono text-xs text-text-2">{ep.script}</span><span class="text-text-2">{ep.sessions}</span><span class="text-text-3">{ep.updated}</span></div>{/each}
+    </div>
+    {#if created}<div role="status" class="mx-auto mt-16 max-w-md rounded-2xl border border-border bg-surface p-6"><div class="mb-3 flex items-center gap-2 text-sm"><StatusDot variant="success" />Preview complete</div><h2 class="text-lg font-medium">{created}</h2><p class="mt-2 text-sm text-text-2">In the app, this opens the new episode’s script page.</p><p class="mt-4 text-xs text-text-3">Mockup only — no episode was created.</p><Button class="mt-5" onclick={show}>Try again</Button></div>{/if}
+  </main>
+  <aside class="fixed inset-x-0 bottom-0 flex items-center justify-center gap-3 border-t border-divider bg-surface p-3 text-xs text-text-2"><span class="mr-2">Interactive mockup · No data is saved</span><Button variant="outline" size="sm" onclick={() => theme = theme === 'dark' ? 'light' : 'dark'}>View {theme === 'dark' ? 'light' : 'dark'} theme</Button><Button variant="outline" size="sm" onclick={show}>Open dialog</Button></aside>
+</div>
+<Dialog.Root bind:open>
+  <Dialog.Content class="episode-dialog gap-0 overflow-hidden rounded-2xl border border-border bg-sheet p-0 shadow-2xl sm:max-w-[520px]" onOpenAutoFocus={(e) => { e.preventDefault(); document.getElementById('episode-title')?.focus(); }}>
+    <Dialog.Header class="gap-2 border-b border-divider px-6 py-6 pr-14">
+      <Dialog.Title class="text-[20px] font-medium tracking-tight">New episode</Dialog.Title>
+      <Dialog.Description class="text-[14px] leading-relaxed text-text-2">Start with a title. Add your script in the next step.</Dialog.Description>
+    </Dialog.Header>
+    <form onsubmit={create} novalidate>
+      <div class="px-6 py-7">
+        <Field.Group>
+          <Field.Field data-invalid={!!error}>
+            <Field.Label for="episode-title" class="text-sm font-medium">Episode title</Field.Label>
+            <Input id="episode-title" bind:value={title} placeholder="e.g. Inside the new studio" class="h-11 rounded-[10px] px-3 text-sm" aria-invalid={!!error} aria-describedby={error ? 'title-error' : 'title-help'} disabled={saving} oninput={() => error = ''} />
+            {#if error}<Field.Error id="title-error">{error}</Field.Error>{:else}<Field.Description id="title-help" class="text-[13px]">A working title is fine. You can rename it later.</Field.Description>{/if}
+          </Field.Field>
+        </Field.Group>
+        <p class="mt-6 text-[12px] text-text-3">Episode numbers are assigned automatically.</p>
+      </div>
+      <Dialog.Footer class="m-0 flex-row justify-end gap-2.5 rounded-none border-t border-divider bg-surface px-6 py-4">
+        <Button type="button" variant="outline" class="h-10 px-4" disabled={saving} onclick={() => open = false}>Cancel</Button>
+        <Button type="submit" class="h-10 min-w-36 px-4" disabled={saving}>{#if saving}<Spinner class="size-4" />Creating…{:else}Create episode{/if}</Button>
+      </Dialog.Footer>
+    </form>
+  </Dialog.Content>
+</Dialog.Root>
+<style>
+  .library-row { display:grid;grid-template-columns:minmax(220px,1fr) 130px 120px 110px 100px;gap:24px;align-items:center; }
+  :global([data-slot="dialog-overlay"]) { background: rgb(4 5 15 / 48%);backdrop-filter:blur(3px); }
+  :global([data-theme="light"] [data-slot="dialog-overlay"]) { background: rgb(20 22 45 / 28%); }
+  :global([data-slot="dialog-close"]) { top:18px;right:18px; }
+  @media(max-width:600px){
+    .library-row { grid-template-columns:minmax(180px,1fr) 100px;gap:12px; }.library-row > :nth-child(n+3){display:none}
+    :global(.episode-dialog){top:auto!important;bottom:0!important;left:0!important;transform:none!important;translate:none!important;--tw-translate-x:0!important;--tw-translate-y:0!important;width:100%!important;max-width:100%!important;border-radius:18px 18px 0 0!important;padding-bottom:env(safe-area-inset-bottom);}
+  }
+</style>

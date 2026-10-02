@@ -4,6 +4,19 @@ Read this first, then `CLAUDE.md`, `docs/ui-framework.md`, `docs/features.md`,
 `docs/development.md`, `docs/server-api.md`, `docs/deploy.md`, and
 `docs/roadmap.md` as needed.
 
+## Latest handoff · 2026-10-02
+
+See [UI and website handoff](handoffs/2026-10-02-ui-and-website.md) for the
+current shipped app state, new-episode dialog mockup, website refresh,
+deployment steps, and remaining VPS checks. The dialog is a review artifact;
+the production New episode action still uses its existing browser prompt.
+
+Website/mockup delivery verification: 281 unit/server tests pass; Astro reports
+zero errors and warnings; Svelte reports zero errors with seven existing
+warnings; the build passes. All 20 browser flows passed across the initial
+run and the resumed remaining-flow run. The pad save-toast assertion now
+waits for Sonner to render instead of racing the persistence event.
+
 ## Where it stands
 
 Podstudio `0.1.0` is in active development and installed on the first lab VPS
@@ -185,7 +198,7 @@ npm run build
 npm run test:browser
 ```
 
-The browser suite contains 16 Chromium flows and writes logs/screenshots to
+The browser suite contains 20 Chromium flows and writes logs/screenshots to
 `tests/browser/.out`. Review new desktop and phone screenshots against
 `docs/ui-framework.md`. The editor unit coverage includes project validation,
 linked/ripple commands, retakes, pause suggestions, bounded source reads and

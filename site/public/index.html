@@ -3,24 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Podstudio · The teleprompter that listens</title>
-  <meta name="description" content="Podstudio is a free, self-hosted teleprompter and podcast recorder that runs in your browser. The script scrolls as you speak, and it records lossless WAV with every retake marked. Coming soon.">
-  <meta name="theme-color" content="#0b0b0c">
+  <title>Podstudio · Your browser-based podcast studio</title>
+  <meta name="description" content="Record, edit and export your podcast in your browser. Voice-following scripts, synchronized tracks and non-destructive editing on your own server. Free, open source and in active development.">
+  <meta name="theme-color" content="#121225">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://podstudio.dev/">
-  <meta property="og:title" content="Podstudio · The teleprompter that listens">
-  <meta property="og:description" content="A free, self-hosted teleprompter and podcast recorder. In development: follow along on GitHub.">
-  <meta property="og:image" content="https://podstudio.dev/og.png">
+  <meta property="og:title" content="Podstudio · Your browser-based podcast studio">
+  <meta property="og:description" content="A self-hosted podcast studio with lossless recording, a desktop editor and browser audio processing. In active development.">
+  <meta property="og:image" content="https://podstudio.dev/og.png?v=20261002">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.svg?v=20261002" type="image/svg+xml">
   <link rel="canonical" href="https://podstudio.dev/">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=20261002">
 </head>
 <body>
   <header class="top">
     <div class="wrap top-row">
       <a class="brand" href="/" aria-label="Podstudio home">
-        <svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><rect x="4" y="4" width="88" height="88" rx="22" fill="#0b0b0c"/><rect x="4.5" y="4.5" width="87" height="87" rx="21.5" fill="none" stroke="#26272b"/><circle cx="34" cy="48" r="13" fill="#ff453a"/><circle cx="34" cy="48" r="19" fill="none" stroke="#ff453a" stroke-opacity=".28" stroke-width="3"/><rect x="59" y="33" width="20" height="5" rx="2.5" fill="#3a3b3f"/><rect x="59" y="45.5" width="22" height="5" rx="2.5" fill="#ededea"/><rect x="59" y="58" width="14" height="5" rx="2.5" fill="#3a3b3f"/></svg>
+        <svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><rect x="4" y="4" width="88" height="88" rx="22" fill="#121225"/><rect x="4.5" y="4.5" width="87" height="87" rx="21.5" fill="none" stroke="#42445f"/><circle cx="34" cy="48" r="13" fill="#ff453a"/><circle cx="34" cy="48" r="19" fill="none" stroke="#ff453a" stroke-opacity=".28" stroke-width="3"/><rect x="59" y="33" width="20" height="5" rx="2.5" fill="#656783"/><rect x="59" y="45.5" width="22" height="5" rx="2.5" fill="#f5f5fa"/><rect x="59" y="58" width="14" height="5" rx="2.5" fill="#656783"/></svg>
         Podstudio
       </a>
       <a class="btn btn-sm btn-secondary" href="https://github.com/thetylerwoodwardproject/podstudio">
@@ -32,24 +32,25 @@
 
   <main>
     <section class="hero wrap">
-      <p class="status"><span class="dot"></span>Coming soon · in development</p>
+      <p class="status"><span class="dot"></span>In development · VPS testing</p>
       <p class="tags">Free · Open source · Self-hosted</p>
-      <h1>The teleprompter that listens.</h1>
+      <h1>Your podcast, from first line to final mix.</h1>
       <p class="lede">
-        Podstudio is a podcast studio that runs in your browser. The script scrolls as you speak, and it records
-        lossless WAV with every retake, cough and ad-lib marked, on your own server.
+        Follow your script, record lossless audio, and shape the finished episode in a focused editor.
+        Audio processing happens in your browser. Your recordings stay on your own server.
       </p>
       <div class="actions">
         <a class="btn btn-lg btn-primary" href="https://github.com/thetylerwoodwardproject/podstudio">Follow along on GitHub</a>
         <a class="btn btn-lg btn-secondary" href="https://github.com/thetylerwoodwardproject/podstudio#where-it-stands">What works today</a>
       </div>
-      <p class="fine">Audio only · Chrome, Edge and Arc on computers · iPhone and iPad with iOS 17+ · Android</p>
+      <p class="fine">Desktop editing · Mobile recording and review · Audio only</p>
 
       <figure class="shots">
-        <img class="shot-main" src="/images/recording.png" width="1440" height="900"
-          alt="Podstudio recording: the current line of the script is marked, the level meter sits in the target zone, and Cough, Retake and Ad-lib are one key away">
-        <img class="shot-phone" src="/images/phone-recording.png" width="390" height="844"
-          alt="The same recording screen on a phone">
+        <img class="shot-main" src="/images/editor.png?v=20261002" width="1440" height="900"
+          alt="Podstudio desktop editor in its dark theme, with synchronized host, guest and pads waveforms, track controls and master levels">
+        <img class="shot-phone" src="/images/phone-recording.png?v=20261002" width="390" height="844"
+          alt="Podstudio phone recording screen with the script and recording controls">
+        <figcaption><span class="desktop-caption">The desktop editor: synchronized tracks, live meters and non-destructive editing.</span><span class="phone-caption">Record on your phone. Open the full editor on desktop.</span></figcaption>
       </figure>
     </section>
 
@@ -68,8 +69,8 @@
         </article>
         <article class="card">
           <span class="num">03</span>
-          <h3>Marked, not cut</h3>
-          <p>Retake, cough and ad-lib are one key each. The raw file stays whole; the export adds an edit with your last take of each line.</p>
+          <h3>Review every retake</h3>
+          <p>Retakes, coughs and ad-libs appear on the timeline. Choose the attempt to keep and adjust the edit while the original recordings remain recoverable.</p>
         </article>
         <article class="card">
           <span class="num">04</span>
@@ -79,12 +80,12 @@
         <article class="card">
           <span class="num">05</span>
           <h3>Hotkey pads</h3>
-          <p>Nine sounds on the number keys, ducked under your voice and saved as their own track.</p>
+          <p>On desktop, nine sounds on the number keys, ducked under your voice and saved as their own track. Use session clips or upload your own sounds.</p>
         </article>
         <article class="card">
           <span class="num">06</span>
-          <h3>Publish as is, or take it to your DAW</h3>
-          <p>A finished episode at <span class="mono">−16 LUFS</span> stereo or <span class="mono">−19 LUFS</span> mono, WAV and MP3, with every voice levelled if you like. Beside it, each person's raw and edited WAV for your own post-production.</p>
+          <h3>A focused podcast editor</h3>
+          <p>Move, trim, split and crossfade synchronized tracks. Undo an edit, preview the full mix, and reopen your saved project without flattening the recording.</p>
         </article>
         <article class="card">
           <span class="num">07</span>
@@ -93,8 +94,8 @@
         </article>
         <article class="card">
           <span class="num">08</span>
-          <h3>Noise suppression</h3>
-          <p>One fader, using DeepFilterNet3 in the browser. It makes cleaned copies; the unprocessed files are always kept.</p>
+          <h3>Shape the finished mix</h3>
+          <p>Clean, Shape and Boost controls keep processing simple. Open Advanced for ten-band EQ and compression, then export finished WAV, optional MP3 and optional aligned raw tracks.</p>
         </article>
         <article class="card">
           <span class="num">09</span>
@@ -106,22 +107,22 @@
 
     <section class="wrap section split">
       <figure class="split-img">
-        <img src="/images/export.png" width="1440" height="900" loading="lazy"
-          alt="Export: the raw WAV with markers, the assembled edit, marker tones and noise suppression">
+        <img src="/images/recording.png?v=20261002" width="1440" height="900" loading="lazy"
+          alt="The current desktop recording screen in Podstudio’s dark theme, with voice-following script and recording controls">
       </figure>
       <div>
         <h2 class="section-label">Where it stands</h2>
         <p class="big">Podstudio isn't released yet.</p>
         <p class="body">
-          Recording, voice follow, guests and exports work today, and the first test on a real server is under way.
+          Recording, voice follow, guests, the desktop editor and exports are implemented. Real-world testing is under way on the lab VPS.
           Expect rough edges and changes between versions until the first release.
         </p>
         <ul class="list">
           <li><span class="dot ok"></span>Recording, markers and exports</li>
           <li><span class="dot ok"></span>Guest and producer sessions</li>
-          <li><span class="dot ok"></span>A ready-to-publish episode at podcast loudness</li>
+          <li><span class="dot ok"></span>Non-destructive editing, EQ and compression</li>
           <li><span class="dot ok"></span>Accounts with two-factor, guided install</li>
-          <li><span class="dot warn"></span>Next: versioned releases and transcripts</li>
+          <li><span class="dot warn"></span>Next: reliability testing and release readiness</li>
         </ul>
         <a class="link" href="https://github.com/thetylerwoodwardproject/podstudio/blob/main/docs/roadmap.md">Read the roadmap →</a>
       </div>
@@ -134,7 +135,7 @@
           <summary>If the recordings drift out of sync, can they be lined up again?</summary>
           <p>
             Yes, like cameras with timecode. Everyone in a session shares one clock, and every track notes where it
-            is on that clock every 5 seconds. At export Podstudio uses those points to correct the drift between
+            is on that clock every 5 seconds. Before editing, Podstudio uses those points to correct the drift between
             devices and to fill any gap where a guest's audio dropped out, so the tracks stay lined up to the end.
             Every WAV also carries its start as Broadcast WAV timecode, so your editor can line the files up on its own.
           </p>
@@ -152,12 +153,11 @@
         <details>
           <summary>Can I publish the export as it is?</summary>
           <p>
-            Yes. Every export can include a finished episode, everyone mixed and brought to the usual podcast
-            loudness: −16 LUFS for stereo or −19 LUFS for mono, with peaks kept under −1 dBTP. It comes as WAV and
-            MP3, ready to upload to your podcast host, and an optional leveller evens out a quiet guest and a loud
-            host first. If you'd rather do your own post-production, the same zip has each person's untouched
-            recording and edit, lined up, for Pro Tools, Reaper, Logic, Audition or any other DAW. The episode, its
-            loudness and the leveller each have their own switch.
+            The finished WAV includes your chosen takes, timeline edits, track processing and loudness settings.
+            Add MP3 if needed. Presets target −16 LUFS stereo or −19 LUFS mono with a −1 dBTP ceiling;
+            custom targets and normalization off are also available. Optional raw tracks preserve the original
+            attempts and cough audio, with configured marker tones on the host track. Finished mixes contain no marker tones.
+            Review and listen before publishing while Podstudio is in development.
           </p>
         </details>
         <details>
@@ -170,9 +170,8 @@
         <details>
           <summary>Does it need the internet?</summary>
           <p>
-            Recording works without it, and saves every 5 seconds. Voice follow uses the browser's speech recognition,
-            which in Chrome sends audio to Google to turn it into text, so the device doing voice follow needs a
-            connection. Guests upload to your server as they record.
+            Recording works without it, and saves every 5 seconds. Voice follow uses the browser's speech recognition: on-device recognition is used when available,
+            otherwise the browser may use an online service. Guests need a connection to join and synchronize uploads.
           </p>
         </details>
         <details>
