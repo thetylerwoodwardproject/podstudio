@@ -1,0 +1,7 @@
+---
+// Astro counterpart to shadcn-svelte Input for server-rendered forms.
+import { inputClass } from '@/lib/ui';
+interface Props { class?: string; type?: 'text' | 'password' | 'email' | 'search' | 'url' | 'number'; [key: string]: unknown }
+const { class: cls, type = 'text', ...rest } = Astro.props;
+---
+<input type={type} data-slot="input" class:list={[inputClass, cls]} {...rest} />

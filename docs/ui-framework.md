@@ -33,6 +33,22 @@ The editor footer reserves a compact, stacked horizontal L/R master meter beside
 the shortened scrubber. It measures the actual preview output and uses the same
 dBFS scale and colors as the track meters. Keep the larger elapsed and duration
 labels directly on either side of the scrubber, before the master meter.
+The editor FX sheet offers Clean, Shape and Boost knobs in Simple view, with a
+Shape preset choice. Advanced exposes ten vertical shadcn sliders and exact
+compressor controls. The knobs adapt More Shadcn Svelte's MIT-licensed design;
+the existing calibrated dBFS meters remain authoritative. More Shadcn's Audio
+Wave is decorative, so it must not represent measured audio levels. Save
+feedback uses a top-right Sonner toast below the shared header, with a semantic
+Status Dot; setup step flows adapt More Shadcn's Stepper pattern. Astro form
+fields and breadcrumbs use server-rendered shadcn structure, and episode
+pagination appears once more than ten entries match the current filter.
+Stateful checkboxes use the local shadcn-svelte Checkbox, including editor FX,
+export options, pad ducking and marker-tone choices. Static Astro forms use the
+same token and focus treatment with a native checkbox so they submit without
+hydration. Authenticator and invite codes use shadcn-svelte Input OTP: a single
+accessible input drives six visible cells, paste and one-time-code autofill.
+Preset selects in the FX sheet reserve enough width and right padding for the
+native arrow in both themes.
 
 ### Component choice during the migration
 

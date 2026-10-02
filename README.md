@@ -85,6 +85,7 @@ The recording workflow also includes:
 - **Editor after recording:** desktop users go straight from End Session to a synchronized timeline. Waveforms are prepared from bounded audio reads even when a recording has no saved peak data. Click a clip to select it, drag it to move, or Shift-drag to select time; split, trim, delete or ripple-cut clips; review retakes and long-pause suggestions; use Mute, Solo, Level and a focused FX sheet per track; import browser-decodable audio; and undo or redo edits. Secondary actions live in compact menus. Remove a track from the finished mix and restore it later without deleting its source audio. Phones use a simplified recording review with scrubbing, synchronization status/retry, and individual raw downloads; full editing/export is available on desktop.
 - **Non-destructive projects:** source WAV and PCM segments never change. Clip boundaries, link groups, markers, FX, track levels and export choices autosave as compact, revisioned project metadata, with a browser recovery copy for offline work.
 - **One cumulative preview:** playback always reflects the current edits, gain, mute and FX. It starts from a short browser-rendered window, then prefetches larger bounded windows, so long sessions play without loading the whole recording into memory.
+- **Consistent controls:** interactive checkboxes use shadcn-svelte, while one-time codes for sign-in, setup, and joining a session support paste and device autofill.
 - **Simple export:** a compact sheet always includes the finished WAV and can add MP3 and aligned raw tracks. Completion shows Back to sessions and Download again; Optional AI tools is reserved for a later release.
 - **Sessions and settings across devices:** recordings upload as you go and
   can be brought into another browser to play or export. Recording, export and
@@ -217,12 +218,14 @@ Podstudio is built with [Astro](https://astro.build),
 [Svelte](https://svelte.dev), and [Tailwind CSS](https://tailwindcss.com).
 The interface uses locally adapted [shadcn-svelte](https://shadcn-svelte.com)
 components and [Bits UI](https://www.bits-ui.com) controls. Its audio-player
-controls are being adapted from [More Shadcn Svelte](https://github.com/kevwpl/more-shadcn-svelte)
-by kevwpl. Icons are from [Lucide](https://lucide.dev), including portions
+controls, FX knobs, status dots, and step indicators are adapted from
+[More Shadcn Svelte](https://github.com/kevwpl/more-shadcn-svelte) by kevwpl.
+Top save notifications use [svelte-sonner](https://github.com/wobsoriano/svelte-sonner)
+by Robert Soriano. Icons are from [Lucide](https://lucide.dev), including portions
 derived from Feather by Cole Bemis. Noise suppression uses
 [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet).
 
-shadcn-svelte, Bits UI, and More Shadcn Svelte are MIT-licensed. Lucide uses
+shadcn-svelte, Bits UI, More Shadcn Svelte, and svelte-sonner are MIT-licensed. Lucide uses
 the ISC license, with MIT-licensed Feather portions. The copied component
 license notices are in [`public/vendor/`](public/vendor/); the full list of
 bundled work and licenses is also in **Settings → About & credits**.

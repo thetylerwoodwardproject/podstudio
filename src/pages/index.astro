@@ -4,6 +4,7 @@ import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
 import Callout from '@/components/ui/Callout.astro';
 import Dot from '@/components/ui/Dot.astro';
+import Pagination from '@/components/ui/Pagination.astro';
 import ImportDialog from '@/components/app/ImportDialog.astro';
 import { statusColor } from '@/data/mock';
 import { statfsSync } from 'node:fs';
@@ -107,6 +108,7 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
         </tbody>
       </table>
     </div>
+    <Pagination />
   </div>
   <ImportDialog />
 </AppShell>
@@ -128,13 +130,34 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
 
   const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')];
   const search = document.querySelector<HTMLInputElement>('[data-search]')!;
+  const pagination = document.querySelector<HTMLElement>('[data-pagination]')!;
+  const pageNumbers = pagination.querySelector<HTMLElement>('[data-page-numbers]')!;
+  const previous = pagination.querySelector<HTMLButtonElement>('[data-page-prev]')!;
+  const next = pagination.querySelector<HTMLButtonElement>('[data-page-next]')!;
+  let page = 1;
+  const pageSize = 10;
   const update = () => {
     const filter = document.querySelector<HTMLInputElement>('input[name=filter]:checked')!.value;
     const q = search.value.trim().toLowerCase();
-    for (const row of rows) {
-      row.hidden = (filter !== 'All' && row.dataset.filter !== filter) || (!!q && !row.dataset.title!.includes(q));
+    const matches = rows.filter((row) => (filter === 'All' || row.dataset.filter === filter) && (!q || row.dataset.title!.includes(q)));
+    const pages = Math.max(1, Math.ceil(matches.length / pageSize));
+    page = Math.min(page, pages);
+    for (const row of rows) row.hidden = !matches.includes(row) || matches.indexOf(row) < (page - 1) * pageSize || matches.indexOf(row) >= page * pageSize;
+    pagination.hidden = pages <= 1;
+    previous.disabled = page <= 1; next.disabled = page >= pages;
+    pageNumbers.replaceChildren();
+    for (let number = 1; number <= pages; number++) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.textContent = String(number); button.dataset.slot = 'pagination-link'; button.setAttribute('aria-label', `Page ${number}`);
+      button.className = 'size-9 rounded-lg border border-border text-[13px] hover:bg-control';
+      if (number === page) { button.setAttribute('aria-current', 'page'); button.classList.add('bg-control'); }
+      button.addEventListener('click', () => { page = number; update(); });
+      pageNumbers.append(button);
     }
   };
-  document.querySelectorAll('input[name=filter]').forEach((r) => r.addEventListener('change', update));
-  search.addEventListener('input', update);
+  previous.addEventListener('click', () => { page--; update(); });
+  next.addEventListener('click', () => { page++; update(); });
+  document.querySelectorAll('input[name=filter]').forEach((r) => r.addEventListener('change', () => { page = 1; update(); }));
+  search.addEventListener('input', () => { page = 1; update(); });
+  update();
 </script>

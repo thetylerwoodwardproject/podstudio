@@ -26,6 +26,9 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import EditorFxControls from './EditorFxControls.svelte';
+  import Spinner from '@/components/shadcn/spinner/Spinner.svelte';
+  import StatusDot from '@/components/ui/StatusDot.svelte';
+  import SaveStatusToast from '@/components/ui/SaveStatusToast.svelte';
   import TrackLevelMeter from './TrackLevelMeter.svelte';
   import MasterLevelMeter from './MasterLevelMeter.svelte';
   import { cleanMaster, cleanEditorProject, deleteClip, timelineMarkers, defaultFx, removeEditorTrack, restoreEditorTrack } from '@/lib/editor-project';
@@ -38,6 +41,7 @@
   import * as Popover from '@/components/shadcn/popover';
   import { Input } from '@/components/shadcn/input';
   import { Slider } from '@/components/shadcn/slider';
+  import { Checkbox } from '@/components/shadcn/checkbox';
   import { meterDbfs } from '@/lib/audio/editor-meter';
   import { PeakMeter } from '@/lib/audio/meter';
   import { PEAK_SECONDS, waveformBars } from '@/lib/audio/editor-peaks';
@@ -634,14 +638,12 @@
 </script>
 
 <div class="flex h-full min-h-[620px] flex-col overflow-hidden bg-page" data-editor>
+  {#if saveState !== 'idle'}<SaveStatusToast status={saveState === 'offline' ? 'waiting' : saveState === 'failed' ? 'error' : saveState} message={saveState === 'saved' ? 'Saved automatically' : saveMessage} />{/if}
   <div class="flex h-12 flex-none items-center gap-3 border-b border-divider px-4">
     <a href={sessionsHref} class="text-[13px] text-text-2 hover:text-text">‹ Sessions</a>
     <div class="h-5 w-px bg-divider"></div>
     <div class="min-w-0 flex-1 truncate text-[14px]">{project.name}</div>
-    <div class="flex items-center gap-2 text-[12px] text-text-2" aria-live="polite" data-save-state={saveState}>
-      <span class:animate-pulse={saveState === 'saving'} class="size-1.5 rounded-full" class:bg-ok={saveState === 'saved'} class:bg-warn={saveState === 'saving' || saveState === 'offline'} class:bg-rec={saveState === 'failed' || saveState === 'conflict'}></span>
-      {saveMessage}
-    </div>
+    <div class="sr-only" data-save-state={saveState}>{saveMessage}</div>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Editor tools">Tools {pendingRetakes ? `· ${pendingRetakes}` : ''}</DropdownMenu.Trigger>
       <DropdownMenu.Content align="end" preventScroll={false} class="w-56">
@@ -668,7 +670,7 @@
   {#if importStatus || importError}
     <div data-import-status class="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-40 w-[min(360px,calc(100vw-32px))] rounded-xl border border-border bg-surface p-4 text-[12px] text-text shadow-xl" role={importError ? 'alert' : 'status'} aria-live={importError ? 'assertive' : 'polite'}>
       <div class="flex items-start gap-3">
-        <span class="mt-1 size-2 flex-none rounded-full" class:bg-rec={!!importError} class:bg-warn={importing && !importError} class:bg-ok={!importing && !importError}></span>
+        <span class="mt-1"><StatusDot variant={importError ? 'error' : importing ? 'warning' : 'success'} /></span>
         <div class="min-w-0 flex-1"><strong class="block font-medium">{importError ? 'Audio import failed' : importing ? 'Adding audio' : 'Audio added'}</strong><span class="mt-1 block break-words text-text-2">{importError || importStatus}</span></div>
       </div>
       {#if importing && /Uploading… \d+%/.test(importStatus)}<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-track-off"><div class="h-full bg-primary transition-[width]" style={`width:${Number(importStatus.match(/(\d+)%/)?.[1] ?? 0)}%`}></div></div>{/if}
@@ -713,7 +715,7 @@
         <div data-track={track.id} class="flex h-[104px] border-b border-divider" class:bg-surface={track.id === selectedTrack}>
           <div class="sticky left-0 z-20 flex w-[176px] flex-none flex-col justify-center gap-2 border-r border-divider bg-page py-1 pl-2 pr-8">
             <TrackLevelMeter name={track.name} channels={track.channels} left={meterDisplay[track.id]?.left} right={meterDisplay[track.id]?.right} held={meterDisplay[track.id]?.held} />
-            <div class="flex items-center gap-2"><span class="size-2 rounded-full" style={`background:${view?.color ?? 'var(--color-text-3)'}`}></span><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
+            <div class="flex items-center gap-2"><StatusDot color={view?.color ?? 'var(--color-text-3)'} /><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger class="size-6 rounded-md text-text-2 hover:bg-control" aria-label={`${track.name} track actions`}>⋯</DropdownMenu.Trigger>
                 <DropdownMenu.Content align="end" preventScroll={false} class="w-44">
@@ -794,7 +796,7 @@
       </DropdownMenu.Content>
     </DropdownMenu.Root>
     <span class="text-[11px] text-text-3">Zoom</span><Slider type="single" class="w-24" aria-label="Timeline zoom" min={0.5} max={6} step={0.5} bind:value={zoom} />
-    {#if loadingAudio || playbackStatus}<span role="status" data-playback-status class="text-[11px] text-text-2" aria-live="polite">{playbackStatus || 'Preparing audio…'}</span>{/if}
+    {#if loadingAudio || playbackStatus}<span role="status" data-playback-status class="flex items-center gap-1.5 text-[11px] text-text-2" aria-live="polite">{#if loadingAudio}<Spinner label="Preparing audio" />{/if}{playbackStatus || 'Preparing audio…'}</span>{/if}
     {#if playbackError}<button data-playback-error class="max-w-40 truncate text-[11px] text-rec underline" title={playbackError} onclick={() => void play()}>{playbackError} · Retry</button>{/if}
   </div>
 </div>
@@ -838,7 +840,7 @@
 <Sheet open={!!fxTrack} labelledby="fx-title" onclose={closeFx}>
   {#snippet header()}<div><h2 id="fx-title" class="text-[18px]">{fxTrack?.name} FX</h2><p class="mt-1 text-[13px] text-text-2">Preview changes in the mix before applying.</p></div>{/snippet}
   {#if fxTrack}<EditorFxControls bind:fx={fxTrack.fx} voice={fxTrack.kind === 'voice'} />{/if}
-  {#snippet footer()}<div class="flex items-center gap-3"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={() => { fxPreviewing = !fxPreviewing; if (!fxPreviewing) pause(); else { invalidateAudio(); void loadWindow(playhead, true); } }}>{fxPreviewing ? 'Stop preview' : 'Preview FX'}</button><label class="text-[12px]">Bypass<input class="ml-2" type="checkbox" bind:checked={fxBypass} /></label><div class="flex-1"></div><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={closeFx}>Cancel</button><button class="h-9 rounded-[9px] bg-primary px-4 text-[13px] text-primary-fg" onclick={saveFx}>Apply FX</button></div>{/snippet}
+  {#snippet footer()}<div class="flex items-center gap-3"><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={() => { fxPreviewing = !fxPreviewing; if (!fxPreviewing) pause(); else { invalidateAudio(); void loadWindow(playhead, true); } }}>{fxPreviewing ? 'Stop preview' : 'Preview FX'}</button><div class="flex items-center gap-2"><Checkbox id="fx-bypass" bind:checked={fxBypass} /><label for="fx-bypass" class="text-[12px]">Bypass</label></div><div class="flex-1"></div><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={closeFx}>Cancel</button><button class="h-9 rounded-[9px] bg-primary px-4 text-[13px] text-primary-fg" onclick={saveFx}>Apply FX</button></div>{/snippet}
 </Sheet>
 
 <Sheet open={loudnessOpen} labelledby="loudness-title" onclose={closeLoudness}>
@@ -850,7 +852,7 @@
     <label class="text-[13px]">True-peak ceiling <span class="text-text-3">dBTP</span><input class="ml-3 h-10 rounded-[10px] border border-border bg-page px-3 font-mono" type="number" min="-3" max="-.1" step=".1" bind:value={masterDraft.ceilingDb} /></label>
     <div class="rounded-[14px] bg-surface p-4 text-[13px]" aria-live="polite">{#if measurement}<div class="mb-3 text-text-2">{measurementStale ? 'Measurements are stale · analyze again' : 'Current finished mix'}</div><div class="grid grid-cols-3 gap-4 font-mono"><span>{Number.isFinite(measurement.result) ? measurement.result.toFixed(1) : '—'} LUFS</span><span>{measurement.range?.toFixed(1) ?? '—'} LU</span><span>{measurement.truePeak.toFixed(1)} dBTP</span></div>{/if}<p class="mt-3 text-text-2">{analysisStatus || 'Analyze to measure integrated loudness, range, and true peak.'}</p></div>
     <div class="flex gap-3"><button class="h-9 rounded-[10px] border border-border px-3 text-[13px]" disabled={analyzing} onclick={analyze}>Analyze mix</button>{#if analyzing}<button class="text-[13px]" onclick={() => analysisAbort?.abort()}>Cancel analysis</button>{/if}</div>
-    <label class="text-[13px]">Listen to mastered mix <input class="ml-2" type="checkbox" bind:checked={mastered} onchange={() => { solo = []; if (mastered) { update({ ...plain(project), master: cleanMaster(plain(masterDraft)) }); } else refreshAudio(); }} /></label>
+    <div class="flex items-center gap-2 text-[13px]"><Checkbox id="mastered-preview" checked={mastered} onCheckedChange={(checked) => { mastered = checked; solo = []; if (mastered) { update({ ...plain(project), master: cleanMaster(plain(masterDraft)) }); } else refreshAudio(); }} /><label for="mastered-preview">Listen to mastered mix</label></div>
     <p class="help">Mastered playback uses the full mix and the same processing as export. Raw tracks stay unchanged.</p>
   </div>
   {#snippet footer()}<div class="flex justify-end gap-3"><button class="h-9 rounded-[10px] border border-border px-3 text-[13px]" onclick={closeLoudness}>Close</button><button class="h-9 rounded-[10px] bg-primary px-3 text-[13px] text-primary-fg" onclick={applyMaster}>Apply loudness</button></div>{/snippet}
@@ -860,9 +862,9 @@
   {#snippet header()}<div><h2 id="export-title" class="text-[18px]">Export episode</h2><p class="mt-1 text-[13px] text-text-2">The finished WAV includes every reviewed edit and track setting.</p></div>{/snippet}
   {#if completed}<div class="py-8 text-center" data-export-complete><div class="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-ok/15 text-ok">✓</div><h3 class="text-[17px]">Your export is ready</h3><p class="mt-2 text-[13px] text-text-2">{completed.filename}</p><div class="mt-5 flex justify-center gap-2"><a class="flex h-9 items-center rounded-[9px] bg-primary px-3 text-[13px] text-primary-fg" href={sessionsHref}>Back to sessions</a><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={completed.downloadAgain}>Download again</button></div><div class="mt-8 rounded-[12px] border border-dashed border-border p-4 text-left opacity-50"><div class="text-[13px]">Optional AI tools</div><div class="mt-1 text-[12px] text-text-3">Coming soon</div></div></div>
   {:else}<div class="flex flex-col gap-3">
-    <label class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]">Finished WAV <input type="checkbox" checked disabled /></label>
-    <label class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]">Also make MP3 <input type="checkbox" bind:checked={project.master.mp3} onchange={queueSave} /></label>
-    <label class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]">Include raw tracks <input type="checkbox" bind:checked={project.master.rawTracks} onchange={queueSave} /></label>
+    <div class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]"><label for="export-wav">Finished WAV</label><Checkbox id="export-wav" checked disabled /></div>
+    <div class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]"><label for="export-mp3">Also make MP3</label><Checkbox id="export-mp3" checked={project.master.mp3} onCheckedChange={(checked) => { project.master.mp3 = checked; queueSave(); }} /></div>
+    <div class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]"><label for="export-raw">Include raw tracks</label><Checkbox id="export-raw" checked={project.master.rawTracks} onCheckedChange={(checked) => { project.master.rawTracks = checked; queueSave(); }} /></div>
     {#if pendingRetakes}<p class="rounded-[10px] bg-warn/10 p-3 text-[12px] text-warn">Review every retake group before exporting the finished mix.</p>{/if}
     {#if exportStatus}<p class="text-[12px] text-text-2" aria-live="polite">{exportStatus}</p>{/if}
   </div>{/if}

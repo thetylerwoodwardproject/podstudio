@@ -13,10 +13,11 @@ const { name, checked = false, label, size = 16, class: cls } = Astro.props;
 <label class:list={['flex items-start gap-2', cls]}>
   <input type="checkbox" class="peer sr-only" name={name} checked={checked} />
   <span
+    data-slot="checkbox"
     aria-hidden="true"
     class:list={[
-      'flex flex-none items-center justify-center border border-handle leading-none font-bold text-transparent',
-      'peer-checked:border-text peer-checked:bg-text peer-checked:text-page peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-fg',
+      'flex flex-none items-center justify-center border border-handle bg-page leading-none font-bold text-transparent',
+      'peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-fg peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring',
       { 14: 'mt-px size-3.5 rounded-[4px] text-[9px]', 16: 'mt-px size-4 rounded-[4px] text-[11px]', 18: 'size-4.5 rounded-[4px] text-[12px]' }[size],
     ]}>✓</span
   >

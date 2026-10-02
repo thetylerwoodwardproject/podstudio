@@ -51,6 +51,23 @@ test('simple podcast FX maps to the existing tone processor', () => {
   assert.equal(tone.comp.preset, 'Light');
 });
 
+test('Clean, Shape, and Boost preserve neutral sound and map to export processing', () => {
+  const neutral = { noise: 0, low: 0, mid: 0, high: 0, compression: 'Off' as const, level: false,
+    macro: { shape: 0, shapePreset: 'Clear' as const, boost: 0 } };
+  const flat = toneFromFx(neutral);
+  assert.equal(flat.eq.on, false);
+  assert.equal(flat.comp.on, false);
+  const shaped = toneFromFx({ ...neutral, noise: 65, macro: { shape: 100, shapePreset: 'Warm', boost: 100 } });
+  assert.deepEqual(shaped.eq.gains, [0, 2, 2, 1, 0, 0, -1, -1, -2, -2]);
+  assert.equal(shaped.comp.ratio, 5);
+  assert.equal(shaped.comp.on, true);
+  const project = make();
+  project.tracks[0].fx = { ...neutral, macro: { shape: 55, shapePreset: 'De-mud', boost: 43 } };
+  const recovered = cleanEditorProject(project)!;
+  assert.deepEqual(toneFromFx(recovered.tracks[0].fx), toneFromFx(project.tracks[0].fx));
+  assert.deepEqual(toneFromFx({ ...project.tracks[0].fx, macro: undefined, low: 3, compression: 'Light' }).eq.gains.slice(0, 3), [3, 3, 3]);
+});
+
 test('long quiet stretches are suggested without changing the project', () => {
   const a = [0.2, 0.1, 0, 0, 0, 0, 0, 0, 0.2];
   const b = [0.1, 0.1, 0, 0, 0, 0, 0, 0, 0.1];

@@ -6,6 +6,7 @@
 		ref = $bindable(null),
 		value = $bindable(),
 		orientation = "horizontal",
+		"aria-label": ariaLabel,
 		class: className,
 		...restProps
 	}: any = $props();
@@ -20,8 +21,10 @@ get along, so we shut typescript up by casting `value` to `never`.
 	bind:value={value as never}
 	data-slot="slider"
 	{orientation}
+	aria-label={ariaLabel}
 	class={cn(
-		"data-vertical:min-h-40 relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:w-auto data-vertical:flex-col",
+		"relative flex touch-none items-center select-none data-disabled:opacity-50",
+		orientation === "vertical" ? "h-full min-h-36 w-4 flex-col" : "w-full",
 		className
 	)}
 	{...restProps}
@@ -30,19 +33,16 @@ get along, so we shut typescript up by casting `value` to `never`.
 		<span
 			data-slot="slider-track"
 			data-orientation={orientation}
-			class={cn(
-				"bg-control rounded-full data-horizontal:h-1 data-horizontal:w-full data-vertical:h-full data-vertical:w-1 relative grow overflow-hidden data-horizontal:w-full data-vertical:h-full"
-			)}
+			class={cn("relative grow overflow-hidden rounded-full bg-control", orientation === "vertical" ? "h-full w-1" : "h-1 w-full")}
 		>
 			<SliderPrimitive.Range
 				data-slot="slider-range"
-				class={cn(
-					"bg-primary absolute select-none data-horizontal:h-full data-vertical:w-full"
-				)}
+				class={cn("absolute select-none bg-primary", orientation === "vertical" ? "w-full" : "h-full")}
 			/>
 		</span>
 		{#each thumbItems as thumb (thumb.index)}
 			<SliderPrimitive.Thumb
+				aria-label={ariaLabel}
 				data-slot="slider-thumb"
 				index={thumb.index}
 				class="border-ring ring-ring/50 relative size-3 rounded-full border bg-white transition-[color,box-shadow] after:absolute after:-inset-2 hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 block shrink-0 select-none disabled:pointer-events-none disabled:opacity-50"

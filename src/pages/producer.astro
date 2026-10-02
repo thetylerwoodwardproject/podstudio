@@ -6,6 +6,7 @@
  * the reader, and keeps an eye on the guest (level, uploads, their code).
  */
 import AppShell from '@/layouts/AppShell.astro';
+import Dot from '@/components/ui/Dot.astro';
 
 const btn = 'flex h-12 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-medium transition-colors disabled:opacity-35';
 const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono text-[10px] leading-none opacity-70';
@@ -13,7 +14,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
 
 <AppShell title="Producer" avatar={false} anyBrowser crumbs={[{ label: 'Producer' }]}>
   <div slot="topbar" class="flex items-center gap-2 font-mono text-[13px] font-medium text-muted" role="status" data-rec>
-    <span class="size-2 rounded-full bg-faint" data-rec-dot></span>
+    <Dot color="var(--color-faint)" size={8} data-rec-dot />
     <span data-rec-label>CONNECTING</span>
   </div>
   <div id="producer" class="grid lg:h-full lg:grid-cols-[1fr_360px] lg:grid-rows-[minmax(0,1fr)]" data-connected="false">
@@ -83,6 +84,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
       </div>
     </aside>
   </div>
+  <template data-producer-waiting><p class="flex items-center gap-2 text-[15px] text-muted"><Dot color="var(--color-warn)" size={8} />Waiting for the host to let you in…</p></template>
 </AppShell>
 
 <script>
@@ -252,7 +254,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     renderGuest();
   });
   room.on('waiting', () => {
-    list.innerHTML = '<p class="flex items-center gap-2 text-[15px] text-muted"><span class="size-2 animate-pulse rounded-full bg-warn"></span>Waiting for the host to let you in…</p>';
+    list.innerHTML = document.querySelector<HTMLTemplateElement>('[data-producer-waiting]')!.innerHTML;
     $('[data-rec-label]').textContent = 'WAITING ROOM';
   });
   room.on('admitted', () => {

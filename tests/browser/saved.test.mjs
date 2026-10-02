@@ -20,7 +20,7 @@ ok('pitch defaults to 1 kHz', (await text('[data-tone-pitch] button[aria-pressed
 ok('duck shows −12 dB', (await text('[data-tone-value=duck]')) === '−12 dB');
 await page.click('[data-tone-pitch] button:has-text("High")');
 await page.click('[data-tone-more] summary');
-ok('More: retake chip says 1.6 kHz', /1\.6 kHz/.test(await page.locator('label:has([data-tone-kind=retake])').textContent()));
+ok('More: retake chip says 1.6 kHz', /1\.6 kHz/.test(await page.locator('div:has(> [data-tone-kind=retake])').textContent()));
 ok('all five clean previews are present', (await page.locator('[data-tone-preview]').count()) === 5);
 ok('retake preview says 1.6 kHz', /1\.6 kHz/.test(await text('[data-tone-preview=retake]')));
 await page.click('[data-tone-preview=retake]');

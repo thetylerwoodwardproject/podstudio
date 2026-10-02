@@ -20,7 +20,7 @@ await toStep(page, 'loud');
 const loudDefaults = (await page.isChecked('[name=pub-loudness][value=stereo]')) && !(await page.isChecked('[name=pub-level]'));
 await toStep(page, 'export');
 await page.click('[data-export]');
-ok('defaults: stereo, levelling off, the episode WAV and MP3 ticked', loudDefaults && (await page.getAttribute('[data-file="Ep142_Episode.wav"]', 'aria-checked')) === 'true' && (await page.getAttribute('[data-file="Ep142_Episode.mp3"]', 'aria-checked')) === 'true');
+ok('defaults: stereo, levelling off, the episode WAV and MP3 ticked', loudDefaults && (await page.getAttribute('[data-file="Ep142_Episode.wav"] [data-slot=checkbox]', 'data-state')) === 'checked' && (await page.getAttribute('[data-file="Ep142_Episode.mp3"] [data-slot=checkbox]', 'data-state')) === 'checked');
 await page.keyboard.press('Escape');
 /** Open the picker, change what `pick` changes, download. */
 const exportZip = async (tag, pick = async () => {}) => {
@@ -75,7 +75,7 @@ ok('levelled copy the same length as the edit', lev && len(lev) === len(lev.repl
 ok('the picker counts what the zip has', Number(summary.match(/^(\d+) of/)[1]) === z.files.length, `${summary} vs ${z.files.length}`);
 
 // 3. No episode file: untick the Ready to publish group; the levelled copy still comes
-const untick = async (name) => (await page.getAttribute(`[data-file="${name}"]`, 'aria-checked')) === 'true' && page.click(`[data-file="${name}"]`);
+const untick = async (name) => (await page.getAttribute(`[data-file="${name}"] [data-slot=checkbox]`, 'data-state')) === 'checked' && page.click(`[data-file="${name}"]`);
 z = await exportZip('off', async () => (await untick('Ep142_Episode.wav'), await untick('Ep142_Episode.mp3')));
 ok('no episode file when it is unticked, the levelled copy still made', !z.files.some((f) => /_Episode/.test(f)) && z.files.some((f) => /_levelled/.test(f)), z.files.join(', '));
 ok('no page errors', !errs.length, errs.join('\n'));

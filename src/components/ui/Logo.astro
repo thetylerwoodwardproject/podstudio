@@ -5,6 +5,7 @@ interface Props {
   href?: string;
 }
 const { size = 'md', href = '/' } = Astro.props;
+import StatusDot from './StatusDot.astro';
 ---
 
 <a
@@ -14,6 +15,6 @@ const { size = 'md', href = '/' } = Astro.props;
     size === 'lg' ? 'gap-2.5' : 'gap-2',
   ]}
 >
-  <span class:list={['inline-block flex-none rounded-full bg-rec', size === 'lg' ? 'size-2.5' : 'size-[9px]']}></span>
+  <StatusDot variant="recording" size={size === 'lg' ? 10 : 9} />
   Podstudio
 </a>

@@ -2,6 +2,7 @@
 // Mic check before a session, as a step flow (design: step flow 1a/1b): Input → Level → Test → Noise.
 import AppShell from '@/layouts/AppShell.astro';
 import StatusRow from '@/components/ui/StatusRow.astro';
+import Dot from '@/components/ui/Dot.astro';
 import { episode as mockEpisode, lineStarts, scriptWords } from '@/data/mock';
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import type { EpisodeData as Data } from '@/lib/episode-page';
@@ -100,7 +101,7 @@ const c = {
             <LevelMeter segments={28} lit={19} compact />
             <!-- One plain-language line: where the level is and what to do about it -->
             <div class="flex items-center gap-2" data-live-only>
-              <span class="inline-block size-2 flex-none rounded-full bg-text-3" data-status-dot></span>
+              <Dot color="var(--color-text-3)" size={8} data-status-dot />
               <span class="text-[14px]" data-status>Talk at your normal volume</span>
               <span class="ml-auto font-mono text-[12px] text-text-2" data-status-peak></span>
             </div>
@@ -123,7 +124,7 @@ const c = {
                 class="inline-flex h-9 flex-none items-center gap-2 rounded-[10px] bg-rec px-3.5 text-[14px] font-medium text-white disabled:opacity-50 data-[running]:bg-control data-[running]:text-text"
                 data-test-btn
               >
-                <span class="size-2 rounded-full bg-current" data-test-icon></span>
+                <Dot color="currentColor" size={8} data-test-icon />
                 <span data-test-label>Record 10 s</span>
               </button>
             </div>

@@ -6,6 +6,7 @@
  * into a fader to ride its level (2c). Filled in by lib/pad-rail.ts; hidden
  * until a pad is assigned, and on laptops (they get the rail).
  */
+import Dot from '@/components/ui/Dot.astro';
 interface Props {
   episodeId: string;
 }
@@ -23,14 +24,14 @@ const { episodeId } = Astro.props;
   <div class="relative">
     <div class="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-pad-strip-row></div>
     <!-- A playing pad scrolled out of view: a dot at that edge -->
-    <span class="pointer-events-none absolute top-1/2 -left-2.5 size-2 -translate-y-1/2 rounded-full" data-pad-edge="left" hidden></span>
-    <span class="pointer-events-none absolute top-1/2 -right-2.5 size-2 -translate-y-1/2 rounded-full" data-pad-edge="right" hidden></span>
+    <Dot color="transparent" size={8} class="pointer-events-none absolute top-1/2 -left-2.5 -translate-y-1/2" data-pad-edge="left" hidden />
+    <Dot color="transparent" size={8} class="pointer-events-none absolute top-1/2 -right-2.5 -translate-y-1/2" data-pad-edge="right" hidden />
   </div>
   <!-- Press and slide (2c): the pad's fader, in place of the row until 2 s after you let go -->
   <div class="flex flex-col gap-3 pb-1" data-pad-fader hidden>
     <div class="flex items-center justify-between gap-3">
       <span class="flex min-w-0 items-center gap-2 text-[14px] text-text">
-        <span class="size-2 flex-none rounded-full" data-pad-fader-dot></span>
+        <Dot color="transparent" size={8} data-pad-fader-dot />
         <span class="truncate" data-pad-fader-name></span>
       </span>
       <span class="flex-none font-mono text-[11px] font-medium tracking-[0.06em] text-text-3" data-pad-fader-meta></span>

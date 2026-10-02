@@ -4,6 +4,7 @@ import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
+import StatusDot from '@/components/ui/StatusDot.astro';
 import { episode as mockEpisode } from '@/data/mock';
 
 export const prerender = false;
@@ -25,7 +26,7 @@ const base = `/episodes/${episode.id}`;
         </p>
       </div>
       <Button href={`${base}/mic-check`} variant="record" size="lg" class="gap-2.5" data-new-session>
-        <span class="size-2 rounded-full bg-white"></span>
+        <StatusDot color="white" />
         New session
       </Button>
     </div>

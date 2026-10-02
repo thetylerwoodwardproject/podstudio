@@ -1,0 +1,11 @@
+---
+// Astro counterpart to the locally adapted More Shadcn Svelte Status Dot.
+interface Props { variant?: 'success' | 'warning' | 'error' | 'info' | 'recording' | 'muted'; size?: 'sm' | 'md' | number; pulse?: boolean; color?: string; class?: string; [key: `data-${string}`]: string | undefined; }
+const { variant = 'muted', size = 'sm', pulse = false, color: customColor, class: cls, ...rest } = Astro.props;
+const color = variant === 'success' ? 'bg-ok' : variant === 'warning' ? 'bg-warn' : variant === 'error' || variant === 'recording' ? 'bg-rec' : variant === 'info' ? 'bg-info' : 'bg-text-3';
+const measure = typeof size === 'number' ? `${size}px` : size === 'md' ? '12px' : '8px';
+---
+<span aria-hidden="true" class:list={['relative inline-flex flex-none items-center justify-center', cls]} style={{ width: measure, height: measure }} {...rest}>
+  {pulse && <span class:list={['absolute inset-0 animate-ping rounded-full opacity-50 motion-reduce:animate-none', color]}></span>}
+  <span class:list={['relative size-full rounded-full', !customColor && color]} style={customColor ? { background: customColor } : undefined}></span>
+</span>

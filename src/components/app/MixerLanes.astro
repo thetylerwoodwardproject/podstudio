@@ -4,6 +4,7 @@
  * last minute of level, a segmented meter in the mic check's zones, and talk
  * time underneath. Replaces the empty "Ad-lib" screen; driven by lib/mixer-view.ts.
  */
+import StatusDot from '@/components/ui/StatusDot.astro';
 const lanes = [
   { who: 'host', dot: 'var(--color-spk-yellow)' },
   { who: 'guest', dot: 'var(--color-spk-teal)' },
@@ -19,7 +20,7 @@ const lanes = [
       >
         <div class="min-w-0">
           <div class="flex items-center gap-2 text-[17px]">
-            <span class="size-2.5 flex-none rounded-full" style={{ background: l.dot }} />
+            <StatusDot color={l.dot} size={10} />
             <span class="truncate" data-lane-name />
           </div>
           <div class="mt-1 truncate text-[12px] text-muted" data-lane-meta />

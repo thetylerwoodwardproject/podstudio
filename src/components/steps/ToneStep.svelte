@@ -22,6 +22,7 @@
   import { BANDS, COMP_HELP, COMP_PRESETS, EQ_PRESETS, EQ_RANGE, compCurve, eqResponse, matchToTarget, speechTarget, type VoiceTone } from '@/lib/audio/tone';
   import { curveOf } from '@/lib/audio/spectrum';
   import Segmented from '@/components/ui/Segmented.svelte';
+  import StatusDot from '@/components/ui/StatusDot.svelte';
 
   interface Props {
     voices: ToneVoice[];
@@ -247,7 +248,7 @@
           aria-pressed={v.key === key}
           onclick={() => ((key = v.key), (live = null), (nowIn = null))}
         >
-          <span class="size-2 flex-none rounded-full" style:background={v.color}></span>{v.name}
+          <StatusDot color={v.color} />{v.name}
           <span class={tag}>{v.role}</span>
         </button>
       {/each}
@@ -387,7 +388,7 @@
         <ul class="flex flex-wrap items-center gap-4 text-[12px] text-text-2">
           <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-handle"></span>No change (1:1)</li>
           <li class="flex items-center gap-2"><span class="h-0.5 w-4 rounded-full bg-text"></span>Compressor</li>
-          <li class="flex items-center gap-2"><span class="size-2 rounded-full" style:background={voice.color}></span>The voice now</li>
+          <li class="flex items-center gap-2"><StatusDot color={voice.color} />The voice now</li>
         </ul>
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
           <div class="h-[240px] min-w-0 lg:h-[280px]" data-tone-comp-plot bind:clientWidth={cW} bind:clientHeight={cH}>

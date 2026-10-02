@@ -59,6 +59,19 @@ transport controls replace the ambiguous interactions. `EditorFxControls.svelte`
 provides optional advanced EQ/compression. `fx.tone` is authoritative when present;
 older simple projects retain their sound. Loudness analysis and mastered preview
 share export rendering, with cancellation and stale-result indication.
+The current FX pass replaces the Simple Low/Mid/High controls with Clean,
+Shape and Boost knobs, while Advanced keeps exact ten-band EQ and compressor
+controls. A Shape preset and amount map to the existing EQ processor; Boost
+maps to the compressor. Legacy settings are not replaced without an explicit
+choice. A top-right Sonner toast now shows editor and Settings persistence
+state. Shared step flows use a Stepper-style progress control; sign-in and API
+key fields use server-rendered shadcn-style fields, and the episode library
+paginates after ten matching entries. More Shadcn's Audio Wave is decorative
+and is not used for calibrated dBFS meters.
+The current control pass also uses shadcn-svelte Checkbox for interactive
+choices and Input OTP for authenticator and invite codes. Astro-only checkbox
+forms retain native inputs with matching tokens. The FX preset selects have
+room for their arrow and text in both themes.
 
 Imports display progress and retry the same file ID. Oversize request handling
 now returns 413 without destroying the socket, and the Node request timeout matches

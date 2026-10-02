@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import Sheet from '@/components/ui/Sheet.svelte';
+  import { Checkbox } from '@/components/shadcn/checkbox';
   import { GROUPS, QUICK, formatSize, picked, type ExportFile } from '@/lib/export-files';
 
   interface Props {
@@ -35,14 +36,7 @@
   const matches = (pick: (f: ExportFile) => boolean) => files.every((f) => pick(f) === on(f));
   const toggle = (f: ExportFile) => (picks = { ...picks, [f.name]: !on(f) });
   const key = (e: KeyboardEvent, f: ExportFile) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), toggle(f));
-  const box = 'flex size-[18px] flex-none items-center justify-center rounded-[5px] border';
 </script>
-
-{#snippet tick(checked: boolean)}
-  <span class="{box} {checked ? 'border-text bg-text' : 'border-handle'}" aria-hidden="true">
-    {#if checked}<svg viewBox="0 0 12 12" class="size-3"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="var(--color-page)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>{/if}
-  </span>
-{/snippet}
 
 <Sheet bind:open labelledby="picker-title" data-picker>
   {#snippet header()}
@@ -85,18 +79,17 @@
         {#each g.files as f, i (f.name)}
           {@const checked = on(f)}
           <div
-            role="checkbox"
-            aria-checked={checked}
-            tabindex="0"
+            role="group"
+            tabindex="-1"
             class="mx-2 flex cursor-pointer items-start gap-3 rounded-[10px] px-3 py-3 transition-opacity hover:bg-control focus-visible:outline-2 focus-visible:outline-text"
             class:border-t={i > 0}
             class:border-divider={i > 0}
             style:opacity={checked ? 1 : 0.45}
             data-file={f.name}
-            onclick={() => toggle(f)}
-            onkeydown={(e) => key(e, f)}
+            onclick={(e) => { if (!(e.target as HTMLElement).closest('[data-slot=checkbox]')) toggle(f); }}
+            onkeydown={(e) => { if (e.target === e.currentTarget) key(e, f); }}
           >
-            <span class="mt-[1px]">{@render tick(checked)}</span>
+            <Checkbox checked={checked} aria-label={f.name} onCheckedChange={() => toggle(f)} class="mt-[1px]" />
             <span class="min-w-0 flex-1">
               <span class="block font-mono text-[13px] break-all">{f.name}</span>
               <span class="mt-0.5 block text-[13px] leading-normal text-text-2">{f.desc}</span>
@@ -113,13 +106,7 @@
 
   {#snippet footer()}
     <div class="flex flex-wrap items-center gap-3">
-      <label class="mr-auto flex cursor-pointer items-center gap-2.5 text-[14px]">
-        <input type="checkbox" class="peer sr-only" bind:checked={remember} data-remember />
-        <span class="{box} {remember ? 'border-text bg-text' : 'border-handle'} peer-focus-visible:outline-2 peer-focus-visible:outline-text" aria-hidden="true">
-          {#if remember}<svg viewBox="0 0 12 12" class="size-3"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="var(--color-page)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>{/if}
-        </span>
-        Use this selection every time
-      </label>
+      <div class="mr-auto flex items-center gap-2.5 text-[14px]"><Checkbox id="remember-export-files" bind:checked={remember} data-remember /><label for="remember-export-files" data-remember-label class="cursor-pointer">Use this selection every time</label></div>
       <div class="flex gap-2 max-sm:w-full">
         <button type="button" class="h-9 rounded-[10px] px-3.5 text-[14px] text-text-2 hover:text-text max-sm:h-11 max-sm:flex-1 max-sm:bg-control" onclick={() => (open = false)}>Cancel</button>
         <button

@@ -5,6 +5,8 @@ import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Segmented from '@/components/ui/Segmented.astro';
 import Button from '@/components/ui/Button.astro';
+import Checkbox from '@/components/ui/Checkbox.astro';
+import StatusDot from '@/components/ui/StatusDot.astro';
 import { episode as mockEpisode, studioScript } from '@/data/mock';
 import { mbPerMinute } from '@/lib/audio/format';
 import { modeInfo } from '@/lib/show';
@@ -86,10 +88,9 @@ const menu = [
             </div>
             <p class="text-[12px] text-subtle">The guest sees: <span class="text-fg-soft" data-guest-sees></span></p>
           </div>
-          <label class="flex items-center justify-between gap-4 text-[13px]">
+          <Checkbox name="producer" class="flex-row-reverse items-center justify-between gap-4 text-[13px]">
             <span>Producer<span class="block text-[12px] text-muted">Follows and edits the script, marks retakes, runs the session. Never records.</span></span>
-            <input type="checkbox" name="producer" class="size-4 flex-none accent-fg" />
-          </label>
+          </Checkbox>
 
           <!-- Invite codes: six digits, entered at /join -->
           <div class="flex flex-col gap-4 rounded-[14px] bg-surface p-5" data-invite>
@@ -151,7 +152,7 @@ const menu = [
       <div class="flex flex-none flex-col gap-2.5 border-t border-line bg-page p-5" data-studio-actions>
         <Button href={`${base}/editor`} data-editor-entry hidden>Open editor</Button>
         <Button type="submit" variant="record" size="xl" class="w-full flex-none gap-2.5">
-          <span class="size-2.5 rounded-full bg-white"></span>
+          <StatusDot color="white" size={10} />
           <span>Start session</span>
         </Button>
         <button

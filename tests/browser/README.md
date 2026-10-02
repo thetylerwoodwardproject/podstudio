@@ -33,6 +33,8 @@ npm run test:browser -- flow publish   # some of them, by name
 | `import` | Script import steps: paste, rename and reorder sections, review |
 | `mic` | Mic check steps: input, level, test recording, noise |
 | `editor` | Desktop End Session routing, timeline and track controls, FX sheet, cumulative playback, autosave, compact export and phone fallback |
+| `library` | Episode pagination, search reset, and episode breadcrumbs |
+| `otp` | Shadcn-svelte invite-code entry, six visible cells, and link prefill after hydration |
 | `saved` | Session Saved phone/compatibility view and the marker-tones settings card |
 | `flow` | The retained legacy Export regression flow: tabs, noise reaching the Tone and Loudness previews, the file picker, the zip, saved selection, and completion (focus, scrolling, phone layout, identical re-download, adjustment, raw-only and failed exports, return to Sessions) |
 | `publish` | Episode loudness (stereo, mono, off), MP3 and ID3, the levelled copies |

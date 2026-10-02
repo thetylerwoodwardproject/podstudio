@@ -3,9 +3,9 @@
 import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import Field from '@/components/ui/Field.astro';
+import Input from '@/components/ui/Input.astro';
 import Button from '@/components/ui/Button.astro';
 import Checkbox from '@/components/ui/Checkbox.astro';
-import { inputClass } from '@/lib/ui';
 ---
 
 <Base title="Sign in">
@@ -25,22 +25,19 @@ import { inputClass } from '@/lib/ui';
         <div class="lg:hidden"><Logo size="lg" /></div>
         <h1 class="page-title">Sign in</h1>
         <Field label="Username" for="username">
-          <input id="username" name="username" class={inputClass} autocomplete="username" autofocus required />
+          <Input id="username" name="username" autocomplete="username" autofocus required />
         </Field>
-        <div class="flex flex-col gap-2">
-          <div class="flex justify-between text-[12px] text-muted">
-            <label for="password">Password</label>
-            <button type="button" class="text-faint hover:text-fg" data-forgot>Forgot?</button>
-          </div>
-          <input
+        <Field label="Password" for="password">
+          <Input
             id="password"
             name="password"
             type="password"
-            class:list={[inputClass, 'tracking-[3px]']}
+            class="tracking-[3px]"
             autocomplete="current-password"
             required
           />
-        </div>
+          <button type="button" class="self-end text-[12px] text-text-2 hover:text-text" data-forgot>Forgot?</button>
+        </Field>
         <Checkbox name="remember" checked size={14} class="text-[12px] text-muted" label="Keep this device signed in" />
         <p class="text-[13px] text-rec" role="alert" data-error hidden></p>
         <Button type="submit" variant="primary" size="lg" class="w-full">Sign in</Button>

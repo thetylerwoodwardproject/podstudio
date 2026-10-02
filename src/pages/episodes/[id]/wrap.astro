@@ -4,6 +4,8 @@
 import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
+import StatusDot from '@/components/ui/StatusDot.astro';
+import Dot from '@/components/ui/Dot.astro';
 import { episode as mockEpisode } from '@/data/mock';
 
 export const prerender = false;
@@ -36,7 +38,7 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
         <section class="flex flex-col gap-7" data-step-panel="uploads">
           <div class={card}>
             <div class={row}>
-              <span class="size-2 flex-none rounded-full bg-ok"></span>
+              <StatusDot variant="success" />
               <div class="min-w-0 flex-1">
                 <div class="text-[14px]" data-host-name>Your track</div>
                 <div class="meta mt-0.5 text-text-2" data-host-meta>Saved in this browser</div>
@@ -44,7 +46,7 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
             </div>
             <div class={rule}></div>
             <div class={row}>
-              <span class="size-2 flex-none rounded-full bg-warn" data-guest-dot></span>
+              <Dot color="var(--color-warn)" size={8} data-guest-dot />
               <div class="min-w-0 flex-1">
                 <div class="text-[14px]" data-guest-name>Guest</div>
                 <div class="meta mt-0.5 text-text-2" data-guest-meta>Checking…</div>
@@ -66,12 +68,12 @@ const step = 'flex size-8 flex-none items-center justify-center rounded-[10px] b
         <section class="flex flex-col gap-7" data-step-panel="lineup" hidden>
           <div class={card}>
             <div class={row}>
-              <span class="size-2 flex-none rounded-full bg-spk-yellow"></span>
+              <StatusDot color="var(--color-spk-yellow)" />
               <span class="w-24 flex-none truncate text-[14px]" data-lane-host>Host</span>
               <div class="h-8 min-w-0 flex-1 rounded-[6px] bg-control" data-wave="host"></div>
             </div>
             <div class={row}>
-              <span class="size-2 flex-none rounded-full bg-spk-teal"></span>
+              <StatusDot color="var(--color-spk-teal)" />
               <span class="w-24 flex-none truncate text-[14px]" data-lane-guest>Guest</span>
               <div class="h-8 min-w-0 flex-1 rounded-[6px] bg-control" data-wave="guest"></div>
             </div>

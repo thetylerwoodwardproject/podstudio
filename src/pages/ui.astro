@@ -8,6 +8,8 @@ import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import FreqGraph from '@/components/ui/FreqGraph.astro';
 import StatusCard from '@/components/ui/StatusCard.astro';
+import StatusDot from '@/components/ui/StatusDot.astro';
+import Dot from '@/components/ui/Dot.astro';
 ---
 
 <Base title="Graphs">
@@ -23,7 +25,7 @@ import StatusCard from '@/components/ui/StatusCard.astro';
         <!-- Channel panel -->
         <div class="flex flex-col gap-4 rounded-[14px] bg-surface p-[18px]" data-channel-panel>
           <div class="flex flex-col gap-0.5">
-            <span class="flex items-center gap-2 text-[14px] text-text"><span class="size-2 rounded-full" data-ch-dot></span><span data-ch-name>Left channel</span></span>
+            <span class="flex items-center gap-2 text-[14px] text-text"><Dot color="var(--color-text-3)" size={8} data-ch-dot /><span data-ch-name>Left channel</span></span>
             <span class="text-[12px] text-text-3" data-ch-index>Speaker 1 of 2</span>
           </div>
           <div class="flex flex-1 items-end gap-3.5">
@@ -33,7 +35,7 @@ import StatusCard from '@/components/ui/StatusCard.astro';
             <div class="flex flex-col gap-1">
               <span class="font-mono text-[11px] font-medium tracking-[0.06em] text-text-3">LEVEL</span>
               <span class="font-mono text-[28px] leading-none font-medium text-text"><span data-ch-db>−38.2</span><span class="text-[13px] text-text-2"> dB</span></span>
-              <span class="flex items-center gap-1.5 text-[12px] text-text-2"><span class="size-1.5 rounded-full bg-warn"></span>Measuring this speaker</span>
+              <span class="flex items-center gap-1.5 text-[12px] text-text-2"><StatusDot variant="warning" size={6} />Measuring this speaker</span>
             </div>
           </div>
           <div class="flex flex-col gap-1.5">

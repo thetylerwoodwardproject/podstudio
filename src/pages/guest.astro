@@ -10,6 +10,9 @@
 import Base from '@/layouts/Base.astro';
 import Logo from '@/components/ui/Logo.astro';
 import LevelMeter from '@/components/audio/LevelMeter.astro';
+import StatusDot from '@/components/ui/StatusDot.astro';
+import Dot from '@/components/ui/Dot.astro';
+import Checkbox from '@/components/ui/Checkbox.astro';
 
 const step = 'flex gap-3.5 text-[14px] leading-normal';
 const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-raised font-mono text-[12px] text-muted';
@@ -21,7 +24,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     <header class="flex h-14 flex-none items-center justify-between gap-4 px-5">
       <Logo />
       <div class="flex items-center gap-2 font-mono text-[13px] font-medium text-muted group-data-[stage=rec]/g:text-rec" role="status">
-        <span class="size-2 rounded-full bg-faint group-data-[stage=rec]/g:bg-rec"></span>
+        <StatusDot color="currentColor" class="text-faint group-data-[stage=rec]/g:text-rec" />
         <span data-rec-label>GUEST</span>
       </div>
     </header>
@@ -60,15 +63,12 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
         </label>
         <div class="flex flex-col gap-2">
           <LevelMeter compact />
-          <p class="flex items-center gap-2 text-[14px]"><span class="size-2 rounded-full bg-faint" data-verdict-dot></span><span data-verdict>Talk to check your level</span></p>
+          <p class="flex items-center gap-2 text-[14px]"><Dot color="var(--color-faint)" size={8} data-verdict-dot /><span data-verdict>Talk to check your level</span></p>
         </div>
-        <label class="flex items-start gap-3 text-[14px]">
-          <input type="checkbox" name="ready" class="mt-0.5 size-4 accent-fg" />
-          I'm on the call, with headphones on
-        </label>
+        <Checkbox name="ready" class="gap-3 text-[14px]" label="I'm on the call, with headphones on" />
         <p class="text-[13px] text-rec" role="alert" data-green-error hidden></p>
         <p class="flex items-center gap-2 rounded-xl bg-raised px-3.5 py-3 text-[13px] text-muted" data-lobby hidden>
-          <span class="size-2 flex-none animate-pulse rounded-full bg-warn"></span>
+          <StatusDot variant="warning" pulse />
           Waiting for the host to let you in. Check your mic while you wait.
         </p>
         <button type="submit" class="flex h-12 items-center justify-center rounded-xl bg-fg text-[15px] font-medium text-ink disabled:opacity-40" data-join>Ready</button>
@@ -95,7 +95,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
       <ol class="mt-4 flex min-h-0 flex-1 flex-col gap-2 overflow-auto" data-points hidden></ol>
       <!-- Host script or ad-lib: a big light -->
       <div class="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center" data-light hidden>
-        <span class="size-5 rounded-full bg-faint group-data-[stage=rec]/g:bg-rec group-data-[stage=rec]/g:shadow-[0_0_40px_var(--color-rec)]"></span>
+        <StatusDot color="currentColor" size={20} class="text-faint group-data-[stage=rec]/g:text-rec group-data-[stage=rec]/g:shadow-[0_0_40px_var(--color-rec)]" />
         <p class="text-[22px]" data-light-text>Waiting to start</p>
         <p class="text-[13px] text-muted">Just talk. Podstudio's recording you on this device.</p>
       </div>

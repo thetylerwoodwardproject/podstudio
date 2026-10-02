@@ -4,11 +4,13 @@ interface Props {
   /** id of the control this label points at */
   for?: string;
   class?: string;
+  description?: string;
 }
-const { label, for: htmlFor, class: cls } = Astro.props;
+const { label, for: htmlFor, class: cls, description } = Astro.props;
 ---
 
-<div class:list={['flex flex-col gap-2', cls]}>
-  <label for={htmlFor} class="text-[14px] text-text">{label}</label>
+<div data-slot="field" class:list={['flex flex-col gap-2', cls]}>
+  <label data-slot="field-label" for={htmlFor} class="text-[14px] text-text">{label}</label>
   <slot />
+  {description && <p data-slot="field-description" class="text-[12px] text-text-2">{description}</p>}
 </div>

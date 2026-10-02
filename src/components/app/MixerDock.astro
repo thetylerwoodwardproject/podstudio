@@ -7,6 +7,7 @@
  * lanes (1b); laptops never show it.
  */
 import { toFraction } from '@/lib/audio/meter';
+import StatusDot from '@/components/ui/StatusDot.astro';
 
 const people = [
   { who: 'host', role: 'HOST', dot: 'var(--color-spk-yellow)' },
@@ -32,7 +33,7 @@ const tag = 'font-mono text-[11px] font-medium tracking-[0.06em] text-text-3 upp
       people.map((p) => (
         <span class="grid w-full grid-cols-[88px_1fr_64px] items-center gap-3" data-dock-row={p.who}>
           <span class="flex min-w-0 items-center gap-2 text-[14px] text-text">
-            <span class="size-2 flex-none rounded-full" style={{ background: p.dot }} />
+            <StatusDot color={p.dot} />
             <span class="truncate" data-dock-name />
           </span>
           <span class="relative h-1.5 min-w-0 overflow-hidden rounded-full">
@@ -71,7 +72,7 @@ const tag = 'font-mono text-[11px] font-medium tracking-[0.06em] text-text-3 upp
           <div class="flex flex-col items-center gap-3 rounded-[14px] bg-page px-3 py-4" data-dock-strip={p.who}>
             <div class="flex w-full flex-col items-center gap-1">
               <span class="flex max-w-full items-center gap-2 text-[15px] text-text">
-                <span class="size-2 flex-none rounded-full" style={{ background: p.dot }} />
+                <StatusDot color={p.dot} />
                 <span class="truncate" data-dock-name />
               </span>
               <span class={tag}>{p.role}</span>

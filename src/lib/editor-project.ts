@@ -1,9 +1,15 @@
 import { clampOverlapEdit, crossfadeSpan, refreshCrossfades, remapCrossfades } from './editor-crossfades.ts';
 import type { SessionMarker, LineStart } from './audio/assemble.ts';
-import { cleanTone, COMP_PRESETS, flatTone, type VoiceTone } from './audio/tone.ts';
+import { cleanTone, COMP_PRESETS, EQ_PRESETS, flatTone, type VoiceTone } from './audio/tone.ts';
 
 export type EditorTrackKind = 'voice' | 'pads' | 'import';
 export type CompressionPreset = 'Off' | 'Light' | 'Medium' | 'Heavy';
+export type ShapePreset = 'Warm' | 'Clear' | 'De-mud' | 'Radio';
+export interface EditorFxMacro {
+  shape: number;
+  shapePreset: ShapePreset;
+  boost: number;
+}
 
 export interface EditorFx {
   noise: number;
@@ -12,6 +18,8 @@ export interface EditorFx {
   high: number;
   compression: CompressionPreset;
   level: boolean;
+  /** Simple controls; absent on older projects so their original sound is retained. */
+  macro?: EditorFxMacro;
   /** Present only after advanced editing; authoritative over simple controls. */
   tone?: VoiceTone;
 }
@@ -176,6 +184,26 @@ export function createEditorProject(input: {
 /** Map the simple Low/Mid/High UI to the existing ten-band export processor. */
 export function toneFromFx(fx: EditorFx): VoiceTone {
   if (fx.tone) return cleanTone(fx.tone);
+  if (fx.macro) {
+    const macro = cleanFxMacro(fx.macro);
+    const tone = flatTone();
+    tone.eq.on = macro.shape > 0;
+    tone.eq.gains = EQ_PRESETS[macro.shapePreset].map((gain) => Math.round(gain * macro.shape / 100));
+    tone.eq.preset = macro.shape === 100 ? macro.shapePreset : null;
+    if (macro.boost > 0) {
+      const amount = macro.boost / 100;
+      const light = COMP_PRESETS.Light, heavy = COMP_PRESETS.Heavy;
+      tone.comp = {
+        on: true,
+        threshold: light.threshold + (heavy.threshold - light.threshold) * amount,
+        ratio: light.ratio + (heavy.ratio - light.ratio) * amount,
+        knee: light.knee + (heavy.knee - light.knee) * amount,
+        makeup: light.makeup + (heavy.makeup - light.makeup) * amount,
+        attackMs: 10, releaseMs: 150, preset: null,
+      };
+    }
+    return tone;
+  }
   const tone = flatTone();
   tone.eq.on = fx.low !== 0 || fx.mid !== 0 || fx.high !== 0;
   tone.eq.gains = [fx.low, fx.low, fx.low, fx.mid, fx.mid, fx.mid, fx.high, fx.high, fx.high, fx.high];
@@ -184,6 +212,14 @@ export function toneFromFx(fx: EditorFx): VoiceTone {
     tone.comp = { on: true, ...COMP_PRESETS[fx.compression], preset: fx.compression };
   }
   return tone;
+}
+
+export function cleanFxMacro(value: Partial<EditorFxMacro> = {}): EditorFxMacro {
+  return {
+    shape: clamp(Number(value.shape) || 0, 0, 100),
+    shapePreset: ['Warm', 'Clear', 'De-mud', 'Radio'].includes(value.shapePreset ?? '') ? value.shapePreset! : 'Clear',
+    boost: clamp(Number(value.boost) || 0, 0, 100),
+  };
 }
 
 export function fxFromTone(tone: VoiceTone, noise = 0, level = false): EditorFx {
@@ -311,7 +347,7 @@ export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
   if (allTracks.some((t) => !t || typeof t.id !== 'string' || typeof t.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(t.kind) || !Array.isArray(t.clips) || t.clips.length > 10_000)) return null;
   if (allTracks.some((t) => t.clips.some((c) => !c || typeof c.id !== 'string' || typeof c.sourceId !== 'string' || ![c.sourceStart, c.sourceEnd, c.timelineStart].every(Number.isFinite) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart || c.timelineStart < 0))) return null;
   const copy = structuredClone(p);
-  const cleanTrack = (t: EditorTrack) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) });
+  const cleanTrack = (t: EditorTrack) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.macro ? { macro: cleanFxMacro(t.fx.macro) } : {}), ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) });
   copy.tracks = copy.tracks.map(cleanTrack);
   copy.removedTracks = (copy.removedTracks ?? []).map(cleanTrack);
   copy.crossfades = Array.isArray(copy.crossfades) ? copy.crossfades.filter((f) => {

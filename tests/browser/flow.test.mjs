@@ -145,7 +145,7 @@ await page.click('[data-step-tab="export"]');
 await page.click('[data-export]');
 await page.waitForSelector('[data-picker] [data-file]');
 const rows = page.locator('[data-picker] [data-file]');
-ok('picker: 11 files in 4 groups, all ticked', (await rows.count()) === 11 && (await page.locator('[data-file-group]').count()) === 4 && (await page.locator('[data-picker] [data-file][aria-checked=true]').count()) === 11);
+ok('picker: 11 files in 4 groups, all ticked', (await rows.count()) === 11 && (await page.locator('[data-file-group]').count()) === 4 && (await page.locator('[data-picker] [data-file] [data-slot=checkbox][data-state=checked]').count()) === 11);
 ok('Everything is the active quick pick', (await page.getAttribute('[data-quick=everything]', 'aria-pressed')) === 'true');
 ok('each file says what it is and its size', /noise suppression applied/.test(await page.textContent('[data-file="Ep142_Session_Tyler_clean.wav"]')) && /MB|KB/.test(await page.textContent('[data-file="Ep142_Session_Tyler_clean.wav"]')));
 await page.screenshot({ path: `${D}/06-picker.png` });
@@ -162,7 +162,7 @@ await page.click('[data-quick=everything]');
 await page.click('[data-file="Ep142_Session_voice-log.txt"]');
 await page.focus('[data-file="Ep142_Session_markers.csv"]');
 await page.keyboard.press('Space');
-await page.click('label:has([data-remember])');
+await page.click('[data-remember-label]');
 ok('Download 9 files', (await text('[data-download]')) === 'Download 9 files');
 const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 400000 }), page.click('[data-download]')]);
 execSync(`rm -rf ${D}/x && mkdir -p ${D}/x`);
@@ -241,7 +241,7 @@ await page.keyboard.press('Escape');
 ok('forgotten on the server too', await until(async () => (await page.evaluate(async () => (await (await fetch('/api/me/settings')).json()).settings.recording.exportFiles)) === null, 5000));
 // A failed download must not show success. A raw-only export must, even without measurements.
 await page.click('[data-export]');
-for (const name of await page.locator('[data-file][aria-checked=true]').evaluateAll((els) => els.map((e) => e.dataset.file))) await page.locator(`[data-file="${name}"]`).click();
+for (const name of await page.locator('[data-file]:has([data-slot=checkbox][data-state=checked])').evaluateAll((els) => els.map((e) => e.dataset.file))) await page.locator(`[data-file="${name}"]`).click();
 await page.click('[data-file="Ep142_Session_Tyler.wav"]');
 await page.evaluate(() => {
   window.__createObjectURL = URL.createObjectURL;

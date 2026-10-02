@@ -87,15 +87,22 @@ if (await page.locator('[data-retakes-open]').textContent().then((x) => x.includ
 }
 await page.locator('[data-track-fx]').first().click();
 ok('FX opens in a sheet', await page.locator('#fx-title').isVisible());
+ok('simple FX uses Clean, Shape and Boost', await page.locator('[data-fx-knob]').count() === 3);
+const shape = page.getByRole('slider', { name: 'Shape' });
+await shape.focus(); await page.keyboard.press('ArrowUp');
+ok('Shape knob supports keyboard adjustment', await shape.getAttribute('aria-valuenow') === '1');
+await page.getByLabel('Shape preset').selectOption('Warm');
+await page.screenshot({ path: `${OUT}/editor-simple-fx.png`, fullPage: true });
 await page.getByRole('button', { name: 'Advanced', exact: true }).click();
-ok('advanced EQ has ten bands', await page.locator('input[aria-label^="EQ "]').count() === 10);
-await page.getByLabel('EQ 1000 Hz', { exact: true }).fill('3');
+ok('advanced EQ has ten vertical shadcn sliders', await page.locator('[data-eq-bands] [data-slot="slider"]').count() === 10);
+await page.getByRole('slider', { name: 'EQ 1000 Hz' }).focus(); await page.keyboard.press('ArrowUp');
 await page.getByLabel('Attack', { exact: false }).fill('25');
 await page.screenshot({ path: `${OUT}/editor-advanced.png`, fullPage: true });
 await page.getByRole('button', { name: 'Simple', exact: true }).click();
 ok('collapsing advanced retains custom settings', await page.getByText('Advanced EQ and compression are active.', { exact: false }).isVisible());
 await page.getByRole('button', { name: 'Apply FX' }).click();
 ok('server autosave confirms', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'saved'));
+ok('editor save feedback uses the top toast', await page.locator('[data-save-toast="saved"]').isVisible() && (await page.locator('[data-save-toast="saved"]').boundingBox()).y < 180);
 await ctx.setOffline(true);
 await page.locator('input[aria-label$=" level"]').first().evaluate((input) => { input.value = '-1'; input.dispatchEvent(new Event('input', { bubbles: true })); });
 ok('offline edits wait for connection', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'offline'));

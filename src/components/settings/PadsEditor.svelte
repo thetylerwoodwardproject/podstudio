@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import Sheet from '@/components/ui/Sheet.svelte';
   import Segmented from '@/components/ui/Segmented.svelte';
+  import { Checkbox } from '@/components/shadcn/checkbox';
+  import StatusDot from '@/components/ui/StatusDot.svelte';
   import { PadEngine } from '@/lib/audio/pad-engine';
   import { getTake, listTakes, readFrames, saveRemoteTake, type TakeMeta } from '@/lib/audio/takes';
   import { fetchTakeSegment, serverTakes } from '@/lib/take-upload';
@@ -187,7 +189,7 @@
         >
           <span class="flex justify-between"><span class="font-mono text-[18px] leading-none font-medium">{k}</span>{#if pad}<span class="font-mono text-[9px] opacity-70">{padTag(pad)}</span>{/if}</span>
           <span class="line-clamp-2 text-[13px] leading-tight font-semibold">{pad?.name ?? 'Empty · click to assign'}</span>
-          {#if layer === 'episode' && ownPads.find((p) => p.key === k)}<span class="absolute top-1.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-black/60"></span>{/if}
+          {#if layer === 'episode' && ownPads.find((p) => p.key === k)}<StatusDot color="rgba(0,0,0,.6)" size={6} class="absolute top-1.5 left-1/2 -translate-x-1/2" />{/if}
         </button>
       {/each}
     </div>
@@ -256,7 +258,7 @@
       <label class="flex flex-col gap-2 text-[14px]">Volume <span class="font-mono text-[12px] text-text-3">{draft?.gainDb ?? 0} dB</span><input type="range" min="-24" max="6" step="1" value={draft?.gainDb ?? 0} disabled={!draft} oninput={(e) => change({ gainDb: Number(e.currentTarget.value) })} data-d-gain /></label>
       <label class="flex flex-col gap-2 text-[14px]">Fade in / out <span class="font-mono text-[12px] text-text-3">ms</span><span class="flex gap-2"><input class={input} type="number" min="0" max="10000" value={draft?.fadeInMs ?? 0} disabled={!draft} onchange={(e) => change({ fadeInMs: Number(e.currentTarget.value) })} data-d-fadein /><input class={input} type="number" min="0" max="10000" value={draft?.fadeOutMs ?? 0} disabled={!draft} onchange={(e) => change({ fadeOutMs: Number(e.currentTarget.value) })} data-d-fadeout /></span></label>
       <label class="flex flex-col gap-2 text-[14px]">Trim <span class="font-mono text-[12px] text-text-3">s</span><span class="flex gap-2"><input class={input} type="number" min="0" step="0.1" value={draft?.trimStart ?? 0} disabled={!draft} onchange={(e) => change({ trimStart: Number(e.currentTarget.value) })} data-d-trimstart /><input class={input} type="number" min="0" step="0.1" value={draft?.trimEnd || ''} placeholder="end" disabled={!draft} onchange={(e) => change({ trimEnd: Number(e.currentTarget.value || 0) })} data-d-trimend /></span></label>
-      <label class="flex flex-col gap-2 text-[14px]">Duck under your voice <span class="flex h-10 items-center gap-2"><input type="checkbox" checked={draft?.duck ?? false} disabled={!draft} onchange={(e) => change({ duck: e.currentTarget.checked })} data-d-duck /> On <input class="h-10 w-20 rounded-[10px] border border-border bg-page px-3 font-mono text-[13px]" type="number" min="1" max="40" value={draft?.duckDb ?? 12} disabled={!draft} onchange={(e) => change({ duckDb: Number(e.currentTarget.value) })} data-d-duckdb /><span class="font-mono text-[12px] text-text-3">dB</span></span></label>
+      <div class="flex flex-col gap-2 text-[14px]">Duck under your voice <span class="flex h-10 items-center gap-2"><Checkbox id="pad-duck" checked={draft?.duck ?? false} disabled={!draft} onCheckedChange={(checked) => change({ duck: checked })} data-d-duck /><label for="pad-duck">On</label><input class="h-10 w-20 rounded-[10px] border border-border bg-page px-3 font-mono text-[13px]" type="number" min="1" max="40" value={draft?.duckDb ?? 12} disabled={!draft} onchange={(e) => change({ duckDb: Number(e.currentTarget.value) })} data-d-duckdb /><span class="font-mono text-[12px] text-text-3">dB</span></span></div>
     </div>
     {#if message}<p class="text-[13px] {message.startsWith('Couldn') || message.startsWith('This sound') ? 'text-rec' : 'text-text-2'}" role="status" data-pad-message>{message}</p>{/if}
   </div>

@@ -1,0 +1,8 @@
+---
+// Server-rendered shadcn-svelte pagination anatomy for Astro's filtered episode list.
+---
+<nav aria-label="Episode pages" data-slot="pagination" data-pagination class="flex items-center justify-center gap-2" hidden>
+  <button type="button" data-page-prev data-slot="pagination-previous" class="h-9 rounded-lg border border-border px-3 text-[13px] hover:bg-control disabled:opacity-40">‹ Previous</button>
+  <span data-page-numbers class="flex items-center gap-1"></span>
+  <button type="button" data-page-next data-slot="pagination-next" class="h-9 rounded-lg border border-border px-3 text-[13px] hover:bg-control disabled:opacity-40">Next ›</button>
+</nav>

@@ -4,6 +4,7 @@ import EpisodeData from '@/components/app/EpisodeData.astro';
 import { episodePage } from '@/lib/episode-page';
 import AppShell from '@/layouts/AppShell.astro';
 import Button from '@/components/ui/Button.astro';
+import StatusDot from '@/components/ui/StatusDot.astro';
 import ImportDialog from '@/components/app/ImportDialog.astro';
 import { episode as mockEpisode, scriptLines } from '@/data/mock';
 
@@ -21,7 +22,7 @@ const episode = { ...mockEpisode, ...data.episode };
   <EpisodeData data={data} />
   <Fragment slot="topbar">
     <Button href={`/episodes/${episode.id}/studio`} variant="record" size="md" class="gap-2.5 px-5">
-      <span class="size-2 rounded-full bg-white"></span>
+      <StatusDot color="white" />
       Go to studio
     </Button>
   </Fragment>

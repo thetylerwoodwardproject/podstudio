@@ -27,6 +27,13 @@ are included. Finish the coordinated screen redesign across setup, library,
 recording, mobile review, editor, export and Settings. Adapt the community
 audio-player controls to a shared Podstudio transport interface while
 retaining bounded editor rendering and specialized capture/pad engines.
+The current component pass adds Clean/Shape/Boost FX knobs, vertical advanced
+EQ sliders, top Sonner save feedback, shared status dots and step indicators,
+form fields and breadcrumbs, and conditional episode pagination. The existing
+dBFS meters remain calibrated rather than adopting Audio Wave's decorative
+animation. Full cross-route visual and real-device validation is still pending.
+Checkbox and Input OTP are now part of the shared control pass; verify
+authenticator autofill, paste, and invite-code links on real phones.
 Review every route in both themes on desktop and phone, including focus,
 loading, offline and error states. Verify the original imported MP3 plays
 continuously across multiple render windows on the VPS before closing that

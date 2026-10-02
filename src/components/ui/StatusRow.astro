@@ -1,5 +1,6 @@
 ---
 import type { HTMLAttributes } from 'astro/types';
+import Dot from './Dot.astro';
 
 type Props = {
   label: string;
@@ -18,7 +19,7 @@ const { label, value, color, dense = false, ...rest } = Astro.props;
 >
   <span class="flex-none text-text-2">{label}</span>
   <span class="flex min-w-0 items-center gap-2 text-right font-mono text-[12px] text-text">
-    <span class="inline-block size-1.5 flex-none rounded-full" style={{ background: color }} hidden={!color} data-dot></span>
+    <Dot color={color ?? 'transparent'} size={6} hidden={!color} data-dot />
     <span data-value>{value}</span>
   </span>
 </div>

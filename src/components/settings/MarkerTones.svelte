@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import Switch from '@/components/ui/Switch.svelte';
+  import { Checkbox } from '@/components/shadcn/checkbox';
   import Segmented from '@/components/ui/Segmented.svelte';
   import { PreviewPlayer } from '@/lib/audio/preview-player';
   import { hzLabel, markerTonePreview, toneFreq, type ToneKind, type TonePitch, type ToneSettings } from '@/lib/audio/tones';
@@ -112,18 +113,11 @@
           <div class="text-[14px]">Markers that beep</div>
           <div class="flex flex-wrap gap-2" role="group" aria-label="Markers that beep">
             {#each KINDS as [k, name]}
-              <label
-                class="inline-flex h-[34px] items-center gap-2 rounded-[9px] border border-border px-3 text-[14px] transition-colors has-checked:border-handle has-checked:bg-control has-focus-visible:outline-2 has-focus-visible:outline-text"
-              >
-                <input type="checkbox" class="peer sr-only" data-tone-kind={k} bind:checked={t.kinds[k]} />
-                <span
-                  aria-hidden="true"
-                  class="flex size-3.5 flex-none items-center justify-center rounded-[4px] border border-handle text-[9px] leading-none font-bold text-transparent peer-checked:border-text peer-checked:bg-text peer-checked:text-page"
-                  >✓</span
-                >
-                {name}
+              <div class="inline-flex h-[34px] items-center gap-2 rounded-[9px] border border-border px-3 text-[14px] transition-colors has-[[data-state=checked]]:border-handle has-[[data-state=checked]]:bg-control">
+                <Checkbox id={`tone-${k}`} data-tone-kind={k} bind:checked={t.kinds[k]} />
+                <label for={`tone-${k}`} class="cursor-pointer">{name}</label>
                 <span class="font-mono text-[12px] text-text-3">{hzLabel(toneFreq(k, t.pitch))}</span>
-              </label>
+              </div>
             {/each}
           </div>
         </div>

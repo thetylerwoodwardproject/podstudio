@@ -153,7 +153,11 @@ The transport also has stacked horizontal Left and Right master meters. Those
 measure the stereo mix the player receives, including mastering when mastered
 preview is on. A mono mastered output feeds the same level to both bars.
 
-**FX → Advanced** exposes a ten-band EQ (31 Hz–16 kHz, ±12 dB), response graph,
+**FX → Simple** now has Clean (voice noise reduction), Shape (preset tone amount)
+and Boost (compression and presence) knobs. Shape has Warm, Clear, De-mud and
+Radio presets. Existing detailed settings stay active until explicitly replaced.
+**FX → Advanced** exposes a ten-band EQ (31 Hz–16 kHz, ±12 dB) with vertical
+sliders, response graph,
 presets and bypass, plus threshold, ratio, knee, makeup gain, attack and release
 for compression. Simple remains the default. Collapsing advanced settings
 preserves them; Reset to simple requires an explicit confirmation. Preview FX
@@ -179,10 +183,10 @@ The desktop workflow is **Record → Editor → Export → Optional AI tools**. 
 - **Editing:** click a waveform to select it, drag it to move, drag its edge to trim, Shift-drag the waveform or drag the ruler to select a range, split, delete to leave a gap, or ripple-cut across linked synchronized tracks. Alt-drag unlinks a clip before moving it. Same-track edge overlaps crossfade across the full overlap; different tracks mix normally. Tracks stay linked unless explicitly unlinked. Space plays or pauses; Delete removes; S splits; X ripple-cuts; ⌘/Ctrl-Z and ⌘/Ctrl-Shift-Z undo and redo. Shortcuts do nothing while typing in a control.
 - **Retakes:** markers and script history form attempt groups. The last attempt is suggested, but every group must be reviewed before export. Choose another attempt if needed, adjust its boundaries, loop either join, then confirm **Keep last take** or the selected attempt. Source recordings remain untouched.
 - **Pauses:** shared quiet stretches of at least three seconds become suggestions. Leave each one alone, shorten it to one second and adjust the boundary, or remove it. Podstudio never strips natural pauses automatically.
-- **Tracks and FX:** every track has Mute, Solo, FX, Level and a live dBFS peak meter. Solo changes listening only; mute and level also affect the finished mix. The FX sheet gives voice tracks noise amount, Low/Mid/High tone, Off/Light/Medium/Heavy compression and speech leveling. Pads and imports get tone and compression.
+- **Tracks and FX:** every track has Mute, Solo, FX, Level and a live dBFS peak meter. Solo changes listening only; mute and level also affect the finished mix. Simple FX gives voice tracks Clean, Shape and Boost, while pads and imports get Shape and Boost. Advanced retains exact EQ and compression; voice tracks also have speech leveling.
 - **Imports:** WAV, MP3, M4A, FLAC and other formats the browser can decode become a new track at the playhead and use the existing media store.
 - **Playback:** one persistent player previews the cumulative project. It keeps the playhead while edits and FX change. Initial playback renders roughly four seconds, then prefetches larger bounded windows toward 30 seconds. The transport reports preparation and waits; this is not a 30-second playback limit.
-- **Autosave and recovery:** project metadata saves locally immediately and then to `/api/editor-projects/:takeId` after a short delay. The header reports Saving, Saved, Waiting for connection, Failed or Conflict. A conflict stops autosave until **Reload server version** or **Overwrite with this version** is chosen. Past Sessions reconstructs the timeline from immutable source references and saved metadata.
+- **Autosave and recovery:** project metadata saves locally immediately and then to `/api/editor-projects/:takeId` after a short delay. A top-right toast reports Saving, Saved, Waiting for connection, Failed or Conflict. A conflict stops autosave until **Reload server version** or **Overwrite with this version** is chosen. Past Sessions reconstructs the timeline from immutable source references and saved metadata.
 
 ### Export
 
@@ -243,7 +247,7 @@ Firefox and Safari on the Mac go to `/unsupported`, and so does any page opened 
 The first time you open it, Podstudio asks you to create the admin account and turn on two-factor
 authentication (an authenticator app, plus ten one-time recovery codes). After that:
 
-- **Sign in** with your username and password, then the 6-digit code from the app, or a recovery code.
+- **Sign in** with your username and password, then the 6-digit code from the app, or a recovery code. The code field supports paste and device one-time-code autofill.
   "Keep this device signed in" lasts 30 days (otherwise 12 hours); "Trust this device" skips the code on
   that browser for 30 days.
 - **Settings → Security**: when two-factor was added, recovery codes left (and new ones), trusted devices

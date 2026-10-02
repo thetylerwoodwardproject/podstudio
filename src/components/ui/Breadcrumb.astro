@@ -1,0 +1,16 @@
+---
+// Semantic Astro rendering of shadcn-svelte's breadcrumb structure; no hydration needed.
+export interface Crumb { label: string; href?: string }
+interface Props { crumbs: Crumb[] }
+const { crumbs } = Astro.props;
+const back = [...crumbs].reverse().find((crumb) => crumb.href);
+---
+<nav aria-label="Breadcrumb" data-slot="breadcrumb" class="min-w-0 text-[13px] text-text-2">
+  {back && <a class="inline-flex items-center gap-1 hover:text-text sm:hidden" href={back.href} aria-label={`Back to ${back.label}`}><span aria-hidden="true">‹</span>{back.label}</a>}
+  <ol data-slot="breadcrumb-list" class:list={['min-w-0 items-center gap-2 whitespace-nowrap', back ? 'hidden sm:flex' : 'flex']}>
+    {crumbs.map((crumb, i) => <li data-slot="breadcrumb-item" class="flex min-w-0 items-center gap-2">
+      {i > 0 && <span data-slot="breadcrumb-separator" class="text-text-3" aria-hidden="true">/</span>}
+      {i === crumbs.length - 1 ? <span data-slot="breadcrumb-page" class="truncate" aria-current="page">{crumb.label}</span> : crumb.href ? <a data-slot="breadcrumb-link" href={crumb.href} class="truncate hover:text-text">{crumb.label}</a> : <span class="truncate">{crumb.label}</span>}
+    </li>)}
+  </ol>
+</nav>

@@ -19,7 +19,7 @@ import OtpInput from '@/components/ui/OtpInput.astro';
         Your name
         <input name="name" autocomplete="name" required maxlength="40" class="h-12 rounded-[10px] border border-edge bg-surface px-3 text-[16px] text-fg focus:border-fg focus:outline-none" placeholder="Sam" data-name />
       </label>
-      <OtpInput name="code" label="Invite code" size="lg" />
+      <OtpInput name="code" label="Invite code" size="lg" queryCode />
       <p class="text-[13px] text-rec" role="alert" data-error hidden></p>
       <Button type="submit" variant="primary" size="xl" class="w-full" data-join-btn>Join</Button>
     </form>
@@ -34,16 +34,15 @@ import OtpInput from '@/components/ui/OtpInput.astro';
   import { joinWithCode, saveJoined } from '@/lib/room';
 
   const form = document.querySelector<HTMLFormElement>('[data-join]')!;
-  const boxes = [...form.querySelectorAll<HTMLInputElement>('[data-otp] input')];
   const error = form.querySelector<HTMLElement>('[data-error]')!;
   const btn = form.querySelector<HTMLButtonElement>('[data-join-btn]')!;
-  const code = () => boxes.map((b) => b.value).join('');
+  const code = () => form.querySelector<HTMLInputElement>('[data-otp] input')?.value ?? '';
   const nameInput = form.querySelector<HTMLInputElement>('[data-name]')!;
   try {
     nameInput.value = localStorage.getItem('podstudio:guest-name') ?? '';
   } catch {}
 
-  async function join() {
+  async function join(codeOverride?: string) {
     const name = nameInput.value.trim();
     if (!name) {
       error.textContent = 'Add your name, so the host knows who’s asking to join.';
@@ -51,7 +50,8 @@ import OtpInput from '@/components/ui/OtpInput.astro';
       nameInput.focus();
       return;
     }
-    if (!/^\d{6}$/.test(code())) {
+    const inviteCode = codeOverride ?? code();
+    if (!/^\d{6}$/.test(inviteCode)) {
       error.textContent = 'The code is six digits.';
       error.hidden = false;
       return;
@@ -60,7 +60,7 @@ import OtpInput from '@/components/ui/OtpInput.astro';
     btn.textContent = 'Joining…';
     error.hidden = true;
     try {
-      const m = await joinWithCode(code(), name);
+      const m = await joinWithCode(inviteCode, name);
       try {
         localStorage.setItem('podstudio:guest-name', name);
       } catch {}
@@ -78,13 +78,12 @@ import OtpInput from '@/components/ui/OtpInput.astro';
     e.preventDefault();
     join();
   });
-  // Filling the last box joins straight away, once there's a name.
-  boxes.at(-1)!.addEventListener('input', () => code().length === 6 && nameInput.value.trim() && join());
+  // The single accessible OTP input manages all six visible cells.
+  form.querySelector('[data-otp]')!.addEventListener('input', () => code().length === 6 && nameInput.value.trim() && join());
   // A link with ?code=123456 fills it in; they still add their name.
   const given = (new URL(location.href).searchParams.get('code') ?? '').replace(/\D/g, '');
   if (given.length === 6) {
-    given.split('').forEach((c, i) => (boxes[i].value = c));
-    if (nameInput.value.trim()) join();
+    if (nameInput.value.trim()) join(given);
     else nameInput.focus();
   }
 </script>

@@ -14,7 +14,7 @@ await page.reload();
 await page.waitForSelector('[data-tones] [data-tone-more]');
 await page.click('[data-tone-more] summary');
 ok('settings show tone defaults', (await page.locator('[data-tone-value=duck]').textContent()) === '−12 dB' && (await page.locator('[data-tone-kind=retake]').isChecked()));
-await page.click('label:has([data-tone-kind=cut])'); ok('cough chip ticks', await page.locator('[data-tone-kind=cut]').isChecked());
+await page.click('label[for="tone-cut"]'); ok('cough chip ticks', await page.locator('[data-tone-kind=cut]').isChecked());
 await page.waitForTimeout(300);
 await page.goto(B + '/episodes/142/recording?legacy=1');
 await page.waitForTimeout(1500);
