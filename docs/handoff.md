@@ -122,6 +122,13 @@ selection. Meter data is collected during rendering without another source read;
 mastered preview keeps the per-track readout before the final master.
 The footer has a stacked horizontal L/R meter for the preview output; the
 scrubber is shorter to make room. Mastered preview meters its mastered output.
+The master meter now switches to live short-term, long-term integrated, and
+range loudness measured from played PCM. Track gain stages changes during a
+drag and renders once on commit, avoiding overlapping preview work. Playback
+startup has a bounded wait and reports an error if a media element never
+starts. Invalidating a preview during its initial load clears stale loading
+state and restarts playback with the new mix. A successful Sonner save toast
+dismisses after 2.5 seconds.
 Editor polish on `feat/editor-ui-playback-polish`: an anchored clip
 popover replaces the position/trim row, uploads report progress in a lower
 corner, Alert Dialog footers use the correct surface token, and waveforms use

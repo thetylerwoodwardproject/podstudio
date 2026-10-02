@@ -30,6 +30,7 @@ await signInPage.getByLabel('Username').fill(USER);
 await signInPage.getByLabel('Password').fill(PASS);
 await signInPage.getByRole('button', { name: 'Sign in' }).click();
 await signInPage.waitForURL('**/signin/verify');
+await signInPage.locator('[data-app-code] astro-island:not([ssr]) [data-otp] input').waitFor();
 await signInPage.locator('[data-otp] input').focus();
 await signInPage.keyboard.insertText('12345');
 ok('two-factor verification uses the six-cell OTP control',

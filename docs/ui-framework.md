@@ -33,6 +33,12 @@ The editor footer reserves a compact, stacked horizontal L/R master meter beside
 the shortened scrubber. It measures the actual preview output and uses the same
 dBFS scale and colors as the track meters. Keep the larger elapsed and duration
 labels directly on either side of the scrubber, before the master meter.
+Clicking the master meter toggles to short-term (three-second), long-term
+(integrated), and loudness-range readings from audio played since the last seek
+or edit. The measured LUFS view shares the footer space with the dBFS bars.
+The save toast dismisses a confirmed save after a few seconds; saving, offline,
+and failure states remain visible. Track level sliders commit one render and
+autosave when released so a drag cannot queue repeated audio preparations.
 The editor FX sheet offers Clean, Shape and Boost knobs in Simple view, with a
 Shape preset choice. Advanced exposes ten vertical shadcn sliders and exact
 compressor controls. The knobs adapt More Shadcn Svelte's MIT-licensed design;

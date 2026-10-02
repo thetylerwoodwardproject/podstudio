@@ -22,6 +22,12 @@ test('EBU Tech 3341: a 1 kHz stereo sine at −23 dBFS reads −23 LUFS', () => 
   }
 });
 
+test('live short-term reading matches the latest three-second result', () => {
+  const meter = new LoudnessMeter(48000, 2);
+  meter.push(sine(48000, 4, -23));
+  assert.ok(Math.abs(meter.currentShortTerm() - meter.shortTerm(0.1).at(-1)!) < 1e-8);
+});
+
 test('mono reads 3 dB below the same signal in stereo', () => {
   const l = measure(sine(48000, 10, -20, 1), 48000, 1);
   assert.ok(Math.abs(l + 23.01) < 0.15, String(l));

@@ -152,6 +152,11 @@ measurement, separate from the source waveform and the level-control value.
 The transport also has stacked horizontal Left and Right master meters. Those
 measure the stereo mix the player receives, including mastering when mastered
 preview is on. A mono mastered output feeds the same level to both bars.
+Click the master meter to switch between dBFS and live short-term LUFS,
+long-term integrated LUFS, and loudness range. Live loudness follows audio
+actually played since the last seek or edit; the separate Loudness analysis
+measures the complete finished mix. Track level changes render once on commit,
+and a successful save toast disappears after a few seconds.
 
 **FX → Simple** now has Clean (voice noise reduction), Shape (preset tone amount)
 and Boost (compression and presence) knobs. Shape has Warm, Clear, De-mud and

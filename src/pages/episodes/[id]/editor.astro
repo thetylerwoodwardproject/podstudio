@@ -197,7 +197,7 @@ const episode = { ...mockEpisode, ...data.episode };
         const samples = await reader.read(Math.round(length * 48000));
         const channels = reader.info.channels as 1 | 2;
         const wav = encodeWav([samples], { sampleRate: 48000, bitDepth: 16, channels });
-        return { url: URL.createObjectURL(wav), duration: length, meters: rendered.meters, masterMeter: outputMeterWindow(samples, channels, 48000, from) };
+        return { url: URL.createObjectURL(wav), duration: length, meters: rendered.meters, masterMeter: outputMeterWindow(samples, channels, 48000, from), pcm: samples, channels };
       }
       const key = audioKey(value) + JSON.stringify(solo);
       if (key !== previewKey || Math.abs(from - previewEnd) > 1 / 48000) renderState = createRenderState();
@@ -207,7 +207,7 @@ const episode = { ...mockEpisode, ...data.episode };
         meters[track.id] = trackMeterWindow(samples, track.channels, rate, start);
       });
       const wav = encodeWav([audio], { sampleRate: 48000, bitDepth: 16, channels: 2 });
-      return { url: URL.createObjectURL(wav), duration: length, meters, masterMeter: outputMeterWindow(audio, 2, 48000, from) };
+      return { url: URL.createObjectURL(wav), duration: length, meters, masterMeter: outputMeterWindow(audio, 2, 48000, from), pcm: audio, channels: 2 };
     };
     const onsave = async (value: EditorProjectV1, baseRevision: number, force = false): Promise<EditorSaveResult> => {
       const response = await fetch(`/api/editor-projects/${encodeURIComponent(take.id)}`, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: value, baseRevision, force }) });

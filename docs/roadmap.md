@@ -104,3 +104,8 @@ Before a public release:
 Mobile recording review and pad removal are implemented; validate raw downloads, playback and synchronization on real iOS/Android devices. The 502 and reported endless import buffering still need updated-VPS reproduction.
 
 Direct clip dragging and automatic equal-power crossfades are implemented in the editor-direct-drag branch, with source-preserving project metadata. A bounded imported-WAV reader and earlier playback prefetch address a demonstrated per-window decoding cost. Validate continuous playback with the original four-minute MP3 on the upgraded VPS; the previous 502 cannot yet be attributed to a specific proxy or server cause.
+
+The master footer can now switch between dBFS and live LUFS readings. Track
+gain changes commit one preview render per drag and stalled media startup
+reports a retryable error instead of leaving Preparing audio indefinitely.
+Verify the reported +10 dB case against the original VPS session after deploy.

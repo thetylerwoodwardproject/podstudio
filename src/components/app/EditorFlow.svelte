@@ -3,7 +3,7 @@
 
   export type EditorSaveState = 'idle' | 'saving' | 'saved' | 'offline' | 'failed' | 'conflict';
   import type { EditorMeterWindows, TrackMeterWindow } from '@/lib/audio/editor-meter';
-  export interface EditorPreview { url: string; duration: number; meters: EditorMeterWindows; masterMeter: TrackMeterWindow }
+  export interface EditorPreview { url: string; duration: number; meters: EditorMeterWindows; masterMeter: TrackMeterWindow; pcm: Float32Array; channels: 1 | 2 }
   export interface EditorExportResult { filename: string; downloadAgain: () => void }
   export interface EditorConflict { project: EditorProjectV1; revision: number }
   export interface EditorTrackView { id: string; peaks: number[]; color: string; status?: 'loading' | 'ready' | 'error'; error?: string }
@@ -43,6 +43,7 @@
   import { Slider } from '@/components/shadcn/slider';
   import { Checkbox } from '@/components/shadcn/checkbox';
   import { meterDbfs } from '@/lib/audio/editor-meter';
+  import { LoudnessMeter } from '@/lib/audio/loudness';
   import { PeakMeter } from '@/lib/audio/meter';
   import { PEAK_SECONDS, waveformBars } from '@/lib/audio/editor-peaks';
   import {
@@ -103,8 +104,16 @@
   let trackContextOpen = $state<Record<string, boolean>>({});
   let meterDisplay = $state<Record<string, { left: number; right: number; held: number }>>({});
   let masterDisplay = $state({ left: -Infinity, right: -Infinity, leftHeld: -Infinity, rightHeld: -Infinity });
+  let loudnessDisplay = $state({ short: -Infinity, long: -Infinity, range: null as number | null });
+  let levelDrafts = $state<Record<string, number>>({});
   let activeMeters: EditorMeterWindows = {};
   let activeMaster: TrackMeterWindow | undefined;
+  let activePcm: Float32Array | undefined;
+  let activeChannels: 1 | 2 = 2;
+  let loudnessMeter: LoudnessMeter | undefined;
+  let loudnessFrames = 0;
+  let loudnessLastShort = 0;
+  let loudnessLastLong = 0;
   const meterBallistics = new Map<string, [PeakMeter, PeakMeter]>();
   const masterBallistics: [PeakMeter, PeakMeter] = [new PeakMeter(), new PeakMeter()];
   let meterFrame = 0;
@@ -127,12 +136,15 @@
   const measurementStale = $derived(measurementKey !== soundKey({ ...project, master: masterDraft }));
   function invalidateAudio() {
     ++playTimer; prefetching = false; prefetchTask = null;
+    loadingAudio = false; playbackStatus = '';
     audio?.pause(); audio = null;
     activeMeters = {}; activeMaster = undefined; meterBallistics.clear(); meterDisplay = {}; resetMasterMeters(); meterBuffering = false;
+    activePcm = undefined; loudnessMeter = undefined; loudnessFrames = 0; loudnessLastShort = 0; loudnessLastLong = 0;
+    loudnessDisplay = { short: -Infinity, long: -Infinity, range: null };
     if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = '';
     if (nextAudio) URL.revokeObjectURL(nextAudio.url); nextAudio = null;
   }
-  function refreshAudio() { const resume = playing; invalidateAudio(); if (resume) void loadWindow(playhead, true); }
+  function refreshAudio() { const resume = playing || loadingAudio; invalidateAudio(); if (resume) void loadWindow(playhead, true); }
   async function switchSession(id: string) {
     if (id === project.takeId || conflict) return;
     clearTimeout(timer); await save();
@@ -160,7 +172,7 @@
   function applyMaster() { update({ ...plain(project), master: cleanMaster(plain(masterDraft)) }); closeLoudness(); }
 
   let audio: HTMLAudioElement | null = null;
-  let nextAudio: { at: number; element: HTMLAudioElement; url: string; duration: number; meters: EditorMeterWindows; masterMeter: TrackMeterWindow } | null = null;
+  let nextAudio: { at: number; element: HTMLAudioElement; url: string; duration: number; meters: EditorMeterWindows; masterMeter: TrackMeterWindow; pcm: Float32Array; channels: 1 | 2 } | null = null;
   let previewUrl = '';
   let playing = $state(false);
   let loadingAudio = $state(false);
@@ -332,11 +344,27 @@
     masterBallistics[0] = new PeakMeter(); masterBallistics[1] = new PeakMeter();
     masterDisplay = { left: -Infinity, right: -Infinity, leftHeld: -Infinity, rightHeld: -Infinity };
   }
+  function feedLoudness(seconds: number) {
+    if (!activePcm || !loudnessMeter) return;
+    const frames = Math.min(Math.floor(activePcm.length / activeChannels), Math.max(0, Math.floor(seconds * 48000)));
+    if (frames <= loudnessFrames) return;
+    loudnessMeter.push(activePcm.subarray(loudnessFrames * activeChannels, frames * activeChannels));
+    loudnessFrames = frames;
+  }
   function paintMeters(now: number) {
     if (!playing || !audio || audio.paused) return;
     if (now - lastMeterPaint < 40) return;
     lastMeterPaint = now;
     const at = audioAt + audio.currentTime;
+    feedLoudness(audio.currentTime);
+    if (loudnessMeter && now - loudnessLastShort >= 250) {
+      loudnessLastShort = now;
+      loudnessDisplay = { ...loudnessDisplay, short: loudnessMeter.currentShortTerm() };
+    }
+    if (loudnessMeter && now - loudnessLastLong >= 2000) {
+      loudnessLastLong = now;
+      loudnessDisplay = { short: loudnessMeter.currentShortTerm(), long: loudnessMeter.integrated(), range: loudnessMeter.range() };
+    }
     const display: Record<string, { left: number; right: number; held: number }> = {};
     for (const track of project.tracks) {
       let meters = meterBallistics.get(track.id);
@@ -486,10 +514,17 @@
     update(next);
   }
   function toggleSolo(id: string) { mastered = false; solo = solo.includes(id) ? solo.filter((x) => x !== id) : [...solo, id]; if (playing) void loadWindow(playhead, true); }
-  function level(id: string, gainDb: number) {
+  function stageLevel(id: string, gainDb: number) {
+    levelDrafts = { ...levelDrafts, [id]: gainDb };
+  }
+  function commitLevel(id: string) {
+    const gainDb = levelDrafts[id];
+    if (gainDb === undefined) return;
+    const remaining = { ...levelDrafts };
+    delete remaining[id];
+    levelDrafts = remaining;
     const next = plain(project); const track = next.tracks.find((t) => t.id === id);
-    if (track) track.gainDb = gainDb;
-    update(next);
+    if (track && track.gainDb !== gainDb) { track.gainDb = gainDb; update(next); }
   }
 
   async function loadWindow(at: number, autoplay: boolean, windowSeconds = 4, loop = false) {
@@ -506,12 +541,30 @@
       audio?.pause();
       audio = new Audio(result.url);
       activeMeters = result.meters; activeMaster = result.masterMeter; audioAt = at; meterBallistics.clear(); meterDisplay = {}; resetMasterMeters();
+      activePcm = result.pcm; activeChannels = result.channels; loudnessFrames = 0;
+      loudnessMeter = new LoudnessMeter(48000, result.channels);
+      loudnessDisplay = { short: -Infinity, long: -Infinity, range: null };
+      loudnessLastShort = 0; loudnessLastLong = 0;
       audio.loop = loop;
       wireAudio(audio, at, result.duration);
-      if (autoplay) { await audio.play(); playing = true; if (!loop && at + result.duration < limit - .01) void prefetch(at + result.duration, 8); }
+      if (autoplay) {
+        await startAudio(audio);
+        if (token !== playTimer) return;
+        playing = true;
+        if (!loop && at + result.duration < limit - .01) void prefetch(at + result.duration, 8);
+      }
     } catch (error) {
-      playbackError = `Playback failed: ${(error as Error).message}`; playing = false;
+      if (token === playTimer) { playbackError = `Playback failed: ${(error as Error).message}`; playing = false; audio?.pause(); }
     } finally { if (token === playTimer) { loadingAudio = false; playbackStatus = ''; } }
+  }
+  async function startAudio(element: HTMLAudioElement) {
+    let timeout = 0;
+    try {
+      await Promise.race([
+        element.play(),
+        new Promise<never>((_, reject) => { timeout = window.setTimeout(() => reject(new Error('Audio did not start. Try again.')), 10000); }),
+      ]);
+    } finally { clearTimeout(timeout); }
   }
   async function previewJoin(at: number) { playbackEnd = null; await loadWindow(Math.max(0, at - 2), true, 4, true); }
   function wireAudio(element: HTMLAudioElement, at: number, seconds: number) {
@@ -520,13 +573,14 @@
     element.onended = async () => {
       const generation = playTimer;
       const limit = playbackEnd ?? duration;
+      feedLoudness(seconds);
       playhead = Math.min(limit, at + seconds);
       if (playhead >= limit - .01) { pause(); playbackEnd = null; return; }
       if (!nextAudio && prefetchTask) { playbackStatus = 'Waiting for audio…'; await prefetchTask; playbackStatus = ''; }
       if (generation !== playTimer || !playing) return;
       if (nextAudio && Math.abs(nextAudio.at - playhead) < .1) {
-        URL.revokeObjectURL(previewUrl); previewUrl = nextAudio.url; audio = nextAudio.element; activeMeters = nextAudio.meters; activeMaster = nextAudio.masterMeter; audioAt = nextAudio.at; meterBuffering = false; const nextAt = nextAudio.at; const nextSeconds = nextAudio.duration; nextAudio = null;
-        wireAudio(audio, nextAt, nextSeconds); void audio.play();
+        URL.revokeObjectURL(previewUrl); previewUrl = nextAudio.url; audio = nextAudio.element; activeMeters = nextAudio.meters; activeMaster = nextAudio.masterMeter; activePcm = nextAudio.pcm; activeChannels = nextAudio.channels; loudnessFrames = 0; audioAt = nextAudio.at; meterBuffering = false; const nextAt = nextAudio.at; const nextSeconds = nextAudio.duration; nextAudio = null;
+        wireAudio(audio, nextAt, nextSeconds); void startAudio(audio).catch((error) => { if (generation === playTimer) { playbackError = `Playback failed: ${(error as Error).message}`; playing = false; } });
         if (nextAt + nextSeconds < limit - .01) void prefetch(nextAt + nextSeconds, Math.min(30, Math.max(16, nextSeconds * 2)));
       } else if (playhead < limit - .01) void loadWindow(playhead, true);
       else playing = false;
@@ -544,7 +598,7 @@
         const result = await onpreview(previewProject(), at, Math.max(0, Math.min(seconds, (playbackEnd ?? duration) - at)), $state.snapshot(solo), mastered && !fxTrack);
         if (generation !== playTimer) { URL.revokeObjectURL(result.url); return; }
         const element = new Audio(result.url); element.preload = 'auto'; element.load();
-        nextAudio = { at, element, url: result.url, duration: result.duration, meters: result.meters, masterMeter: result.masterMeter };
+        nextAudio = { at, element, url: result.url, duration: result.duration, meters: result.meters, masterMeter: result.masterMeter, pcm: result.pcm, channels: result.channels };
       } catch (error) { if (generation === playTimer) playbackError = `Next audio window failed: ${(error as Error).message}`; }
       finally { if (generation === playTimer) { prefetching = false; prefetchTask = null; } }
     })();
@@ -554,7 +608,11 @@
   async function play() {
     if (loadingAudio) return;
     playbackEnd = null;
-    if (audio && previewUrl && audio.paused && audio.currentTime < audio.duration - .05) { await audio.play(); playing = true; return; }
+    if (audio && previewUrl && audio.paused && audio.currentTime < audio.duration - .05) {
+      try { await startAudio(audio); playing = true; }
+      catch (error) { playbackError = `Playback failed: ${(error as Error).message}`; }
+      return;
+    }
     await loadWindow(playhead, true);
   }
   async function playSelection() {
@@ -728,9 +786,9 @@
               <button class="size-7 rounded-[7px] border border-border text-[11px]" class:bg-text={track.muted} class:text-page={track.muted} onclick={() => toggleMute(track.id)} aria-label={`Mute ${track.name}`}>M</button>
               <button class="size-7 rounded-[7px] border border-border text-[11px]" class:bg-text={solo.includes(track.id)} class:text-page={solo.includes(track.id)} onclick={() => toggleSolo(track.id)} aria-label={`Solo ${track.name}`}>S</button>
               <button data-track-fx class="h-7 rounded-[7px] border border-border px-2 text-[11px]" onclick={() => { fxTrack = plain(track); fxBypass = false; fxPreviewing = false; }}>FX</button>
-              <span class="ml-auto font-mono text-[10px] text-text-3">{track.gainDb > 0 ? '+' : ''}{track.gainDb} dB</span>
+            <span class="ml-auto font-mono text-[10px] text-text-3">{(levelDrafts[track.id] ?? track.gainDb) > 0 ? '+' : ''}{levelDrafts[track.id] ?? track.gainDb} dB</span>
             </div>
-            <input aria-label={`${track.name} level`} type="range" min="-24" max="12" step="1" value={track.gainDb} oninput={(e) => level(track.id, Number(e.currentTarget.value))} />
+            <input aria-label={`${track.name} level`} type="range" min="-24" max="12" step="1" value={levelDrafts[track.id] ?? track.gainDb} oninput={(e) => stageLevel(track.id, Number(e.currentTarget.value))} onchange={() => commitLevel(track.id)} onblur={() => commitLevel(track.id)} />
           </div>
           <ContextMenu.Root open={trackContextOpen[track.id] ?? false} onOpenChange={(open) => trackContextOpen[track.id] = open}>
           <ContextMenu.Trigger class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex={0} onpointerdown={(e) => beginSelection(e, track)} oncontextmenu={(e) => timelineContext(e, track)} onkeydown={(e) => keyboardContext(e, track)}>
@@ -781,7 +839,7 @@
     <span data-current-time class="w-[58px] font-mono text-[15px] font-medium tabular-nums">{fmt(playhead)}</span>
     <input class="min-w-[160px] flex-1" aria-label="Playhead" type="range" min="0" max={Math.max(.01, duration)} step=".01" value={playhead} oninput={(e) => seek(Number(e.currentTarget.value))} />
     <span data-duration-time class="font-mono text-[15px] font-medium tabular-nums text-text-2">{fmt(duration)}</span>
-    <div class="flex-none border-l border-divider pl-3"><MasterLevelMeter {...masterDisplay} /></div>
+    <div class="flex-none border-l border-divider pl-3"><MasterLevelMeter {...masterDisplay} {...loudnessDisplay} /></div>
     <div class="h-6 w-px bg-divider"></div>
     <DropdownMenu.Root bind:open={editMenuOpen}>
       <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Edit actions">Edit</DropdownMenu.Trigger>

@@ -44,14 +44,31 @@ ok('timeline has a host track', (await page.locator('[data-track]').count()) >= 
 ok('top and bottom controls are present', (await page.locator('[data-export-open]').count()) === 1 && (await page.locator('[data-editor-play]').count()) === 1);
 ok('empty recording metadata generates a visible waveform', await until(async () => page.locator('[data-track]').first().locator('[data-waveform-peak]').evaluateAll((nodes) => nodes.some((node) => parseFloat(getComputedStyle(node).height) > 6))));
 const playbackStarted = Date.now();
-await page.locator('[data-editor-play]').click();
-ok('short recording starts from a bounded first render', await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause', 10000) && Date.now() - playbackStarted < 10000);
+await page.evaluate(() => {
+  document.querySelector('[data-editor-play]').click();
+  const gain = document.querySelector('input[aria-label$=" level"]');
+  gain.value = '1'; gain.dispatchEvent(new Event('input', { bubbles: true })); gain.dispatchEvent(new Event('change', { bubbles: true }));
+});
+ok('gain change during initial preparation still starts playback', await until(async () => await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause'
+  && await page.locator('[data-playback-status]').count() === 0, 10000) && Date.now() - playbackStarted < 10000);
 ok('host meter shows a live processed dBFS peak', await until(async () => Number.isFinite(Number(await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs'))) && Number(await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs')) > -60, 5000));
 ok('master output has stacked left and right dBFS meters', await until(async () => {
   const left = await page.getByRole('meter', { name: 'Master left level' }).getAttribute('aria-valuetext');
   const right = await page.getByRole('meter', { name: 'Master right level' }).getAttribute('aria-valuetext');
   return left !== '−∞ dBFS' && right !== '−∞ dBFS';
 }, 5000) && await page.locator('[data-master-meter]').isVisible());
+await page.getByRole('button', { name: 'Show master LUFS levels' }).click();
+ok('master meter switches to short-term, long-term and range', await page.locator('[data-master-meter][data-mode="lufs"]').isVisible()
+  && await page.locator('[data-lufs-short]').isVisible() && await page.locator('[data-lufs-long]').isVisible() && await page.locator('[data-lufs-range]').isVisible());
+ok('LUFS readings follow played audio', await until(async () => {
+  const short = await page.locator('[data-lufs-short]').textContent();
+  const long = await page.locator('[data-lufs-long]').textContent();
+  const range = await page.locator('[data-lufs-range]').textContent();
+  return !short.includes('—') && !long.includes('—') && !range.includes('—');
+}, 6000));
+await page.screenshot({ path: `${OUT}/editor-lufs-light.png`, fullPage: true });
+await page.getByRole('button', { name: 'Show master dBFS levels' }).click();
+ok('master meter returns to dBFS', await page.getByRole('meter', { name: 'Master left level' }).isVisible());
 ok('large playhead and duration flank the scrubber before master levels', await page.evaluate(() => {
   const current = document.querySelector('[data-current-time]');
   const scrubber = document.querySelector('input[aria-label="Playhead"]');
@@ -65,6 +82,15 @@ ok('large playhead and duration flank the scrubber before master levels', await 
 }));
 await page.screenshot({ path: `${OUT}/editor-meter-light.png`, fullPage: true });
 ok('playback crosses the first render window', await until(async () => Number(await page.locator('input[aria-label="Playhead"]').inputValue()) > 5, 10000));
+const gain = page.locator('input[aria-label$=" level"]').first();
+await gain.evaluate((input) => {
+  for (let value = 1; value <= 10; value++) { input.value = String(value); input.dispatchEvent(new Event('input', { bubbles: true })); }
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+});
+ok('rapid +10 dB gain adjustment commits one playable mix', await until(async () =>
+  await page.locator('[data-editor-play]').getAttribute('aria-label') === 'Pause'
+    && await page.locator('[data-playback-status]').count() === 0
+    && Number(await page.locator('input[aria-label="Playhead"]').inputValue()) > 5, 12000));
 await page.getByRole('button', { name: 'Stop', exact: true }).click();
 ok('meter resets when playback stops', await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs') === '-Infinity');
 ok('master meters reset when playback stops', await page.getByRole('meter', { name: 'Master left level' }).getAttribute('aria-valuetext') === '−∞ dBFS' && await page.getByRole('meter', { name: 'Master right level' }).getAttribute('aria-valuetext') === '−∞ dBFS');
@@ -73,6 +99,11 @@ await page.emulateMedia({ colorScheme: 'dark' });
 await page.locator('[data-editor-play]').click();
 await until(async () => Number.isFinite(Number(await page.locator('[data-track]').first().locator('[data-track-meter]').getAttribute('data-peak-dbfs'))), 5000);
 await page.screenshot({ path: `${OUT}/editor-meter-dark.png`, fullPage: true });
+await page.getByRole('button', { name: 'Show master LUFS levels' }).click();
+ok('dark-theme LUFS readings remain legible during playback', await until(async () =>
+  !(await page.locator('[data-lufs-short]').textContent()).includes('—'), 6000));
+await page.screenshot({ path: `${OUT}/editor-lufs-dark.png`, fullPage: true });
+await page.getByRole('button', { name: 'Show master dBFS levels' }).click();
 await page.getByRole('button', { name: 'Stop', exact: true }).click();
 await page.emulateMedia({ colorScheme: 'light' });
 await page.getByRole('button', { name: 'Editor tools' }).click();
@@ -102,9 +133,11 @@ await page.getByRole('button', { name: 'Simple', exact: true }).click();
 ok('collapsing advanced retains custom settings', await page.getByText('Advanced EQ and compression are active.', { exact: false }).isVisible());
 await page.getByRole('button', { name: 'Apply FX' }).click();
 ok('server autosave confirms', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'saved'));
-ok('editor save feedback uses the top toast', await page.locator('[data-save-toast="saved"]').isVisible() && (await page.locator('[data-save-toast="saved"]').boundingBox()).y < 180);
+ok('editor save feedback uses the top toast', await until(async () => await page.locator('[data-save-toast="saved"]').isVisible()
+  && (await page.locator('[data-save-toast="saved"]').boundingBox()).y < 180));
+ok('saved toast dismisses after a few seconds', await until(async () => await page.locator('[data-save-toast="saved"]').count() === 0, 5000));
 await ctx.setOffline(true);
-await page.locator('input[aria-label$=" level"]').first().evaluate((input) => { input.value = '-1'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+await page.locator('input[aria-label$=" level"]').first().evaluate((input) => { input.value = '-1'; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); });
 ok('offline edits wait for connection', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'offline'));
 await ctx.setOffline(false);
 ok('autosave resumes online', await until(async () => (await page.locator('[data-save-state]').getAttribute('data-save-state')) === 'saved'));

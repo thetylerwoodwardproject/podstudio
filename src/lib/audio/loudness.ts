@@ -131,6 +131,11 @@ export class LoudnessMeter {
     return out;
   }
 
+  /** Current three-second reading without rebuilding the whole history. */
+  currentShortTerm(): number {
+    return this.shortAt(this.subs.length - 1);
+  }
+
   private shortAt(i: number) {
     if (i < 29) return -Infinity;
     let e = 0;
