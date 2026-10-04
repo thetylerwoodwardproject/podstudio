@@ -5,16 +5,21 @@ interface Props {
   href?: string;
 }
 const { size = 'md', href = '/' } = Astro.props;
-import StatusDot from './StatusDot.astro';
 ---
 
 <a
   href={href}
   class:list={[
-    'flex items-center text-[17px] font-semibold text-text hover:text-text',
+    'flex items-center text-[15px] font-semibold leading-none text-text hover:text-text',
     size === 'lg' ? 'gap-2.5' : 'gap-2',
   ]}
 >
-  <StatusDot variant="recording" size={size === 'lg' ? 10 : 9} />
+  <svg aria-hidden="true" viewBox="0 0 32 32" class:list={['flex-none', size === 'lg' ? 'size-6' : 'size-5']}>
+    <rect width="32" height="32" rx="8" fill="#fafafa" />
+    <circle cx="11" cy="16" r="5.5" fill="#ef4444" />
+    <rect x="19.5" y="10" width="7" height="2.2" rx="1.1" fill="#71717a" />
+    <rect x="19.5" y="14.9" width="8" height="2.2" rx="1.1" fill="#18181b" />
+    <rect x="19.5" y="19.8" width="5" height="2.2" rx="1.1" fill="#71717a" />
+  </svg>
   Podstudio
 </a>

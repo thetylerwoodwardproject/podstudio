@@ -229,3 +229,35 @@ If 502 persists on the VPS, inspect `sudo journalctl -u podstudio -u caddy --sin
 502 handling and a four-minute converted WAV (about 46 MB). The reported input
 was a 12 MB, four-minute MP3, so the converted upload should fit the limit;
 these tests do not establish the cause of that VPS failure.
+
+## AI credentials, prepared audio, and backups
+
+Schema 6 adds deletion tombstones, encrypted credentials, generation jobs,
+prepared-audio metadata and package drafts. Migrations append automatically on
+startup; audio processing stays in the browser. Prepared WAVs and transcription
+MP3 chunks are stored in `<data>/prepared/` and can substantially increase disk
+usage. Keep enough free space for the recording plus a finished copy.
+
+The first saved AI credential creates `<data>/.ai-key`: 32 random bytes, mode
+0600, owned by the service account. Keep it outside the database and never paste
+it into logs, tickets or environment examples. Database backups alone cannot
+recover encrypted API keys. Restore `.ai-key` together with SQLite and audio;
+if it is missing while encrypted credentials exist, the app refuses to create
+an incompatible replacement and explains the required recovery.
+
+The installer updates its own managed nightly backup to include `prepared/`
+and copies `.ai-key` with mode 0600. Custom backup schedules are preserved;
+update those explicitly. Protect off-server backups as carefully as the live
+credential file. Retain backups according to your deletion/privacy policy:
+deleting a session from the app does not remove old off-server snapshots.
+
+Configure OpenAI in Settings → Transcription & AI. Validation checks model
+access; it does not transcribe audio or consume a writing request. Generation is
+explicit and charged by OpenAI. Egress HTTPS to `api.openai.com` is needed.
+Provider requests run one at a time. A restart during a request marks the job
+interrupted rather than silently repeating a potentially charged request.
+Users can retry; completed transcription chunks are retained.
+
+After deployment, verify a real account, encrypted-key restore, a long episode,
+iOS/Android review/downloads, and the originally reported VPS MP3 stalls/502.
+Automated provider tests use deterministic responses and do not spend credits.

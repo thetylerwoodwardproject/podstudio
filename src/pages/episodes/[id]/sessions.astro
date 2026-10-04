@@ -22,7 +22,7 @@ const base = `/episodes/${episode.id}`;
       <div>
         <h1 class="page-title">Sessions</h1>
         <p class="mt-1.5 text-[15px] leading-normal text-text-2">
-          Every session is one WAV, with retakes, coughs, pauses and ad-libs as markers. Open one in the editor.
+          Your recordings from this browser and the server, grouped with their guest tracks. Open one to continue.
         </p>
       </div>
       <Button href={`${base}/mic-check`} variant="record" size="lg" class="gap-2.5" data-new-session>
@@ -57,15 +57,19 @@ const base = `/episodes/${episode.id}`;
       <div class="flex flex-wrap items-center gap-4 text-[13px]">
         <a class="inline-flex h-9 items-center rounded-[10px] bg-text px-3.5 text-[14px] font-medium text-page hover:text-page" data-open>Open editor</a>
         <button type="button" class="inline-flex h-9 items-center rounded-[10px] border border-border px-3.5 text-[14px] text-text hover:border-handle" data-download>↓ Raw WAV</button>
-        <button type="button" class="ml-auto inline-flex h-9 items-center rounded-[10px] border border-rec/70 px-3.5 text-[14px] text-rec hover:border-rec" data-delete>Delete</button>
+        <div class="ml-auto" data-delete-slot></div>
       </div>
     </div>
   </template>
 </AppShell>
 
 <script>
+  import { mount, unmount } from 'svelte';
+  import DeleteRecording from '@/components/app/DeleteRecording.svelte';
+  import { mergeEditorTakes, editorSessions } from '@/lib/editor-sessions';
+  import { reconcileDeletedRecordings } from '@/lib/recording-deletion';
   import { isMobile, recordingLink } from '@/lib/mobile';
-  import { deleteTake, formatBytes, formatDuration, listTakes, saveRemoteTake, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
+  import { formatBytes, formatDuration, listTakes, saveRemoteTake, takeBytes, takeFileName, takeSeconds, takeWav, type TakeMeta } from '@/lib/audio/takes';
   import { fetchTakeSegment, resumeUploads, serverTakes } from '@/lib/take-upload';
   import { sessionUrl } from '@/lib/flow';
   import { offerRecovery } from '@/lib/recovery';
@@ -76,57 +80,20 @@ const base = `/episodes/${episode.id}`;
   const root = document.getElementById('sessions')!;
   const episodeId = root.dataset.episode!;
   root.querySelector<HTMLAnchorElement>('[data-new-session]')!.href = sessionUrl(episodeId);
-  render().then(async () => {
-    // Anything that didn't finish going up (closed early, or offline) goes now.
-    const note = root.querySelector<HTMLElement>('[data-upload-note]')!;
-    const was = note.textContent;
-    await resumeUploads(episodeId, (t) => (note.textContent = `Sent ${t.name} to the server.`));
-    setTimeout(() => (note.textContent = was), 4000);
-    renderServerOnly();
-  });
-
-  /** Sessions on the server that this browser doesn't have: bring one in to play or export it. */
-  async function renderServerOnly() {
-    const local = new Set((await listTakes(episodeId)).map((t) => t.id));
-    const box = root.querySelector<HTMLElement>('[data-server-list]')!;
-    const rows = box.querySelector<HTMLElement>('[data-server-rows]')!;
-    rows.replaceChildren();
-    const missing = (await serverTakes(episodeId)).filter((t) => !local.has(t.id) && t.done && t.segments);
-    box.hidden = !missing.length;
-    for (const t of missing) {
-      const m = t.meta;
-      const row = document.createElement('div');
-      row.dataset.serverTake = t.id;
-      row.className = 'mx-5 flex flex-wrap items-center gap-3 border-t border-divider py-[14px] text-[14px] first:border-t-0';
-      row.innerHTML = `<span class="min-w-0 flex-1"><span class="text-text" data-t></span><span class="ml-2 font-mono text-[13px] text-text-2" data-m></span></span><button type="button" class="inline-flex h-9 items-center rounded-[10px] bg-control px-3.5 text-[14px] text-text hover:bg-nav">Bring into this browser</button>`;
-      row.querySelector('[data-t]')!.textContent = new Date(m.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-      row.querySelector('[data-m]')!.textContent = `${formatDuration(m.samples / m.sampleRate)} · ${formatBytes(m.samples * (m.bitDepth / 8) * (m.channels ?? 1))}`;
-      const btn = row.querySelector('button')!;
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        try {
-          await saveRemoteTake({ ...m, segments: t.segments, status: 'recording', remote: true }, (n) => fetchTakeSegment(t.id, n), (n) => (btn.textContent = `Bringing it in · ${n} of ${t.segments}`));
-          location.href = `/episodes/${episodeId}/sessions?take=${encodeURIComponent(t.id)}`;
-        } catch (err) {
-          btn.textContent = `Couldn’t: ${(err as Error).message}. Try again`;
-          btn.disabled = false;
-        }
-      });
-      if (t.done) {
-        const open = document.createElement('a'); open.textContent = 'Open editor'; recordingLink(open, episodeId, t.id);
-        open.className = 'inline-flex h-9 items-center rounded-[10px] bg-text px-3.5 text-[14px] text-page';
-        row.insertBefore(open, btn);
-      }
-      rows.append(row);
-    }
-  }
+  const widgets: ReturnType<typeof mount>[] = [];
+  void render().then(() => resumeUploads(episodeId)).catch((error) => { root.querySelector('[data-upload-note]')!.textContent = error.message; });
 
   async function render() {
     await offerRecovery(episodeId);
     const list = root.querySelector<HTMLElement>('[data-list]')!;
     const tpl = (document.getElementById('session-card') as HTMLTemplateElement).content.firstElementChild!;
     const selected = new URL(location.href).searchParams.get('take');
-    const all = (await listTakes(episodeId)).filter((t) => t.status === 'done');
+    await reconcileDeletedRecordings(episodeId).catch(() => {});
+    const local = await listTakes(episodeId);
+    const localIds = new Set(local.map((t) => t.id));
+    const remote = await serverTakes(episodeId);
+    const all = mergeEditorTakes(local, remote);
+    for (const widget of widgets.splice(0)) await unmount(widget);
     // One card per session. Recordings made before
     // sessions (separate takes) have no group and show on their own.
     const groups = new Map<string, TakeMeta[]>();
@@ -140,9 +107,11 @@ const base = `/episodes/${episode.id}`;
     // Newest first.
     const ordered = [...groups.values()].sort((a, b) => b[0].startedAt - a[0].startedAt);
     for (const [i, tracks] of ordered.entries()) {
-      const t = tracks[0];
+      const t = editorSessions(tracks)[0];
+      const serverBacked = tracks.some((track) => remote.some((r) => r.id === track.id));
       const card = tpl.cloneNode(true) as HTMLElement;
       card.dataset.card = t.id;
+      if (!localIds.has(t.id)) card.dataset.serverTake = t.id;
       card.toggleAttribute('data-selected', tracks.some((x) => x.id === selected));
       const q = <T extends HTMLElement = HTMLElement>(s: string) => card.querySelector<T>(s)!;
       const session = t.kind === 'session';
@@ -166,26 +135,23 @@ const base = `/episodes/${episode.id}`;
         if (!isMobile()) open.textContent = `Get ${waitingFor}'s track →`;
         q('[data-summary]').textContent += ` · waiting for ${waitingFor}'s track`;
       }
-      // WAVs are disk-backed Blobs, so a URL per session costs nothing up front.
       const audio = q<HTMLAudioElement>('[data-audio]');
-      const originalUrl = URL.createObjectURL(await takeWav(t));
-      audio.src = originalUrl;
-      // Noise suppression on the player (the whole session, cleaned once and kept).
-      const slot = q('[data-ns-slot]');
-      slot.innerHTML = noiseToggleHtml(`ns-${t.id}`);
-      noiseToggle(audio, slot.querySelector<HTMLInputElement>('[data-ns-toggle]')!, slot.querySelector<HTMLElement>('[data-ns-status]')!, t, async () => originalUrl);
-      q('[data-download]').addEventListener('click', async () => {
-        for (const x of tracks) download(await takeWav(x), takeFileName(x));
-      });
-      q('[data-delete]').addEventListener('click', async () => {
-        const what = tracks.length > 1 ? `this session and its ${tracks.length} tracks` : 'this recording';
-        if (!confirm(`Delete ${what}, here and on the server? This can’t be undone.`)) return;
-        for (const x of tracks) {
-          await deleteTake(x.id);
-          await fetch(`/api/takes/${encodeURIComponent(x.id)}`, { method: 'DELETE', credentials: 'same-origin' }).catch(() => {});
-        }
-        render();
-      });
+      if (localIds.has(t.id)) {
+        const originalUrl = URL.createObjectURL(await takeWav(t)); audio.src = originalUrl;
+        const slot = q('[data-ns-slot]'); slot.innerHTML = noiseToggleHtml(`ns-${t.id}`);
+        noiseToggle(audio, slot.querySelector<HTMLInputElement>('[data-ns-toggle]')!, slot.querySelector<HTMLElement>('[data-ns-status]')!, t, async () => originalUrl);
+      } else { audio.hidden = true; q('[data-summary]').textContent += ' · On the server'; }
+      q<HTMLButtonElement>('[data-download]').onclick = async (event) => {
+        const button = event.currentTarget as HTMLButtonElement; button.disabled = true;
+        try {
+          for (const x of tracks) {
+            if (!localIds.has(x.id)) await saveRemoteTake(x, (n) => fetchTakeSegment(x.id, n), (n) => button.textContent = `Preparing ${n} of ${x.segments}…`);
+            download(await takeWav(x), takeFileName(x));
+          }
+        } catch (e) { root.querySelector('[data-upload-note]')!.textContent = (e as Error).message; }
+        finally { button.disabled = false; button.textContent = '↓ Raw WAV'; }
+      };
+      widgets.push(mount(DeleteRecording, { target: q('[data-delete-slot]'), props: { episodeId, tracks, serverBacked, onDeleted: () => { audio.pause(); if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src); void render(); } } }));
       list.append(card);
     }
     if (selected) list.querySelector('[data-selected]')?.scrollIntoView({ block: 'nearest' });

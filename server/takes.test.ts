@@ -21,7 +21,7 @@ test('a take: meta first, then its segments, then done', async () => {
     assert.deepEqual(list.map((t: { id: string }) => t.id), ['t1']);
     assert.equal((await s.call('/api/episodes')).body.episodes[0].sessions, 1, 'counted on the home page');
     await s.call('/api/takes/t1', { method: 'DELETE' });
-    assert.equal((await s.call('/api/takes/t1')).status, 404);
+    assert.equal((await s.call('/api/takes/t1')).status, 410);
   } finally {
     s.done();
   }

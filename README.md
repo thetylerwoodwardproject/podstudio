@@ -36,17 +36,17 @@
 > record, and please open an issue if something breaks.
 
 <p align="center">
-  <img src="docs/images/recording.png" alt="Recording: the script follows your voice, the current line is marked, and Cough, Retake and Ad-lib are one key away" width="900">
+  <img src="docs/images/recording-current.png" alt="Current dark recording setup: the script, guest choice and fixed Start session action" width="900">
 </p>
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/studio.png" alt="The studio: the episode's script with recording format and scrolling beside it"></td>
-    <td width="50%"><img src="docs/images/settings-recording.png" alt="Settings: recording format, noise suppression and marker tones"></td>
+    <td width="50%"><img src="docs/images/editor-current.png" alt="Current dark editor with synchronized timeline, track meter and master output dock"></td>
+    <td width="50%"><img src="docs/images/loudness-current.png" alt="Current editor with short-term, long-term and range loudness in the master dock"></td>
   </tr>
   <tr>
-    <td align="center"><sub>The studio: script, format and voice follow</sub></td>
-    <td align="center"><sub>Recording settings: format, noise suppression, marker tones</sub></td>
+    <td align="center"><sub>Editor: direct waveform work, sidebar rail and live metering</sub></td>
+    <td align="center"><sub>Master dock: switch between dBFS and loudness readings</sub></td>
   </tr>
 </table>
 
@@ -86,7 +86,7 @@ The recording workflow also includes:
 - **Non-destructive projects:** source WAV and PCM segments never change. Clip boundaries, link groups, markers, FX, track levels and export choices autosave as compact, revisioned project metadata, with a browser recovery copy for offline work.
 - **One cumulative preview:** playback always reflects the current edits, gain, mute and FX. It starts from a short browser-rendered window, then prefetches larger bounded windows, so long sessions play without loading the whole recording into memory. The master meter switches between dBFS peaks and live short-term, long-term and range loudness readings.
 - **Consistent controls:** interactive checkboxes use shadcn-svelte, while one-time codes for sign-in, setup, and joining a session support paste and device autofill.
-- **Simple export:** a compact sheet always includes the finished WAV and can add MP3 and aligned raw tracks. Completion shows Back to sessions and Download again; Optional AI tools is reserved for a later release.
+- **Simple export:** a compact sheet always includes the finished WAV and can add MP3 and aligned raw tracks. Completion shows Back to sessions and Download again; Prepare episode offers optional AI drafts and a downloadable publishing package.
 - **Sessions and settings across devices:** recordings upload as you go and
   can be brought into another browser to play or export. Recording, export and
   prompter settings follow your account; microphone selection stays on the
@@ -102,12 +102,12 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/recording-more.png" alt="The More panel while recording: pause, text size, sections, the mic and what's saved"></td>
-    <td width="50%"><img src="docs/images/editor.png" alt="Podstudio Editor with synchronized tracks, markers, transport and export"></td>
+    <td width="50%"><img src="docs/images/recording-current.png" alt="Current Podstudio recording setup with script and guest options"></td>
+    <td width="50%"><img src="docs/images/saved-current.png" alt="Current mobile Session saved review with playback, synchronization retry and raw download"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>More</b>: pause, text size, jump to a section, the mic and what's saved</sub></td>
-    <td align="center"><sub><b>Editor</b>: synchronized tracks, quiet markers and one cumulative preview</sub></td>
+    <td align="center"><sub><b>Recording</b>: script, guest choice and a fixed action footer</sub></td>
+    <td align="center"><sub><b>Mobile review</b>: playback, retry synchronization and raw downloads</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/script.png" alt="The script editor, with sections and the running word count"></td>
@@ -121,12 +121,12 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 <table>
   <tr>
-    <td width="34%" align="center"><img src="docs/images/phone-recording.png" alt="Recording on a phone: the script, level meter and touch controls" width="260"></td>
+    <td width="34%" align="center"><img src="docs/images/saved-current.png" alt="Session saved on a phone: playback, synchronization retry and raw downloads" width="260"></td>
     <td width="66%" valign="middle">
       <h3>On a phone, too</h3>
-      <p>The same control bar works on a phone: Cough, Retake and Ad-lib under your thumb, the level meter above them, and the script taking the rest of the screen. iPhone and iPad recording uses the AudioWorklet path on supported iOS 17+ browsers; real-device validation is still pending. Android uses Chrome.</p>
+      <p>Recording and review work on a phone: the script and touch controls stay readable during capture, then Session saved provides playback, scrubbing, synchronization retry and raw downloads. Full timeline editing and finished-mix export remain on desktop. iPhone and iPad recording uses the AudioWorklet path on supported iOS 17+ browsers; real-device validation is still pending. Android uses Chrome.</p>
       <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
-      <img src="docs/images/saved.png" alt="Session saved on a phone: recording player, server status and raw track downloads">
+      <img src="docs/images/saved-current.png" alt="Session saved on a phone: recording player, server status and raw track downloads">
       <p><sub><b>Session saved</b>: playable recording, marker count, server synchronization and individual raw downloads</sub></p>
     </td>
   </tr>
@@ -138,8 +138,8 @@ Every feature in detail: [docs/features.md](docs/features.md).
 |---|---|
 | ✅ **Works now** | Solo recording with voice follow, markers and warnings · a desktop, non-destructive podcast editor with synchronized tracks, retake and pause review, linked editing, imports, per-track FX, autosave and undo/redo · finished WAV/MP3 and optional aligned raw-track exports · guest and producer sessions with drift and gap correction · a mixer view on a laptop or phone · desktop hotkey pads · accounts with two-factor · episodes, scripts, recordings and editor projects stored on the server · the guided installer |
 | 🚧 **Validation underway** | The first real VPS is installed for real-world testing · checking upgrades, iPhone recording and guest sessions on real devices and networks |
-| 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and transcription. See [docs/roadmap.md](docs/roadmap.md) |
-| 🧪 **Example data for now** | Transcripts, titles, chapters and soundbites (the episode package), the Domain & HTTPS checks, the Controls remotes |
+| 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and deployment validation. See [docs/roadmap.md](docs/roadmap.md) |
+| 🧪 **Example data for now** | The Domain & HTTPS checks and Controls remotes |
 
 Known gaps and caveats: [docs/features.md#known-gaps](docs/features.md#known-gaps).
 
@@ -235,3 +235,24 @@ bundled work and licenses is also in **Settings → About & credits**.
 MIT © 2026 [Tyler Woodward](https://tylerwoodward.me). See [LICENSE](LICENSE).
 Bundled third-party work keeps its own licence: DeepFilterNet3 is MIT or
 Apache-2.0, and Atkinson Hyperlegible is under the SIL Open Font License.
+
+## Easier episode setup
+
+New episode opens an accessible shadcn Dialog/Field overlay, with **Record now**
+or **Add a script**. Record now uses an ad-lib studio without requiring a script.
+Recording format and teleprompter scrolling options are expandable; the fixed
+Start session footer and saved microphone preferences remain available.
+In Editor → Tools → Recommended sound, preview a gentle voice cleanup before
+applying it as one undoable edit. Source audio is unchanged; current projects
+keep their original sound until Apply. The recommendation targets −16 LUFS
+stereo or −19 LUFS mono with a −1 dBTP ceiling.
+
+Grouped permanent deletion, real OpenAI generation and downloadable publishing materials are implemented; see the
+[episode preparation plan](docs/episode-preparation-plan.md).
+
+Prepare episode supports optional OpenAI generation from the finished edited mix
+and manual publishing materials without a key. Approved text survives permanent
+session deletion. Download the finished audio and reviewed text, chapters,
+transcript and selected soundbites together; raw recordings remain optional.
+API keys are encrypted server-side. Back up `.ai-key`, SQLite and `prepared/`;
+see [deployment notes](docs/deploy.md#ai-credentials-prepared-audio-and-backups).

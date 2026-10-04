@@ -115,3 +115,16 @@ The master footer can now switch between dBFS and live LUFS readings. Track
 gain changes commit one preview render per drag and stalled media startup
 reports a retryable error instead of leaving Preparing audio indefinitely.
 Verify the reported +10 dB case against the original VPS session after deploy.
+
+## Episode preparation delivery
+
+The [phased delivery plan](episode-preparation-plan.md) is implemented on
+`feat/episode-preparation` pending final full regression verification and push.
+Record now/Add a script, grouped permanent deletion, real encrypted OpenAI
+configuration, persistent generation and downloadable publishing materials replace
+the earlier mock workflow. Missing credentials disable generation only; manual
+metadata and saved results remain accessible. AI suggestions require acceptance.
+
+Next deployment validation: real provider credentials and charges, encryption-key
+backup/restore, long transcription, iOS/Android text/download review, and the
+original VPS MP3 stalls/502. Do not close those bugs on local checks alone.

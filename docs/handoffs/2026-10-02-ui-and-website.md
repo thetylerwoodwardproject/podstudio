@@ -54,13 +54,16 @@ or API change is needed.
 
 ## Public website refresh
 
-`site/public/` now matches the app's indigo-dark surfaces, lime actions, muted
-text and recording accent. The homepage describes the editor, current export
-options, desktop pads and mobile recording/review. It keeps the in-development
-and VPS-testing status visible.
+`site/public/` now matches the current Pi-Tuner-inspired shell: black and zinc
+surfaces, white primary actions, muted text and the red recording accent. The
+homepage describes the editor, sidebar rail, mixer, live dBFS/LUFS output,
+current export options, desktop pads and mobile recording/review. It keeps the
+in-development and VPS-testing status visible.
 
-New editor, desktop recording and phone screenshots were captured from the
-actual current app with disposable demo data. They contain no private recordings.
+New editor, loudness, desktop recording and phone screenshots were captured
+from the actual current app with disposable demo data. They contain no private
+recordings. The old indigo screenshots remain in the repository only for
+historical references and are not used by the landing page.
 The social card and favicon match the palette. See [site documentation](../../site/README.md).
 
 Website deployment is separate from the application installer. After this branch

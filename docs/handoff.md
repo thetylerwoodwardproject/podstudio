@@ -4,37 +4,50 @@ Read this first, then `CLAUDE.md`, `docs/ui-framework.md`, `docs/features.md`,
 `docs/development.md`, `docs/server-api.md`, `docs/deploy.md`, and
 `docs/roadmap.md` as needed.
 
-## Latest handoff · 2026-10-02
+## Latest handoff · episode preparation · 2026-10-02
 
-See [UI and website handoff](handoffs/2026-10-02-ui-and-website.md) for the
-current shipped app state, new-episode dialog mockup, website refresh,
-deployment steps, and remaining VPS checks. The dialog is a review artifact;
-the production New episode action still uses its existing browser prompt.
+Implementation is on `feat/episode-preparation`, undergoing final regression
+verification. The production new-episode dialog, Record now/Add a script paths,
+recommended-sound preview/Apply, grouped permanent deletion, encrypted OpenAI
+configuration, persistent generation, and downloadable publishing package are
+implemented. See [the phased delivery plan](episode-preparation-plan.md).
 
-Website/mockup delivery verification: 281 unit/server tests pass; Astro reports
-zero errors and warnings; Svelte reports zero errors with seven existing
-warnings; the build passes. All 20 browser flows passed across the initial
-run and the resumed remaining-flow run. The pad save-toast assertion now
-waits for Sonner to render instead of racing the persistence event.
+The first setup-only pass passed all 20 browser flows. Expanded unit/server tests
+cover credential encryption, prepared-mix identity, generation errors, explicit
+retry, overlap timestamps, cancellation and retained approved text after deletion.
+The new browser preparation flow passes. Final full checks and publishing are
+still required; do not treat uncommitted code as deployed.
+
+The unrelated untracked `MasterLevelMeter 2.svelte` remains untouched.
+Real OpenAI account/VPS validation and real iOS/Android tests remain external
+verification. The original MP3 playback stall/502 and +10 dB report stay open.
 
 ## Where it stands
 
 Podstudio `0.1.0` is in active development and installed on the first lab VPS
-for real-world testing. Database schema 4 is current. Recording, synchronized
+for real-world testing. Database schema 6 is current. Recording, synchronized
 guest capture, hotkey pads, the desktop editor, browser audio processing and
 finished/raw export are implemented. Phone recording remains supported; the
 full editor is desktop-only and phones land on Session Saved.
 
-The current workflow is **Record → Podstudio Editor → Export → Optional AI
-tools**. The previous five-step export implementation remains at
+The current workflow is **Record → Edit → Prepare episode → Download**. The previous five-step export implementation remains at
 `export-legacy.astro` for compatibility and regression coverage, while
 `/episodes/:id/session` redirects to `/episodes/:id/editor`.
 
 ## UI theme foundation
 
+The Pi-Tuner dark redesign is the canonical visual reference going forward.
+New screens should follow its zinc palette, Geist/Geist Mono hierarchy,
+compact operational labels, flat bordered surfaces, and tuner-style meters;
+record deviations in this guide when Podstudio behavior requires them.
+The in-app `/manual` route now provides the corresponding operator guide for
+recording, review, editing, export, settings, troubleshooting, and shortcuts.
+
 The app now has account-synced System, Light and Dark choices, applied before
-page paint. Light uses indigo primary actions and dark uses lime. The
-prompter's reading theme remains independent. Selected shadcn-svelte and
+page paint. Light uses indigo primary actions; the current dark system follows
+the Pi-Tuner redesign with zinc surfaces, white primary actions, and sky-blue
+live accents. The prompter's reading theme remains independent. Selected
+shadcn-svelte and
 Bits UI components are copied into `src/components/shadcn`; the mobile
 recording-review play control uses the local button. The README and Settings
 → About & credits list the UI sources and link their license notices.

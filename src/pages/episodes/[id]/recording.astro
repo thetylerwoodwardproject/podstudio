@@ -84,6 +84,7 @@ const zones = [
     </header>
 
     <div class="relative flex min-h-0 flex-1">
+    <div class="hidden h-full lg:block" data-recording-sidebar-mount></div>
     <div class="relative flex min-w-0 flex-1 flex-col">
     <!-- Notices above the script: paused, and the warnings (one at a time) -->
     <div class="flex-none px-4 empty:hidden lg:mx-auto lg:w-full lg:max-w-[820px] lg:px-6" data-notices>
@@ -377,6 +378,22 @@ const zones = [
   const params = new URL(location.href).searchParams;
   const demo = params.has('demo');
   const episodeId = root.dataset.episode!;
+  const recordingSidebar = root.querySelector<HTMLElement>('[data-recording-sidebar-mount]');
+  if (!isMobile() && recordingSidebar) {
+    void Promise.all([import('svelte'), import('@/components/app/EditorSidebar.svelte')]).then(([{ mount }, { default: EditorSidebar }]) => {
+      mount(EditorSidebar, {
+        target: recordingSidebar,
+        props: {
+          episodeName: root.dataset.label ?? 'Recording',
+          sessionsHref: `/episodes/${episodeId}/sessions`,
+          studioHref: `/episodes/${episodeId}/studio`,
+          editorHref: `/episodes/${episodeId}/editor`,
+          recordingHref: `${location.pathname}${location.search}`,
+          activeStage: 'recording',
+        },
+      });
+    });
+  }
   let script = loadScript(episodeId);
   let { words, lines, lineStarts: starts, sections } = script;
   const settings = loadSettings().recording;
@@ -1611,7 +1628,7 @@ const zones = [
   const membership = show.format === 'guest' && !demo ? hostMembership(episodeId) : null;
   const room = membership ? new Room(membership) : null;
   const pointsMode = !!room && show.mode === 'points';
-  const adlibMode = !!room && show.mode === 'adlib';
+  const adlibMode = show.mode === 'adlib';
   let scriptVersion = 1;
   let point = 0;
   let ended = false;

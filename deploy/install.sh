@@ -319,15 +319,16 @@ step "Backups"
 CRON=/etc/cron.d/podstudio-backup
 if [[ $BACKUP -eq 0 ]]; then
   note "Skipped (--no-backups)."
-elif [[ -f "$CRON" ]]; then
-  ok "Nightly backup already set up ($CRON)"
-elif confirm "Back up every night at 3:15 to $BACKUPS?" y; then
+elif [[ -f "$CRON" ]] && ! grep -q 'Podstudio nightly backup (install.sh)' "$CRON"; then
+  ok "Keeping your custom nightly backup ($CRON): include prepared/ and .ai-key."
+elif [[ -f "$CRON" ]] || confirm "Back up every night at 3:15 to $BACKUPS?" y; then
+  mkdir -p "$DATA/prepared"
   cat > "$CRON" <<CRONTAB
-# Podstudio nightly backup (install.sh): the database, safely while it runs, and the audio.
-15 3 * * * root sqlite3 $DATA/podstudio.db ".backup '$BACKUPS/podstudio.db'" && rsync -a --delete $DATA/takes $DATA/live $DATA/media $BACKUPS/
+# Podstudio nightly backup (install.sh): database, audio, and encryption key.
+15 3 * * * root sqlite3 $DATA/podstudio.db ".backup '$BACKUPS/podstudio.db'" && rsync -a --delete $DATA/takes $DATA/live $DATA/media $DATA/prepared $BACKUPS/ && if [ -f $DATA/.ai-key ]; then install -m 600 $DATA/.ai-key $BACKUPS/.ai-key; fi
 CRONTAB
   chmod 644 "$CRON"
-  ok "Nightly at 3:15 to $BACKUPS"
+  ok "Nightly at 3:15 to $BACKUPS (including the AI encryption key)"
 fi
 note "Copy $BACKUPS off this server too (rsync, restic, or your provider's snapshots)."
 

@@ -91,7 +91,9 @@
             data-tone-preview={k}
             onclick={() => preview(k)}
           >
-            <span class="flex size-5 items-center justify-center text-[13px]" aria-hidden="true">{playing === k ? '■' : '▶'}</span>
+            <span class="flex size-7 items-center justify-center rounded-full border border-white/20 bg-black text-white shadow-sm" aria-hidden="true">
+              {#if playing === k}<svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor"><rect x="4" y="3" width="4" height="14" rx="1"/><rect x="12" y="3" width="4" height="14" rx="1"/></svg>{:else}<svg class="ml-0.5 size-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 2 18 10 5 18Z"/></svg>{/if}
+            </span>
             <span class="min-w-0 flex-1">{name}</span>
             <span class="font-mono text-[12px] text-text-3">{hzLabel(toneFreq(k, t.pitch))}</span>
           </button>

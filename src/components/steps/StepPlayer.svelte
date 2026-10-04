@@ -43,7 +43,7 @@
     {:else}
       <button
         type="button"
-        class="flex size-11 flex-none items-center justify-center gap-1 rounded-full bg-primary disabled:opacity-40 sm:size-10"
+        class="flex size-11 flex-none items-center justify-center gap-1 rounded-full border border-white/20 bg-black text-white shadow-sm hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-40 sm:size-10"
         style:padding-left={playing ? '0' : '3px'}
         aria-label={playing ? 'Pause preview' : 'Play preview'}
         disabled={!canPlay}
@@ -51,9 +51,9 @@
         onclick={() => onplay?.()}
       >
         {#if playing}
-          <span class="h-3.5 w-1 rounded-[1px] bg-primary-fg"></span><span class="h-3.5 w-1 rounded-[1px] bg-primary-fg"></span>
+          <span class="h-3.5 w-1 rounded-[1px] bg-white"></span><span class="h-3.5 w-1 rounded-[1px] bg-white"></span>
         {:else}
-          <span class="size-0 border-y-[7px] border-l-[12px] border-y-transparent border-l-primary-fg"></span>
+          <span class="size-0 border-y-[7px] border-l-[12px] border-y-transparent border-l-white"></span>
         {/if}
       </button>
       <div class="flex min-w-0 flex-1 basis-[calc(100%-56px)] flex-col gap-2 sm:basis-0">

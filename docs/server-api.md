@@ -181,3 +181,44 @@ and recorded-pause removal. Editor edits and FX do not affect raw downloads.
 for later restoration. The server validates these tracks and requires IDs to be
 unique across active and removed tracks. Only active tracks render into the
 finished mix; the original take and media files remain untouched.
+
+## Recording deletion and episode preparation (schema 6)
+
+All these routes require a signed-in account with completed two-factor setup.
+Same-origin checks apply to writes. Credentials are per account; recording and
+library access follow the app’s existing shared-show permissions.
+
+| Method | Route | Result |
+|---|---|---|
+| GET | `/api/recordings/deleted?episode=:id` | Durable deleted take IDs and recording-group IDs for local reconciliation |
+| DELETE | `/api/recordings/:takeId` | Optional `{episodeId, ids, group}` for local-only discovery; grouped permanent deletion; returns `{ids}` only after cleanup |
+| GET | `/api/me/ai` | Masked credential status, suffix, validation time and fixed model names; never the key |
+| PUT | `/api/me/ai` | `{key}` validates required model access, then stores AES-256-GCM ciphertext |
+| POST | `/api/me/ai` | Revalidate existing credentials; no paid generation |
+| DELETE | `/api/me/ai` | Remove credential and cancel this account’s active generation jobs |
+| POST | `/api/prepared-audio` | `{takeId, episodeId, revision, fingerprint, bytes}`; create/reuse an upload for the saved project’s audio identity |
+| PUT | `/api/prepared-audio/:id/chunks/:n` | Raw WAV bytes, zero-based 8 MiB chunks; exact expected chunk size, reusable IDs |
+| POST | `/api/prepared-audio/:id/complete` | Validate complete 48 kHz PCM WAV, finalize atomically; serialized/idempotent completion |
+| GET / HEAD | `/api/prepared-audio/:id/wav` | Owned prepared WAV; supports a single byte range for native playback |
+| PUT | `/api/prepared-audio/:id/ai/:n` | Compressed transcription chunk, maximum 20 MiB |
+| PUT | `/api/prepared-audio/:id/ai-manifest` | `{chunks:[{start,end,bytes}]}`; validate 600-second partitions with two-second overlap |
+| GET | `/api/episode-packages/:episodeId` | Package, revision, account ID, source-availability/current-state flags |
+| POST | `/api/episode-packages/:episodeId` | `{baseRevision,audioId}` attaches current finished audio without replacing approved text |
+| PUT | `/api/episode-packages/:episodeId` | `{baseRevision,package}` updates approved materials and per-section timing identities, preserving source/provider suggestions |
+| GET | `/api/generation-jobs?episode=:id` | This account’s most recent jobs; supports reopening |
+| POST | `/api/generation-jobs` | `{id,episodeId,audioId,section}`; `all`, `title`, `description`, `chapters`, `soundbites`, or `transcript` |
+| GET | `/api/generation-jobs/:id` | State, truthful stage text, section and safe error |
+| DELETE | `/api/generation-jobs/:id` | Cancel further provider work |
+| POST | `/api/generation-jobs/:id/retry` | Explicit retry for failed/interrupted jobs, resuming completed transcription chunks |
+
+Deletion records are committed before files are removed. Take upload retries for
+deleted identities or groups return 410; live-track writes recheck deletion after
+streaming. Dependencies and active recordings return 409. Repeating deletion
+retries cleanup. Packages retain approved text and flag missing audio.
+
+Package writes use revision conflict detection (409 returns the saved version).
+Audio fingerprints exclude output-format choices and include audible edits/FX.
+Jobs serialize provider work to keep VPS memory low. Restarted active jobs become
+`interrupted`; queued jobs resume. Provider errors use safe credential/quota/
+connection messages, never provider bodies or tokens. OpenAI responses create
+review suggestions, not approved text. The browser assembles the final ZIP.

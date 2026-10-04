@@ -1,5 +1,12 @@
 # Podstudio UI framework
 
+The Pi-Tuner dark redesign package is now the canonical visual reference for
+new Podstudio UI work and future styling-guide updates. Match its typography,
+zinc surfaces, compact operational labels, flat borders, spacing, status dots,
+and output-meter treatment before introducing a new pattern. Existing
+Podstudio behavior and accessibility requirements still take precedence where
+the reference does not cover an interaction.
+
 The current token implementation is in `src/styles/global.css`. The original
 [`design/Podstudio_UI_Framework.dc.html`](design/Podstudio_UI_Framework.dc.html)
 is a reference for existing layouts; its dark-only palette is being replaced
@@ -10,8 +17,10 @@ by the light/dark facelift described below.
 The interface follows the device's light or dark preference until the user
 chooses a theme. The choice is cached locally, applied before paint, and synced
 through account settings. It is separate from the prompter reading theme.
-Light surfaces use indigo `primary` actions; dark surfaces use lime `primary`
-actions. Recording and destructive states keep `rec` red. Use semantic tokens
+The current dark system follows the Pi-Tuner redesign reference: near-black
+zinc surfaces, white primary actions, sky-blue live/following accents, and red
+reserved for recording and destructive states. Light surfaces keep indigo
+`primary` actions for contrast. Use semantic tokens
 for surfaces, text, borders and actions, so each screen works in both themes.
 `src/components/shadcn/` holds locally adapted shadcn-svelte components;
 Astro still owns routes and simple markup, while Svelte owns interactive
@@ -162,18 +171,18 @@ Speaker colours (oklch) are only for dots, meter rings, talk-time bars and a cha
 
 ## Spacing and radius
 - Spacing: 2, 4, 8, 12, 16, 20, 24, 40, 48
-- Radius: 4 (key hint, checkbox), 7 (segment inside), 10 (input, small button), 12 (large button), 14 (card), 999 (pill, toggle)
+- Radius: 4 (key hint, checkbox), 6 (input, button), 8 (card), 999 (pill, toggle)
 
 ## Components
-- **Select / input:** height 40, radius 10, fill page, 1px border.
+- **Select / input:** height 36, radius 6, fill page, 1px border.
 - **Segmented:** page-fill track with 3px padding and radius 10. The selected option is text fill with page-coloured text at weight 500. Unselected options are transparent with text-2.
 - **Toggle:** 40×24, 18px knob. On: text track with a page knob. Off: track-off with a text-2 knob.
 - **Slider:** 4px border track, text fill, 16px text knob. The value sits top-right in mono 13.
 - **Check chip:** height 34, radius 9, 1px border. Selected: control fill, handle border, filled 14px checkbox.
 - **Buttons:**
-  - Large: height 48, radius 12. Record is red and Retake is amber; everything else uses control.
-  - Small: height 36, radius 10. Primary is text fill; secondary is outline; ghost is text-2; destructive is a red outline.
-- **Card:** surface, radius 14, no border or shadow, padding 20. Rows are 18/20 with inset dividers. A 13/500 section label sits above each card group, and sections are 40 apart.
+  - Large: height 48, radius 6. Record is red and Retake is amber; everything else uses the white primary.
+  - Small: height 36, radius 6. Primary is white; secondary is outline; ghost is text-2; destructive is a red outline.
+- **Card:** surface, radius 8, 1px zinc border, no shadow, padding 16. Rows are 18/20 with inset dividers. A 13/500 section label sits above each card group, and sections are 32 apart.
 - **Status pill:** mono 13 caps. While recording it uses red at 15% behind red text, and a 3px red bar runs across the top of the screen.
 - **Meter:** −60 to −18 green, −18 to −6 amber (target), above −6 red. Unlit segments are the zone colour at 20% over #1f2023; the peak hold is text.
 
@@ -257,3 +266,20 @@ check, Wrapping up, Script import). Design: `design/step-flow/`.
 Designs for single screens (`design/Settings_Recording.dc.html` and the
 handoffs before it) are built on this framework. Where a screen design and
 this file disagree, ask; otherwise the framework wins.
+
+## Episode preparation and destructive recording actions
+
+New episode uses the local shadcn Dialog and Field controls. Record now is the
+default; Add a script is an explicit alternative. Setup keeps a readable,
+non-shrinking action footer and collapses advanced format/scrolling controls.
+
+Prepare episode uses focused publishing sections with accessible Bits UI tabs,
+Field/Input labels and shadcn buttons/checkboxes. Keep manual fields enabled when
+AI credentials are absent; mute generation only and offer Add API key with a
+return path. Display stages as actual operations, using the shared spinner and
+brief save feedback. Phone layout wraps sections and retains prepared playback,
+text review and downloads.
+
+Permanent recording deletion uses the shadcn Alert Dialog, with date, duration,
+affected tracks, irreversible scope and retained-text explanation. Errors remain
+in the dialog and never claim server deletion succeeded while offline.

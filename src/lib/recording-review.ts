@@ -9,7 +9,7 @@ import { encodeWav } from './audio/wav';
 import { download } from './zip';
 import type { EditorSourceReader } from './audio/editor-render';
 
-export interface ReviewDownload { id: string; name: string; run: (progress: (message: string) => void) => Promise<void> }
+export interface ReviewDownload { id: string; name: string; blob: (progress:(message:string)=>void)=>Promise<Blob>; run: (progress: (message: string) => void) => Promise<void> }
 export async function openRecordingReview(episode: string, requested: string | null) {
   const local = await listTakes(episode);
   let remote: RemoteTake[] = [];
@@ -50,11 +50,11 @@ export async function openRecordingReview(episode: string, requested: string | n
     localIds.add(track.id);
   };
   const filename = (name: string) => `Ep${episode}_${name.replace(/[^A-Za-z0-9_-]/g, '_')}_raw.wav`;
-  const downloads: ReviewDownload[] = tracks.map((track, i) => ({ id: track.id, name: i ? track.speaker || `Guest ${i}` : 'Host', run: async (progress) => {
+  const downloads: ReviewDownload[] = tracks.map((track, i) => ({ id: track.id, name: i ? track.speaker || `Guest ${i}` : 'Host', blob: async (progress) => {
     await ensureLocal(track, progress); progress('Preparing raw WAV…');
-    download(await rawRecordingWav(host, track, loadSettings().recording.tones), filename(i ? track.speaker || `Guest${i}` : 'Host'));
-  } }));
-  if (hasPads(host)) downloads.push({ id: 'pads', name: 'Pads', run: async (progress) => {
+    return rawRecordingWav(host, track, loadSettings().recording.tones);
+  },run:async(progress)=>{await ensureLocal(track,progress);download(await rawRecordingWav(host,track,loadSettings().recording.tones),filename(i?track.speaker||`Guest${i}`:'Host'));} }));
+  if (hasPads(host)) downloads.push({ id: 'pads', name: 'Pads', blob:async(progress)=>{await ensureLocal(host,progress);await renderPads(host,d=>progress(`Preparing pads · ${Math.round(d*100)}%`));return rawRecordingWav(host,stereoOf(host),loadSettings().recording.tones,'pads');}, run: async (progress) => {
     await ensureLocal(host, progress); await renderPads(host, (done) => progress(`Preparing pads · ${Math.round(done * 100)}%`));
     download(await rawRecordingWav(host, stereoOf(host), loadSettings().recording.tones, 'pads'), filename('Pads'));
   } });
@@ -63,7 +63,7 @@ export async function openRecordingReview(episode: string, requested: string | n
     const response = await fetch(`/api/editor-projects/${encodeURIComponent(host.id)}`);
     if (response.ok) project = cleanEditorProject((await response.json()).project);
   } catch { /* Source recordings remain reviewable offline. */ }
-  for (const track of project?.tracks.filter((t) => t.kind === 'import') ?? []) downloads.push({ id: track.id, name: track.name, run: async (progress) => {
+  for (const track of project?.tracks.filter((t) => t.kind === 'import') ?? []) downloads.push({ id: track.id, name: track.name, blob:async()=>libraryWav(track.sourceId.replace(/^media:/,'')), run: async (progress) => {
     progress(`Preparing ${track.name}…`); download(await libraryWav(track.sourceId.replace(/^media:/, '')), filename(track.name));
   } });
   return { host, tracks, duration, preview, downloads, local: localIds.has(host.id), missingGuest: !!host.guest && tracks.length === 1 };

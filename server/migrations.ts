@@ -142,4 +142,24 @@ export const migrations: string[] = [
   );
   CREATE INDEX editor_projects_episode ON editor_projects (episode_id, updated_at);
   `,
+  // 5 · Permanent recording deletions survive crashes and stale-browser retries.
+  `
+  CREATE TABLE recording_deletions (
+    take_id TEXT PRIMARY KEY,
+    episode_id TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    live_id TEXT,
+    deleted_at INTEGER NOT NULL,
+    cleaned INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX recording_deletions_group ON recording_deletions(episode_id, group_id);
+  `,
+  // 6 · Private AI credentials, revisioned publishing materials, and recoverable jobs.
+  `
+  CREATE TABLE ai_credentials (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, cipher TEXT NOT NULL, suffix TEXT NOT NULL, status TEXT NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE TABLE prepared_audio (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, episode_id TEXT NOT NULL, take_id TEXT NOT NULL, revision INTEGER NOT NULL, fingerprint TEXT NOT NULL, bytes INTEGER NOT NULL, duration REAL NOT NULL DEFAULT 0, state TEXT NOT NULL, manifest TEXT NOT NULL DEFAULT '[]', created_at INTEGER NOT NULL);
+  CREATE TABLE episode_packages (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE, value TEXT NOT NULL, revision INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(user_id, episode_id));
+  CREATE TABLE generation_jobs (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, episode_id TEXT NOT NULL, audio_id TEXT NOT NULL, section TEXT NOT NULL, state TEXT NOT NULL, progress TEXT NOT NULL, error TEXT, transcript TEXT NOT NULL DEFAULT '[]', completed_chunks INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE INDEX generation_jobs_queue ON generation_jobs(state, created_at);
+  `,
 ];

@@ -1,0 +1,83 @@
+---
+import AppShell from '@/layouts/AppShell.astro';
+import PrimarySidebar from '@/components/app/PrimarySidebar.astro';
+
+const sections = [
+  ['Overview', 'overview'],
+  ['Quick start', 'quick-start'],
+  ['Recording', 'recording'],
+  ['Session review', 'review'],
+  ['Editor', 'editor'],
+  ['Export', 'export'],
+  ['Settings', 'settings'],
+  ['Troubleshooting', 'troubleshooting'],
+  ['Keyboard shortcuts', 'shortcuts'],
+];
+---
+
+<AppShell title="Manual" crumbs={[{ label: 'System' }, { label: 'Manual' }]}>
+  <PrimarySidebar slot="sidebar" active="manual" />
+
+  <div class="flex min-h-full flex-col lg:flex-row">
+    <nav data-manual-nav aria-label="Manual sections" class="flex gap-1 overflow-x-auto border-divider bg-nav/40 px-3 py-4 max-lg:border-b lg:sticky lg:top-0 lg:h-[calc(100dvh-56px)] lg:w-[180px] lg:flex-none lg:flex-col lg:overflow-y-auto lg:border-r">
+      {sections.map(([label, id], i) => <a href={`#${id}`} data-manual-link={id} aria-current={i === 0 ? 'location' : undefined} class="flex h-9 flex-none items-center rounded-md px-3 text-[13px] whitespace-nowrap text-text-2 hover:bg-control hover:text-text aria-[current]:border aria-[current]:border-border aria-[current]:bg-control aria-[current]:text-text"><span class="mr-2 font-mono text-[10px] text-text-3">{String(i + 1).padStart(2, '0')}</span>{label}</a>)}
+    </nav>
+    <div class="min-w-0 flex-1 bg-page px-6 py-8 sm:px-10 lg:px-14">
+    <div class="mx-auto max-w-4xl">
+      <header class="border-b border-divider pb-7">
+        <div class="text-[11px] font-medium text-text-3">System / Manual</div>
+        <h1 class="mt-2 font-mono text-[28px] font-medium tracking-[-0.04em] text-text">Podstudio manual</h1>
+        <p class="mt-3 max-w-2xl text-[13px] leading-relaxed text-text-2">Record a show, review the takes, make a non-destructive edit, and export a finished mix. Source recordings stay recoverable throughout.</p>
+      </header>
+
+      <article class="prose-podstudio pt-8">
+        <section id="overview"><h2>1 · Overview</h2><p>Podstudio is a browser-based recording and editing workspace for podcasts. The normal path is <strong>Record → Editor → Export</strong>. Phones can record and review; the full timeline editor is available on desktop.</p><ul><li>Record host and guest microphones on a shared session clock.</li><li>Use markers for retakes, coughs, ad-libs, pauses, and pad events.</li><li>Edit clips without changing the original WAV sources.</li><li>Keep raw aligned tracks and render a separate finished mix.</li></ul></section>
+        <section id="quick-start"><h2>2 · Quick start</h2><ol><li>Create an episode from the library and choose <strong>Record now</strong> or add a script.</li><li>Open Studio, check the input meter, sample rate, channels, and scrolling mode.</li><li>Start the session. Use the marker controls while recording; use pause when the whole conversation needs to stop.</li><li>End the session. Desktop opens the editor; phones open Session Saved with playback and downloads.</li><li>Open Export when the timeline and retake review are ready.</li></ol><p>Recorded episodes always keep an <strong>Open editor</strong> action in the library. You do not need to return through the teleprompter.</p></section>
+        <section id="recording"><h2>3 · Recording</h2><h3>Host and guest capture</h3><p>Each source records locally first and synchronizes to the server. Guest files can finish uploading after the host ends the session. The editor shows preparation, retry, and missing-track recovery states while those files arrive.</p><h3>Markers</h3><p>Retake, cough, ad-lib, and pause markers are stored as session metadata. Retakes remain audible in raw exports. Marker tones are rendered into the host raw track when enabled and are never included in the finished mix.</p><h3>Pause</h3><p>Pause schedules a shared interval on the session clock. Host and guest recorders stop accepting samples during that interval and resume together. Pads suspend and continue from the same position.</p></section>
+        <section id="review"><h2>4 · Session review</h2><p>Session Saved provides a bounded player, elapsed time, recording and marker counts, upload status, retry synchronization, and raw downloads. On desktop, choose <strong>Open editor</strong> to continue. On mobile, choose <strong>Review recording</strong>; full editing and finished-mix export remain desktop actions.</p><p>Raw downloads preserve host, guest, pad, and imported source audio. They do not apply timeline cuts, trims, FX, or loudness.</p></section>
+        <section id="editor"><h2>5 · Editor</h2><p>The timeline is non-destructive. Click a waveform to select it and place the playhead. Drag a clip to move it; drag an edge to trim it. Shift-drag a waveform or drag the ruler to select a time range. Linked clips move together until you explicitly unlink them.</p><h3>Editing commands</h3><ul><li><strong>Split</strong> divides the selected clip at the playhead.</li><li><strong>Delete</strong> leaves silence in the selected interval.</li><li><strong>Ripple cut</strong> removes the interval across linked tracks.</li><li>Overlapping clips on one track receive an equal-power crossfade across their overlap.</li><li>Track removal excludes a track from the project while keeping its source available for restore and raw export.</li></ul><p>Use the track menu for mute, solo, FX, level, restore, and contextual editing. The master meter can switch between dBFS and LUFS readings.</p></section>
+        <section id="export"><h2>6 · Export</h2><p>Finished WAV is always available. MP3 and raw tracks are optional. The finished mix applies selected takes, trims, cuts, pause decisions, mute, level, FX, leveling, loudness, and limiting. It contains no marker tones.</p><p>Raw tracks contain aligned full sources, including every attempt and audible cough or mute audio. The completed export screen provides Back to sessions and Download again.</p></section>
+        <section id="settings"><h2>7 · Settings</h2><p>Settings live under <strong>System</strong> in the application sidebar. They autosave to the server and show Saving, Saved automatically, Waiting for connection, or Couldn’t save. Appearance controls the application theme independently from the Prompter reading theme.</p><ul><li><strong>General:</strong> account, appearance, and defaults.</li><li><strong>Recording:</strong> input, format, marker tones, and export defaults.</li><li><strong>Hotkey pads:</strong> desktop sound pads, previews, colors, and ducking.</li><li><strong>Prompter:</strong> reading theme, speed, and follow behavior.</li><li><strong>Controls:</strong> keyboard and recording behavior.</li><li><strong>Transcription &amp; AI:</strong> optional provider settings and generation.</li><li><strong>Security, Domain &amp; HTTPS, Server, About &amp; credits:</strong> operational administration.</li></ul></section>
+        <section id="troubleshooting"><h2>8 · Troubleshooting</h2><h3>Audio keeps buffering</h3><p>Keep the editor open while the visible render window prepares. If playback stalls repeatedly, retry the source upload, confirm the server has free disk space, and use the session recovery link for missing guest files.</p><h3>Waveform is empty</h3><p>Wait for source preparation, then retry. Peaks are generated from bounded reads and do not depend on recording metadata. A failed source shows an error instead of an empty clip.</p><h3>Import returns 502</h3><p>Retry the same import once the VPS service is healthy. Check the proxy and service logs at the failure time, then verify the imported file plays across multiple render windows. Retries use the same media identity and do not duplicate tracks.</p><h3>VPS deployment</h3><p>From the checked-out project, pull the verified branch and run <code>sudo ./deploy/install.sh</code>. The installer backs up the database before upgrading. If a low-memory build fails, use the deploy build path documented in <a href="/settings/about">About &amp; credits</a> and <code>docs/deploy.md</code>.</p></section>
+        <section id="shortcuts"><h2>9 · Keyboard shortcuts</h2><div class="overflow-x-auto"><table><tbody><tr><td><kbd>Space</kbd></td><td>Play or pause</td></tr><tr><td><kbd>Delete</kbd></td><td>Delete the selection</td></tr><tr><td><kbd>Cmd/Ctrl + Z</kbd></td><td>Undo</td></tr><tr><td><kbd>Cmd/Ctrl + Shift + Z</kbd></td><td>Redo</td></tr><tr><td><kbd>Shift + drag</kbd></td><td>Select a time range</td></tr><tr><td><kbd>Alt + drag</kbd></td><td>Unlink while moving a clip</td></tr></tbody></table></div></section>
+      </article>
+    </div>
+    </div>
+  </div>
+</AppShell>
+
+<script>
+  import { api } from '@/lib/api';
+  document.querySelector<HTMLButtonElement>('[data-signout]')?.addEventListener('click', async () => {
+    const r = await api<{ next: string }>('auth/signout', { body: {} });
+    location.href = r.next;
+  });
+  const manualSections = [...document.querySelectorAll<HTMLElement>('.prose-podstudio section[id]')];
+  const manualLinks = [...document.querySelectorAll<HTMLAnchorElement>('[data-manual-link]')];
+  const setManualSection = (id: string) => manualLinks.forEach((link) => link.toggleAttribute('aria-current', link.dataset.manualLink === id));
+  if (manualSections.length && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (visible) setManualSection((visible.target as HTMLElement).id);
+    }, { root: document.querySelector('main'), rootMargin: '-8% 0px -70% 0px', threshold: [0, 1] });
+    manualSections.forEach((section) => observer.observe(section));
+  }
+</script>
+
+<style>
+  .prose-podstudio { color: var(--color-text-2); font-size: 13px; line-height: 1.65; }
+  .prose-podstudio section { scroll-margin-top: 24px; border-bottom: 1px solid var(--color-divider); padding-bottom: 28px; margin-bottom: 28px; }
+  .prose-podstudio h2 { color: var(--color-text); font-size: 16px; font-weight: 500; margin: 0 0 12px; }
+  .prose-podstudio h3 { color: var(--color-text); font-size: 14px; font-weight: 500; margin: 20px 0 6px; }
+  .prose-podstudio p { margin: 0 0 12px; max-width: 72ch; }
+  .prose-podstudio ul, .prose-podstudio ol { margin: 0 0 12px; padding-left: 20px; max-width: 72ch; }
+  .prose-podstudio li { padding-left: 4px; margin: 4px 0; }
+  .prose-podstudio strong { color: var(--color-text); font-weight: 500; }
+  .prose-podstudio a { color: var(--color-accent); }
+  .prose-podstudio code, .prose-podstudio kbd, .prose-podstudio td:first-child { font-family: var(--font-mono); }
+  .prose-podstudio code { color: var(--color-text); }
+  .prose-podstudio table { border-collapse: collapse; min-width: 360px; }
+  .prose-podstudio td { border-bottom: 1px solid var(--color-divider); padding: 8px 20px 8px 0; }
+  .prose-podstudio td:first-child { color: var(--color-text); font-size: 12px; white-space: nowrap; }
+  .prose-podstudio kbd { border: 1px solid var(--color-border); border-radius: 4px; padding: 2px 5px; font-size: 11px; color: var(--color-text); }
+</style>

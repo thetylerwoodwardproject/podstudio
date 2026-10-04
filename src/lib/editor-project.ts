@@ -1,6 +1,7 @@
 import { clampOverlapEdit, crossfadeSpan, refreshCrossfades, remapCrossfades } from './editor-crossfades.ts';
 import type { SessionMarker, LineStart } from './audio/assemble.ts';
 import { cleanTone, COMP_PRESETS, EQ_PRESETS, flatTone, type VoiceTone } from './audio/tone.ts';
+import { defaultEditorTrackColor, isEditorTrackColor, type EditorTrackColor } from './editor-track-colors.ts';
 
 export type EditorTrackKind = 'voice' | 'pads' | 'import';
 export type CompressionPreset = 'Off' | 'Light' | 'Medium' | 'Heavy';
@@ -42,6 +43,8 @@ export interface EditorTrack {
   kind: EditorTrackKind;
   role?: 'host' | 'guest';
   name: string;
+  /** One of the six UI-standard track colors. */
+  color?: EditorTrackColor;
   channels: 1 | 2;
   sampleRate: number;
   gainDb: number;
@@ -77,6 +80,8 @@ export interface EditorPause {
 }
 
 export interface EditorMaster {
+  /** Optional monitor/master-bus gain used by the editor mixer. */
+  gainDb?: number;
   loudness: 'stereo' | 'mono' | 'off' | 'custom';
   targetLufs?: number;
   ceilingDb?: number;
@@ -161,12 +166,12 @@ export function createEditorProject(input: {
 }): EditorProjectV1 {
   const markers = structuredClone(input.markers ?? []);
   const duration = Math.max(0, ...input.sources.map((s) => s.duration));
-  const tracks = input.sources.map((s) => {
+  const tracks = input.sources.map((s, index) => {
     const remembered = input.tones?.[s.name.toUpperCase()];
     const tone = cleanTone(remembered);
     const fx = fxFromTone(tone, s.kind === 'voice' ? (input.noise ?? 0) : 0, s.kind === 'voice' && !!input.level);
     return {
-      id: uid('track', s.id), sourceId: s.id, kind: s.kind, role: s.role, name: s.name,
+      id: uid('track', s.id), sourceId: s.id, kind: s.kind, role: s.role, name: s.name, color: defaultEditorTrackColor(index),
       channels: s.channels, sampleRate: s.sampleRate, gainDb: 0, muted: false, fx,
       clips: [{ id: uid('clip', s.id, 0), sourceId: s.id, sourceStart: 0, sourceEnd: s.duration, sourceDuration: s.duration, timelineStart: 0, linked: true, fadeInMs: 0, fadeOutMs: 0 }],
     } satisfies EditorTrack;
@@ -347,7 +352,7 @@ export function cleanEditorProject(value: unknown): EditorProjectV1 | null {
   if (allTracks.some((t) => !t || typeof t.id !== 'string' || typeof t.sourceId !== 'string' || !['voice', 'pads', 'import'].includes(t.kind) || !Array.isArray(t.clips) || t.clips.length > 10_000)) return null;
   if (allTracks.some((t) => t.clips.some((c) => !c || typeof c.id !== 'string' || typeof c.sourceId !== 'string' || ![c.sourceStart, c.sourceEnd, c.timelineStart].every(Number.isFinite) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart || c.timelineStart < 0))) return null;
   const copy = structuredClone(p);
-  const cleanTrack = (t: EditorTrack) => ({ ...t, gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.macro ? { macro: cleanFxMacro(t.fx.macro) } : {}), ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) });
+  const cleanTrack = (t: EditorTrack, index: number) => ({ ...t, color: isEditorTrackColor(t.color) ? t.color : defaultEditorTrackColor(index), gainDb: clamp(t.gainDb, -60, 12), muted: !!t.muted, fx: { ...defaultFx(t.kind === 'voice'), ...t.fx, noise: clamp(t.fx?.noise ?? 0, 0, 100), low: clamp(t.fx?.low ?? 0, -12, 12), mid: clamp(t.fx?.mid ?? 0, -12, 12), high: clamp(t.fx?.high ?? 0, -12, 12), compression: ['Off','Light','Medium','Heavy'].includes(t.fx?.compression) ? t.fx.compression : 'Off', ...(t.fx?.macro ? { macro: cleanFxMacro(t.fx.macro) } : {}), ...(t.fx?.tone ? { tone: cleanTone(t.fx.tone) } : {}) }, clips: t.clips.map((c) => ({ ...c, sourceDuration: Math.max(c.sourceEnd, Number.isFinite(c.sourceDuration) ? c.sourceDuration! : c.sourceEnd) })) });
   copy.tracks = copy.tracks.map(cleanTrack);
   copy.removedTracks = (copy.removedTracks ?? []).map(cleanTrack);
   copy.crossfades = Array.isArray(copy.crossfades) ? copy.crossfades.filter((f) => {
@@ -385,7 +390,8 @@ export function restoreEditorTrack(project: EditorProjectV1, trackId: string): E
 }
 
 export function cleanMaster(m: Partial<EditorMaster> = {}): EditorMaster {
-  return { loudness: ['stereo','mono','off','custom'].includes(m.loudness ?? '') ? m.loudness! : 'stereo', targetLufs: clamp(m.targetLufs ?? -16, -30, -10), ceilingDb: clamp(m.ceilingDb ?? -1, -3, -.1), channels: m.channels === 1 ? 1 : 2, mp3: !!m.mp3, rawTracks: !!m.rawTracks };
+  const gainDb = Number.isFinite(m.gainDb) ? clamp(m.gainDb!, -60, 0) : undefined;
+  return { ...(gainDb === undefined ? {} : { gainDb }), loudness: ['stereo','mono','off','custom'].includes(m.loudness ?? '') ? m.loudness! : 'stereo', targetLufs: clamp(m.targetLufs ?? -16, -30, -10), ceilingDb: clamp(m.ceilingDb ?? -1, -3, -.1), channels: m.channels === 1 ? 1 : 2, mp3: !!m.mp3, rawTracks: !!m.rawTracks };
 }
 export function masterOptions(m: EditorMaster) {
   const c = cleanMaster(m);

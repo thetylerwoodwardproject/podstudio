@@ -36,6 +36,7 @@ export function createApi(ctx: Context): Api {
   const accounts = new Accounts(ctx);
   const live = new LiveRooms(ctx);
   const settings = new UserSettings(ctx);
+  void ctx.preparation.pump();
   // Starting a session with a guest needs the host signed in.
   live.canHost = (req) => accounts.allowed(req);
 
@@ -47,6 +48,11 @@ export function createApi(ctx: Context): Api {
     if (!accounts.allowed(req)) throw new HttpError(401, 'Sign in first');
     if (req.method === 'GET' && p[0] === 'server' && p.length === 1) return json(res, 200, serverStatus(ctx));
     if (p[0] === 'me' && p[1] === 'settings' && p.length === 2) return settings.handle(req, res, accounts.who(req).user!.id);
+    const user = accounts.who(req).user!.id;
+    if (await ctx.aiCredentials.handle(req, res, p, user)) return;
+    if (await ctx.preparedAudio.handle(req, res, p, user)) return;
+    if (await ctx.preparation.handle(req, res, p, user, url)) return;
+    if (await ctx.recordings.handle(req, res, url, p)) return;
     if (await ctx.library.handle(req, res, url, p)) return;
     if (await ctx.takes.handle(req, res, url, p)) return;
     if (await ctx.editorProjects.handle(req, res, p)) return;

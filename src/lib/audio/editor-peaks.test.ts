@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { peakChunk, sourcePeaks, waveformBars } from './editor-peaks.ts';
+import { peakChunk, sourcePeaks, waveformBars, waveformPaths } from './editor-peaks.ts';
 
 test('waveform peaks are read in bounded chunks and cached for later requests', async () => {
   const reads: [number, number][] = [];
@@ -25,10 +25,25 @@ test('waveform shape is stable across clip splits and follows source time', () =
   assert.deepEqual(right.map((bar) => [Math.round((bar.left + 100) * 1000), bar.height]), whole.filter((bar) => bar.left >= 99).map((bar) => [Math.round(bar.left * 1000), bar.height]));
 });
 
+test('waveform gain follows the live track gain without rereading peaks', () => {
+  const source = waveformBars([.25], 0, 1, 20, 0, 1, 0);
+  const boosted = waveformBars([.25], 0, 1, 20, 0, 1, 6);
+  const cut = waveformBars([.25], 0, 1, 20, 0, 1, -6);
+  assert.ok(boosted[0].height > source[0].height);
+  assert.ok(cut[0].height < source[0].height);
+});
+
 test('stereo peaks use the louder channel without changing source samples', async () => {
   const samples = new Float32Array(100).fill(0);
   samples[1] = -.9;
   const reader = { channels: 2 as const, sampleRate: 100, read: async () => samples };
   assert.ok(Math.abs((await peakChunk(reader, 0, .5))[0] - .9) < 1e-6);
   assert.ok(Math.abs(samples[1] + .9) < 1e-6);
+});
+
+test('rectified waveform uses a single upper trace and reaches the clip baseline', () => {
+  const paths = waveformPaths([{ left: 0, height: 46 }], 100, 100, 12);
+  assert.match(paths.rectified, /12\.00 8\.00/);
+  assert.match(paths.rectifiedArea, /92\.00/);
+  assert.doesNotMatch(paths.rectified, /lower/i);
 });

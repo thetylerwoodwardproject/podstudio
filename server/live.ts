@@ -5,7 +5,7 @@
  * who's connected right now, and the host's latest state, are in memory.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { rm, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -115,6 +115,7 @@ export class LiveRooms {
     }
     // /sessions/:id/tracks/:role[/meta|/segments/:n]
     if (p[2] === 'tracks' && isRole(p[3] ?? '')) {
+      if (this.ctx.recordings.deletedLive(sessionId)) throw new HttpError(410, 'This recording was permanently deleted');
       const dir = this.trackDir(sessionId, p[3] as Role);
       const own = role === p[3];
       if (p[4] === 'segments' && p[5]) {
@@ -127,6 +128,7 @@ export class LiveRooms {
           await streamToFile(req, join(dir, segName(n)), SEGMENT_LIMIT).catch((err) => {
             throw err instanceof HttpError && err.message === 'Empty body' ? new HttpError(400, 'Empty segment') : err;
           });
+          if (this.ctx.recordings.deletedLive(sessionId)) { await rm(dir, {recursive:true, force:true}); throw new HttpError(410, 'This recording was permanently deleted'); }
           this.broadcast(sessionId, { type: 'upload', role: p[3], segments: n });
           json(res, 204);
           return true;
@@ -146,6 +148,7 @@ export class LiveRooms {
         JSON.parse(String(body));
         await mkdir(dir, { recursive: true });
         await writeFile(join(dir, 'meta.json'), body);
+        if (this.ctx.recordings.deletedLive(sessionId)) { await rm(dir, {recursive:true,force:true}); throw new HttpError(410, 'This recording was permanently deleted'); }
         json(res, 204);
         return true;
       }

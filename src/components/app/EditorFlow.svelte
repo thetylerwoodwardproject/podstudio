@@ -18,6 +18,7 @@
     onpreview: (project: EditorProjectV1, from: number, seconds: number, solo: string[], mastered?: boolean) => Promise<EditorPreview>;
     onsave: (project: EditorProjectV1, revision: number, force?: boolean) => Promise<EditorSaveResult>;
     onimport: (file: File, at: number, progress: (s: string) => void) => Promise<{ track: EditorTrack; peaks: number[] }>;
+    onprepare: (project: EditorProjectV1, revision: number, progress:(s:string)=>void, signal:AbortSignal)=>Promise<void>;
     onexport: (project: EditorProjectV1, progress: (message: string) => void) => Promise<EditorExportResult>;
     onpeaks: (track: EditorTrack, from: number, to: number, onChunk: (chunk: { start: number; peaks: number[] }) => void) => Promise<void>;
   }
@@ -25,12 +26,20 @@
 
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
+  import {isRecordingDeleted} from '@/lib/recording-deletion';
+  import DeleteRecording from './DeleteRecording.svelte';
+  import { listTakes, type TakeMeta } from '@/lib/audio/takes';
+  import { serverTakes } from '@/lib/take-upload';
+  import { mergeEditorTakes } from '@/lib/editor-sessions';
   import EditorFxControls from './EditorFxControls.svelte';
+  import { recommendedSound } from '@/lib/recommended-sound';
   import Spinner from '@/components/shadcn/spinner/Spinner.svelte';
   import StatusDot from '@/components/ui/StatusDot.svelte';
   import SaveStatusToast from '@/components/ui/SaveStatusToast.svelte';
   import TrackLevelMeter from './TrackLevelMeter.svelte';
   import MasterLevelMeter from './MasterLevelMeter.svelte';
+  import MixerConsole from './MixerConsole.svelte';
+  import EditorSidebar from './EditorSidebar.svelte';
   import { cleanMaster, cleanEditorProject, deleteClip, timelineMarkers, defaultFx, removeEditorTrack, restoreEditorTrack } from '@/lib/editor-project';
   import { crossfadeSpan } from '@/lib/editor-crossfades';
   import Sheet from '@/components/ui/Sheet.svelte';
@@ -43,9 +52,10 @@
   import { Slider } from '@/components/shadcn/slider';
   import { Checkbox } from '@/components/shadcn/checkbox';
   import { meterDbfs } from '@/lib/audio/editor-meter';
+  import { defaultEditorTrackColor, EDITOR_TRACK_COLORS, EDITOR_TRACK_COLOR_LABELS, editorTrackColor, isEditorTrackColor } from '@/lib/editor-track-colors';
   import { LoudnessMeter } from '@/lib/audio/loudness';
   import { PeakMeter } from '@/lib/audio/meter';
-  import { PEAK_SECONDS, waveformBars } from '@/lib/audio/editor-peaks';
+  import { PEAK_SECONDS, waveformBars, waveformPaths } from '@/lib/audio/editor-peaks';
   import {
     deleteRange,
     moveClip,
@@ -54,7 +64,7 @@
     trimClip,
   } from '@/lib/editor-project';
 
-  let { sessions, onanalyze, sessionsHref, initial, revision: initialRevision, views, onpreview, onsave, onimport, onexport, onpeaks }: EditorProps = $props();
+  let { sessions, onanalyze, sessionsHref, initial, revision: initialRevision, views, onpreview, onsave, onimport, onexport, onprepare, onpeaks }: EditorProps = $props();
   let project = $state(structuredClone(initial));
   let revision = $state(initialRevision);
   let saveState = $state<EditorSaveState>('idle');
@@ -68,8 +78,28 @@
   let selectionEnd = $state(0);
   let playhead = $state(0);
   let zoom = $state(1);
+  let trackHeights = $state<Record<string, number>>({});
   let solo = $state<string[]>([]);
   let fxTrack = $state<EditorTrack | null>(null);
+  let deletingRecording = $state(false);
+  let deletionTracks = $state<TakeMeta[]>([]);
+  async function openRecordingDeletion() {
+    const all = mergeEditorTakes(await listTakes(project.episodeId), await serverTakes(project.episodeId));
+    const host = all.find((t) => t.id === project.takeId);
+    if (!host) { playbackError = 'This recording is unavailable. Return to sessions and retry.'; return; }
+    deletionTracks = all.filter((t) => (t.group ?? t.id) === (host.group ?? host.id));
+    deletingRecording = true;
+  }
+  let preparingEpisode = $state(false), prepareStatus = $state('');
+  let prepareController:AbortController|null=null;
+  async function prepareEpisode() {
+    if(pendingRetakes){playbackError='Review all retakes before preparing the finished mix.';return;}
+    clearTimeout(timer);await save();if(saveState!=='saved'){playbackError='Save the project before preparing an episode.';return;}
+    preparingEpisode=true;prepareStatus='Preparing finished mix…';prepareController=new AbortController();
+    try { await onprepare(plain(project),revision,s=>prepareStatus=s,prepareController.signal);location.href=`/episodes/${project.episodeId}/package`; }
+    catch(e){if(!prepareController.signal.aborted)playbackError=(e as Error).message;}
+    finally{preparingEpisode=false;}
+  }
   let exportOpen = $state(false);
   let retakesOpen = $state(false);
   let pausesOpen = $state(false);
@@ -93,12 +123,17 @@
   let analysisStatus = $state('');
   let analyzing = $state(false);
   let analysisAbort: AbortController | null = null;
+  let recommendation = $state<EditorProjectV1 | null>(null);
+  let recommendationPreview = $state(false);
+  let recommendationMastered = false;
+  function closeRecommendation() { recommendation = null; recommendationPreview = false; mastered = recommendationMastered; refreshAudio(); }
   let fxBypass = $state(false);
   let fxPreviewing = $state(false);
   let fxTimer = 0;
   let removingTrack = $state<string | null>(null);
   let removeOpen = $state(false);
   let editMenuOpen = $state(false);
+  let mixerOpen = $state(false);
   let contextTime = $state(0);
   let rulerContextOpen = $state(false);
   let trackContextOpen = $state<Record<string, boolean>>({});
@@ -106,6 +141,7 @@
   let masterDisplay = $state({ left: -Infinity, right: -Infinity, leftHeld: -Infinity, rightHeld: -Infinity });
   let loudnessDisplay = $state({ short: -Infinity, long: -Infinity, range: null as number | null });
   let levelDrafts = $state<Record<string, number>>({});
+  let masterGainDraft = $state<number | undefined>(undefined);
   let activeMeters: EditorMeterWindows = {};
   let activeMaster: TrackMeterWindow | undefined;
   let activePcm: Float32Array | undefined;
@@ -121,6 +157,9 @@
   let meterBuffering = false;
   let audioAt = 0;
   let playbackEnd: number | null = null;
+  let loopEnabled = $state(false);
+  let loopStart = $state(0);
+  let loopEnd = $state(0);
   let clipPopoverOpen = $state(false);
   let clipAnchor = $state<HTMLElement | null>(null);
   let clipDraft = $state({ position: '', start: '', end: '' });
@@ -144,17 +183,38 @@
     if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = '';
     if (nextAudio) URL.revokeObjectURL(nextAudio.url); nextAudio = null;
   }
-  function refreshAudio() { const resume = playing || loadingAudio; invalidateAudio(); if (resume) void loadWindow(playhead, true); }
+  function refreshAudio() {
+    const resume = playing || loadingAudio;
+    if (!resume) { invalidateAudio(); return; }
+    // Keep the current window alive while the replacement renders. Rebuilding
+    // from the stale playhead used to make a fader gesture jump backwards and
+    // briefly mute the player.
+    const at = Math.max(0, Math.min(duration, audio ? audioAt + audio.currentTime : playhead));
+    ++playTimer;
+    prefetching = false; prefetchTask = null;
+    if (nextAudio) { URL.revokeObjectURL(nextAudio.url); nextAudio = null; }
+    void loadWindow(at, true, 8, false, true);
+  }
   async function switchSession(id: string) {
     if (id === project.takeId || conflict) return;
     clearTimeout(timer); await save();
     if (saveState === 'saved') location.href = `${sessionsHref.replace(/sessions$/, 'editor')}?take=${encodeURIComponent(id)}`;
   }
+
+  async function navigateFromSidebar(href: string) {
+    clearTimeout(timer);
+    await save();
+    if (saveState === 'conflict' || saveState === 'failed') return;
+    location.assign(href);
+  }
   function previewProject() {
-    const next = plain(project);
+    const next = plain(recommendationPreview && recommendation ? recommendation : project);
+    for (const track of next.tracks) if (levelDrafts[track.id] !== undefined) track.gainDb = levelDrafts[track.id];
     if (fxTrack) { const i = next.tracks.findIndex((t) => t.id === fxTrack!.id); if (i >= 0) next.tracks[i] = { ...plain(fxTrack), fx: fxBypass ? defaultFx(false) : plain(fxTrack.fx) }; }
     return next;
   }
+  const masterGain = $derived(masterGainDraft ?? project.master.gainDb ?? 0);
+  const masterVolume = (gainDb: number) => Math.max(0, Math.min(1, 10 ** (gainDb / 20)));
   function closeFx() { clearTimeout(fxTimer); fxTrack = null; fxPreviewing = false; fxBypass = false; refreshAudio(); }
   $effect(() => {
     if (!fxTrack || !fxPreviewing) return;
@@ -180,6 +240,11 @@
   let saving: Promise<void> | null = null;
   let playTimer = 0;
   const HEADER = 176;
+  const TRACK_HEIGHT = 104;
+  // Keep the track header's name, buttons, fader, and meter clear of the
+  // divider even when a user drags a row down to its minimum size.
+  const TRACK_MIN_HEIGHT = 116;
+  const TRACK_MAX_HEIGHT = 320;
   const duration = $derived(projectDuration(project));
   const pxPerSecond = $derived(8 * zoom);
   const timelineWidth = $derived(Math.max(900, duration * pxPerSecond));
@@ -188,6 +253,34 @@
   const selectionLength = $derived(selection[1] - selection[0]);
   const pendingRetakes = $derived(project.tracks.some((t) => t.kind === 'voice' && t.role === 'host') ? project.retakes.filter((r) => !r.reviewed).length : 0);
   const plain = <T,>(value: T): T => structuredClone($state.snapshot(value) as T);
+
+  function trackHeight(id: string) { return trackHeights[id] ?? TRACK_HEIGHT; }
+  function setTrackHeight(id: string, value: number) {
+    trackHeights = { ...trackHeights, [id]: Math.max(TRACK_MIN_HEIGHT, Math.min(TRACK_MAX_HEIGHT, Math.round(value))) };
+  }
+  function resizeTrack(e: PointerEvent, id: string) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    const startY = e.clientY;
+    const startHeight = trackHeight(id);
+    target.setPointerCapture(e.pointerId);
+    const move = (event: PointerEvent) => setTrackHeight(id, startHeight + event.clientY - startY);
+    const end = () => {
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', end);
+      target.removeEventListener('pointercancel', end);
+      if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
+    };
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', end);
+    target.addEventListener('pointercancel', end);
+  }
+  function resizeTrackKey(e: KeyboardEvent, id: string) {
+    const delta = e.key === 'ArrowUp' ? 8 : e.key === 'ArrowDown' ? -8 : 0;
+    if (!delta) return;
+    e.preventDefault(); e.stopPropagation(); setTrackHeight(id, trackHeight(id) + delta);
+  }
 
   const fmt = (seconds: number) => {
     const s = Math.max(0, Math.floor(seconds));
@@ -263,7 +356,7 @@
     void tick().then(() => { const scroll = document.querySelector<HTMLElement>('[data-timeline-scroll]'); if (scroll) void visiblePeaks(scroll); });
   });
 
-  function update(next: EditorProjectV1, record = true) {
+  function update(next: EditorProjectV1, record = true, refresh = true) {
     if (record) {
       history = [...history.slice(-99), plain(project)];
       future = [];
@@ -271,7 +364,16 @@
     project = next;
     project.updatedAt = Date.now();
     queueSave();
-    refreshAudio();
+    if (refresh) refreshAudio();
+  }
+
+  function setTrackColor(id: string, color: string) {
+    if (!isEditorTrackColor(color)) return;
+    const next = plain(project);
+    const track = next.tracks.find((item) => item.id === id);
+    if (!track || track.color === color) return;
+    track.color = color;
+    update(next, true, false);
   }
 
   function undo() {
@@ -292,6 +394,7 @@
   }
 
   function queueSave() {
+    if(isRecordingDeleted(project.takeId))return;
     localStorage.setItem(`podstudio-editor-${project.takeId}`, JSON.stringify(project));
     saveState = navigator.onLine ? 'saving' : 'offline';
     saveMessage = navigator.onLine ? 'Saving…' : 'Waiting for connection';
@@ -300,6 +403,7 @@
   }
 
   async function save(force = false): Promise<void> {
+    if(isRecordingDeleted(project.takeId))return;
     if (saving) { await saving; if (!conflict) return save(force); return; }
     if (conflict && !force) return;
     saving = persist(force);
@@ -526,35 +630,55 @@
     const next = plain(project); const track = next.tracks.find((t) => t.id === id);
     if (track && track.gainDb !== gainDb) { track.gainDb = gainDb; update(next); }
   }
+  function stageMasterLevel(gainDb: number) {
+    masterGainDraft = Math.max(-60, Math.min(0, gainDb));
+    if (audio) audio.volume = masterVolume(masterGainDraft);
+  }
+  function commitMasterLevel() {
+    if (masterGainDraft === undefined) return;
+    const next = plain(project);
+    next.master.gainDb = masterGainDraft;
+    masterGainDraft = undefined;
+    update(next);
+  }
 
-  async function loadWindow(at: number, autoplay: boolean, windowSeconds = 4, loop = false) {
+  async function loadWindow(at: number, autoplay: boolean, windowSeconds = 4, loop = false, preserveCurrent = false) {
     const token = ++playTimer;
+    const previousAudio = preserveCurrent ? audio : null;
+    const previousUrl = preserveCurrent ? previewUrl : '';
+    const previousPlaying = preserveCurrent && playing;
     loadingAudio = true; playbackError = ''; playbackStatus = 'Preparing audio…';
     try {
       const limit = playbackEnd ?? duration;
       const result = await onpreview(previewProject(), at, Math.max(0, Math.min(windowSeconds, limit - at)), $state.snapshot(solo), mastered && !fxTrack);
       if (token !== playTimer) { URL.revokeObjectURL(result.url); return; }
-      if (result.duration <= .001) { URL.revokeObjectURL(result.url); pause(); return; }
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (result.duration <= .001) { URL.revokeObjectURL(result.url); if (!preserveCurrent) pause(); return; }
       if (nextAudio) { URL.revokeObjectURL(nextAudio.url); nextAudio = null; }
+      const replacement = new Audio(result.url);
+      replacement.preload = 'auto';
+      replacement.volume = masterVolume(masterGain);
+      const liveAt = previousAudio && previousPlaying ? audioAt + previousAudio.currentTime : at;
+      const offset = Math.max(0, Math.min(Math.max(0, result.duration - .01), liveAt - at));
+      if (previousAudio && previousPlaying) replacement.currentTime = offset;
       previewUrl = result.url;
-      audio?.pause();
-      audio = new Audio(result.url);
+      audio = replacement;
       activeMeters = result.meters; activeMaster = result.masterMeter; audioAt = at; meterBallistics.clear(); meterDisplay = {}; resetMasterMeters();
       activePcm = result.pcm; activeChannels = result.channels; loudnessFrames = 0;
       loudnessMeter = new LoudnessMeter(48000, result.channels);
       loudnessDisplay = { short: -Infinity, long: -Infinity, range: null };
       loudnessLastShort = 0; loudnessLastLong = 0;
-      audio.loop = loop;
-      wireAudio(audio, at, result.duration);
+      replacement.loop = loop;
+      wireAudio(replacement, at, result.duration);
       if (autoplay) {
-        await startAudio(audio);
+        await startAudio(replacement);
         if (token !== playTimer) return;
         playing = true;
         if (!loop && at + result.duration < limit - .01) void prefetch(at + result.duration, 8);
       }
+      if (previousAudio && previousAudio !== replacement) previousAudio.pause();
+      if (previousUrl && previousUrl !== result.url) URL.revokeObjectURL(previousUrl);
     } catch (error) {
-      if (token === playTimer) { playbackError = `Playback failed: ${(error as Error).message}`; playing = false; audio?.pause(); }
+      if (token === playTimer) { playbackError = `Playback failed: ${(error as Error).message}`; if (!preserveCurrent) { playing = false; audio?.pause(); } }
     } finally { if (token === playTimer) { loadingAudio = false; playbackStatus = ''; } }
   }
   async function startAudio(element: HTMLAudioElement) {
@@ -575,7 +699,14 @@
       const limit = playbackEnd ?? duration;
       feedLoudness(seconds);
       playhead = Math.min(limit, at + seconds);
-      if (playhead >= limit - .01) { pause(); playbackEnd = null; return; }
+      if (playhead >= limit - .01) {
+        if (loopEnabled && loopEnd > loopStart && Math.abs(limit - loopEnd) < .02) {
+          playhead = loopStart;
+          void loadWindow(loopStart, true, Math.min(8, Math.max(.1, loopEnd - loopStart)));
+          return;
+        }
+        pause(); playbackEnd = null; return;
+      }
       if (!nextAudio && prefetchTask) { playbackStatus = 'Waiting for audio…'; await prefetchTask; playbackStatus = ''; }
       if (generation !== playTimer || !playing) return;
       if (nextAudio && Math.abs(nextAudio.at - playhead) < .1) {
@@ -607,7 +738,10 @@
   }
   async function play() {
     if (loadingAudio) return;
-    playbackEnd = null;
+    if (loopEnabled) {
+      playbackEnd = loopEnd;
+      if (playhead < loopStart || playhead >= loopEnd - .01) playhead = loopStart;
+    } else playbackEnd = null;
     if (audio && previewUrl && audio.paused && audio.currentTime < audio.duration - .05) {
       try { await startAudio(audio); playing = true; }
       catch (error) { playbackError = `Playback failed: ${(error as Error).message}`; }
@@ -622,9 +756,23 @@
     playhead = selection[0];
     await loadWindow(selection[0], true, Math.min(4, selectionLength));
   }
+  function toggleLoop() {
+    if (loopEnabled) {
+      loopEnabled = false;
+      if (playbackEnd !== null && Math.abs(playbackEnd - loopEnd) < .02) playbackEnd = null;
+      return;
+    }
+    const start = hasSelection ? selection[0] : 0;
+    const end = hasSelection ? selection[1] : duration;
+    if (end - start <= .01) return;
+    loopStart = start; loopEnd = end; loopEnabled = true; playbackEnd = end;
+    if (playing && (playhead < start || playhead >= end - .01)) {
+      invalidateAudio(); playing = false; playhead = start; void loadWindow(start, true, Math.min(8, Math.max(.1, end - start)));
+    }
+  }
   function pause() { audio?.pause(); playing = false; }
   function stop() { invalidateAudio(); playing = false; playbackEnd = null; playbackStatus = ''; playhead = 0; }
-  function seek(at: number) { invalidateAudio(); playing = false; playbackEnd = null; playhead = Math.max(0, Math.min(duration, at)); }
+  function seek(at: number) { invalidateAudio(); playing = false; playbackEnd = loopEnabled ? loopEnd : null; playhead = Math.max(0, Math.min(duration, at)); }
 
   async function importFile(file: File | undefined) {
     if (!file) return;
@@ -634,10 +782,11 @@
     pendingImport = file; importing = true; importError = ''; importStatus = 'Reading audio…';
     try {
       const result = await onimport(file, importAt, (s) => importStatus = s);
-      views = [...views, { id: result.track.id, peaks: result.peaks, color: 'var(--color-adlib)' }];
-      update({ ...plain(project), tracks: [...plain(project.tracks), result.track] });
-      void loadPeaks(result.track, 0, Math.min(60, result.track.clips[0]?.sourceEnd ?? 0));
-      selectedTrack = result.track.id; pendingImport = undefined; importStatus = 'Audio added';
+      const importedTrack = { ...result.track, color: result.track.color ?? defaultEditorTrackColor(project.tracks.length) };
+      views = [...views, { id: importedTrack.id, peaks: result.peaks, color: editorTrackColor(importedTrack.color) }];
+      update({ ...plain(project), tracks: [...plain(project.tracks), importedTrack] });
+      void loadPeaks(importedTrack, 0, Math.min(60, importedTrack.clips[0]?.sourceEnd ?? 0));
+      selectedTrack = importedTrack.id; pendingImport = undefined; importStatus = 'Audio added';
       importDismissTimer = window.setTimeout(() => { if (!importing && !importError) importStatus = ''; }, 5000);
     } catch (error) { importError = (error as Error).message; }
     finally { importing = false; }
@@ -677,6 +826,15 @@
   }
 
   function shortcut(e: KeyboardEvent) {
+    // Space is the editor's transport key everywhere, including while the
+    // mixer or another editor sheet has focus. Prevent the browser's page
+    // scroll and native button activation so one press always toggles once.
+    if ((e.code === 'Space' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (e.repeat) return;
+      e.preventDefault();
+      playing ? pause() : void play();
+      return;
+    }
     if (gestureCancel || document.querySelector('dialog[open]')) return;
     if ((e.target as HTMLElement).closest('[role="menu"]')) return;
     if ((e.target as HTMLElement).closest('input,textarea,select,button:not([data-clip]),[contenteditable="true"]')) return;
@@ -700,13 +858,15 @@
   <div class="flex h-12 flex-none items-center gap-3 border-b border-divider px-4">
     <a href={sessionsHref} class="text-[13px] text-text-2 hover:text-text">‹ Sessions</a>
     <div class="h-5 w-px bg-divider"></div>
-    <div class="min-w-0 flex-1 truncate text-[14px]">{project.name}</div>
+    <div class="min-w-0 flex-1 truncate text-[13px]">{project.name}</div>
     <div class="sr-only" data-save-state={saveState}>{saveMessage}</div>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="h-8 rounded-lg border border-border px-3 text-[12px]" aria-label="Editor tools">Tools {pendingRetakes ? `· ${pendingRetakes}` : ''}</DropdownMenu.Trigger>
       <DropdownMenu.Content align="end" preventScroll={false} class="w-56">
         <DropdownMenu.Item data-retakes-open onclick={() => retakesOpen = true}>Review retakes {pendingRetakes ? `(${pendingRetakes})` : ''}</DropdownMenu.Item>
         <DropdownMenu.Item data-pauses-open onclick={() => pausesOpen = true}>Review pauses {project.pauses.length ? `(${project.pauses.length})` : ''}</DropdownMenu.Item>
+        <DropdownMenu.Item data-mixer-open onclick={() => mixerOpen = true}>Open mixer</DropdownMenu.Item>
+        <DropdownMenu.Item data-recommended-sound onclick={() => { recommendation = recommendedSound(plain(project)); recommendationMastered = mastered; }}>Recommended sound</DropdownMenu.Item>
         <DropdownMenu.Item onclick={() => { masterDraft = cleanMaster(plain(project.master)); loudnessOpen = true; }}>Loudness</DropdownMenu.Item>
         <DropdownMenu.Separator />
         <DropdownMenu.Item onclick={() => document.querySelector<HTMLInputElement>('[data-editor-import]')?.click()} disabled={importing}>Import audio</DropdownMenu.Item>
@@ -720,11 +880,19 @@
       <DropdownMenu.Trigger class="h-8 max-w-40 truncate rounded-lg border border-border px-3 text-[12px]" aria-label="Recorded session">{sessions.find((session) => session.id === project.takeId)?.name ?? 'Session'}</DropdownMenu.Trigger>
       <DropdownMenu.Content align="end" preventScroll={false} class="w-56">
         {#each sessions as session}<DropdownMenu.Item onclick={() => void switchSession(session.id)}>{session.name}{session.id === project.takeId ? ' ✓' : ''}</DropdownMenu.Item>{/each}
+        <DropdownMenu.Separator /><DropdownMenu.Item class="text-rec" onclick={() => void openRecordingDeletion()}>Delete this recording</DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Root>
     <input data-editor-import class="sr-only" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac" disabled={importing} onchange={(e) => importFile(e.currentTarget.files?.[0])} />
+    <Button variant="outline" size="sm" disabled={preparingEpisode} onclick={prepareEpisode} data-prepare-episode>Prepare episode</Button>
     <Button data-export-open size="sm" onclick={() => exportOpen = true}>Export</Button>
   </div>
+  <MixerConsole bind:open={mixerOpen} tracks={project.tracks} levels={meterDisplay} master={masterDisplay} solo={solo}
+    onmute={toggleMute} onsolo={toggleSolo} onlevel={stageLevel} oncommitlevel={commitLevel}
+    onfx={(track) => { fxTrack = plain(track); fxBypass = false; fxPreviewing = false; }}
+    masterGain={masterGain} onmasterlevel={stageMasterLevel} oncommitmasterlevel={commitMasterLevel}
+    playing={playing} loading={loadingAudio} playhead={playhead} duration={duration} playbackStatus={playbackStatus} looping={loopEnabled}
+    onplay={() => void play()} onpause={pause} onstop={stop} onseek={seek} onloop={toggleLoop} />
   {#if importStatus || importError}
     <div data-import-status class="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-40 w-[min(360px,calc(100vw-32px))] rounded-xl border border-border bg-surface p-4 text-[12px] text-text shadow-xl" role={importError ? 'alert' : 'status'} aria-live={importError ? 'assertive' : 'polite'}>
       <div class="flex items-start gap-3">
@@ -745,39 +913,72 @@
       <ContextMenu.Item disabled={!hasSelection} onclick={() => remove(true)}>Ripple cut</ContextMenu.Item>
     </ContextMenu.Content>
   {/snippet}
-  <div class="flex min-h-0 flex-1 overflow-auto" data-timeline-scroll>
-    <div class="relative min-w-full" style={`width:${HEADER + timelineWidth}px`}>
+  <div class="relative flex min-h-0 flex-1" data-editor-workspace>
+    <EditorSidebar
+      episodeName={project.name}
+      sessionsHref={sessionsHref}
+      studioHref={`/episodes/${project.episodeId}/studio`}
+      editorHref={`${sessionsHref.replace(/sessions$/, 'editor')}?take=${encodeURIComponent(project.takeId)}`}
+      pendingRetakes={pendingRetakes}
+      pauseCount={project.pauses.length}
+      saveState={saveState}
+      onnavigate={navigateFromSidebar}
+      onexport={() => exportOpen = true}
+      onprepare={() => void prepareEpisode()}
+      onmixer={() => mixerOpen = true}
+      onretakes={() => retakesOpen = true}
+      onpauses={() => pausesOpen = true}
+      onloudness={() => { masterDraft = cleanMaster(plain(project.master)); loudnessOpen = true; }}
+      onimport={() => document.querySelector<HTMLInputElement>('[data-editor-import]')?.click()}
+    />
+    <div class="min-w-0 flex-1 overflow-auto" data-timeline-scroll>
+      <div class="relative min-w-full" style={`width:${HEADER + timelineWidth}px`}>
       <div class="sticky top-0 z-30 flex h-10 border-b border-divider bg-page/95 backdrop-blur">
-        <div class="sticky left-0 z-40 flex w-[176px] flex-none items-center border-r border-divider bg-page px-4 text-[11px] font-mono text-text-3">TRACKS</div>
+        <div class="sticky left-0 z-40 flex w-[176px] flex-none items-center border-r border-divider bg-page px-4 text-[11px] font-medium text-text-3">TRACKS</div>
         <ContextMenu.Root bind:open={rulerContextOpen}>
         <ContextMenu.Trigger class="relative flex-1" role="button" tabindex={0} aria-label="Timeline ruler" style={`width:${timelineWidth}px`} data-ruler onpointerdown={(e) => beginSelection(e)} oncontextmenu={(e) => timelineContext(e)} onkeydown={(e) => { keyboardContext(e); if (e.key === 'Enter' || e.key === ' ') seek(playhead); }}>
           {#each Array(Math.ceil(duration / (zoom < 1 ? 30 : zoom > 3 ? 5 : 10)) + 1) as _, i}
             {@const step = zoom < 1 ? 30 : zoom > 3 ? 5 : 10}
-            <div class="absolute top-0 h-full border-l border-divider" style={`left:${i * step * pxPerSecond}px`}><span class="ml-1.5 font-mono text-[10px] text-text-3">{fmt(i * step)}</span></div>
+            <div class="absolute top-0 h-full border-l border-divider" style={`left:${i * step * pxPerSecond}px`}><span class="ml-1.5 font-mono text-[11px] text-text-3">{fmt(i * step)}</span></div>
           {/each}
-          {#if hasSelection}<div data-selection-summary class="pointer-events-none absolute top-1 z-10 whitespace-nowrap rounded-md border border-primary/60 bg-sheet px-2 py-1 font-mono text-[10px] text-text shadow-sm" style={`left:${selection[0] * pxPerSecond}px`}>{fmtPrecise(selection[0])} → {fmtPrecise(selection[1])} · {fmtPrecise(selectionLength)}</div>{/if}
+          {#if hasSelection}<div data-selection-summary class="pointer-events-none absolute top-1 z-10 whitespace-nowrap rounded-md border border-primary/60 bg-sheet px-2 py-1 font-mono text-[11px] text-text shadow-sm" style={`left:${selection[0] * pxPerSecond}px`}>{fmtPrecise(selection[0])} → {fmtPrecise(selection[1])} · {fmtPrecise(selectionLength)}</div>{/if}
         </ContextMenu.Trigger>
         {@render timelineMenu()}
         </ContextMenu.Root>
       </div>
       <div class="sticky top-10 z-20 flex h-9 border-b border-divider bg-sheet">
-        <div class="sticky left-0 z-30 flex w-[176px] flex-none items-center border-r border-divider bg-sheet px-4 text-[11px] text-text-3">MARKERS</div>
+        <div class="sticky left-0 z-30 flex w-[176px] flex-none items-center border-r border-divider bg-sheet px-4 text-[11px] font-medium text-text-3">MARKERS</div>
         <div class="relative" style={`width:${timelineWidth}px`}>
           {#each visibleMarkers as marker}
-            {#if label(marker.kind)}<button class="absolute top-1 h-6 -translate-x-1/2 rounded-[4px] border border-border bg-control px-1.5 font-mono text-[9px] text-text-2 hover:text-text" style={`left:${marker.t * pxPerSecond}px`} onclick={() => seek(marker.t)} title={`${label(marker.kind)} · ${fmt(marker.t)}`}>{label(marker.kind)}</button>{/if}
+            {#if label(marker.kind)}<button class="absolute top-1 h-6 -translate-x-1/2 rounded-[4px] border border-border bg-control px-1.5 font-mono text-[10px] text-text-2 hover:text-text" style={`left:${marker.t * pxPerSecond}px`} onclick={() => seek(marker.t)} title={`${label(marker.kind)} · ${fmt(marker.t)}`}>{label(marker.kind)}</button>{/if}
           {/each}
         </div>
       </div>
       {#each project.tracks as track}
         {@const view = viewFor(track.id)}
-        <div data-track={track.id} class="flex h-[104px] border-b border-divider" class:bg-surface={track.id === selectedTrack}>
-          <div class="sticky left-0 z-20 flex w-[176px] flex-none flex-col justify-center gap-2 border-r border-divider bg-page py-1 pl-2 pr-8">
+        {@const rowHeight = trackHeight(track.id)}
+        {@const clipHeight = Math.max(44, rowHeight - 26)}
+        {@const trackColor = track.color ? editorTrackColor(track.color) : (view?.color ?? 'var(--color-text-3)')}
+        <div data-track={track.id} class="relative flex border-b border-divider" class:bg-surface={track.id === selectedTrack} style={`height:${rowHeight}px`}>
+          <div class="sticky left-0 z-20 flex w-[176px] flex-none flex-col justify-start gap-2 border-r border-divider bg-page pb-1 pl-2 pr-8 pt-3 relative">
             <TrackLevelMeter name={track.name} channels={track.channels} left={meterDisplay[track.id]?.left} right={meterDisplay[track.id]?.right} held={meterDisplay[track.id]?.held} />
-            <div class="flex items-center gap-2"><StatusDot color={view?.color ?? 'var(--color-text-3)'} /><button class="min-w-0 flex-1 truncate text-left text-[12px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
+            <div class="flex items-center gap-2"><StatusDot color={trackColor} /><button class="min-w-0 flex-1 truncate text-left text-[13px] font-medium" onclick={() => selectedTrack = track.id} title={track.name}>{track.name}</button>
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger class="size-6 rounded-md text-text-2 hover:bg-control" aria-label={`${track.name} track actions`}>⋯</DropdownMenu.Trigger>
                 <DropdownMenu.Content align="end" preventScroll={false} class="w-44">
                   {#if view?.status === 'error'}<DropdownMenu.Item onclick={() => { for (const clip of track.clips) void loadPeaks(track, clip.sourceStart, clip.sourceEnd); }}>Retry waveform</DropdownMenu.Item>{/if}
+                  <DropdownMenu.Sub>
+                    <DropdownMenu.SubTrigger>Track color</DropdownMenu.SubTrigger>
+                    <DropdownMenu.SubContent class="w-36">
+                      {#each EDITOR_TRACK_COLORS as color}
+                        <DropdownMenu.Item onclick={() => setTrackColor(track.id, color)}>
+                          <span class="size-3 rounded-full border border-white/20" style={`background:${editorTrackColor(color)}`}></span>
+                          <span class="flex-1">{EDITOR_TRACK_COLOR_LABELS[color]}</span>
+                          {#if track.color === color}<span aria-hidden="true">✓</span>{/if}
+                        </DropdownMenu.Item>
+                      {/each}
+                    </DropdownMenu.SubContent>
+                  </DropdownMenu.Sub>
                   <DropdownMenu.Item variant="destructive" onclick={() => { removingTrack = track.id; removeOpen = true; }}>Remove track</DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Root>
@@ -786,7 +987,7 @@
               <button class="size-7 rounded-[7px] border border-border text-[11px]" class:bg-text={track.muted} class:text-page={track.muted} onclick={() => toggleMute(track.id)} aria-label={`Mute ${track.name}`}>M</button>
               <button class="size-7 rounded-[7px] border border-border text-[11px]" class:bg-text={solo.includes(track.id)} class:text-page={solo.includes(track.id)} onclick={() => toggleSolo(track.id)} aria-label={`Solo ${track.name}`}>S</button>
               <button data-track-fx class="h-7 rounded-[7px] border border-border px-2 text-[11px]" onclick={() => { fxTrack = plain(track); fxBypass = false; fxPreviewing = false; }}>FX</button>
-            <span class="ml-auto font-mono text-[10px] text-text-3">{(levelDrafts[track.id] ?? track.gainDb) > 0 ? '+' : ''}{levelDrafts[track.id] ?? track.gainDb} dB</span>
+            <span class="ml-auto font-mono text-[11px] text-text-3">{(levelDrafts[track.id] ?? track.gainDb) > 0 ? '+' : ''}{levelDrafts[track.id] ?? track.gainDb} dB</span>
             </div>
             <input aria-label={`${track.name} level`} type="range" min="-24" max="12" step="1" value={levelDrafts[track.id] ?? track.gainDb} oninput={(e) => stageLevel(track.id, Number(e.currentTarget.value))} onchange={() => commitLevel(track.id)} onblur={() => commitLevel(track.id)} />
           </div>
@@ -794,31 +995,81 @@
           <ContextMenu.Trigger class="relative flex-1 overflow-hidden" role="region" aria-label={`${track.name} timeline`} style={`width:${timelineWidth}px`} data-lane tabindex={0} onpointerdown={(e) => beginSelection(e, track)} oncontextmenu={(e) => timelineContext(e, track)} onkeydown={(e) => keyboardContext(e, track)}>
             {#each track.clips as clip}
               {@const clipDuration = clip.sourceEnd - clip.sourceStart}
-              {@const clipPeaks = waveformBars(view?.peaks ?? [], clip.sourceStart, clip.sourceEnd, pxPerSecond, clip.sourceStart + Math.max(0, visibleFrom - clip.timelineStart), clip.sourceStart + Math.min(clipDuration, visibleTo - clip.timelineStart))}
-              <button data-clip={clip.id} class="absolute top-3 h-[78px] overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;width:${Math.max(4, clipDuration * pxPerSecond)}px;background:color-mix(in srgb, ${view?.color ?? 'var(--color-text-3)'} 12%, var(--color-surface))`} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedTrack = track.id; selectedClip = clip.id; openClipPopover(e.currentTarget, clip); } }} title="Click for clip details; drag to move; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
+              {@const trackGainDb = levelDrafts[track.id] ?? track.gainDb}
+              {@const clipPeaks = waveformBars(view?.peaks ?? [], clip.sourceStart, clip.sourceEnd, pxPerSecond, clip.sourceStart + Math.max(0, visibleFrom - clip.timelineStart), clip.sourceStart + Math.min(clipDuration, visibleTo - clip.timelineStart), trackGainDb)}
+              {@const clipWidth = Math.max(4, clipDuration * pxPerSecond)}
+              {@const waveformHeight = Math.max(24, clipHeight - 28)}
+              <!-- dBFS labels sit over the waveform; they do not consume audio
+                   width, so the first source sample stays visible at x=0. -->
+              {@const waveformLabelInset = 6}
+              {@const dbfsLabels = waveformHeight > 100 ? ['0', '-6', '-12', '-18', '-24', '-30', '-36', '−∞'] : waveformHeight > 70 ? ['0', '-6', '-12', '-18', '-24', '−∞'] : ['0', '-12', '-24', '−∞']}
+              {@const showDbfsLabels = waveformHeight >= 72}
+              {@const clipPaths = waveformPaths(clipPeaks, clipWidth, waveformHeight, 0)}
+              {@const waveformGradient = `waveform-depth-${clip.id}`}
+              {@const waveformBackdropGradient = `waveform-backdrop-${clip.id}`}
+              {@const waveformColor = trackColor}
+              {@const waveformHighlight = `color-mix(in srgb, ${waveformColor} 90%, var(--color-surface))`}
+              {@const waveformShadow = `color-mix(in srgb, ${waveformColor} 82%, var(--color-page))`}
+              {@const waveformLabelColor = `color-mix(in srgb, ${waveformColor} 20%, var(--color-text))`}
+              {@const waveformLabelSurface = `color-mix(in srgb, ${waveformColor} 35%, var(--color-surface))`}
+              <button data-clip={clip.id} class="absolute overflow-hidden rounded-[7px] border text-left" class:border-text={selectedClip === clip.id} class:border-border={selectedClip !== clip.id} class:opacity-40={track.muted} style={`left:${clip.timelineStart * pxPerSecond}px;top:12px;width:${clipWidth}px;height:${clipHeight}px;background:color-mix(in srgb, ${waveformColor} 14%, var(--color-surface))`} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedTrack = track.id; selectedClip = clip.id; openClipPopover(e.currentTarget, clip); } }} title="Click for clip details; drag to move; Shift-drag to select time; Alt-drag to unlink" onpointerdown={(e) => dragClip(e, track, clip.id)}>
                 <span role="slider" aria-label="Trim clip start" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceStart} tabindex="0" class="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'start')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'start', e.key === 'ArrowRight' ? .01 : -.01)); } }}></span>
                 <span role="slider" aria-label="Trim clip end" aria-valuemin={clip.sourceStart} aria-valuemax={clip.sourceEnd} aria-valuenow={clip.sourceEnd} tabindex="0" class="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize bg-text/20" onpointerdown={(e) => trim(e, track, clip.id, 'end')} onkeydown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); update(trimClip(plain(project), track.id, clip.id, 'end', e.key === 'ArrowLeft' ? .01 : -.01)); } }}></span>
-                <span class="absolute left-2 top-1 font-mono text-[9px] text-text-3">{clip.linked ? 'LINKED' : 'UNLINKED'}</span>
-                {#if view?.status === 'loading' && !clipPeaks.length}<span class="absolute inset-0 flex items-center justify-center text-[11px] text-text-2">Preparing waveform…</span>{/if}
-                {#if view?.status === 'error'}<span class="absolute inset-0 flex items-center justify-center px-3 text-center text-[11px] text-rec">Waveform unavailable · retry from track menu</span>{/if}
-                <span class="absolute inset-x-0 bottom-2 top-5 opacity-80" aria-hidden="true">
+                <span class="absolute left-2 top-1 font-mono text-[10px] text-text-3">{clip.linked ? 'LINKED' : 'UNLINKED'}</span>
+                {#if view?.status === 'loading' && !clipPeaks.length}<span class="absolute inset-0 flex items-center justify-center text-[12px] text-text-2">Preparing waveform…</span>{/if}
+                {#if view?.status === 'error'}<span class="absolute inset-0 flex items-center justify-center px-3 text-center text-[12px] text-rec">Waveform unavailable · retry from track menu</span>{/if}
+                <svg class="absolute inset-x-0 bottom-2 top-5 w-full" style={`height:${waveformHeight}px;color:${waveformColor};--waveform-highlight:${waveformHighlight};--waveform-shadow:${waveformShadow};--waveform-label-color:${waveformLabelColor};--waveform-label-surface:${waveformLabelSurface}`} viewBox={`0 0 ${clipWidth} ${waveformHeight}`} preserveAspectRatio="none" aria-label={`${track.name} analyzer waveform`} role="img">
+                  <defs>
+                    <linearGradient id={waveformBackdropGradient} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="var(--waveform-highlight)" stop-opacity=".13" />
+                      <stop offset="48%" stop-color="currentColor" stop-opacity=".08" />
+                      <stop offset="100%" stop-color="var(--waveform-shadow)" stop-opacity=".15" />
+                    </linearGradient>
+                    <linearGradient id={waveformGradient} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="var(--waveform-highlight)" stop-opacity=".96" />
+                      <stop offset="18%" stop-color="currentColor" stop-opacity=".84" />
+                      <stop offset="68%" stop-color="currentColor" stop-opacity=".56" />
+                      <stop offset="100%" stop-color="var(--waveform-shadow)" stop-opacity=".72" />
+                    </linearGradient>
+                  </defs>
+                  <rect x="0" y="0" width={clipWidth} height={waveformHeight} fill={`url(#${waveformBackdropGradient})`} opacity=".78" />
+                  {#each dbfsLabels as dbfsLabel, labelIndex}
+                    {@const dbfsY = 8 + labelIndex * ((waveformHeight - 16) / Math.max(1, dbfsLabels.length - 1))}
+                    <path d={`M 0 ${dbfsY} H ${clipWidth}`} stroke="var(--color-divider)" stroke-width={labelIndex === dbfsLabels.length - 1 ? 1 : .5} vector-effect="non-scaling-stroke" opacity={labelIndex === dbfsLabels.length - 1 ? .72 : .42} />
+                    {#if showDbfsLabels && clipWidth >= 32}
+                      <rect x="1" y={dbfsY - 8} width="25" height="10" rx="2" fill="var(--waveform-label-surface)" opacity=".84" />
+                      <text x={waveformLabelInset} y={dbfsY - 2} fill="var(--waveform-label-color)" stroke="var(--color-page)" stroke-width="1.5" paint-order="stroke" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size={clipWidth < 64 ? 6 : 7} font-weight="600" opacity=".98">{dbfsLabel}</text>
+                    {/if}
+                  {/each}
+                  <!-- A filled, rectified waveform keeps the clip readable as audio
+                       rather than making it look like a spectrum analyzer. The
+                       gradient gives the peak edge, body, and lower bed distinct
+                       depth without adding another distracting trace. -->
+                  <path d={clipPaths.rectifiedArea} fill={`url(#${waveformGradient})`} opacity=".82" />
+                  <path d={clipPaths.rectifiedBodyArea} fill="currentColor" opacity=".12" />
+                </svg>
+                <span class="pointer-events-none absolute inset-x-0 bottom-2 top-5 opacity-0" aria-hidden="true">
                   {#each clipPeaks as bar}
-                    <i data-waveform-peak class="absolute top-1/2 w-[2px] -translate-y-1/2 rounded-full" style={`left:${bar.left}px;height:${bar.height}px;background:${view?.color ?? 'var(--color-text-3)'}`}></i>
+                    <i data-waveform-peak class="absolute top-1/2 w-[2px] -translate-y-1/2" style={`left:${bar.left}px;height:${bar.height}px;background:${view?.color ?? 'var(--color-text-3)'}`}></i>
                   {/each}
                 </span>
               </button>
             {/each}
             {#each project.crossfades?.filter((f) => f.trackId === track.id) ?? [] as fade}
               {@const span = crossfadeSpan(track, fade)}
-              {#if span}<div data-crossfade class="pointer-events-none absolute top-3 h-[78px] border-x border-text/40 bg-text/5" style={`left:${span[0] * pxPerSecond}px;width:${(span[1] - span[0]) * pxPerSecond}px`} title="Equal-power crossfade"><svg class="h-full w-full" viewBox="0 0 100 78" preserveAspectRatio="none" aria-label="Crossfade"><path d="M0 0 Q64 0 100 78 M0 78 Q36 0 100 0" fill="none" stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".5" /></svg></div>{/if}
+              {#if span}<div data-crossfade class="pointer-events-none absolute border-x border-text/40 bg-text/5" style={`left:${span[0] * pxPerSecond}px;top:12px;width:${(span[1] - span[0]) * pxPerSecond}px;height:${clipHeight}px`} title="Equal-power crossfade"><svg class="h-full w-full" viewBox={`0 0 100 ${clipHeight}`} preserveAspectRatio="none" aria-label="Crossfade"><path d={`M0 0 Q64 0 100 ${clipHeight} M0 ${clipHeight} Q36 0 100 0`} fill="none" stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".5" /></svg></div>{/if}
             {/each}
             {#if hasSelection}<div data-time-selection class={`pointer-events-none absolute inset-y-0 border-x-2 border-primary ${track.id === selectedTrack ? 'bg-primary/30' : 'bg-primary/15'}`} style={`left:${selection[0] * pxPerSecond}px;width:${selectionLength * pxPerSecond}px`}></div>{/if}
           </ContextMenu.Trigger>
           {@render timelineMenu()}
           </ContextMenu.Root>
+          <button type="button" data-track-resize aria-label={`Resize ${track.name} track (${rowHeight} pixels)`} title="Drag to resize track" class="group/track-resize absolute inset-x-0 bottom-[-3px] z-50 h-1.5 cursor-row-resize bg-transparent" onpointerdown={(e) => resizeTrack(e, track.id)} onkeydown={(e) => resizeTrackKey(e, track.id)}>
+            <span class="absolute inset-x-0 top-1/2 h-px bg-divider transition-colors group-hover/track-resize:bg-primary group-focus-visible/track-resize:bg-primary"></span>
+          </button>
         </div>
       {/each}
       <div class="pointer-events-none absolute bottom-0 top-0 z-40 w-px bg-rec" style={`left:${HEADER + playhead * pxPerSecond}px`}><span class="absolute -left-1.5 top-0 size-3 rotate-45 bg-rec"></span></div>
+      </div>
     </div>
   </div>
   <Popover.Root bind:open={clipPopoverOpen}>
@@ -834,11 +1085,12 @@
     {/if}
   </Popover.Root>
   <div class="flex min-h-[56px] flex-none items-center gap-3 border-t border-divider bg-surface px-4 py-2">
-    <button data-editor-play class="size-9 rounded-full bg-text text-page disabled:opacity-60" disabled={loadingAudio} onclick={() => playing ? pause() : void play()} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if playing}<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>{:else}<path d="M7 4L21 12L7 20Z"/>{/if}</svg></button>
+      <button data-editor-play class="flex size-8 flex-none items-center justify-center rounded-full border border-white/20 bg-black text-white shadow-sm hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50" disabled={loadingAudio} onclick={() => playing ? pause() : void play()} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-label={playing ? 'Pause' : 'Play'}><svg class="size-4" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if playing}<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>{:else}<path d="M7 4L21 12L7 20Z"/>{/if}</svg></button>
     <button class="size-9 rounded-[10px] border border-border text-[12px]" onclick={stop} aria-label="Stop" title="Stop"><svg class="mx-auto size-5" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
-    <span data-current-time class="w-[58px] font-mono text-[15px] font-medium tabular-nums">{fmt(playhead)}</span>
+    <button class="flex size-9 items-center justify-center rounded-[10px] border border-border text-text-2 hover:bg-control hover:text-text" class:border-primary={loopEnabled} class:bg-control={loopEnabled} class:text-primary={loopEnabled} onclick={toggleLoop} aria-label={loopEnabled ? 'Disable loop' : 'Enable loop'} aria-pressed={loopEnabled} title={loopEnabled ? 'Disable loop' : hasSelection ? 'Loop selection' : 'Loop timeline'}><svg class="size-4" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9a3 3 0 0 1 3 3v1"/><path d="m13 4 3 2-3 2"/><path d="M16 14H7a3 3 0 0 1-3-3v-1"/><path d="m7 16-3-2 3-2"/></svg></button>
+    <span data-current-time class="w-[58px] font-mono text-[14px] font-medium tabular-nums">{fmt(playhead)}</span>
     <input class="min-w-[160px] flex-1" aria-label="Playhead" type="range" min="0" max={Math.max(.01, duration)} step=".01" value={playhead} oninput={(e) => seek(Number(e.currentTarget.value))} />
-    <span data-duration-time class="font-mono text-[15px] font-medium tabular-nums text-text-2">{fmt(duration)}</span>
+    <span data-duration-time class="font-mono text-[14px] font-medium tabular-nums text-text-2">{fmt(duration)}</span>
     <div class="flex-none border-l border-divider pl-3"><MasterLevelMeter {...masterDisplay} {...loudnessDisplay} /></div>
     <div class="h-6 w-px bg-divider"></div>
     <DropdownMenu.Root bind:open={editMenuOpen}>
@@ -853,9 +1105,9 @@
         <DropdownMenu.Item disabled={!hasSelection} onclick={() => { editMenuOpen = false; remove(true); }}>Ripple cut</DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Root>
-    <span class="text-[11px] text-text-3">Zoom</span><Slider type="single" class="w-24" aria-label="Timeline zoom" min={0.5} max={6} step={0.5} bind:value={zoom} />
-    {#if loadingAudio || playbackStatus}<span role="status" data-playback-status class="flex items-center gap-1.5 text-[11px] text-text-2" aria-live="polite">{#if loadingAudio}<Spinner label="Preparing audio" />{/if}{playbackStatus || 'Preparing audio…'}</span>{/if}
-    {#if playbackError}<button data-playback-error class="max-w-40 truncate text-[11px] text-rec underline" title={playbackError} onclick={() => void play()}>{playbackError} · Retry</button>{/if}
+    <span class="text-[12px] text-text-3">Zoom</span><Slider type="single" class="w-24" aria-label="Timeline zoom" min={0.5} max={6} step={0.5} bind:value={zoom} />
+    {#if loadingAudio || playbackStatus}<span role="status" data-playback-status class="flex items-center gap-1.5 text-[12px] text-text-2" aria-live="polite">{#if loadingAudio}<Spinner label="Preparing audio" />{/if}{playbackStatus || 'Preparing audio…'}</span>{/if}
+    {#if playbackError}<button data-playback-error class="max-w-40 truncate text-[12px] text-rec underline" title={playbackError} onclick={() => void play()}>{playbackError} · Retry</button>{/if}
   </div>
 </div>
 
@@ -918,7 +1170,7 @@
 
 <Sheet bind:open={exportOpen} labelledby="export-title" onclose={() => { completed = null; exportStatus = ''; }}>
   {#snippet header()}<div><h2 id="export-title" class="text-[18px]">Export episode</h2><p class="mt-1 text-[13px] text-text-2">The finished WAV includes every reviewed edit and track setting.</p></div>{/snippet}
-  {#if completed}<div class="py-8 text-center" data-export-complete><div class="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-ok/15 text-ok">✓</div><h3 class="text-[17px]">Your export is ready</h3><p class="mt-2 text-[13px] text-text-2">{completed.filename}</p><div class="mt-5 flex justify-center gap-2"><a class="flex h-9 items-center rounded-[9px] bg-primary px-3 text-[13px] text-primary-fg" href={sessionsHref}>Back to sessions</a><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={completed.downloadAgain}>Download again</button></div><div class="mt-8 rounded-[12px] border border-dashed border-border p-4 text-left opacity-50"><div class="text-[13px]">Optional AI tools</div><div class="mt-1 text-[12px] text-text-3">Coming soon</div></div></div>
+  {#if completed}<div class="py-8 text-center" data-export-complete><div class="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-ok/15 text-ok">✓</div><h3 class="text-[17px]">Your export is ready</h3><p class="mt-2 text-[13px] text-text-2">{completed.filename}</p><div class="mt-5 flex justify-center gap-2"><a class="flex h-9 items-center rounded-[9px] bg-primary px-3 text-[13px] text-primary-fg" href={sessionsHref}>Back to sessions</a><button class="h-9 rounded-[9px] border border-border px-3 text-[13px]" onclick={completed.downloadAgain}>Download again</button></div><Button class="mt-5" onclick={prepareEpisode} disabled={preparingEpisode}>Prepare episode</Button></div>
   {:else}<div class="flex flex-col gap-3">
     <div class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]"><label for="export-wav">Finished WAV</label><Checkbox id="export-wav" checked disabled /></div>
     <div class="flex items-center justify-between rounded-[12px] bg-surface p-4 text-[13px]"><label for="export-mp3">Also make MP3</label><Checkbox id="export-mp3" checked={project.master.mp3} onCheckedChange={(checked) => { project.master.mp3 = checked; queueSave(); }} /></div>
@@ -952,3 +1204,15 @@
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--color-text); outline-offset: 3px; }
   [data-clip] { touch-action: none; user-select: none; }
 </style>
+
+<Sheet open={!!recommendation} labelledby="recommended-title" onclose={closeRecommendation}>
+  {#snippet header()}<h2 id="recommended-title" class="text-lg">Recommended sound</h2>{/snippet}
+  <div class="space-y-4 text-sm"><p>A gentle voice cleanup, clear tone, light compression, and speech leveling. The finished mix targets {recommendation?.master.loudness === 'stereo' ? '−16' : '−19'} LUFS with a −1 dBTP ceiling.</p><p class="text-text-2">Listen before applying. Your source recordings remain unchanged, and Apply is one undoable edit.</p></div>
+  {#snippet footer()}<div class="flex flex-wrap gap-2"><Button variant="outline" onclick={() => { recommendationPreview = !recommendationPreview; mastered = recommendationPreview || recommendationMastered; refreshAudio(); if (recommendationPreview && !playing && !loadingAudio) void loadWindow(playhead, true); }}>{recommendationPreview ? 'Compare original' : 'Preview recommended sound'}</Button><Button variant="outline" onclick={closeRecommendation}>Cancel</Button><Button data-apply-recommended onclick={() => { if (!recommendation) return; const next = plain(recommendation); recommendation = null; recommendationPreview = false; mastered = recommendationMastered; update(next); }}>Apply</Button></div>{/snippet}
+</Sheet>
+
+{#if deletionTracks.length}<DeleteRecording bind:open={deletingRecording} trigger={false} episodeId={project.episodeId} tracks={deletionTracks} onDeleted={() => { clearTimeout(timer); invalidateAudio(); location.assign(sessionsHref); }} />{/if}
+
+<Sheet open={preparingEpisode} labelledby="prepare-title" onclose={()=>prepareController?.abort()}>
+{#snippet header()}<h2 id="prepare-title">Prepare episode</h2>{/snippet}<p class="flex items-center gap-2 text-sm" aria-live="polite"><Spinner label="Preparing episode"/>{prepareStatus}</p><p class="mt-4 text-sm text-text-2">Keep this tab open until the finished mix has uploaded. Your source recordings remain unchanged.</p>{#snippet footer()}<Button variant="outline" onclick={()=>{prepareController?.abort();preparingEpisode=false;}}>Cancel</Button>{/snippet}
+</Sheet>

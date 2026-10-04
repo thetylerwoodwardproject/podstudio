@@ -5,25 +5,30 @@
  * closes goes up from the next page (resumeUploads).
  */
 import { getTake, listTakes, segmentFile, type TakeMeta } from './audio/takes';
+import { isRecordingDeleted, rememberDeletedRecording, cleanupDeletedRecordings } from './recording-deletion';
 import { Uploader, type UploadStatus } from './upload';
 
 const base = (id: string) => `/api/takes/${encodeURIComponent(id)}`;
 
 async function putMeta(meta: TakeMeta, done: boolean) {
+  if (isRecordingDeleted(meta.id)) throw new Error('Recording permanently deleted');
   const res = await fetch(base(meta.id), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ meta, done }),
     credentials: 'same-origin',
   });
+  if (res.status === 410) rememberDeletedRecording(meta.id);
   if (!res.ok) throw new Error(`Meta ${res.status}`);
 }
 
 async function putSegment(meta: TakeMeta, n: number) {
+  if (isRecordingDeleted(meta.id)) throw new Error('Recording permanently deleted');
   const file = await segmentFile(meta, n);
   // A piece is never empty; if it reads empty it isn't committed yet, so try again.
   if (!file.size) throw new Error('Piece not saved yet');
   const res = await fetch(`${base(meta.id)}/segments/${n}`, { method: 'PUT', body: file, credentials: 'same-origin' });
+  if (res.status === 410) rememberDeletedRecording(meta.id);
   if (!res.ok) throw new Error(`Segment ${res.status}`);
 }
 
@@ -41,7 +46,7 @@ export function startTakeUpload(meta: TakeMeta, from = 0): TakeUpload {
   let metaSent = false;
   let metaKey = '';
   const uploader = new Uploader(
-    () => (metaSent ? meta.segments : 0),
+    () => (metaSent && !isRecordingDeleted(meta.id) ? meta.segments : 0),
     async (n) => {
       await putSegment(meta, n);
       lastSent = Date.now();
@@ -53,7 +58,7 @@ export function startTakeUpload(meta: TakeMeta, from = 0): TakeUpload {
   const syncMeta = async () => {
     // Markers, the line log and pads change as it records: send the meta when they do.
     const key = `${meta.segments}|${meta.markers?.length ?? 0}|${meta.lineLog?.length ?? 0}|${meta.pads?.presses.length ?? 0}`;
-    if (sendingMeta || key === metaKey) return;
+    if (sendingMeta || key === metaKey || isRecordingDeleted(meta.id)) return;
     sendingMeta = true;
     try {
       await putMeta(meta, false);
@@ -91,12 +96,14 @@ export function startTakeUpload(meta: TakeMeta, from = 0): TakeUpload {
  */
 export async function resumeUploads(episodeId: string, onProgress?: (take: TakeMeta, sent: number) => void) {
   for (const t of await listTakes(episodeId)) {
+    if (isRecordingDeleted(t.id)) { await cleanupDeletedRecordings([t.id]); continue; }
     if (t.remote || t.status !== 'done' || !t.segments) continue;
     let have = 0;
     let done = false;
     try {
       const res = await fetch(base(t.id), { credentials: 'same-origin' });
       if (res.status === 401) return;
+      if (res.status === 410) { await cleanupDeletedRecordings([t.id]); continue; }
       if (res.ok) ({ segments: have, done } = (await res.json()) as { segments: number; done: boolean });
     } catch {
       return;

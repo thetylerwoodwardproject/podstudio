@@ -15,9 +15,9 @@ const { title, current } = Astro.props;
 ---
 
 <Base title={title}>
-  <div class="grid min-h-dvh lg:grid-cols-[280px_1fr]">
-    <aside class="flex flex-col gap-7 border-line px-7 py-8 max-lg:border-b lg:border-r">
-      <Logo />
+  <div class="grid min-h-dvh lg:grid-cols-[240px_1fr]">
+    <aside class="flex flex-col gap-7 border-divider bg-nav px-3 py-4 max-lg:border-b lg:border-r">
+      <div class="px-3"><Logo /></div>
       <ol class="flex flex-col gap-1 max-lg:hidden">
         {
           setupSteps.map((s, i) => {
@@ -25,25 +25,25 @@ const { title, current } = Astro.props;
             const on = i === current;
             return (
               <li
-                class:list={['flex items-center gap-3 py-2.5 text-[14px]', on ? 'text-fg' : done ? 'text-muted' : 'text-faint']}
+                class:list={['flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px]', on ? 'bg-control text-text' : done ? 'text-text-2' : 'text-text-3']}
                 aria-current={on ? 'step' : undefined}
               >
                 <span
                   class:list={[
                     'flex size-5.5 flex-none items-center justify-center rounded-full border font-mono text-[11px] font-medium',
-                    on ? 'border-fg text-fg' : done ? 'border-edge-strong bg-line text-muted' : 'border-edge text-subtle',
+                    on ? 'border-text text-text' : done ? 'border-border bg-control text-text-2' : 'border-border text-text-3',
                   ]}
                 >
                   {done ? '✓' : i + 1}
                 </span>
                 {s.label}
-                {s.optional && <span class="text-[11px] text-subtle">optional</span>}
+                {s.optional && <span class="text-[11px] text-text-3">optional</span>}
               </li>
             );
           })
         }
       </ol>
-      <div class="mt-auto flex items-center gap-2 font-mono text-[11px] text-subtle max-lg:hidden">
+      <div class="mt-auto flex items-center gap-2 px-3 font-mono text-[11px] text-text-3 max-lg:hidden">
         <Dot color="var(--color-ok)" />
         {server.localAddress} · v{version}
       </div>

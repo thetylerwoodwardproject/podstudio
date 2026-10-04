@@ -182,7 +182,7 @@ files receive an explicit size message. WAV, MP3, M4A, FLAC and other
 browser-decodable inputs are supported.
 
 
-The desktop workflow is **Record → Editor → Export → Optional AI tools**. End Session opens `/episodes/:id/editor?take=:takeId`; the old `/session` URL redirects there. Phones remain on Session Saved because the full editing surface is desktop-only.
+The desktop workflow is **Record → Edit → Prepare episode → Download**. End Session opens `/episodes/:id/editor?take=:takeId`; the old `/session` URL redirects there. Phones remain on Session Saved because the full editing surface is desktop-only.
 
 - **Timeline:** a large ruler, one quiet marker lane (`RET`, `COUGH`, `AD-LIB`, `PAUSE`) and one readable waveform lane for each host, guest, pads or imported source. Existing timestamps and sync logs align tracks automatically. Waveforms use cached 20 ms source-time peaks from bounded reads and a fixed display scale, so split or moved clips retain the same shape without decoding a whole long recording.
 - **Editing:** click a waveform to select it, drag it to move, drag its edge to trim, Shift-drag the waveform or drag the ruler to select a range, split, delete to leave a gap, or ripple-cut across linked synchronized tracks. Alt-drag unlinks a clip before moving it. Same-track edge overlaps crossfade across the full overlap; different tracks mix normally. Tracks stay linked unless explicitly unlinked. Space plays or pauses; Delete removes; S splits; X ripple-cuts; ⌘/Ctrl-Z and ⌘/Ctrl-Shift-Z undo and redo. Shortcuts do nothing while typing in a control.
@@ -199,7 +199,7 @@ The editor’s compact export sheet always includes a finished WAV. MP3 and **In
 
 Raw exports are aligned full host, guest, pads and imported tracks. They retain all attempts, cough audio and other unprocessed material. Coordinated pause intervals contain no recorded samples; equivalent intervals in older sessions are removed while raw files are assembled. Configured marker tones are rendered into the host raw export without modifying the source recording.
 
-After packaging, the editor shows **Your export is ready**, **Back to sessions** and **Download again**. The project remains editable after export. Optional AI tools is visible as coming soon.
+After packaging, the editor shows **Your export is ready**, **Back to sessions** and **Download again**. The project remains editable after export. Prepare episode opens publishing materials and a package download; AI generation is optional.
 
 ## Hotkey pads
 
@@ -280,12 +280,62 @@ browser: **Bring into this browser**, then play or export as usual. Deleting a s
 
 - **Voice follow uses Google's speech service** through Chrome, so it needs an internet connection; if the connection drops it reconnects on its own. On an iPhone it uses Siri, off by default; if it errors or stops more than 3 times in a minute it turns itself off and says so.
 - **iPhone**: the mic stops as soon as Safari leaves the screen, so expect the "Mic stopped" warning there. This needs testing on a real iPhone.
-- **Still mock data:** Whisper transcripts, titles/chapters/soundbites, the Domain & HTTPS checks, and the Controls remotes. Sign-in, episodes, scripts, pads and recordings are on the server.
+- **Still mock data:** The Domain & HTTPS checks and the Controls remotes. Sign-in, episodes, scripts, pads and recordings are on the server.
 - **Zips** are limited to 4 GB.
 - **Setup wizard:** admin account creation and two-factor setup work. The broader Server check, OpenAI key and Done steps are not implemented; after two-factor setup, the Domain screen still shows example checks.
 - **OpenDyslexic** is listed as a prompter font, but the font isn't bundled yet, so it falls back to Atkinson Hyperlegible.
-- **Mock values:** model names are placeholders. The version (Settings → About and Server, `/api/health`) comes from `package.json`.
+- **AI models:** transcription uses whisper-1; writing uses gpt-4.1-mini. The version (Settings → About and Server, `/api/health`) comes from `package.json`.
 - **Validation next:** the editor and installer are being exercised on the real lab VPS. See `docs/roadmap.md` for upgrade, long-session, real-device and optional AI work.
 - **One guest per session**, by design. Video isn't part of it: the call app carries video if you want it.
 
 The simplified mobile boundary is ≤700 px, or a coarse-pointer display ≤900 px. Sound pads, pad setup and key hints are unavailable there; existing recorded Pads tracks remain downloadable. Larger devices retain pad controls.
+
+## Easier episode setup
+
+New episode opens an accessible shadcn Dialog/Field overlay, with **Record now**
+or **Add a script**. Record now uses an ad-lib studio without requiring a script.
+Recording format and teleprompter scrolling options are expandable; the fixed
+Start session footer and saved microphone preferences remain available.
+In Editor → Tools → Recommended sound, preview a gentle voice cleanup before
+applying it as one undoable edit. Source audio is unchanged; current projects
+keep their original sound until Apply. The recommendation targets −16 LUFS
+stereo or −19 LUFS mono with a −1 dBTP ceiling.
+
+Grouped permanent deletion, real OpenAI generation and downloadable publishing materials are implemented; see the
+[episode preparation plan](episode-preparation-plan.md).
+
+## Prepare episode and permanent deletion
+
+**Record → Edit → Prepare episode → Download** is the primary path. Export
+remains available in the editor. Prepare episode saves a revision-specific copy
+of the finished mix without marker tones. Rendering and compression run in the
+browser using bounded reads and disk-backed outputs; the VPS streams uploaded
+chunks and stores audio and compact metadata.
+
+Settings → Transcription & AI accepts a masked, real OpenAI key. Validation
+checks access to whisper-1 and gpt-4.1-mini. Keys are encrypted server-side,
+never returned to the browser, and do not belong to account preferences. No
+credentials: generation is disabled, Add API key returns to this episode, and
+manual text, playback, saved results and downloads still work. Generate sends
+the prepared audio to OpenAI and uses that account’s credits.
+
+Generation creates three title suggestions, a description, timed chapters,
+transcript passages and suggested soundbites. Users accept each section;
+regeneration does not overwrite approved work. Transcript search links seek the
+finished mix. Soundbites have editable boundaries, playback and WAV download;
+saving one to the library creates an independent file usable in Hotkey Pads.
+Persistent jobs keep running after upload even if the browser closes. Cancelling
+stops further requests; failed/interrupted requests require an explicit retry
+because a provider may already have charged them.
+
+Download package includes finished WAV, optional MP3/raw recordings, title and
+description, reviewed chapter text/JSON, transcript TXT/SRT/VTT, and selected
+soundbite WAV/MP3 files. Each timestamped section tracks its own audio identity;
+audio changes mark it outdated. Review against the current mix before including
+it again. Phones can review publishing text and download already prepared audio.
+
+Sessions and the editor’s session menu offer permanent grouped deletion with a
+confirmation. Audio, editor state, prepared audio and caches are removed;
+episode/script and approved publishing text remain. Independent library clips
+remain. Other editor projects depending on the source block deletion. Durable
+tombstones reject old uploads and file cleanup resumes safely after interruption.

@@ -44,3 +44,10 @@ Mobile fixes now provide Review recording, bounded playback, synchronization ret
 - Cause found in current source: every playback window decoded the entire converted WAV before slicing it, and prefetch began only eight seconds before the window ended. Imports now use cached Blob-backed bounded WAV frame reads with independent cursors and prepare the next window shortly after playback begins.
 - Additional editor mitigation: first play now renders a short four-second window and prefetches increasingly large bounded windows. Preparation, waiting, and playback errors are shown beside the transport. Local browser coverage passes for a long imported track crossing render windows and a 19-second host-and-pads recording starting playback promptly.
 - Verification: a four-minute WAV bounded-read unit test and the long import browser regression pass. No recent Podstudio/Caddy journal entries were reported by the user. The original MP3 must play across multiple window boundaries on the updated VPS before this report can close. The earlier 502 upload also remains unconfirmed.
+
+## Editor track borders bleed through the sidebar
+
+- Status: open.
+- Report: horizontal track-row lines from the timeline remain visible across the editor's secondary sidebar instead of stopping at the timeline boundary.
+- Expected: the sidebar is an opaque navigation surface; track borders, waveform guides, and selection lines must be clipped behind it while the sidebar is expanded or collapsed.
+- Acceptance: no timeline line crosses into the sidebar at any editor height or zoom level; the sidebar keeps its own stationary dividers and focus states; the timeline remains unchanged when the sidebar closes.

@@ -1,3 +1,4 @@
+import { blobSink } from './blob-sink.ts';
 /* Bounded-window renderer for the Podstudio editor. It reads only clip regions
  * that overlap the requested window; source audio remains immutable. */
 import { deleteRange, projectDuration, toneFromFx, type EditorCrossfade, type EditorProjectV1, type EditorTrack } from '../editor-project.ts';
@@ -179,16 +180,19 @@ export async function renderProjectWav(
   const rendering = options.finished === false ? project : finishedProject(project);
   const duration = projectDuration(rendering);
   const step = 10;
-  const chunks: Uint8Array[] = [];
+  const sink = await blobSink();
+  await sink.write(wavHeader(0, {sampleRate:rate, channels:2, bitDepth}));
   const state = createRenderState();
   let frames = 0;
+  try {
   for (let from = 0; from < duration; from += step) {
     options.signal?.throwIfAborted();
     const seconds = Math.min(step, duration - from);
     const mix = await renderEditorWindow(rendering, sources, from, seconds, [], rate, undefined, state, options.onTrack);
-    chunks.push(pcmBytes(mix, bitDepth));
+    await sink.write(pcmBytes(mix, bitDepth));
     frames += mix.length / 2;
     onProgress?.(Math.min(1, (from + seconds) / Math.max(.001, duration)));
   }
-  return new Blob([wavHeader(frames, { sampleRate: rate, channels: 2, bitDepth }) as BlobPart, ...(chunks as BlobPart[])], { type: 'audio/wav' });
+  return await sink.finish(wavHeader(frames, {sampleRate:rate, channels:2, bitDepth}));
+  } catch(e) {await sink.abort();throw e;}
 }

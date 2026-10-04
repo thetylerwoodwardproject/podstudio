@@ -73,6 +73,7 @@ export class Takes {
     }
     const id = p[1];
     if (!id || !safeId(id)) throw new HttpError(404, 'Not found');
+    if (this.ctx.recordings.deleted(id) && req.method !== 'DELETE') throw new HttpError(410, 'This recording was permanently deleted');
     const row = db.prepare('SELECT * FROM takes WHERE id = ?').get(id) as { meta: string; segments: number; done: number } | undefined;
 
     const host = !row && req.method === 'GET' && id.endsWith('-guest') ? db.prepare('SELECT meta FROM takes WHERE id = ?').get(id.slice(0, -6)) as { meta: string } | undefined : undefined;
@@ -87,9 +88,12 @@ export class Takes {
       }
       if (req.method === 'PUT') {
         const { meta, done } = await readJson<{ meta?: { episodeId?: string }; done?: boolean }>(req, 4 << 20);
+        if ((meta as TakeMeta | undefined)?.id != null && (meta as TakeMeta).id !== id) throw new HttpError(400, 'Recording identity does not match its URL');
         if (!meta || typeof meta.episodeId !== 'string') throw new HttpError(400, 'No take meta');
+        if (this.ctx.recordings.deleted(id) || this.ctx.recordings.deletedGroup(meta.episodeId, (meta as TakeMeta).group ?? id)) throw new HttpError(410, 'This recording was permanently deleted');
         await mkdir(this.dir(id), { recursive: true });
         await writeFile(join(this.dir(id), 'meta.json'), JSON.stringify(meta));
+        if (this.ctx.recordings.deleted(id)) { await rm(this.dir(id), { recursive: true, force: true }); throw new HttpError(410, 'This recording was permanently deleted'); }
         const segments = await this.count(id);
         db.prepare(
           'INSERT INTO takes (id, episode_id, meta, segments, done, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET meta = excluded.meta, segments = excluded.segments, done = excluded.done, updated_at = excluded.updated_at',
@@ -97,9 +101,7 @@ export class Takes {
         return json(res, 200, { segments }), true;
       }
       if (req.method === 'DELETE') {
-        await rm(this.dir(id), { recursive: true, force: true });
-        db.prepare('DELETE FROM takes WHERE id = ?').run(id);
-        return json(res, 200, {}), true;
+        return json(res, 200, await this.ctx.recordings.remove(id)), true;
       }
     }
 
@@ -113,6 +115,7 @@ export class Takes {
         await streamToFile(req, file, SEGMENT_LIMIT).catch((err) => {
           throw err instanceof HttpError && err.message === 'Empty body' ? new HttpError(400, 'Empty segment') : err;
         });
+        if (this.ctx.recordings.deleted(id)) { await rm(this.dir(id), { recursive: true, force: true }); throw new HttpError(410, 'This recording was permanently deleted'); }
         const segments = await this.count(id);
         db.prepare('UPDATE takes SET segments = ?, updated_at = ? WHERE id = ?').run(segments, Date.now(), id);
         return json(res, 200, { segments }), true;

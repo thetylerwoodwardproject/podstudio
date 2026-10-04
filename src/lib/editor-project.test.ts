@@ -9,7 +9,18 @@ test('editor project starts with linked immutable source references', () => {
   const p = make();
   assert.equal(p.tracks.length, 2);
   assert.equal(p.tracks[0].clips[0].sourceId, 'host');
+  assert.equal(p.tracks[0].color, 'yellow');
+  assert.equal(p.tracks[1].color, 'teal');
   assert.equal(projectDuration(p), 30);
+});
+
+test('legacy projects receive a valid standards track color and reject unknown values', () => {
+  const p = make();
+  delete p.tracks[0].color;
+  p.tracks[1].color = 'not-a-color' as never;
+  const loaded = cleanEditorProject(JSON.parse(JSON.stringify(p)))!;
+  assert.equal(loaded.tracks[0].color, 'yellow');
+  assert.equal(loaded.tracks[1].color, 'teal');
 });
 
 test('split and delete preserve time while ripple cut closes it', () => {

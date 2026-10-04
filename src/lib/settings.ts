@@ -65,11 +65,13 @@ export interface Settings {
   recording: RecordingSettings;
   prompter: PrompterSettings;
   ui: { theme: 'system' | 'light' | 'dark' };
+  ai: { tone: string; bannedWords: string };
 }
 
 export const defaults: Settings = {
   recording: { depth: 24, rate: 48, channels: 1, micCheck: true, deviceId: '', retakeTone: true, noiseSuppression: 0, tones: defaultTones, publish: { loudness: 'stereo', level: false, meter: true, voices: {} }, exportFiles: null },
   ui: { theme: 'system' },
+  ai: {tone:'', bannedWords:''},
   prompter: {
     mode: 'voice',
     wpm: 150,
@@ -114,6 +116,7 @@ export function loadSettings(): Settings {
       },
       prompter: { ...defaults.prompter, ...saved.prompter },
       ui: { ...defaults.ui, ...saved.ui },
+      ai: { ...defaults.ai, ...saved.ai },
     };
   } catch {
     return structuredClone(defaults);
@@ -167,7 +170,7 @@ const ls = {
 /** What goes to the server: everything but what belongs to this device. */
 export function portable(s: Settings) {
   const { deviceId: _device, ...recording } = s.recording;
-  return { recording, prompter: s.prompter, ui: s.ui, version: VERSION };
+  return { recording, prompter: s.prompter, ui: s.ui, ai:s.ai, version: VERSION };
 }
 
 async function pushSettings() {

@@ -5,10 +5,9 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /*
- * Podstudio design tokens: the UI framework (docs/ui-framework.md, from
- * "Podstudio UI Framework.dc.html"). Dark and quiet: near-black surfaces,
- * neutral grey type, color only for meaning. White is the selection; mono is
- * for numbers.
+ * Podstudio design tokens: dark zinc surfaces, terse operational type, and
+ * color reserved for live signal and status. Adapted from the Pi-Tuner dark
+ * redesign reference supplied with this release.
  *
  * The framework's names (page, surface, control, divider, border, track-off,
  * handle, text, text-2, text-3) are defined below, and the older names used
@@ -16,44 +15,44 @@
  */
 @theme {
   /* Type: the system fonts. Mono for numbers, units, times, key hints and caps tags. */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   /* Prompter reading fonts (Settings → Prompter), not for the interface */
   --font-readable: 'Atkinson Hyperlegible', system-ui, sans-serif;
   --font-dyslexic: 'OpenDyslexic', 'Atkinson Hyperlegible', sans-serif;
 
   /* Neutrals (framework) */
-  --color-page: #0b0b0c; /* app background, input fill */
-  --color-surface: #141416; /* cards, sheets, docks */
-  --color-nav: #16171a; /* active nav item ("raised" in the framework) */
-  --color-plot: #16171a; /* graph plot area, a step above the card */
-  --color-sheet: #0f0f11; /* a dialog or bottom sheet over the page, between page and surface */
-  --color-control: #1c1c1f; /* secondary buttons, avatar, selected chip */
-  --color-divider: #1c1d20; /* header, sidebar, row dividers */
-  --color-border: #26272b; /* inputs, segmented, tags, slider track */
-  --color-track-off: #2a2b2f; /* toggle off, dashed empty state */
-  --color-handle: #3a3b3f; /* grab handle, hover border */
-  --color-text: #ededea; /* primary type, selected fill */
-  --color-text-2: #8a8c91; /* help, secondary */
-  --color-text-3: #6a6c71; /* meta, units, tags */
+  --color-page: #000000; /* app background, input fill */
+  --color-surface: #09090b; /* cards, sheets, docks */
+  --color-nav: #09090b; /* active nav item */
+  --color-plot: #09090b; /* graph plot area */
+  --color-sheet: #09090b; /* dialogs and sheets */
+  --color-control: #18181b; /* secondary buttons, avatar, selected chip */
+  --color-divider: #18181b; /* header, sidebar, row dividers */
+  --color-border: #27272a; /* inputs, segmented controls, tags */
+  --color-track-off: #27272a; /* toggle off, empty state */
+  --color-handle: #3f3f46; /* grab handle, hover border */
+  --color-text: #fafafa; /* primary type, selected fill */
+  --color-text-2: #d4d4d8; /* help, secondary */
+  --color-text-3: #71717a; /* meta, units, tags */
 
   /* The same values under the names the screens already use */
-  --color-void: #0b0b0c;
-  --color-ink: #0b0b0c;
-  --color-panel: #141416;
-  --color-raised: #1c1c1f;
-  --color-line-soft: #1c1d20;
-  --color-line: #1c1d20;
-  --color-edge: #26272b;
-  --color-edge-strong: #3a3b3f;
-  --color-fg: #ededea;
-  --color-fg-soft: #ededea;
-  --color-fg-dim: #8a8c91;
-  --color-muted: #8a8c91;
-  --color-subtle: #6a6c71;
-  --color-faint: #6a6c71;
+  --color-void: #000000;
+  --color-ink: #000000;
+  --color-panel: #09090b;
+  --color-raised: #18181b;
+  --color-line-soft: #18181b;
+  --color-line: #18181b;
+  --color-edge: #27272a;
+  --color-edge-strong: #3f3f46;
+  --color-fg: #fafafa;
+  --color-fg-soft: #fafafa;
+  --color-fg-dim: #d4d4d8;
+  --color-muted: #a1a1aa;
+  --color-subtle: #71717a;
+  --color-faint: #52525b;
   /* Prompter only: lines already read */
-  --color-ghost: #4a4c51;
+  --color-ghost: #52525b;
   /* Meter: unlit segments are the zone color at 20 % over this */
   --color-meter-off: #1f2023;
 
@@ -73,11 +72,11 @@
   --color-spk-black: #3a3b3f;
   --color-spk-pink: oklch(78% 0.13 330); /* graphs: a right channel (framework) */
 
-  /* Facelift: primary is lime on dark surfaces and indigo on light ones. */
-  --color-primary: #ccf568;
-  --color-primary-fg: #172120;
-  --color-accent: #9285ff;
-  --color-accent-fg: #151229;
+  /* Pi-Tuner dark reference: white primary, sky live accent. */
+  --color-primary: #fafafa;
+  --color-primary-fg: #09090b;
+  --color-accent: #38bdf8;
+  --color-accent-fg: #082f49;
 
   /* Local shadcn-svelte components share Podstudio's semantic palette. */
   --color-background: var(--color-page);
@@ -97,10 +96,10 @@
 
   /* Radius: 4 key hint and checkbox, 7 segment inside, 10 input and small button, 12 large button, 14 card */
   --radius-hint: 4px;
-  --radius-seg: 7px;
-  --radius-input: 10px;
-  --radius-button: 12px;
-  --radius-card: 14px;
+  --radius-seg: 6px;
+  --radius-input: 6px;
+  --radius-button: 6px;
+  --radius-card: 8px;
 
   --animate-pulse-rec: pulse-rec 1.4s infinite;
 
@@ -136,19 +135,19 @@
 }
 
 html[data-theme='dark'] {
-  --color-page: #121225;
-  --color-surface: #1b1c34;
-  --color-nav: #242443;
-  --color-plot: #17182c;
-  --color-sheet: #191a30;
-  --color-control: #2b2d4a;
-  --color-divider: #31334e;
-  --color-border: #42445f;
-  --color-track-off: #42445f;
-  --color-handle: #656783;
-  --color-text: #f5f5fa;
-  --color-text-2: #b9bad0;
-  --color-text-3: #9294af;
+  --color-page: #000000;
+  --color-surface: #09090b;
+  --color-nav: #09090b;
+  --color-plot: #09090b;
+  --color-sheet: #09090b;
+  --color-control: #18181b;
+  --color-divider: #18181b;
+  --color-border: #27272a;
+  --color-track-off: #27272a;
+  --color-handle: #3f3f46;
+  --color-text: #fafafa;
+  --color-text-2: #d4d4d8;
+  --color-text-3: #71717a;
   --color-void: var(--color-page);
   --color-ink: var(--color-page);
   --color-panel: var(--color-surface);
@@ -163,10 +162,10 @@ html[data-theme='dark'] {
   --color-muted: var(--color-text-2);
   --color-subtle: var(--color-text-3);
   --color-faint: var(--color-text-3);
-  --color-primary: #ccf568;
-  --color-primary-fg: #172120;
-  --color-accent: #9285ff;
-  --color-accent-fg: #151229;
+  --color-primary: #fafafa;
+  --color-primary-fg: #09090b;
+  --color-accent: #38bdf8;
+  --color-accent-fg: #082f49;
   color-scheme: dark;
 }
 
@@ -202,14 +201,24 @@ html[data-theme='light'] {
   --color-primary-fg: #ffffff;
   --color-accent: #bddb49;
   --color-accent-fg: #202b17;
-  --color-rec: #d63733;
-  --color-warn: #a45a00;
-  --color-ok: #127c42;
-  --pad-black: #4e5572;
+  --color-rec: #ef4444;
+  --color-warn: #f59e0b;
+  --color-ok: #22c55e;
+  --pad-black: #3f3f46;
   color-scheme: light;
 }
 
 @layer base {
+  /* Never animate between the two complete token sets. This prevents a late
+     account sync from showing a mixed palette (for example a purple light
+     primary button on the dark editor) for a frame. */
+  html[data-theme-changing] *,
+  html[data-theme-changing] *::before,
+  html[data-theme-changing] *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+
   /* The design was drawn with the browser default line height, not Tailwind's 1.5. */
   html {
     line-height: normal;
@@ -233,7 +242,7 @@ html[data-theme='light'] {
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-fg);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
 
@@ -320,8 +329,9 @@ html[data-demo] [data-live-only] {
 /* Card: surface, radius 14, no border or shadow, padding 20 */
 @utility card {
   background: var(--color-surface);
-  border-radius: 14px;
-  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
 }
 
 /* Small mono metadata: sizes, timestamps, device details */
@@ -333,8 +343,16 @@ html[data-demo] [data-live-only] {
 
 /* Page title (framework): 26 / 500 / −0.01em */
 @utility page-title {
-  font-size: 26px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
+
+/* Pi-Tuner uses flat panels and compact controls. Keep these defaults shared
+   by native shadcn surfaces while allowing purpose-built timeline elements to
+   retain their own geometry. */
+[data-slot='button'] { border-radius: 6px; box-shadow: none; }
+[data-slot='input'], [data-slot='textarea'], [data-slot='select-trigger'] { border-radius: 6px; }
+[data-slot='dialog-content'], [data-slot='alert-dialog-content'] { border-radius: 8px; box-shadow: none; }
+[data-slot='dropdown-menu-content'], [data-slot='context-menu-content'] { border-radius: 6px; box-shadow: none; }

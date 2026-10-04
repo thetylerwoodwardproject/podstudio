@@ -6,6 +6,8 @@ import Callout from '@/components/ui/Callout.astro';
 import Dot from '@/components/ui/Dot.astro';
 import Pagination from '@/components/ui/Pagination.astro';
 import ImportDialog from '@/components/app/ImportDialog.astro';
+import NewEpisode from '@/components/app/NewEpisode.svelte';
+import PrimarySidebar from '@/components/app/PrimarySidebar.astro';
 import { statusColor } from '@/data/mock';
 import { statfsSync } from 'node:fs';
 import { context } from '../../server/context.ts';
@@ -19,13 +21,14 @@ const day = (t: number) => {
 const library = ctx.library.list().map((e) => ({
   id: e.id,
   recorded: !!e.sessions,
+  prepared: !!ctx.db.prepare("SELECT 1 FROM episode_packages p JOIN prepared_audio a ON a.id = json_extract(p.value, '$.source.audioId') WHERE p.episode_id = ? AND a.state = 'ready' LIMIT 1").get(e.id),
   title: e.fullTitle,
   status: (e.sessions ? 'Recorded' : 'Draft') as keyof typeof statusColor,
   words: e.words != null ? `${e.words.toLocaleString('en-US')} words` : e.id === '142' ? 'Example' : '—',
   sessions: e.sessions ? `${e.sessions} session${e.sessions === 1 ? '' : 's'}` : '—',
   length: '—',
   updated: day(e.updatedAt),
-  href: `/episodes/${e.id}/${e.sessions ? 'editor' : 'script'}`,
+  href: `/episodes/${e.id}/${ctx.db.prepare("SELECT 1 FROM episode_packages p JOIN prepared_audio a ON a.id = json_extract(p.value, '$.source.audioId') WHERE p.episode_id = ? AND a.state = 'ready' LIMIT 1").get(e.id)?'package':e.sessions ? 'editor' : 'studio'}`,
 }));
 // The data folder's disk: warn when it's getting full (24-bit / 48 kHz mono is about 518 MB an hour).
 let storage: { usedGb: number; totalGb: number; pct: number; hoursLeft: number } | null = null;
@@ -42,7 +45,8 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
 ---
 
 <AppShell title="Episodes" crumbs={[{ label: 'Episodes' }]}>
-  <div class="flex flex-col gap-5.5 px-9 py-7 lg:h-full lg:overflow-auto">
+  <PrimarySidebar slot="sidebar" active="episodes" />
+  <div class="flex flex-col gap-6 bg-page px-6 py-7 sm:px-9 lg:h-full lg:overflow-auto">
     {
       storage && storage.pct >= 80 && (
         <Callout title={`Server storage is ${storage.pct}% full`} color="var(--color-warn)">
@@ -53,11 +57,11 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
       )
     }
 
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div class="flex gap-5.5 text-[14px]" role="radiogroup" aria-label="Filter episodes">
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-divider pb-5">
+      <div class="flex gap-5.5 text-[13px]" role="radiogroup" aria-label="Filter episodes">
         {
           filters.map((f, i) => (
-            <label class="text-subtle hover:text-fg-soft has-checked:text-fg">
+          <label class="text-text-3 hover:text-text-2 has-checked:text-text">
               <input type="radio" name="filter" value={f} checked={i === 0} class="sr-only" />
               {f}
             </label>
@@ -70,38 +74,38 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
           data-search
           aria-label="Search episodes and scripts"
           placeholder="Search episodes and scripts"
-          class="h-10 w-65 rounded-[10px] border border-edge bg-transparent px-3 text-[13px] placeholder:text-faint focus:border-fg focus:outline-none"
+          class="h-9 w-65 rounded-md border border-border bg-control px-3 font-mono text-[12px] placeholder:text-text-3 focus:border-accent focus:outline-none"
         />
         <Button data-open-import>Import script</Button>
-        <Button variant="primary" data-new-episode>+ New episode</Button>
+        <NewEpisode client:load />
       </div>
     </div>
 
     <div class="overflow-x-auto">
       <table class="w-full min-w-[800px] border-t border-line">
         <thead>
-          <tr class:list={[cols, 'border-b border-line py-3 text-left']}>
-            {['Episode', 'Status', 'Script', 'Sessions', 'Length', 'Updated'].map((h) => <th class="eyebrow">{h}</th>)}
+          <tr class:list={[cols, 'border-b border-divider py-3 text-left']}>
+            {['Episode', 'Status', 'Script', 'Sessions', 'Length', 'Updated'].map((h) => <th class="text-[11px] font-medium text-text-3">{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {
             library.map((ep) => (
               <tr
-                class:list={[cols, 'items-center border-b border-line py-4 text-[14px]', ep.href && 'hover:bg-surface']}
+                class:list={[cols, 'items-center border-b border-divider py-4 text-[13px]', ep.href && 'hover:bg-surface']}
                 data-row
                 data-filter={filterOf[ep.status]}
                 data-title={ep.title.toLowerCase()}
               >
-                <td><a href={ep.href} class="text-fg hover:text-primary">{ep.title}</a><div class="mt-2 flex gap-3 text-[12px]"><a data-editor-entry data-episode={ep.id} hidden={!ep.recorded} class="text-text underline" href={`/episodes/${ep.id}/editor`}>Open editor</a><a class="text-text-2" href={`/episodes/${ep.id}/studio`}>Record new session</a></div></td>
-                <td class="flex items-center gap-2 text-[13px] text-fg-soft">
+                <td><a href={ep.href} class="font-medium text-text hover:text-accent">{ep.title}</a><div class="mt-2 flex gap-3 text-[12px]"><a hidden={!ep.prepared} class="text-accent hover:underline" href={`/episodes/${ep.id}/package`}>Prepare episode</a><a data-editor-entry data-prepared={ep.prepared ? "true" : "false"} data-episode={ep.id} hidden={!ep.recorded || ep.prepared} class="text-accent hover:underline" href={`/episodes/${ep.id}/editor`}>Open editor</a><a hidden={ep.recorded} class="text-accent hover:underline" href={`/episodes/${ep.id}/studio`}>Record</a><a class="text-text-3 hover:text-text-2" href={`/episodes/${ep.id}/studio`}>Record new session</a></div></td>
+                <td class="flex items-center gap-2 text-[13px] text-text-2">
                   <Dot color={statusColor[ep.status]} />
                   {ep.status}
                 </td>
-                <td class="meta text-muted">{ep.words}</td>
-                <td class="meta text-muted">{ep.sessions}</td>
-                <td class="meta text-muted">{ep.length}</td>
-                <td class="text-[13px] text-subtle">{ep.updated}</td>
+                <td class="font-mono text-[12px] tabular-nums text-text-3">{ep.words}</td>
+                <td class="font-mono text-[12px] tabular-nums text-text-3">{ep.sessions}</td>
+                <td class="font-mono text-[12px] tabular-nums text-text-3">{ep.length}</td>
+                <td class="font-mono text-[11px] text-text-3">{ep.updated}</td>
               </tr>
             ))
           }
@@ -117,16 +121,9 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
   import { recordingLink } from '@/lib/mobile';
   for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-editor-entry]')) recordingLink(link, link.dataset.episode!);
   import { listTakes } from '@/lib/audio/takes';
-  void listTakes().then((takes) => { for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-editor-entry]')) if (takes.some((t) => t.episodeId === link.dataset.episode && t.status === 'done')) link.hidden = false; });
-
   import { api } from '@/lib/api';
+  void listTakes().then((takes) => { for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-editor-entry]')) if (link.dataset.prepared !== 'true' && takes.some((t) => t.episodeId === link.dataset.episode && t.status === 'done')) link.hidden = false; });
 
-  document.querySelector('[data-new-episode]')!.addEventListener('click', async () => {
-    const title = prompt('Episode title', '');
-    if (title == null) return;
-    const r = await api<{ episode: { id: string } }>('episodes', { body: { title } });
-    location.href = `/episodes/${r.episode.id}/script`;
-  });
 
   const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')];
   const search = document.querySelector<HTMLInputElement>('[data-search]')!;
@@ -159,5 +156,13 @@ const cols = 'grid grid-cols-[minmax(220px,1fr)_140px_130px_100px_90px_90px] gap
   next.addEventListener('click', () => { page++; update(); });
   document.querySelectorAll('input[name=filter]').forEach((r) => r.addEventListener('change', () => { page = 1; update(); }));
   search.addEventListener('input', () => { page = 1; update(); });
+  document.querySelector<HTMLAnchorElement>('[data-open-new-episode]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    document.querySelector<HTMLElement>('[data-new-episode]')?.click();
+  });
+  document.querySelector<HTMLButtonElement>('[data-signout]')?.addEventListener('click', async () => {
+    const r = await api<{ next: string }>('auth/signout', { body: {} });
+    location.href = r.next;
+  });
   update();
 </script>

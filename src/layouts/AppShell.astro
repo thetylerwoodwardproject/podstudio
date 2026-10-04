@@ -20,8 +20,11 @@ const { noTranslate = false, title, crumbs, avatar, anyBrowser } = Astro.props;
       <slot name="topbar-center" slot="center" />
       <slot name="topbar" />
     </TopBar>
-    <main class="min-h-0 flex-1 overflow-auto">
-      <slot />
-    </main>
+    <div class="flex min-h-0 flex-1">
+      <slot name="sidebar" />
+      <main class="min-h-0 min-w-0 flex-1 overflow-auto">
+        <slot />
+      </main>
+    </div>
   </div>
 </Base>

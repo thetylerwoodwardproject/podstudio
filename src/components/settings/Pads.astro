@@ -1,13 +1,13 @@
 ---
 import Section from './Section.astro';
-import { episode, pkg } from '@/data/mock';
+import { episode } from '@/data/mock';
 ---
 
 <Section
   title="Hotkey pads"
   description="Nine sounds on the number keys, for recording on a laptop. They play in your headphones and are saved as their own Pads track. Wear headphones, so the mic doesn't pick them up."
 />
-<div data-pads-mount data-episode={episode.id} data-episode-label={episode.label} data-bites={JSON.stringify(pkg.soundbites)}></div>
+<div data-pads-mount data-episode={episode.id} data-episode-label={episode.label} data-bites="[]"></div>
 
 <script>
   import { isMobile } from '@/lib/mobile';

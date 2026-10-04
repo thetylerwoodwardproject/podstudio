@@ -23,10 +23,13 @@ const episode = { ...mockEpisode, ...data.episode };
   import { renderPads, hasPads, stereoOf } from '@/lib/audio/pads-export';
   import { lineUp } from '@/lib/audio/line-up';
   import { cleanEditorProject, projectDuration, masterOptions, createEditorProject, detectPauses, defaultFx, type EditorProjectV1, type EditorTrack, type EditorSource } from '@/lib/editor-project';
+  import { blobSink } from '@/lib/audio/blob-sink';
+  import { prepareEpisodeAudio } from '@/lib/prepared-audio';
   import { createRenderState, finishedProject, renderEditorWindow, renderProjectWav, type EditorSources } from '@/lib/audio/editor-render';
   import { joinMeterWindows, outputMeterWindow, trackMeterWindow, type EditorMeterWindows, type TrackMeterWindow } from '@/lib/audio/editor-meter';
   import { mergeEditorTakes, editorSessions, remoteSource, type RemoteTake } from '@/lib/editor-sessions';
   import { listTakes, rangesWav, saveRemoteTake, type TakeMeta } from '@/lib/audio/takes';
+  import { reconcileDeletedRecordings } from '@/lib/recording-deletion';
   import { isMobile } from '@/lib/mobile';
   import { rawRecordingWav } from '@/lib/audio/raw-export';
   import { WavReader, renderMaster } from '@/lib/audio/master';
@@ -61,6 +64,7 @@ const episode = { ...mockEpisode, ...data.episode };
 
   async function live() {
     const requested = query.get('take');
+    await reconcileDeletedRecordings(episodeId).catch(() => {});
     const localTakes = await listTakes(episodeId);
     const localIds = new Set(localTakes.filter((t) => t.status === 'done').map((t) => t.id));
     let remote: RemoteTake[] = [];
@@ -179,13 +183,18 @@ const episode = { ...mockEpisode, ...data.episode };
         chunks.push(trackMeterWindow(audio, track.channels, rate, from));
         meterChunks.set(track.id, chunks);
       } });
-      const parts: Uint8Array[] = []; const options = masterOptions(value.master);
-      const result = await renderMaster([{ wav, level: false }], { ...options, signal }, async (chunk) => { signal?.throwIfAborted(); parts.push(pcmBytes(chunk, 24)); }, (_, done) => progress(`Measuring and mastering… ${Math.round(done * 100)}%`));
+      const sink = await blobSink(); const options = masterOptions(value.master);
+      await sink.write(wavHeader(0, {sampleRate:48000, channels:options.channels, bitDepth:24}));
+      const result = await renderMaster([{ wav, level: false }], { ...options, signal }, async (chunk) => { signal?.throwIfAborted(); await sink.write(pcmBytes(chunk, 24)); }, (_, done) => progress(`Measuring and mastering… ${Math.round(done * 100)}%`));
       signal?.throwIfAborted();
       const meters: EditorMeterWindows = {};
       for (const [id, chunks] of meterChunks) { const joined = joinMeterWindows(chunks); if (joined) meters[id] = joined; }
-      masterCache = { key, result, meters, wav: new Blob([wavHeader(result.frames, { sampleRate: 48000, channels: options.channels, bitDepth: 24 }) as BlobPart, ...(parts as BlobPart[])], { type: 'audio/wav' }) };
+      masterCache = { key, result, meters, wav: await sink.finish(wavHeader(result.frames, {sampleRate:48000, channels:options.channels, bitDepth:24})) };
       return masterCache;
+    };
+    const onprepare = async (value: EditorProjectV1, revision: number, progress: (s:string) => void, signal:AbortSignal) => {
+      const rendered = await master(value, progress, signal);
+      await prepareEpisodeAudio(value, revision, rendered.wav, progress, signal);
     };
     const onanalyze = async (value: EditorProjectV1, progress: (s: string) => void, signal: AbortSignal) => (await master(value, progress, signal)).result;
     const onpreview = async (value: EditorProjectV1, from: number, seconds: number, solo: string[], mastered = false): Promise<EditorPreview> => {
@@ -269,7 +278,7 @@ const episode = { ...mockEpisode, ...data.episode };
       const length = Math.max(...track.clips.map((clip) => clip.sourceDuration ?? clip.sourceEnd), 0);
       return sourcePeaks(track.sourceId, reader, length, from, to, onChunk);
     };
-    mount(EditorFlow, { target: root.querySelector('[data-editor-mount]')!, props: { sessionsHref: `/episodes/${episodeId}/sessions`, initial: project, revision, views, sessions: sessions.map((t) => ({ id: t.id, name: new Date(t.startedAt).toLocaleString() })), onpreview, onanalyze, onsave, onimport, onexport, onpeaks } });
+    mount(EditorFlow, { target: root.querySelector('[data-editor-mount]')!, props: { sessionsHref: `/episodes/${episodeId}/sessions`, initial: project, revision, views, sessions: sessions.map((t) => ({ id: t.id, name: new Date(t.startedAt).toLocaleString() })), onpreview, onanalyze, onsave, onimport, onexport, onprepare, onpeaks } });
     root.querySelector('[data-loading]')?.remove();
   }
 </script>

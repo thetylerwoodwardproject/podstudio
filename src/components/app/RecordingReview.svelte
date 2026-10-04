@@ -43,7 +43,7 @@
 <div class="flex flex-col gap-5" data-recording-review>
   <div class="rounded-[14px] bg-surface p-5">
     <div class="mb-4 flex items-center gap-4">
-      <Button variant="default" size="icon" class="size-12 flex-none rounded-full" aria-label={playing ? 'Pause recording' : 'Play recording'} disabled={loading || !duration} onclick={toggle}>
+      <Button variant="ghost" size="icon" class="size-12 flex-none rounded-full border border-white/20 bg-black text-white shadow-sm hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50" aria-label={playing ? 'Pause recording' : 'Play recording'} disabled={loading || !duration} onclick={toggle}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">{#if playing}<rect x="4" y="3" width="4" height="14" rx="1"/><rect x="12" y="3" width="4" height="14" rx="1"/>{:else}<path d="M5 2 18 10 5 18Z"/>{/if}</svg>
       </Button>
       <span class="font-mono text-[13px]" data-review-time>{clock(position)} / {clock(duration)}</span>

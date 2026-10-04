@@ -49,20 +49,30 @@ Deploying one never overwrites the other.
 If Podstudio was installed with `--proxy nginx`, Caddy can't share ports 80
 and 443, and the script stops. Serve `site/public` from Nginx instead.
 
-## Visual refresh · 2026-10-02
+## Visual refresh · 2026-10-04
 
-The site follows the app’s dark palette: indigo page and panel surfaces,
-lime primary actions, and red reserved for the recording mark. The homepage
-now describes the desktop editor, mobile recording/review, non-destructive
-editing, and current export options. It still labels the product as in development.
+The site follows the current Pi-Tuner-inspired app shell: black page and panel
+surfaces, zinc dividers, white primary actions, and red reserved for recording
+and destructive states. The homepage describes the current desktop editor,
+sidebar navigation, mixer, live dBFS/LUFS metering, mobile review and episode
+preparation. It still labels the product as in development.
 
-Fresh screenshots were captured from the actual local app at commit `9cab78a`,
-using a disposable test account and demo audio, never private recordings:
+Fresh screenshots were captured from the current local app build with the
+existing browser scenarios, using a disposable test account and demo audio,
+never private recordings:
 
-- `public/images/editor.png`: synchronized host, guest and pads, with live meters.
-- `public/images/recording.png`: desktop recording demonstration.
-- `public/images/phone-recording.png`: phone recording demonstration, without pads.
-- `public/og.png`: updated 1200 × 630 social card using the editor screenshot.
+- `public/images/editor-current.png`: current dark editor with the compact rail,
+  synchronized timeline, track meter and master output dock.
+- `public/images/loudness-current.png`: current editor with short-term,
+  long-term and range loudness in the master dock.
+- `public/images/recording-current.png`: current dark recording setup with the
+  script, guest choice and fixed Start session action.
+- `public/images/mobile-review-current.png`: current phone Session saved review
+  with playback, synchronization retry and raw download.
+- `public/og.png`: current 1200 × 630 social preview based on the dark editor.
+
+The older `editor.png`, `recording.png`, `studio.png` and `export.png` files are
+kept for historical references but are not used by the landing page.
 
 Screenshots are illustrative UI captures, not evidence of VPS or real-device
 performance. Desktop (1440 px) and phone (390 px) layouts, image loading,
@@ -70,4 +80,4 @@ horizontal overflow and FAQ disclosure were checked in Chrome. Publishing the
 Git commit does not deploy the live website: run the deployment command above.
 
 HTML asset URLs carry a refresh version so the existing one-day Caddy cache
-does not mix the old palette/screenshots with the updated page.
+does not mix the current screenshots with an older palette.

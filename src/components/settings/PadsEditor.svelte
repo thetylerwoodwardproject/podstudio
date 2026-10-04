@@ -220,7 +220,12 @@
         <input class="w-full bg-transparent text-[18px] focus:outline-none disabled:text-text-3" aria-label="Pad name" placeholder="Choose a sound first" value={draft?.name ?? ''} disabled={!draft} oninput={(e) => change({ name: e.currentTarget.value })} data-d-name />
         <p class="mt-0.5 truncate text-[13px] text-text-2" data-d-source>{draft ? `${draft.source ?? 'Library'} · ${minSec(draft.seconds)} · 48 kHz` : 'No sound yet'}</p>
       </div>
-      <button type="button" class="h-9 rounded-[10px] border border-border px-3 text-[14px] disabled:opacity-40" disabled={!draft?.fileId || busy} onclick={togglePreview} data-d-preview>{previewing ? 'Stop' : 'Preview'}</button>
+      <button type="button" class="flex h-9 items-center gap-2 rounded-[10px] border border-border px-3 text-[14px] disabled:opacity-40" disabled={!draft?.fileId || busy} onclick={togglePreview} data-d-preview>
+        <span class="flex size-6 items-center justify-center rounded-full border border-white/20 bg-black text-white shadow-sm" aria-hidden="true">
+          {#if previewing}<svg class="size-3" viewBox="0 0 20 20" fill="currentColor"><rect x="4" y="3" width="4" height="14" rx="1"/><rect x="12" y="3" width="4" height="14" rx="1"/></svg>{:else}<svg class="ml-0.5 size-3" viewBox="0 0 20 20" fill="currentColor"><path d="M5 2 18 10 5 18Z"/></svg>{/if}
+        </span>
+        {previewing ? 'Stop' : 'Preview'}
+      </button>
     </div>
     <canvas bind:this={waveform} class="h-16 w-full rounded-[10px] bg-page" aria-label="Sound waveform" data-d-wave></canvas>
 
@@ -228,8 +233,8 @@
       <span class="text-[14px]">Sound</span>
       <Segmented label="Sound kind" value={draft?.kind ?? null} options={[{ value: 'bite', label: 'Soundbite', shortLabel: 'Bite' }, { value: 'clip', label: 'Clip' }, { value: 'music', label: 'Music' }, { value: 'sfx', label: 'Sound effect', shortLabel: 'SFX' }]} onchange={(v) => chooseKind(v as PadKind)} data-kind-picker />
       {#if draft?.kind === 'bite'}
-        <select class={input} aria-label="Soundbite" onchange={(e) => { const b = bites[Number(e.currentTarget.value)]; if (b) { clipTake = sessions.find((s) => s.meta.episodeId === episodeId)?.meta.id ?? clipTake; cutClip('bite', parseTime(b.s), parseTime(b.e), `${b.title.split(/\s+/).slice(0, 4).join(' ')}…`, `Soundbite from ${episodeLabel}`); } e.currentTarget.value = ''; }} data-bite>
-          <option value="">Pick a soundbite…</option>{#each bites as b, i}<option value={i}>{b.s.replace(/^00:/, '')} · {b.title}</option>{/each}
+        <select class={input} aria-label="Soundbite" onchange={(e)=>{const file=library.find(f=>f.id===e.currentTarget.value);if(file)useFile(file,'bite');}} data-bite>
+          <option value="">Pick a saved soundbite…</option>{#each library.filter(f=>f.source==='Saved soundbite') as file}<option value={file.id}>{file.name}</option>{/each}
         </select>
       {/if}
       {#if draft?.kind === 'clip'}

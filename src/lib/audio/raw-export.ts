@@ -1,3 +1,4 @@
+import {blobSink} from './blob-sink';
 import { rawRanges } from './raw-ranges';
 export { rawRanges } from './raw-ranges';
 import { mapTime, onAudio } from './assemble';
@@ -15,10 +16,10 @@ export async function rawRecordingWav(host: TakeMeta, track: TakeMeta, settings:
   const tones: PlacedTone[] = onAudio(host.markers ?? [], []).markers.filter((m) => kinds.includes(m.kind as ToneKind) && !(m.kind === 'cut' && m.who === 'guest')).flatMap((m) => {
     const at = mapTime(m.t, ranges); return at == null ? [] : [{ at: Math.round(at * host.sampleRate), kind: m.kind as ToneKind }];
   });
-  const reader = await WavReader.open(base); const chunks: Uint8Array[] = []; let frame = 0;
+  const reader = await WavReader.open(base); const sink=await blobSink();await sink.write(wavHeader(reader.frames,{sampleRate:host.sampleRate,channels:reader.info.channels as 1|2,bitDepth:reader.info.bitDepth as 16|24})); let frame = 0;
   for (let samples = await reader.read(host.sampleRate * 5); samples.length; samples = await reader.read(host.sampleRate * 5)) {
-    chunks.push(pcmBytes(mixTones(samples, reader.info.channels, host.sampleRate, frame, tones, settings), reader.info.bitDepth as 16 | 24));
+    await sink.write(pcmBytes(mixTones(samples, reader.info.channels, host.sampleRate, frame, tones, settings), reader.info.bitDepth as 16 | 24));
     frame += samples.length / reader.info.channels;
   }
-  return new Blob([wavHeader(reader.frames, { sampleRate: host.sampleRate, channels: reader.info.channels as 1 | 2, bitDepth: reader.info.bitDepth as 16 | 24 }) as BlobPart, ...(chunks as BlobPart[])], { type: 'audio/wav' });
+  return sink.finish();
 }
