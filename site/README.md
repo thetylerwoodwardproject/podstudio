@@ -57,10 +57,10 @@ and destructive states. The homepage describes the current desktop editor,
 sidebar navigation, mixer, live dBFS/LUFS metering, mobile review and episode
 preparation. It still labels the product as in development.
 
-The screenshot set was refreshed together from the current local app build,
-using a disposable test account and demo audio, never private recordings. Every
-published capture now uses the same Pi-Tuner-inspired black shell, zinc borders,
-white controls and signal-color tracks:
+The screenshot set was refreshed together to reflect the current local app
+build, using a disposable test account and demo audio for the desktop captures,
+never private recordings. Every published image now uses the same Pi-Tuner-
+inspired black shell, zinc borders, white controls and signal-color tracks:
 
 - `public/images/editor-current.png`: current dark editor with the compact rail,
   synchronized timeline, track meter and master output dock.
