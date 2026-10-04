@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  A free, self-hosted teleprompter, podcast recorder and lightweight editor.<br>
-  Record lossless synchronized tracks, edit in the browser, and keep the source audio recoverable.
+  A free, self-hosted teleprompter, podcast recorder and editor.<br>
+  Record lossless synchronized tracks, edit in the browser, and never lose the source audio.
 </p>
 
 <p align="center">
@@ -29,72 +29,47 @@
 </p>
 
 > [!WARNING]
-> **Podstudio is in active development and changes often.** It isn't released
-> yet: expect rough edges, screens that still show example data, and changes
-> between versions. Recording, voice follow and exports work today; real-world
-> testing on the first VPS install is underway. Keep your own backups of anything you
-> record, and please open an issue if something breaks.
+> **Podstudio is in active development and not yet released.** Expect rough
+> edges, some screens with example data, and changes between versions.
+> Recording, voice follow and exports work; testing on a real VPS is underway.
+> Back up anything you record, and please open an issue if something breaks.
 
 <p align="center">
-  <img src="docs/images/recording-current.png" alt="Current dark recording setup: the script, guest choice and fixed Start session action" width="900">
+  <img src="docs/images/recording-current.png" alt="Recording setup: the script, guest choice and Start session action" width="900">
 </p>
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/editor-current.png" alt="Current dark editor with synchronized timeline, track meter and master output dock"></td>
-    <td width="50%"><img src="docs/images/loudness-current.png" alt="Current editor with short-term, long-term and range loudness in the master dock"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Editor: direct waveform work, sidebar rail and live metering</sub></td>
-    <td align="center"><sub>Master dock: switch between dBFS and loudness readings</sub></td>
-  </tr>
-</table>
 
 ## What it does
 
-Podstudio is for audio podcasts. Record solo, or with **one guest** and an
-optional **producer**: everyone talks on their usual call (Zoom, Teams…) and
-Podstudio records each person on their own device, losslessly, with the script
-kept in step.
+Podstudio records audio podcasts: solo, or with **one guest** and an optional
+**producer**. Everyone talks on their usual call (Zoom, Teams…) while Podstudio
+records each person losslessly on their own device, with the script kept in step.
 
 | | |
 |---|---|
-| 🎙️ **Lossless recording** | Mono or stereo lossless WAV at 16 or 24-bit, saved every 5 s and sent to your server as you go |
+| 🎙️ **Lossless recording** | Mono or stereo WAV at 16 or 24-bit, saved every 5 s and uploaded as you go |
 | 📜 **A prompter that follows you** | Voice follow scrolls the script as you talk and holds your place when you ad-lib |
-| ✂️ **Marked, not cut** | Retake, cough and ad-lib are one key each. The raw WAV stays whole; the export adds an edit that keeps your last attempt of each line |
-| 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and the session from anywhere |
-| ⏱️ **Timecode and sync** | Every track logs sync points on a shared session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode for your editor |
-| ✂️ **Podcast editor** | A desktop timeline with synchronized waveforms, range editing and a right-click menu, live track and stereo master dBFS meters, retake and pause review, linked edits, undo/redo, podcast FX, autosave, and a continuous cumulative preview |
-| 📦 **A finished mix or raw tracks** | Export a mastered WAV, optional MP3, and optional aligned host, guest, pads and imported raw tracks. Finished mixes contain the edits and no marker tones; host raw exports can carry configured marker tones |
-| 🎛️ **Hotkey pads** | Nine sounds on the number keys, configured in a desktop sheet from uploads, previous sessions or the library, previewed live, ducked under your voice and saved as their own track |
+| ✂️ **Marked, not cut** | Retake, cough and ad-lib are one key each. The raw WAV stays whole; export keeps your last attempt of each line |
+| 👥 **Guest and producer** | A 6-digit code and a waiting room. The guest records on their own device; the producer runs the script and session from anywhere |
+| ⏱️ **Timecode and sync** | Tracks share a session clock. Export corrects drift and gaps between devices, and every WAV carries Broadcast WAV timecode |
+| ✂️ **Podcast editor** | Synchronized waveforms, range editing, live dBFS meters, retake and pause review, linked edits, undo/redo, FX, autosave and a live preview of the whole mix |
+| 📦 **A finished mix or raw tracks** | A mastered WAV, optional MP3, and optional aligned raw tracks. Finished mixes have no marker tones; host raw exports can |
+| 🎛️ **Hotkey pads** | Nine sounds on the number keys, ducked under your voice and saved as their own track |
 | 🧹 **Noise suppression** | One fader, like Waves NS1, using DeepFilterNet3 in the browser. The unprocessed files are always kept |
-| 🔒 **Yours** | One small Node process with SQLite on your own server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
+| 🔒 **Yours** | One small Node process with SQLite on your server, with two-factor sign-in. Recordings go only to your server (voice follow uses the browser's speech recognition) |
 
-The recording workflow also includes:
+Also included:
 
-- **Script import and editing:** paste text or import `.txt`/`.md`, rename and
-  reorder sections, then review before importing. Use speaker lines, a host-only
-  script, talking points, or ad-lib mode.
-- **Mic check:** Input → Level → Test → Noise, with a ten-second recording,
-  device and channel selection, and Original / Cleaned / Removed previews.
-- **Recording safeguards:** mic-stop, clipping, battery and storage warnings,
-  offline upload retries, crash recovery, and voice-follow diagnostics.
-- **Direct editor access:** Open editor from a recorded episode or its sessions, with the latest completed session selected and a switcher for older sessions. Server recordings also open on a new computer.
-- **Advanced audio, when needed:** optional ten-band EQ, compressor threshold/ratio/knee/makeup/attack/release, draft FX preview and bypass, plus custom LUFS and true-peak targets with whole-mix analysis and mastered playback.
-- **Audio imports:** a lower-corner status card shows read, conversion, upload and server-confirmation progress. Failed uploads retain the file and offer a same-ID retry without duplicate tracks.
-- **Editor after recording:** desktop users go straight from End Session to a synchronized timeline. Waveforms are prepared from bounded audio reads even when a recording has no saved peak data. Click a clip to select it, drag it to move, or Shift-drag to select time; split, trim, delete or ripple-cut clips; review retakes and long-pause suggestions; use Mute, Solo, Level and a focused FX sheet per track; import browser-decodable audio; and undo or redo edits. Secondary actions live in compact menus. Remove a track from the finished mix and restore it later without deleting its source audio. Phones use a simplified recording review with scrubbing, synchronization status/retry, and individual raw downloads; full editing/export is available on desktop.
-- **Non-destructive projects:** source WAV and PCM segments never change. Clip boundaries, link groups, markers, FX, track levels and export choices autosave as compact, revisioned project metadata, with a browser recovery copy for offline work.
-- **One cumulative preview:** playback always reflects the current edits, gain, mute and FX. It starts from a short browser-rendered window, then prefetches larger bounded windows, so long sessions play without loading the whole recording into memory. The master meter switches between dBFS peaks and live short-term, long-term and range loudness readings.
-- **Consistent controls:** interactive checkboxes use shadcn-svelte, while one-time codes for sign-in, setup, and joining a session support paste and device autofill.
-- **Simple export:** a compact sheet always includes the finished WAV and can add MP3 and aligned raw tracks. Completion shows Back to sessions and Download again; Prepare episode offers optional AI drafts and a downloadable publishing package.
-- **Sessions and settings across devices:** recordings upload as you go and
-  can be brought into another browser to play or export. Recording, export and
-  prompter settings follow your account; microphone selection stays on the
-  device, as does the recording screen’s text zoom. Settings show whether each
-  server write is saving, saved, waiting for a connection or failed. Sessions can be played,
-  downloaded or deleted.
-- **Account security:** two-factor authentication, recovery codes, trusted
-  devices and password changes, plus a one-time admin setup link on the server.
+- **Scripts:** paste text or import `.txt`/`.md`, then rename and reorder sections. Use speaker lines, a host-only script, talking points or ad-lib mode. **New episode** lets you record straight away or add a script first.
+- **Mic check:** input, level, a ten-second test and noise, with Original / Cleaned / Removed previews.
+- **Safeguards:** warnings for a stopped mic, clipping, battery and storage; offline upload retries; crash recovery.
+- **Editing:** go straight from End session to the timeline. Select, move, split, trim and ripple-cut clips; set mute, solo, level and FX per track; import audio; remove a track from the mix and restore it later. Optional ten-band EQ, a full compressor, and custom LUFS and true-peak targets.
+- **Recommended sound:** preview a gentle voice cleanup (−16 LUFS stereo or −19 LUFS mono, −1 dBTP ceiling) and apply it as one undoable edit.
+- **Non-destructive projects:** source audio never changes. Edits, FX and export choices autosave as small project files, with a browser copy for offline work.
+- **Long sessions:** playback streams in windows, so long recordings play without loading into memory.
+- **Prepare episode:** optional OpenAI drafts of titles, description, chapters, transcript and soundbites from the finished mix, or write them yourself. Download the audio and approved text together. API keys are encrypted on the server; see the [episode preparation plan](docs/episode-preparation-plan.md).
+- **Across devices:** recordings and account settings follow you to any browser; mic choice and text zoom stay on each device.
+- **On a phone:** record and review with playback, sync retry and raw downloads. Full editing and export are desktop only.
+- **Account security:** two-factor, recovery codes, trusted devices, password changes and a one-time admin setup link.
 
 Every feature in detail: [docs/features.md](docs/features.md).
 
@@ -102,45 +77,37 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/recording-current.png" alt="Current Podstudio dark recording setup with script, guest choice and fixed Start session action"></td>
-    <td width="50%"><img src="docs/images/preparation-current.png" alt="Current dark episode preparation page with finished mix and publishing package controls"></td>
+    <td width="50%"><img src="docs/images/editor-current.png" alt="Editor with synchronized multitrack waveforms, meters and master output"></td>
+    <td width="50%"><img src="docs/images/loudness-current.png" alt="Editor with short-term, long-term and range loudness in the master dock"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Recording</b>: script, guest choice and a fixed action footer</sub></td>
-    <td align="center"><sub><b>Prepare episode</b>: review the finished mix and publishing package</sub></td>
+    <td align="center"><sub><b>Editor</b>: waveforms, sidebar rail and live meters</sub></td>
+    <td align="center"><sub><b>Master dock</b>: dBFS or loudness readings</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/editor-current.png" alt="Current dark Podstudio editor with synchronized multitrack waveforms, meters and master output"></td>
-    <td width="50%"><img src="docs/images/loudness-current.png" alt="Current dark editor with short-term, long-term and range loudness in the master dock"></td>
+    <td width="50%"><img src="docs/images/preparation-current.png" alt="Episode preparation with the finished mix and publishing package"></td>
+    <td width="50%" align="center"><img src="docs/images/mobile-review-current.png" alt="Session saved on a phone, with playback, sync retry and raw downloads" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Editor</b>: direct waveform work, compact rail and live dBFS meters</sub></td>
-    <td align="center"><sub><b>Master dock</b>: switch between dBFS and readable loudness readings</sub></td>
+    <td align="center"><sub><b>Prepare episode</b>: the finished mix and publishing package</sub></td>
+    <td align="center"><sub><b>On a phone</b>: playback, sync status and raw downloads</sub></td>
   </tr>
 </table>
 
-<table>
-  <tr>
-    <td width="34%" align="center"><img src="docs/images/mobile-review-current.png" alt="Current dark mobile Session saved review with playback, synchronization retry and raw downloads" width="260"></td>
-    <td width="66%" valign="middle">
-      <h3>On a phone, too</h3>
-      <p>Recording and review work on a phone: the script and touch controls stay readable during capture, then Session saved provides playback, scrubbing, synchronization retry and raw downloads. Full timeline editing and finished-mix export remain on desktop. iPhone and iPad recording uses the AudioWorklet path on supported iOS 17+ browsers; real-device validation is still pending. Android uses Chrome.</p>
-      <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
-      <p><sub><b>Session saved</b>: the same dark shell as desktop, with a focused player, server status and individual raw downloads.</sub></p>
-    </td>
-  </tr>
-</table>
+Guests can join from a phone with the 6-digit code; their recording uploads as
+they talk. iPhone and iPad recording needs iOS 17+ and hasn't yet been tested on
+real devices. Android uses Chrome.
 
 ## Where it stands
 
 | | |
 |---|---|
-| ✅ **Works now** | Solo recording with voice follow, markers and warnings · a desktop, non-destructive podcast editor with synchronized tracks, retake and pause review, linked editing, imports, per-track FX, autosave and undo/redo · finished WAV/MP3 and optional aligned raw-track exports · guest and producer sessions with drift and gap correction · a mixer view on a laptop or phone · desktop hotkey pads · accounts with two-factor · episodes, scripts, recordings and editor projects stored on the server · the guided installer |
-| 🚧 **Validation underway** | The first real VPS is installed for real-world testing · checking upgrades, iPhone recording and guest sessions on real devices and networks |
-| 🗓️ **Planned** | Versioned releases and tested upgrade paths, then further work including calibration and deployment validation. See [docs/roadmap.md](docs/roadmap.md) |
+| ✅ **Works now** | Solo recording with voice follow, markers and warnings · the desktop editor · WAV/MP3 and raw-track exports · guest and producer sessions with drift and gap correction · a mixer view on a laptop or phone · hotkey pads · two-factor accounts · server storage for episodes, scripts, recordings and projects · the guided installer |
+| 🚧 **Validation underway** | Upgrades, iPhone recording and guest sessions on a real VPS, devices and networks |
+| 🗓️ **Planned** | Versioned releases and tested upgrade paths, then calibration and deployment validation. See [docs/roadmap.md](docs/roadmap.md) |
 | 🧪 **Example data for now** | The Domain & HTTPS checks and Controls remotes |
 
-Known gaps and caveats: [docs/features.md#known-gaps](docs/features.md#known-gaps).
+Known gaps: [docs/features.md#known-gaps](docs/features.md#known-gaps).
 
 ## Try it
 
@@ -152,14 +119,12 @@ npm install
 npm run dev
 ```
 
-Open **https://localhost:4321** (accept the self-signed certificate once), then
-create your account and turn on two-factor. The current dev configuration
-listens on the network too; use the Network address printed in the terminal for phones on your Wi-Fi. `npm run dev:phone`
-explicitly enables the same network access.
+Open **https://localhost:4321**, accept the self-signed certificate, then create
+your account and turn on two-factor. To use a phone on the same Wi-Fi, open the
+Network address printed in the terminal (`npm run dev:phone` does the same).
 
-It runs in Chrome, Edge, Arc and other Chromium browsers on computers and
-Android, and in any browser on iPhone and iPad with iOS 17 or later (see
-[Browsers](docs/features.md#browsers)).
+Podstudio runs in Chromium browsers (Chrome, Edge, Arc…) on computers and
+Android, and in any browser on iOS 17+ (see [Browsers](docs/features.md#browsers)).
 
 ## Put it on a server
 
@@ -169,18 +134,17 @@ On a VPS (Debian 12 or Ubuntu 22.04+) with a domain pointing at it:
 sudo ./deploy/install.sh
 ```
 
-The installer walks you through everything:
+The installer:
 
-1. checks the server;
-2. checks your domain's DNS;
-3. sets up HTTPS, with Caddy by default or Nginx and Certbot if you choose (`--proxy nginx`);
-4. offers the firewall and nightly backups;
-5. checks HTTPS works;
-6. prints a one-time link to create your admin account.
+1. checks the server and your domain's DNS;
+2. sets up HTTPS with Caddy, or Nginx and Certbot (`--proxy nginx`);
+3. offers a firewall and nightly backups;
+4. checks HTTPS works;
+5. prints a one-time link to create your admin account.
 
-Run it again to upgrade; it backs up the database first. The first lab VPS is
-installed; fresh installs, upgrades and server memory use are now being validated there. The full
-guide is [docs/deploy.md](docs/deploy.md).
+Run it again to upgrade; it backs up the database first. If you use AI drafts,
+also back up `.ai-key` and `prepared/` ([details](docs/deploy.md#ai-credentials-prepared-audio-and-backups)).
+Full guide: [docs/deploy.md](docs/deploy.md).
 
 ## Made by
 
@@ -199,59 +163,36 @@ guide is [docs/deploy.md](docs/deploy.md).
 
 ## For developers
 
-The [Checks workflow](.github/workflows/checks.yml) runs unit/server tests,
-Astro and Svelte checks, the build, and all 14 Chromium browser tests on pushes
-and pull requests. Browser failure logs and screenshots are retained for seven
-days; see [the browser test guide](tests/browser/README.md).
+The [Checks workflow](.github/workflows/checks.yml) runs the unit and server
+tests, Astro and Svelte checks, the build and 14 Chromium browser tests on every
+push and pull request ([browser test guide](tests/browser/README.md)).
 
-- [docs/development.md](docs/development.md): commands, the code layout, and where each design screen lives
+- [docs/development.md](docs/development.md): commands, code layout and design screens
 - [docs/ui-framework.md](docs/ui-framework.md): the UI framework every screen follows
 - [docs/server-api.md](docs/server-api.md): the API for guests and producers
 - [docs/roadmap.md](docs/roadmap.md): what's designed and coming next
-- [docs/handoff.md](docs/handoff.md): where the project is now, known issues, and the next steps
+- [docs/handoff.md](docs/handoff.md): current state, known issues and next steps
 - [site/](site/README.md): the podstudio.dev landing page
 
 ## Credits
 
-Podstudio is built with [Astro](https://astro.build),
-[Svelte](https://svelte.dev), and [Tailwind CSS](https://tailwindcss.com).
-The interface uses locally adapted [shadcn-svelte](https://shadcn-svelte.com)
-components and [Bits UI](https://www.bits-ui.com) controls. Its audio-player
-controls, FX knobs, status dots, and step indicators are adapted from
+Built with [Astro](https://astro.build), [Svelte](https://svelte.dev) and
+[Tailwind CSS](https://tailwindcss.com). The interface uses locally adapted
+[shadcn-svelte](https://shadcn-svelte.com) components and
+[Bits UI](https://www.bits-ui.com) controls. Audio-player controls, FX knobs,
+status dots and step indicators are adapted from
 [More Shadcn Svelte](https://github.com/kevwpl/more-shadcn-svelte) by kevwpl.
-Top save notifications use [svelte-sonner](https://github.com/wobsoriano/svelte-sonner)
-by Robert Soriano. Icons are from [Lucide](https://lucide.dev), including portions
-derived from Feather by Cole Bemis. Noise suppression uses
+Save notifications use [svelte-sonner](https://github.com/wobsoriano/svelte-sonner)
+by Robert Soriano. Icons are from [Lucide](https://lucide.dev), partly derived
+from Feather by Cole Bemis. Noise suppression uses
 [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet).
 
-shadcn-svelte, Bits UI, More Shadcn Svelte, and svelte-sonner are MIT-licensed. Lucide uses
-the ISC license, with MIT-licensed Feather portions. The copied component
-license notices are in [`public/vendor/`](public/vendor/); the full list of
-bundled work and licenses is also in **Settings → About & credits**.
+shadcn-svelte, Bits UI, More Shadcn Svelte and svelte-sonner are MIT-licensed;
+Lucide is ISC, with MIT-licensed Feather portions. Licence notices are in
+[`public/vendor/`](public/vendor/) and **Settings → About & credits**.
 
 ## Licence
 
 MIT © 2026 [Tyler Woodward](https://tylerwoodward.me). See [LICENSE](LICENSE).
 Bundled third-party work keeps its own licence: DeepFilterNet3 is MIT or
 Apache-2.0, and Atkinson Hyperlegible is under the SIL Open Font License.
-
-## Easier episode setup
-
-New episode opens an accessible shadcn Dialog/Field overlay, with **Record now**
-or **Add a script**. Record now uses an ad-lib studio without requiring a script.
-Recording format and teleprompter scrolling options are expandable; the fixed
-Start session footer and saved microphone preferences remain available.
-In Editor → Tools → Recommended sound, preview a gentle voice cleanup before
-applying it as one undoable edit. Source audio is unchanged; current projects
-keep their original sound until Apply. The recommendation targets −16 LUFS
-stereo or −19 LUFS mono with a −1 dBTP ceiling.
-
-Grouped permanent deletion, real OpenAI generation and downloadable publishing materials are implemented; see the
-[episode preparation plan](docs/episode-preparation-plan.md).
-
-Prepare episode supports optional OpenAI generation from the finished edited mix
-and manual publishing materials without a key. Approved text survives permanent
-session deletion. Download the finished audio and reviewed text, chapters,
-transcript and selected soundbites together; raw recordings remain optional.
-API keys are encrypted server-side. Back up `.ai-key`, SQLite and `prepared/`;
-see [deployment notes](docs/deploy.md#ai-credentials-prepared-audio-and-backups).
