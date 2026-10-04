@@ -47,7 +47,7 @@ if (command === 'reset-password') {
   }
   db.prepare('UPDATE users SET pass_hash = ? WHERE id = ?').run(await hashPassword(password), user.id);
 } else if (command === 'reset-2fa') {
-  db.prepare('UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last_step = -1 WHERE id = ?').run(user.id);
+  db.prepare('UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_enabled = 0, totp_last_step = -1 WHERE id = ?').run(user.id);
   db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(user.id);
   db.prepare('DELETE FROM trusted_devices WHERE user_id = ?').run(user.id);
 } else {

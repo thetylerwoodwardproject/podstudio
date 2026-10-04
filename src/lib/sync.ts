@@ -100,6 +100,8 @@ export async function pullEpisode(episodeId: string) {
       else localStorage.setItem(key, value);
     };
     put(scriptKey(episodeId), d.script?.text ?? null);
+    // The version this copy is, so the next save isn't taken for a stale one.
+    if (!localStorage.getItem(dirty(scriptKey(episodeId)))) localStorage.setItem(`${scriptKey(episodeId)}:v`, String(d.script?.version ?? 0));
     put(`podstudio:show:${episodeId}`, d.setup ? JSON.stringify(d.setup) : null);
     put('podstudio:pads:show', JSON.stringify(d.pads.show));
     put(`podstudio:pads:ep:${episodeId}`, JSON.stringify(d.pads.episode));

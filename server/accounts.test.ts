@@ -147,6 +147,37 @@ test('changing the password signs out other browsers', async () => {
   }
 });
 
+test('a two-factor reset left halfway keeps the old authenticator on', async () => {
+  const s = await serve();
+  try {
+    await s.call('/api/auth/setup', { body: { username: 'tyler', password: 'the transmitter arrived' } });
+    const secret = String((await s.call('/api/auth/totp/start', { body: {} })).body.secret).replace(/ /g, '');
+    const codes = (await s.call('/api/auth/totp/confirm', { body: { code: codeFor(secret) } })).body.recoveryCodes as string[];
+    const owner = s.getCookie();
+    // Settings → Security → reset, then the tab is closed.
+    assert.equal((await s.call('/api/auth/totp/start', { body: { code: codes[0] } })).status, 200);
+    assert.equal((await s.call('/')).status, 200, 'the owner is still in');
+
+    // The password alone still isn't enough, and the next step can't be set up from there.
+    s.setCookie('');
+    assert.equal((await s.call('/api/auth/signin', { body: { username: 'tyler', password: 'the transmitter arrived' } })).body.next, '/signin/verify');
+    assert.equal((await s.call('/api/auth/totp/start', { body: {} })).status, 401);
+    assert.equal((await s.call('/api/auth/totp/confirm', { body: { code: '123456' } })).status, 401);
+    // The old authenticator still signs in.
+    assert.equal((await s.call('/api/auth/verify', { body: { code: codeFor(secret, 1) } })).status, 200);
+
+    // Finishing the reset swaps in the new one.
+    s.setCookie(owner);
+    const next = String((await s.call('/api/auth/totp/start', { body: { code: codes[1] } })).body.secret).replace(/ /g, '');
+    assert.equal((await s.call('/api/auth/totp/confirm', { body: { code: codeFor(next) } })).status, 200);
+    s.setCookie('');
+    await s.call('/api/auth/signin', { body: { username: 'tyler', password: 'the transmitter arrived' } });
+    assert.equal((await s.call('/api/auth/verify', { body: { code: codeFor(secret, 1) } })).status, 401, 'the old one is gone');
+  } finally {
+    s.done();
+  }
+});
+
 test('changes from another site are refused', async () => {
   const s = await serve();
   try {

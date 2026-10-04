@@ -199,6 +199,7 @@ export class PreparedAudio {
       json(res, 201, this.get(id, user));
       return true;
     }
+    if (!p[1]) throw new HttpError(404, "Not found");
     const asset = this.get(p[1], user),
       dir = this.dir(asset.id);
     if (p[2] === "chunks" && p.length === 4 && req.method === "PUT") {
@@ -221,6 +222,11 @@ export class PreparedAudio {
       if (this.ctx.recordings.deleted(asset.take_id)) {
         await rm(dir, { force: true, recursive: true });
         throw new HttpError(410, "The recording was deleted");
+      }
+      // Finished while this chunk was arriving: it isn't needed, and nothing would clean it up.
+      if (this.get(asset.id, user).state !== "uploading") {
+        await rm(file, { force: true });
+        throw new HttpError(409, "This prepared audio is already complete.");
       }
       json(res, 200, { chunk: n });
       return true;

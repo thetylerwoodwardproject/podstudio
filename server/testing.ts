@@ -13,6 +13,7 @@ export async function signedIn() {
   const ctx = createContext(loadConfig({ PODSTUDIO_DATA: data }));
   const api = createApi(ctx);
   const server = createServer((req, res) => api.handle(req, res, () => res.end('page')));
+  api.attach(server);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   let cookie = '';
@@ -37,6 +38,7 @@ export async function signedIn() {
   return {
     call,
     ctx,
+    base,
     anon: (path: string) => fetch(base + path).then((r) => r.status),
     done: () => {
       server.closeAllConnections();

@@ -13,6 +13,10 @@ test('episodes: the example is there, new ones take the next number', async () =
     assert.equal(made.fullTitle, 'Ep. 143 — Antenna Season');
     assert.equal((await s.call(`/api/episodes/${made.id}`, { method: 'PATCH', body: { title: 'Antenna Season, Part 1' } })).body.episode.title, 'Antenna Season, Part 1');
     assert.equal((await s.call('/api/episodes/nope')).status, 404);
+    // Not while it has recordings: they'd be left behind and couldn't be deleted.
+    await s.call('/api/takes/t1', { method: 'PUT', body: { meta: { id: 't1', episodeId: made.id, sampleRate: 48000, bitDepth: 24, channels: 1, segments: 0 } } });
+    assert.equal((await s.call(`/api/episodes/${made.id}`, { method: 'DELETE' })).status, 409);
+    assert.equal((await s.call('/api/episodes/142', { method: 'DELETE' })).status, 200);
   } finally {
     s.done();
   }
@@ -29,6 +33,8 @@ test('scripts: saved with a version; a stale save is refused with the current co
     const stale = await s.call('/api/episodes/142/script', { method: 'PUT', body: { text: 'HOST: Old tab.', base: 1 } });
     assert.equal(stale.status, 409);
     assert.equal(stale.body.script.text, 'HOST: Two.');
+    const blind = await s.call('/api/episodes/142/script', { method: 'PUT', body: { text: 'HOST: Never saw it.' } });
+    assert.equal(blind.status, 409, 'no base when there is a saved copy');
     const list = (await s.call('/api/episodes')).body.episodes;
     assert.equal(list[0].words, 1);
     await s.call('/api/episodes/142/script', { method: 'DELETE' });

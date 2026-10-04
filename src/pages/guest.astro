@@ -371,6 +371,7 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
   }
 
   room.on('setup', (msg) => {
+    if (msg.from !== 'host') return;
     hostName = msg.hostName || hostName;
     mode = msg.mode;
     points = msg.points;
@@ -379,11 +380,13 @@ const num = 'flex size-6 flex-none items-center justify-center rounded-full bg-r
     showSession();
   });
   room.on('script', (msg) => {
+    if (msg.from !== 'host' && msg.from !== 'producer') return;
     script = scriptFromText(msg.text, true);
     if (mode === 'lines' && ready) renderScript();
     startVoice();
   });
   room.on('state', (msg) => {
+    if (msg.from !== 'host') return;
     if (!admitted) {
       admitted = true;
       lobbyUi(false);

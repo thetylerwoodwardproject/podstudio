@@ -226,6 +226,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
   }
 
   room.on('state', (msg) => {
+    if (msg.from !== 'host') return;
     const modeChanged = state?.mode !== msg.state.mode;
     state = msg.state;
     version = Math.max(version, state.scriptVersion);
@@ -233,7 +234,7 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     renderState();
   });
   room.on('script', (msg) => {
-    if (msg.version < version) return;
+    if ((msg.from !== 'host' && msg.from !== 'producer') || msg.version < version) return;
     version = msg.version;
     const editing = list.contains(document.activeElement);
     script = scriptFromText(msg.text, true);
@@ -241,10 +242,12 @@ const kbd = 'rounded-[4px] border border-current/35 px-1.5 py-[3px] font-mono te
     if (!editing) renderScript();
   });
   room.on('setup', (msg) => {
+    if (msg.from !== 'host') return;
     points = msg.points;
     if (state?.mode === 'points') renderPoints();
   });
   room.on('guest', (g) => {
+    if (g.from !== 'guest') return;
     guest = { ...guest, ...g };
     renderGuest();
   });

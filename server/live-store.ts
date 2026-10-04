@@ -22,7 +22,11 @@ export interface LiveSession {
   episodeId: string;
   codes: Record<InviteRole, string | null>;
   ended: boolean;
+  endedAt: number | null;
 }
+
+/** A code works for a week: one the host made and forgot doesn't stay guessable for ever. */
+export const CODE_TTL = 7 * 86_400_000;
 
 const token = () => randomBytes(16).toString('hex');
 export const hash = (t: string) => createHash('sha256').update(t).digest('hex');
@@ -49,11 +53,17 @@ export class LiveStore {
   }
 
   session(id: string): LiveSession | null {
-    const s = this.db.prepare('SELECT id, episode_id, ended FROM live_sessions WHERE id = ?').get(id) as { id: string; episode_id: string; ended: number } | undefined;
+    const s = this.db.prepare('SELECT id, episode_id, ended, ended_at FROM live_sessions WHERE id = ?').get(id) as { id: string; episode_id: string; ended: number; ended_at: number | null } | undefined;
     if (!s) return null;
+    this.expire();
     const codes: Record<InviteRole, string | null> = { guest: null, producer: null };
     for (const r of this.db.prepare('SELECT role, code FROM invites WHERE session_id = ?').all(id) as { role: InviteRole; code: string }[]) codes[r.role] = r.code;
-    return { id: s.id, episodeId: s.episode_id, codes, ended: !!s.ended };
+    return { id: s.id, episodeId: s.episode_id, codes, ended: !!s.ended, endedAt: s.ended_at };
+  }
+
+  /** Codes older than a week stop working; the host makes a new one. */
+  private expire() {
+    this.db.prepare('DELETE FROM invites WHERE created_at <= ?').run(Date.now() - CODE_TTL);
   }
 
   /** A fresh code for a role; the old one stops working. Codes are unique across open sessions. */
@@ -77,6 +87,7 @@ export class LiveStore {
   /** A code and a name get a token that waits for the host to let them in. */
   join(code: string, name = ''): { session: LiveSession; role: InviteRole; token: string; member: Member } | null {
     if (!/^\d{6}$/.test(code)) return null;
+    this.expire();
     const row = this.db.prepare('SELECT i.session_id AS sid, i.role AS role FROM invites i JOIN live_sessions s ON s.id = i.session_id WHERE i.code = ? AND s.ended = 0').get(code) as { sid: string; role: InviteRole } | undefined;
     if (!row) return null;
     const t = token();

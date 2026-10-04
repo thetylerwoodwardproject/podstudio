@@ -1,4 +1,5 @@
 /* Small helpers for the API: JSON replies, bodies with a size limit, cookies. */
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { rename, rm } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -57,7 +58,7 @@ export async function readJson<T = Record<string, unknown>>(req: IncomingMessage
  */
 export function streamToFile(req: IncomingMessage, file: string, limit: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    const tmp = `${file}.part-${process.pid}-${Date.now()}`;
+    const tmp = `${file}.part-${randomUUID()}`;
     if (Number(req.headers['content-length'] ?? 0) > limit) { req.resume(); reject(new HttpError(413, 'Too large')); return; }
     const out = createWriteStream(tmp);
     let size = 0;
@@ -132,6 +133,11 @@ export class RateLimit {
     }
     h.n++;
     return h.n <= this.max;
+  }
+  /** Over the limit already, without counting a hit. */
+  blocked(key: string, now = Date.now()) {
+    const h = this.hits.get(key);
+    return !!h && now <= h.until && h.n >= this.max;
   }
   reset(key: string) {
     this.hits.delete(key);

@@ -54,6 +54,8 @@ interface UserRow {
   username: string;
   pass_hash: string;
   totp_secret: string | null;
+  /** A new authenticator being set up; the current one stays on until it's confirmed */
+  totp_pending: string | null;
   totp_enabled: number;
   totp_last_step: number;
   totp_added_at: number | null;
@@ -245,7 +247,9 @@ export class Accounts {
       return true;
     }
 
-    // Setting up the authenticator: a new secret (not on until confirmed with a code).
+    // Setting up the authenticator: a new secret, kept aside until it's confirmed
+    // with a code. A reset never turns two-factor off in between: walking away
+    // halfway would leave the account behind a password alone.
     if (post && action === 'totp/start') {
       const u = this.require(req, { verified: true, totp: false });
       if (u.totp_enabled) {
@@ -254,7 +258,7 @@ export class Accounts {
         if (!this.checkCode(u, String(code ?? ''))) throw new HttpError(401, 'Enter a current code to reset two-factor');
       }
       const secret = newTotpSecret();
-      this.db.prepare('UPDATE users SET totp_secret = ?, totp_enabled = 0, totp_last_step = -1 WHERE id = ?').run(secret, u.id);
+      this.db.prepare('UPDATE users SET totp_pending = ? WHERE id = ?').run(secret, u.id);
       const uri = totpUri(secret, u.username);
       const qr = qrcode(0, 'M');
       qr.addData(uri);
@@ -265,11 +269,13 @@ export class Accounts {
     if (post && action === 'totp/confirm') {
       const u = this.require(req, { verified: true, totp: false });
       const { code } = await readJson<{ code?: string }>(req);
-      if (!u.totp_secret) throw new HttpError(400, 'Start two-factor setup first');
+      if (!u.totp_pending) throw new HttpError(400, 'Start two-factor setup first');
       if (!this.codes.hit(`${u.id}`)) throw new HttpError(429, 'Too many tries. Wait 15 minutes and try again.');
-      const step = verifyTotp(u.totp_secret, String(code ?? ''), Date.now(), u.totp_last_step);
+      const step = verifyTotp(u.totp_pending, String(code ?? ''), Date.now());
       if (step == null) throw new HttpError(401, 'That code didn’t work. Check the time on your phone and try the next one.');
-      this.db.prepare('UPDATE users SET totp_enabled = 1, totp_last_step = ?, totp_added_at = ? WHERE id = ?').run(step, Date.now(), u.id);
+      this.db
+        .prepare('UPDATE users SET totp_secret = totp_pending, totp_pending = NULL, totp_enabled = 1, totp_last_step = ?, totp_added_at = ? WHERE id = ?')
+        .run(step, Date.now(), u.id);
       // Every other browser has to sign in again with the new authenticator.
       this.db.prepare('DELETE FROM auth_sessions WHERE user_id = ? AND id_hash != ?').run(u.id, this.sessionHash(req));
       this.db.prepare('DELETE FROM trusted_devices WHERE user_id = ?').run(u.id);

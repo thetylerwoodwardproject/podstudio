@@ -48,7 +48,8 @@ them in, so a leaked code can't bring in strangers or bots.
 - One guest code and one producer code per session, unique across open sessions.
 - A new code replaces the old one. Revoking clears it and signs out whoever
   joined with it (their WebSocket closes with code 4003).
-- Ending a session clears both codes.
+- Ending a session clears both codes. A code also stops working a week after it
+  was made, so a forgotten session doesn't stay guessable; the host makes a new one.
 
 ## Endpoints
 
@@ -68,7 +69,12 @@ them in, so a leaked code can't bring in strangers or bots.
 
 Segments are the recorder's own 5-second files: little-endian PCM at the track's bit
 depth, interleaved L R when stereo. Uploading the same `n` again replaces it (the
-uploader retries). Track meta:
+uploader retries); `n` is at most 100 000. Uploads keep working after the session
+ends, so the last pieces can arrive, until the track's meta says `done` (or a day
+has passed): then the track is sealed and changes get 409. Guest and producer
+uploads get 507 when the disk is down to its last gigabyte (5% of a small disk),
+which is kept for the host's own recording. Track meta (checked: a sample rate,
+16 or 24 bits, 1 or 2 channels):
 
 ```json
 { "name": "Sam", "sampleRate": 48000, "bitDepth": 24, "channels": 1,
@@ -78,15 +84,20 @@ uploader retries). Track meta:
 ## Live room: `wss://…/api/ws?session=:id&token=:token`
 
 The server relays JSON messages to everyone else in the session and adds
-`from: <role>`. Close codes: 4001 not signed in, 4003 invite revoked or turned
-away, 4009 refused ("A guest is already connected"). Clients reconnect on anything else.
+`from: <role>`. A message from a role not listed for its type below is dropped,
+and clients check `from` too. Close codes: 4001 not signed in, 4003 invite revoked
+or turned away, 4009 refused ("A guest is already connected", or this guest
+connected again from another page or device: the newest connection wins). Clients
+reconnect on anything else. The server pings every 30 s and closes a socket that
+doesn't answer, so a dropped guest's seat frees up.
 
 The server itself:
 
 - answers `{ type: "ping", t }` with `{ type: "pong", t, server: <ms> }` (clients
   estimate the server-clock offset from the quickest of several round trips);
 - sends `{ type: "presence", role, connected, roles }` when someone arrives or leaves;
-- keeps the latest `state`, `script` and `setup` message and sends them to anyone who connects.
+- keeps the latest `state`, `script` and `setup` message and sends them to anyone who connects
+  (until the session ends).
 
 Messages between people (`src/lib/room.ts` has the types):
 
@@ -94,7 +105,7 @@ Messages between people (`src/lib/room.ts` has the types):
 |---|---|---|
 | `state` | host | `{ state: { recording, paused, ended, startedAtServer, word, line, point, markers, scriptVersion, mode, hostName, adlib, cut } }`. The host is the authority; markers are in seconds on the host’s recording clock. Pause/resume is scheduled on the shared clock so host and guest stop accepting samples together, while active pads suspend at their current position. |
 | `script` | host, producer | `{ version, text }`: the whole script (import format) after an edit |
-| `command` | producer, guest | `{ action }`: `start`, `pause`, `resume`, `stop`, `retake`, `adlib`, `next`, `prev`, `goto {word}`, `section {index}`, `point {index}`, `cough {down}` (guest) |
+| `command` | producer, guest | `{ action }`: `start`, `pause`, `resume`, `stop`, `retake`, `adlib`, `next`, `prev`, `goto {word}`, `section {index}`, `point {index}` (producer); `cough {down}` (guest only, and the guest's only command) |
 | `guest` | guest | `{ name, level?, now?, clip?, recording?, uploaded?, pending?, done?, mic?, word?, take? }` about twice a second |
 | `hello` | anyone | `{ role, name? }` on connecting |
 | `setup` | host | `{ mode, points, hostName, guestName? }`: script mode, talking points and speaker names |

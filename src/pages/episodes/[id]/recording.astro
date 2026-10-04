@@ -1731,6 +1731,8 @@ const zones = [
   }
 
   function handleCommand(c: Command, from?: string) {
+    // The producer runs the session; the guest's only command is their own cough.
+    if ((from === 'guest') !== (c.action === 'cough') || (from !== 'guest' && from !== 'producer')) return;
     switch (c.action) {
       case 'start':
         if (state === 'ready') start();
@@ -1811,8 +1813,8 @@ const zones = [
       sendState();
     });
     room.on('command', (c) => handleCommand(c, (c as { from?: string }).from));
-    room.on('guest', (g) => onGuest(g));
-    room.on('script', (msg) => msg.from !== 'host' && applyScript(msg.text, msg.version));
+    room.on('guest', (g) => g.from === 'guest' && onGuest(g));
+    room.on('script', (msg) => msg.from === 'producer' && applyScript(msg.text, msg.version));
     room.on('presence', (p) => {
       if (p.role !== 'guest') return;
       guestConnected = p.connected;

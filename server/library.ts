@@ -168,6 +168,8 @@ export class Library {
         return json(res, 200, { episode: this.get(id) }), true;
       }
       if (p.length === 2 && m === 'DELETE') {
+        // Its recordings would be left behind with no episode, and couldn't be deleted after.
+        if (this.db.prepare('SELECT 1 FROM takes WHERE episode_id = ?').get(id)) throw new HttpError(409, 'Delete this episode’s recordings first');
         this.db.prepare('DELETE FROM episodes WHERE id = ?').run(id);
         return json(res, 200, {}), true;
       }
@@ -176,7 +178,8 @@ export class Library {
         if (typeof text !== 'string') throw new HttpError(400, 'No script text');
         const cur = this.db.prepare('SELECT text, version FROM scripts WHERE episode_id = ?').get(id) as { text: string; version: number } | undefined;
         // Changed somewhere else since this browser loaded it: say so, with the current copy.
-        if (cur && base != null && base !== cur.version) return json(res, 409, { error: 'The script was changed somewhere else', script: cur }), true;
+        // No base is a browser that has never seen a saved copy.
+        if (cur && (base ?? 0) !== cur.version) return json(res, 409, { error: 'The script was changed somewhere else', script: cur }), true;
         const version = (cur?.version ?? 0) + 1;
         this.db
           .prepare('INSERT INTO scripts (episode_id, text, version, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT (episode_id) DO UPDATE SET text = excluded.text, version = excluded.version, updated_at = excluded.updated_at')

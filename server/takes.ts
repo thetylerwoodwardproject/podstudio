@@ -58,7 +58,8 @@ export class Takes {
     const db = this.ctx.db;
     if (p.length === 1 && req.method === 'GET') {
       const ep = url.searchParams.get('episode');
-      const rows = (ep ? db.prepare('SELECT * FROM takes WHERE episode_id = ? ORDER BY updated_at').all(ep) : db.prepare('SELECT * FROM takes ORDER BY updated_at').all()) as {
+      const live = 'NOT EXISTS (SELECT 1 FROM recording_deletions d WHERE d.take_id = takes.id)';
+      const rows = (ep ? db.prepare(`SELECT * FROM takes WHERE episode_id = ? AND ${live} ORDER BY updated_at`).all(ep) : db.prepare(`SELECT * FROM takes WHERE ${live} ORDER BY updated_at`).all()) as {
         id: string;
         meta: string;
         segments: number;
@@ -93,8 +94,10 @@ export class Takes {
         if (this.ctx.recordings.deleted(id) || this.ctx.recordings.deletedGroup(meta.episodeId, (meta as TakeMeta).group ?? id)) throw new HttpError(410, 'This recording was permanently deleted');
         await mkdir(this.dir(id), { recursive: true });
         await writeFile(join(this.dir(id), 'meta.json'), JSON.stringify(meta));
-        if (this.ctx.recordings.deleted(id)) { await rm(this.dir(id), { recursive: true, force: true }); throw new HttpError(410, 'This recording was permanently deleted'); }
         const segments = await this.count(id);
+        // Checked after the last await, right before the row is written: a deletion
+        // that finished meanwhile mustn't be undone by this save.
+        if (this.ctx.recordings.deleted(id)) { await rm(this.dir(id), { recursive: true, force: true }); throw new HttpError(410, 'This recording was permanently deleted'); }
         db.prepare(
           'INSERT INTO takes (id, episode_id, meta, segments, done, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET meta = excluded.meta, segments = excluded.segments, done = excluded.done, updated_at = excluded.updated_at',
         ).run(id, meta.episodeId, JSON.stringify(meta), segments, done ? 1 : 0, Date.now());
@@ -115,8 +118,10 @@ export class Takes {
         await streamToFile(req, file, SEGMENT_LIMIT).catch((err) => {
           throw err instanceof HttpError && err.message === 'Empty body' ? new HttpError(400, 'Empty segment') : err;
         });
-        if (this.ctx.recordings.deleted(id)) { await rm(this.dir(id), { recursive: true, force: true }); throw new HttpError(410, 'This recording was permanently deleted'); }
         const segments = await this.count(id);
+        // Checked after the last await, right before the row is written: a deletion
+        // that finished meanwhile mustn't be undone by this save.
+        if (this.ctx.recordings.deleted(id)) { await rm(this.dir(id), { recursive: true, force: true }); throw new HttpError(410, 'This recording was permanently deleted'); }
         db.prepare('UPDATE takes SET segments = ?, updated_at = ? WHERE id = ?').run(segments, Date.now(), id);
         return json(res, 200, { segments }), true;
       }
