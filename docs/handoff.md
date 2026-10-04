@@ -24,8 +24,8 @@ verification. The original MP3 playback stall/502 and +10 dB report stay open.
 
 ## Where it stands
 
-Podstudio `0.1.0` is in active development and installed on the first lab VPS
-for real-world testing. Database schema 6 is current. Recording, synchronized
+Podstudio `v2026.10.04` is in active development and installed on the first lab VPS
+for real-world testing. Database schema 7 is current. Recording, synchronized
 guest capture, hotkey pads, the desktop editor, browser audio processing and
 finished/raw export are implemented. Phone recording remains supported; the
 full editor is desktop-only and phones land on Session Saved.

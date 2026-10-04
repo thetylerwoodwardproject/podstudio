@@ -16,7 +16,7 @@ const value = 'font-mono text-[13px] text-text';
 
 <Section title="Server" description="What's running, where your recordings are kept, and how to back up and upgrade." />
 <Card label="Status" rows>
-  <Row title="Version" hint="Database schema —" data-srv-schema-row><span class={value} data-srv-version>{version}</span></Row>
+  <Row title="Version" hint="Database schema —" data-srv-schema-row><span class={value} data-srv-version>v{version}</span></Row>
   <Row title="Storage" hint="—" data-srv-storage-row>
     <span class="flex items-center gap-2"><Dot color="var(--color-ok)" data-srv-dot /><span class={value} data-srv-storage>—</span></span>
   </Row>
@@ -59,7 +59,7 @@ const value = 'font-mono text-[13px] text-text';
   type Status = { version: string; schema: number; node: string; data: string; uptime: number; disk: { total: number; free: number } | null };
   api<Status>('server')
     .then((s) => {
-      $('[data-srv-version]').textContent = s.version;
+      $('[data-srv-version]').textContent = `v${s.version}`;
       $('[data-srv-schema-row] [data-row-hint]').textContent = `Database schema ${s.schema} · Node ${s.node}`;
       $('[data-srv-data] [data-row-hint]').textContent = s.data;
       $('[data-srv-uptime]').textContent = since(s.uptime);

@@ -12,7 +12,7 @@
 
 <p align="center">
   <img alt="Status: in development" src="https://img.shields.io/badge/status-in%20development-ff9f0a?style=flat-square">
-  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-26272b?style=flat-square">
+  <img alt="Version v2026.10.04" src="https://img.shields.io/badge/version-v2026.10.04-26272b?style=flat-square">
   <img alt="Node 22.18+" src="https://img.shields.io/badge/node-22.18%2B-26272b?style=flat-square">
   <img alt="Built with Astro" src="https://img.shields.io/badge/built%20with-Astro-26272b?style=flat-square">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-26272b?style=flat-square"></a>
