@@ -57,9 +57,10 @@ and destructive states. The homepage describes the current desktop editor,
 sidebar navigation, mixer, live dBFS/LUFS metering, mobile review and episode
 preparation. It still labels the product as in development.
 
-Fresh screenshots were captured from the current local app build with the
-existing browser scenarios, using a disposable test account and demo audio,
-never private recordings:
+The screenshot set was refreshed together from the current local app build,
+using a disposable test account and demo audio, never private recordings. Every
+published capture now uses the same Pi-Tuner-inspired black shell, zinc borders,
+white controls and signal-color tracks:
 
 - `public/images/editor-current.png`: current dark editor with the compact rail,
   synchronized timeline, track meter and master output dock.
@@ -67,8 +68,10 @@ never private recordings:
   long-term and range loudness in the master dock.
 - `public/images/recording-current.png`: current dark recording setup with the
   script, guest choice and fixed Start session action.
-- `public/images/mobile-review-current.png`: current phone Session saved review
-  with playback, synchronization retry and raw download.
+- `public/images/preparation-current.png`: current dark episode preparation page
+  with finished-mix review and publishing package controls.
+- `public/images/mobile-review-current.png`: current dark phone Session saved
+  review with playback, synchronization retry and raw downloads.
 - `public/og.png`: current 1200 × 630 social preview based on the dark editor.
 
 The older `editor.png`, `recording.png`, `studio.png` and `export.png` files are

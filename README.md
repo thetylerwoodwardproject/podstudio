@@ -102,32 +102,31 @@ Every feature in detail: [docs/features.md](docs/features.md).
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/recording-current.png" alt="Current Podstudio recording setup with script and guest options"></td>
-    <td width="50%"><img src="docs/images/saved-current.png" alt="Current mobile Session saved review with playback, synchronization retry and raw download"></td>
+    <td width="50%"><img src="docs/images/recording-current.png" alt="Current Podstudio dark recording setup with script, guest choice and fixed Start session action"></td>
+    <td width="50%"><img src="docs/images/preparation-current.png" alt="Current dark episode preparation page with finished mix and publishing package controls"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Recording</b>: script, guest choice and a fixed action footer</sub></td>
-    <td align="center"><sub><b>Mobile review</b>: playback, retry synchronization and raw downloads</sub></td>
+    <td align="center"><sub><b>Prepare episode</b>: review the finished mix and publishing package</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/script.png" alt="The script editor, with sections and the running word count"></td>
-    <td width="50%"><img src="docs/images/sessions.png" alt="Sessions: play a take, open it to export, download the raw WAV"></td>
+    <td width="50%"><img src="docs/images/editor-current.png" alt="Current dark Podstudio editor with synchronized multitrack waveforms, meters and master output"></td>
+    <td width="50%"><img src="docs/images/loudness-current.png" alt="Current dark editor with short-term, long-term and range loudness in the master dock"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Script</b>: paste or import, sections from <code>## headings</code></sub></td>
-    <td align="center"><sub><b>Sessions</b>: every take, with its markers, ready to play or export</sub></td>
+    <td align="center"><sub><b>Editor</b>: direct waveform work, compact rail and live dBFS meters</sub></td>
+    <td align="center"><sub><b>Master dock</b>: switch between dBFS and readable loudness readings</sub></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td width="34%" align="center"><img src="docs/images/saved-current.png" alt="Session saved on a phone: playback, synchronization retry and raw downloads" width="260"></td>
+    <td width="34%" align="center"><img src="docs/images/mobile-review-current.png" alt="Current dark mobile Session saved review with playback, synchronization retry and raw downloads" width="260"></td>
     <td width="66%" valign="middle">
       <h3>On a phone, too</h3>
       <p>Recording and review work on a phone: the script and touch controls stay readable during capture, then Session saved provides playback, scrubbing, synchronization retry and raw downloads. Full timeline editing and finished-mix export remain on desktop. iPhone and iPad recording uses the AudioWorklet path on supported iOS 17+ browsers; real-device validation is still pending. Android uses Chrome.</p>
       <p>A guest can join from their phone with a 6-digit code, and the recording they make there is uploaded to your server as they talk.</p>
-      <img src="docs/images/saved-current.png" alt="Session saved on a phone: recording player, server status and raw track downloads">
-      <p><sub><b>Session saved</b>: playable recording, marker count, server synchronization and individual raw downloads</sub></p>
+      <p><sub><b>Session saved</b>: the same dark shell as desktop, with a focused player, server status and individual raw downloads.</sub></p>
     </td>
   </tr>
 </table>

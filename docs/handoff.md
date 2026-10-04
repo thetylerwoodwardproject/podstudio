@@ -198,7 +198,7 @@ and Svelte checks have zero errors; the build passes. All 14 browser flows
 passed across the full run and targeted editor/guest reruns after correcting
 legacy guest discovery and navigation expectations. Tests used installed Chrome.
 Desktop timeline/FX/loudness screenshots were reviewed against the UI standards;
-`docs/images/editor.png` is current. Chrome's profile-dependent translation
+`docs/images/editor-current.png` is current. Chrome's profile-dependent translation
 prompt and the reported VPS 502 still need real-environment verification.
 
 Run all of these before publishing:
