@@ -60,7 +60,8 @@ preparation. It still labels the product as in development.
 The screenshot set was refreshed together to reflect the current local app
 build, using a disposable test account and demo audio for the desktop captures,
 never private recordings. Every published image now uses the same Pi-Tuner-
-inspired black shell, zinc borders, white controls and signal-color tracks:
+inspired black shell, zinc borders, white primary actions, indigo selections
+and signal-color tracks:
 
 - `public/images/editor-current.png`: current dark editor with the compact rail,
   synchronized timeline, track meter and master output dock.
