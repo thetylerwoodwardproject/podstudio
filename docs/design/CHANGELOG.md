@@ -1,6 +1,62 @@
 # Changelog
 
-## 2026-10-18 (latest) — Screen 15 (Feed overview): real counts/table, analytics honestly deferred
+## 2026-10-18 (latest) — Screen 18 (Server settings): real user management, rest honestly deferred
+- **Users (real):** `/studio/settings/server` — list, add, change role,
+  remove, entirely on the existing Better Auth `users` table. No migration
+  needed. "Add user" (via `auth.api.signUpEmail`, same call `seed-admin.ts`
+  already uses) substitutes for the spec's "invite" — still no email
+  delivery (same gap blocking 16b's unlock flow), so it's deliberately not
+  labeled "invite." The admin sets a temporary password directly and it's
+  echoed back once in the success message so they can hand it to the new
+  person — that's the value they just typed, not a stored secret being
+  retrieved, so it doesn't break the "never echo a saved secret" rule from
+  screen 17.
+- **Guards:** can't remove your own account, can't demote or remove the
+  only remaining admin (checked server-side in `server-settings.server.ts`,
+  not just a disabled button) — there's no recovery flow if the one admin
+  locks themselves out.
+- **Domain (real facts, not a status badge):** shows the actual hostname
+  and states plainly that this runs on Caddy's internal CA (LAN-only), not
+  public ACME — there's no real "auto-TLS success" to report, and the
+  screen's own spec text says never fake a LAN-only check as a
+  connectivity success.
+- **Storage:** links to screen 17 instead of duplicating its form.
+- **AI keys (Whisper/LLM) and LiveKit URL/keys: deliberately not built.**
+  Zero schema, zero env vars, zero stage reached — BUILD_PLAN says these
+  arrive with their own stages (LiveKit is Stage 08). One explicit
+  "not configured" note, same treatment as screen 15's downloads/listeners.
+- Followed the `.server.ts`-only-access pattern from the start (new
+  `server-settings.server.ts`) — confirmed via the build output that no
+  drizzle-orm/better-auth code leaked into this route's client chunk
+  (6.40 kB, no shared chunk containing `drizzle:entityKind` anywhere in the
+  client build).
+- **Two real bugs found and fixed during browser verification, not just
+  the "does it 500" curl checks:**
+  - The "Confirm remove" button had an `onClick={() => setConfirmingRemove(null)}`
+    alongside `type="submit"`. That state change re-renders the component
+    synchronously, swapping out the `<Form>` for the plain "Remove" button
+    *before* the browser's native submit could fire — the request never
+    left the page (`Form submission canceled because the form is not
+    connected` in the console, no POST ever sent). `episode-detail.tsx`'s
+    proven confirm-delete pattern doesn't put an onClick on the submit
+    button at all, for exactly this reason; removed it here to match.
+  - The role `<select>` used `defaultValue` (uncontrolled), so after the
+    last-admin guard rejected a change, the dropdown kept showing the
+    user's rejected pick — the real role never changed, but the UI
+    implied it had. Tried resyncing via `useEffect` keyed on the server
+    `role`, but that effect only fires when the value actually *changes*
+    between renders — on a rejection it's identical before and after, so
+    it never fired. Settled on a plain controlled `value={role}` with no
+    local state: since rejected values never move server-side, the select
+    can never show anything but the truth. Accepted a minor flash back to
+    the old value during a *successful* change's round trip as the
+    tradeoff.
+  - Also added a `roleUpdateFailedId` action-data field — a blocked role
+    change had no error displayed anywhere at all before this; it just
+    silently failed (now correctly caught by the controlled-select fix
+    too, but the message explaining *why* needed its own wire-up).
+
+## 2026-10-18 (earlier) — Screen 15 (Feed overview): real counts/table, analytics honestly deferred
 - `/studio/feed`: episode-status counts (recording/editing/scheduled/
   published) and a 5-row recent-episodes table are real, from
   `feed.server.ts` queries against the actual episodes table. Quick links to

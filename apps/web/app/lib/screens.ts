@@ -75,7 +75,7 @@ export const SCREENS: ScreenDef[] = [
   { id: "32", label: "Podroll", path: "/studio/podroll", area: "studio", section: "Analytics & discovery", inSidebar: false, real: false },
 
   // Server
-  { id: "18", label: "Server settings", path: "/studio/settings/server", area: "studio", section: "Server", inSidebar: true, real: false },
+  { id: "18", label: "Server settings", path: "/studio/settings/server", area: "studio", section: "Server", inSidebar: true, real: true, note: "Users (add/role/remove) are real; domain is read-only facts, not a status badge; AI keys/LiveKit deferred (no stage reached)" },
 
   // Mobile host app (deferred — Stage 12)
   { id: "19", label: "Mobile home", path: "/mobile/home", area: "mobile", section: "Mobile host app", inSidebar: false, real: false, note: "Deferred to Stage 12" },
