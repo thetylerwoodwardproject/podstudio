@@ -5,7 +5,8 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-18, commit `50596ab` + show tags (screen 16).
+**Last updated:** 2026-10-18 (evening) — show tags (screen 16), a help popover,
+and a real production bug fix (every action POST was 400ing behind Caddy).
 
 ## Live right now
 
@@ -66,6 +67,13 @@ proof #1 (dependency compatibility) as a side effect.
   also a plain-HTTP `:8081` bootstrap route for the CA root), `web`, `worker`.
   Needs `deploy/.env` (`BETTER_AUTH_SECRET`, `PODSTUDIO_ADMIN_PASSWORD`) —
   see `deploy/.env.example`.
+- `apps/web` runs its own `server.js` in production, **not**
+  `react-router-serve` — that CLI never sets Express's `trust proxy`, so every
+  action POST got rejected by React Router's CSRF guard behind Caddy (see
+  CHANGELOG, "every POST was broken"). `server.js` sets `trust proxy: 1`.
+  If you ever add another reverse proxy hop in front of Caddy, bump that
+  number — it's deliberately not `true` (don't trust arbitrary upstream
+  headers).
 
 ## Known issues, left as-is
 

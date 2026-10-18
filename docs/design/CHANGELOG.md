@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-10-18 (later still) — Fixed a real production bug: every POST was broken
+- `react-router-serve` never configures Express's `trust proxy`, so behind Caddy
+  `req.protocol` always read `http` regardless of the real `X-Forwarded-Proto:
+  https`. React Router's own CSRF guard then rejected every action POST — show
+  tags save, episode save/delete, anything — with a 400, because the app's own
+  computed URL (`http://...`) never matched the browser's real `Origin`
+  (`https://studio.tylerwoodward.me`). This had been live and broken since the
+  episode-details/sign-in session: that work was "verified end-to-end" against
+  the dev server and direct curl, never a real POST through Caddy+HTTPS with a
+  real `Origin` header — the gap that let this through.
+- Fixed by replacing `apps/web`'s `start` script with a small custom
+  `server.js` (same static/compression/logging setup `react-router-serve`'s
+  CLI uses, built directly on `@react-router/express`'s `createRequestHandler`)
+  with `app.set("trust proxy", 1)` — trusting exactly the one hop Caddy
+  represents.
+- Caught by actually reproducing it: a first curl attempt with forged
+  `X-Forwarded-Proto`/`Origin` headers still failed, because curl's default
+  `Host` header (the raw `ip:port` it connects to) isn't what Caddy actually
+  forwards (`studio.tylerwoodward.me`, no port) — a misleading test that
+  looked like the fix hadn't worked. Re-tested with `Host` set to match what
+  Caddy really sends before trusting the fix, then confirmed again for real
+  through the live hostname (not simulated headers) for both show-tags save
+  and an episode save.
+- Also added: a help popover (`?` next to "Podcasting 2.0 (subset)") explaining
+  what funding/value/medium/trailer/update-frequency/license actually mean,
+  per Tyler's request while this was being fixed.
+
 ## 2026-10-18 (later) — Show tags (screen 16)
 - `/studio/feed/tags`, linked from Episodes ("Edit show details"). Real RSS 2.0/
   iTunes fields (title, description, website, language, explicit) plus a scoped
