@@ -1,32 +1,30 @@
 import { useState } from "react";
 import { Form, redirect, useNavigation } from "react-router";
-import { eq } from "drizzle-orm";
 import {
-  db,
-  episodes,
-  episodePeople,
-  people,
-  episodeStatus,
-  type EpisodeStatus,
-} from "@podstudio/db";
+  getEpisodeWithCredits,
+  deleteEpisode,
+  updateEpisode,
+} from "~/lib/episodes.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { StatusBadge } from "~/components/ui/status-badge";
 
+// This file deliberately imports nothing from @podstudio/db or drizzle-orm
+// (all db access lives in episodes.server.ts) — see storage.tsx's comment
+// for why: a route file that imports a db-exported value for client-side
+// rendering (this one used to render `episodeStatus.map(...)` straight from
+// @podstudio/db) pulls drizzle-orm's runtime into that route's client chunk,
+// where it throws and silently breaks navigation to the screen. EPISODE_
+// STATUS below is the client-safe replacement; it must stay in sync by hand
+// with `episodeStatus` in packages/db/src/schema.ts.
+const EPISODE_STATUS = ["recording", "editing", "scheduled", "published"] as const;
+
 export async function loader({ params }: { params: { id: string } }) {
-  const episode = db.select().from(episodes).where(eq(episodes.id, params.id)).get();
-  if (!episode) throw new Response("Episode not found", { status: 404 });
-
-  const credits = db
-    .select({ id: people.id, name: people.name, role: episodePeople.role })
-    .from(episodePeople)
-    .innerJoin(people, eq(people.id, episodePeople.personId))
-    .where(eq(episodePeople.episodeId, episode.id))
-    .all();
-
-  return { episode, credits };
+  const result = getEpisodeWithCredits(params.id);
+  if (!result) throw new Response("Episode not found", { status: 404 });
+  return result;
 }
 
 export async function action({ request, params }: { request: Request; params: { id: string } }) {
@@ -34,24 +32,19 @@ export async function action({ request, params }: { request: Request; params: { 
   const intent = form.get("intent");
 
   if (intent === "delete") {
-    db.delete(episodePeople).where(eq(episodePeople.episodeId, params.id)).run();
-    db.delete(episodes).where(eq(episodes.id, params.id)).run();
+    deleteEpisode(params.id);
     return redirect("/studio/episodes");
   }
 
   // Deliberately not editable here: `guid`/`guidIsPermalink`/`publicId` — immutable
   // once set, per BUILD_PLAN's GUID rules (non-negotiable #1).
-  db.update(episodes)
-    .set({
-      title: String(form.get("title") ?? ""),
-      subtitle: (form.get("subtitle") as string) || null,
-      description: (form.get("description") as string) || null,
-      status: form.get("status") as EpisodeStatus,
-      visibility: form.get("visibility") as "private" | "unlisted" | "public",
-      updatedAt: Date.now(),
-    })
-    .where(eq(episodes.id, params.id))
-    .run();
+  updateEpisode(params.id, {
+    title: String(form.get("title") ?? ""),
+    subtitle: (form.get("subtitle") as string) || null,
+    description: (form.get("description") as string) || null,
+    status: form.get("status") as (typeof EPISODE_STATUS)[number],
+    visibility: form.get("visibility") as "private" | "unlisted" | "public",
+  });
 
   return { saved: true };
 }
@@ -111,7 +104,7 @@ export default function EpisodeDetail({
               defaultValue={episode.status}
               className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
-              {episodeStatus.map((s) => (
+              {EPISODE_STATUS.map((s) => (
                 <option key={s} value={s}>
                   {s[0].toUpperCase() + s.slice(1)}
                 </option>

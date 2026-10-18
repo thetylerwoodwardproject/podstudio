@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { Form, useNavigation } from "react-router";
-import { eq } from "drizzle-orm";
 import {
-  db,
-  storageTargets,
-  storageProviders,
-  storageRoutes,
-  type StorageProvider,
-  type StorageRoute,
-} from "@podstudio/db";
-import { testStorageConnection } from "~/lib/storage.server";
+  listStorageTargets,
+  addStorageTarget,
+  deleteStorageTarget,
+  updateStorageKeys,
+  setStorageRouting,
+  testStorageConnectionById,
+} from "~/lib/storage.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -20,43 +18,45 @@ import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
 // endpoint, bucket, region, key_ref, routes json)` — revised on Tyler's
 // direction so access/secret keys are entered through this screen's own
 // form and stored in the DB, not through deploy/.env. They still never reach
-// the browser after that: the loader below selects every column except
+// the browser after that: `listStorageTargets` (in storage.server.ts) omits
 // `secretAccessKey`, and no action response ever echoes either key back.
 // "Test connection" makes a real HeadBucket call rather than faking a
 // result. The mockup's RadioGroup provider cards are built as plain radio
 // inputs — no shadcn RadioGroup is installed yet, same kind of practical
 // substitution as screen 02's hand-built table instead of TanStack.
-const PROVIDER_LABELS: Record<StorageProvider, string> = {
+//
+// This file deliberately imports NOTHING from @podstudio/db or drizzle-orm,
+// even inside loader/action — all DB access goes through storage.server.ts.
+// Importing `storageTargets`/`db` here directly (even only server-side) was
+// enough to pull drizzle-orm's runtime into this route's CLIENT chunk and
+// crash navigation to it (@podstudio/db's schema module constructs its
+// tables at module-eval time, which Rollup couldn't prove side-effect-free
+// once any of its named exports showed up in this chunk's import graph).
+// The `.server.ts` suffix is a hard boundary Vite's React Router plugin
+// enforces, not fragile tree-shaking — routing everything through it
+// sidesteps the bug for good, not just for today's symptom.
+const PROVIDER_LABELS = {
   linode: "Linode Object Storage",
   "backblaze-b2": "Backblaze B2",
   wasabi: "Wasabi",
   r2: "Cloudflare R2",
   aws: "AWS S3",
   minio: "MinIO (self-hosted)",
-};
+} as const;
+type StorageProvider = keyof typeof PROVIDER_LABELS;
 
-const ROUTE_LABELS: Record<StorageRoute, string> = {
+const ROUTE_LABELS = {
   raw: "Raw recordings",
   exports: "Exports",
   feedMedia: "Feed media",
-};
+} as const;
+type StorageRoute = keyof typeof ROUTE_LABELS;
+
+const PROVIDER_LIST = Object.keys(PROVIDER_LABELS) as StorageProvider[];
+const ROUTE_LIST = Object.keys(ROUTE_LABELS) as StorageRoute[];
 
 export async function loader() {
-  const targets = db
-    .select({
-      id: storageTargets.id,
-      provider: storageTargets.provider,
-      label: storageTargets.label,
-      endpoint: storageTargets.endpoint,
-      bucket: storageTargets.bucket,
-      region: storageTargets.region,
-      routes: storageTargets.routes,
-      createdAt: storageTargets.createdAt,
-    })
-    .from(storageTargets)
-    .orderBy(storageTargets.createdAt)
-    .all();
-  return { targets };
+  return { targets: listStorageTargets() };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -81,24 +81,20 @@ export async function action({ request }: { request: Request }) {
       return { error: "Endpoint is required for this provider." };
     }
 
-    db.insert(storageTargets)
-      .values({
-        id: crypto.randomUUID(),
-        provider,
-        label,
-        endpoint: endpoint || null,
-        bucket,
-        region: region || null,
-        accessKeyId,
-        secretAccessKey,
-        routes: [],
-      })
-      .run();
+    addStorageTarget({
+      provider,
+      label,
+      endpoint: endpoint || null,
+      bucket,
+      region: region || null,
+      accessKeyId,
+      secretAccessKey,
+    });
     return { added: true };
   }
 
   if (intent === "delete-target") {
-    db.delete(storageTargets).where(eq(storageTargets.id, str("id"))).run();
+    deleteStorageTarget(str("id"));
     return { removed: true };
   }
 
@@ -109,32 +105,23 @@ export async function action({ request }: { request: Request }) {
     if (!accessKeyId) return { error: "Access key ID is required.", keysTargetId: id };
     if (!secretAccessKey) return { error: "Secret access key is required.", keysTargetId: id };
 
-    db.update(storageTargets)
-      .set({ accessKeyId, secretAccessKey })
-      .where(eq(storageTargets.id, id))
-      .run();
+    updateStorageKeys(id, accessKeyId, secretAccessKey);
     return { keysUpdated: id };
   }
 
   if (intent === "test-connection") {
     const id = str("id");
-    const target = db.select().from(storageTargets).where(eq(storageTargets.id, id)).get();
-    if (!target) return { error: "Storage target not found." };
-    const result = await testStorageConnection(target);
+    const result = await testStorageConnectionById(id);
+    if (!result) return { error: "Storage target not found." };
     return { testResult: { targetId: id, ...result } };
   }
 
   if (intent === "set-routing") {
-    const targets = db.select().from(storageTargets).all();
-    const selected: Record<StorageRoute, string> = {
+    setStorageRouting({
       raw: str("route-raw"),
       exports: str("route-exports"),
       feedMedia: str("route-feedMedia"),
-    };
-    for (const target of targets) {
-      const routes = storageRoutes.filter((r) => selected[r] === target.id);
-      db.update(storageTargets).set({ routes }).where(eq(storageTargets.id, target.id)).run();
-    }
+    });
     return { routed: true };
   }
 
@@ -296,7 +283,7 @@ export default function Storage({
           <div className="flex flex-col gap-1.5">
             <Label>Provider</Label>
             <div className="grid grid-cols-3 gap-2">
-              {storageProviders.map((p) => (
+              {PROVIDER_LIST.map((p) => (
                 <label
                   key={p}
                   className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[13px] ${
@@ -378,7 +365,7 @@ export default function Storage({
 
         <Form method="post" className="flex flex-col gap-3">
           <input type="hidden" name="intent" value="set-routing" />
-          {storageRoutes.map((r) => (
+          {ROUTE_LIST.map((r) => (
             <div key={r} className="flex flex-col gap-1.5">
               <Label htmlFor={`route-${r}`}>{ROUTE_LABELS[r]}</Label>
               <select

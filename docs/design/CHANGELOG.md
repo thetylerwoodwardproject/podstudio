@@ -1,6 +1,48 @@
 # Changelog
 
-## 2026-10-18 (latest) — Storage keys move from deploy/.env into the web UI
+## 2026-10-18 (latest) — Real bug: two sidebar links silently failed to navigate
+- Tyler reported the Storage link "goes nowhere" (a hard refresh didn't fix
+  it, ruling out a stale-client-bundle theory I tried first). Root cause,
+  found by driving a real headless browser (Playwright against a cached
+  chromium build, since no browser automation tool was available this
+  session) and reading its console: `TypeError: i is not a function` while
+  loading the route's JS chunk, which React Router treats as a failed
+  navigation and silently stays on the previous page — curl-based testing
+  never would have caught this, since it doesn't execute client JS.
+- **Mechanism:** `storage.tsx` rendered `storageProviders`/`storageRoutes` —
+  real arrays exported from `@podstudio/db`'s schema module — directly in
+  client JSX. That module also constructs its Drizzle tables at
+  module-evaluation time (real side effects), so once any of its exports
+  show up in a route's client-side import graph, the bundler can't safely
+  tree-shake the module away and ships drizzle-orm's whole runtime to the
+  browser instead — where some part of it doesn't actually work and throws.
+  Every other real screen avoids this by keeping its own option lists local
+  instead of importing them from the db package for client rendering.
+- **Found the same bug in Episode details (11)**, pre-existing from the
+  sign-in-gate session, not something today's work introduced: it rendered
+  `episodeStatus.map(...)` straight from `@podstudio/db` too. Its broken
+  chunk had been silently sharing/absorbing the same bad code as storage's
+  the whole time; nobody had actually clicked into an episode in a browser
+  since then to notice. Fixed it the same way.
+- **Fix:** moved all `@podstudio/db`/`drizzle-orm` access for both screens
+  into `.server.ts` files (`app/lib/storage.server.ts`,
+  new `app/lib/episodes.server.ts`) — a hard boundary Vite's React Router
+  plugin enforces by file-name convention, not something that depends on the
+  bundler correctly inferring what's unused. `storage.tsx` and
+  `episode-detail.tsx` now import nothing from `@podstudio/db` at all;
+  client-rendered option lists (providers, routes, episode statuses) are
+  local consts kept in sync by hand with schema.ts's versions.
+- Verified both against the live container with a real browser: clicking
+  Storage now lands on `/studio/storage` with no console errors; clicking an
+  episode row now lands on `/studio/episodes/:id` the same way. Confirmed via
+  the client build output too — `episode-detail`'s chunk dropped from 88.87
+  kB (drizzle-orm inlined) to 3.88 kB once fixed, and no shared chunk
+  containing drizzle-orm exists anywhere in the client build after this.
+- Worth a pass over the remaining real screens if any future one needs an
+  enum/option list from `@podstudio/db` — the fix here is the pattern to
+  follow, not a one-off.
+
+## 2026-10-18 (earlier) — Storage keys move from deploy/.env into the web UI
 - On Tyler's explicit direction ("keys should be able to be entered through
   the web interface, all settings should go through the actual real web
   ui"), reverted the `keyRef`/`deploy/.env` indirection from the entry just

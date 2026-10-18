@@ -5,9 +5,12 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-18 (evening) — screen 17 (Storage): target config,
-real test-connection and routing; keys are entered through the Storage
-screen's own form, not `deploy/.env`.
+**Last updated:** 2026-10-18 (night) — fixed a real bug: the Storage and
+Episode details sidebar links silently failed to navigate (a route file
+rendering a `@podstudio/db`-exported array client-side pulled drizzle-orm's
+runtime into the browser, where it threw). See CHANGELOG for the mechanism
+and the fix pattern — relevant to any future screen that needs an
+enum/option list from the db package.
 
 ## Live right now
 
