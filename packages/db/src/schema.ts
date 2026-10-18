@@ -172,6 +172,43 @@ export const showTxtRecords = sqliteTable(
   (t) => [index("show_txt_records_show_idx").on(t.showId)],
 );
 
+// Storage targets for screen 17. Per BUILD_PLAN §4: `storage_targets(id,
+// provider, endpoint, bucket, region, key_ref, routes json)`. `keyRef` is
+// never the actual secret — it names an env var pair in `deploy/.env`
+// (`PODSTUDIO_S3_<KEYREF upper>_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`), same
+// pattern as `BETTER_AUTH_SECRET`/`PODSTUDIO_ADMIN_PASSWORD` — S3 keys never
+// touch the database or the browser. `routes` lists which asset kinds this
+// target currently handles; the routing-table UI keeps each kind assigned to
+// exactly one target by rewriting every target's `routes` array together.
+// `label` is a UI-only addition beyond BUILD_PLAN's first-pass columns, for
+// telling targets apart once there's more than one.
+export const storageProviders = [
+  "linode",
+  "backblaze-b2",
+  "wasabi",
+  "r2",
+  "aws",
+  "minio",
+] as const;
+export type StorageProvider = (typeof storageProviders)[number];
+
+export const storageRoutes = ["raw", "exports", "feedMedia"] as const;
+export type StorageRoute = (typeof storageRoutes)[number];
+
+export const storageTargets = sqliteTable("storage_targets", {
+  id: text("id").primaryKey(),
+  provider: text("provider", { enum: storageProviders }).notNull(),
+  label: text("label").notNull(),
+  endpoint: text("endpoint"),
+  bucket: text("bucket").notNull(),
+  region: text("region"),
+  keyRef: text("key_ref").notNull(),
+  routes: text("routes", { mode: "json" }).$type<StorageRoute[]>().notNull(),
+  createdAt: integer("created_at")
+    .notNull()
+    .default(sql`(unixepoch('now','subsec')*1000)`),
+});
+
 export const people = sqliteTable("people", {
   id: text("id").primaryKey(),
   showId: text("show_id")

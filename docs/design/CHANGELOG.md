@@ -1,6 +1,36 @@
 # Changelog
 
-## 2026-10-18 (latest) — Screen 16b (Lock & verify): TXT records real, unlock deferred
+## 2026-10-18 (latest) — Screen 17 (Storage): target config, test-connection and routing real
+- **Storage targets (real):** new `storage_targets` table (migration
+  `0003_cold_deathstrike`) matching BUILD_PLAN §4's columns
+  (`provider, endpoint, bucket, region, key_ref, routes json`), plus a UI-only
+  `label` for telling targets apart. CRUD at `/studio/storage`: add/remove a
+  target for any of the six listed providers (Linode, Backblaze B2, Wasabi,
+  R2, AWS, MinIO).
+- **Secrets stay out of the database:** `keyRef` never holds an actual access
+  key — it names an env var pair in `deploy/.env`
+  (`PODSTUDIO_S3_<KEYREF>_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`), the same
+  pattern already used for `BETTER_AUTH_SECRET`/`PODSTUDIO_ADMIN_PASSWORD`.
+  Added `@aws-sdk/client-s3` to `apps/web` and a server-only
+  `app/lib/storage.server.ts` with a real `testStorageConnection()` — it
+  issues an actual `HeadBucketCommand` and reports the real result, including
+  "no credentials configured for key reference …" rather than ever faking a
+  success. Verified the client bundle doesn't pull in the SDK (the `.server.ts`
+  suffix keeps it server-only, same convention as `auth.server.ts`).
+- **Routing (real):** each target's `routes` column lists which of
+  raw/exports/feed-media it's responsible for; the routing form rewrites all
+  targets together so each kind stays assigned to exactly one target.
+- **Deliberate deviations/gaps:** the provider picker is plain radio inputs,
+  not shadcn's RadioGroup (not installed; same kind of practical substitution
+  as screen 02's hand-built table). The S3 client lives in `apps/web/app/lib`,
+  not `packages/integrations` (still an empty placeholder per BUILD_PLAN §2)
+  — moving it there waits for Stage 02's real upload path, which actually
+  needs a shared package. No S3-compatible primary target has been chosen
+  yet (STATUS.md's open "Before Stage 02" input), so testing a target for
+  real requires Tyler to pick a provider and add its keys to `deploy/.env`
+  first; nothing here uploads or stores any media — that's Stage 02.
+
+## 2026-10-18 (earlier) — Screen 16b (Lock & verify): TXT records real, unlock deferred
 - **TXT records (real):** new `show_txt_records` table (migration `0002_solid_starhawk`),
   CRUD at `/studio/feed/lock-verify`. Presets `applepodcastsverify`/`verify`/
   `ai-content` (true/false) plus custom with an optional purpose. Server-side
