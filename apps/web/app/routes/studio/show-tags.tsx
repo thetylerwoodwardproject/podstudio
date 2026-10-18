@@ -5,6 +5,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
+import { Link } from "react-router";
 
 // Screen 16 (Show tags). Per README: "RSS 2.0/iTunes fields plus Podcasting 2.0
 // tags... GUID is never editable or removable through a toggle." Scoped down from
@@ -290,7 +291,10 @@ export default function ShowTags({
           <div className="flex items-center justify-between text-[13px]">
             <span className="text-muted-foreground">Feed lock</span>
             <span className="font-mono text-[12.5px]">
-              {show.locked ? "locked" : "unlocked"} — managed in Lock &amp; verify (16b)
+              {show.locked ? "locked" : "unlocked"} —{" "}
+              <Link to="/studio/feed/lock-verify" className="underline hover:text-foreground">
+                manage in Lock &amp; verify
+              </Link>
             </span>
           </div>
           <p className="text-[12.5px] text-muted-foreground">
@@ -308,8 +312,12 @@ export default function ShowTags({
 
       <Separator className="my-6" />
       <p className="text-[12.5px] text-muted-foreground">
-        podroll and TXT records aren't built yet — podroll arrives in Stage 11,
-        TXT records in screen 16b (Lock &amp; verify).
+        podroll isn't built yet — it arrives in Stage 11. TXT records and feed
+        locking are in{" "}
+        <Link to="/studio/feed/lock-verify" className="underline hover:text-foreground">
+          Lock &amp; verify
+        </Link>
+        .
       </p>
     </div>
   );

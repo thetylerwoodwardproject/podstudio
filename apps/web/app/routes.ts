@@ -5,7 +5,7 @@ import { SCREENS } from "./lib/screens";
 // routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
-const REAL_SCREEN_IDS = ["01", "02", "11", "16"]; // handled explicitly below, not generated
+const REAL_SCREEN_IDS = ["01", "02", "11", "16", "16b"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
@@ -25,6 +25,7 @@ export default [
     route("episodes", "routes/studio/episodes.tsx"),
     route("episodes/:id", "routes/studio/episode-detail.tsx", { id: "screen-11" }),
     route("feed/tags", "routes/studio/show-tags.tsx", { id: "screen-16" }),
+    route("feed/lock-verify", "routes/studio/lock-verify.tsx", { id: "screen-16b" }),
     ...studioScreens.map((s) =>
       route(stripPrefix(s.path, "/studio/"), PLACEHOLDER, { id: `screen-${s.id}` }),
     ),

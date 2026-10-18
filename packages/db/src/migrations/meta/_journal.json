@@ -15,6 +15,13 @@
       "when": 1792345996220,
       "tag": "0001_yummy_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792354215168,
+      "tag": "0002_solid_starhawk",
+      "breakpoints": true
     }
   ]
 }

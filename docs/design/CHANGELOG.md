@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-18 (latest) — Screen 16b (Lock & verify): TXT records real, unlock deferred
+- **TXT records (real):** new `show_txt_records` table (migration `0002_solid_starhawk`),
+  CRUD at `/studio/feed/lock-verify`. Presets `applepodcastsverify`/`verify`/
+  `ai-content` (true/false) plus custom with an optional purpose. Server-side
+  validation: purpose ≤ 128 chars, value required and ≤ 4000 chars. Per README,
+  the `ai-content` per-episode override belongs on Episode details (11), not
+  here — not built.
+- **Feed lock (half real):** locking (`shows.locked` → 1) needs no email, so
+  it's real — a "Lock now" button when currently unlocked. Unlocking is
+  deliberately NOT built: the spec gates it behind a verified owner email and
+  a 6-digit code sent to it, and this build still has no email delivery
+  (STATUS.md's open "Outstanding input" since Stage 01). The unlock button
+  renders disabled with that explanation. No audit log table yet either — it
+  arrives with the real unlock flow, since there's nothing to log besides
+  "locked" until then.
+- **Not built:** the live feed preview (no feed XML renderer exists at any
+  stage yet), and the worker job that's supposed to auto-re-lock an expired
+  unlock (moot without a working unlock).
+- Verified against the production container: sign in, add a TXT record,
+  confirmed it persists in the actual SQLite file, removed it, locked the
+  feed, confirmed the unlock button is disabled, confirmed Show tags (16)
+  links to and reflects this screen. Test data cleaned up afterward — the show
+  ends this session unlocked with zero TXT records, same as before.
+
 ## 2026-10-18 (later still) — Fixed a real production bug: every POST was broken
 - `react-router-serve` never configures Express's `trust proxy`, so behind Caddy
   `req.protocol` always read `http` regardless of the real `X-Forwarded-Proto:

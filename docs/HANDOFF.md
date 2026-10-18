@@ -5,8 +5,9 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-18 (evening) — show tags (screen 16), a help popover,
-and a real production bug fix (every action POST was 400ing behind Caddy).
+**Last updated:** 2026-10-18 (evening) — screen 16b (Lock & verify): TXT
+records real, feed-lock toggle real, unlock deliberately deferred pending
+email delivery.
 
 ## Live right now
 
@@ -36,8 +37,9 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 01 Sign in | Real — Better Auth email/password |
 | 02 Episodes | Real — seeded SQLite, paginated table, status badges |
 | 11 Episode details | Real — edit/delete at `/studio/episodes/:id` |
-| 16 Show tags | Real — RSS/iTunes + a subset of Podcasting 2.0 tags at `/studio/feed/tags`, linked from Episodes. `person`/`podroll`/TXT records deliberately not here (see that screen's own comment) |
-| everything else (32 screens) | Placeholder route only, zero feature logic |
+| 16 Show tags | Real — RSS/iTunes + a subset of Podcasting 2.0 tags at `/studio/feed/tags`, linked from Episodes. `person`/`podroll` deliberately not here; TXT records moved to 16b |
+| 16b Lock & verify | Half real, at `/studio/feed/lock-verify` — TXT records CRUD and locking the feed are real; unlocking is deliberately not built (needs a verified owner email + emailed 6-digit code; no email delivery exists yet) |
+| everything else (31 screens) | Placeholder route only, zero feature logic |
 
 **None of this is a passed BUILD_PLAN stage.** PREBUILD is still current per
 `docs/design/STATUS.md` — its actual proofs (OPFS capture+crash-recovery

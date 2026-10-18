@@ -150,6 +150,28 @@ export const shows = sqliteTable("shows", {
     .default(sql`(unixepoch('now','subsec')*1000)`),
 });
 
+// Show-level TXT records for screen 16b (Lock & verify). Per README: presets
+// `applepodcastsverify`/`verify`/`ai-content`/custom, purpose optional (a bare
+// `<podcast:txt>value</podcast:txt>` with no `purpose` attribute is valid),
+// purpose <= 128 chars and value <= 4000 chars enforced in the route action.
+// Per-episode TXT records (the `ai-content` per-episode override) belong on
+// Episode details (11), not here — not built yet.
+export const showTxtRecords = sqliteTable(
+  "show_txt_records",
+  {
+    id: text("id").primaryKey(),
+    showId: text("show_id")
+      .notNull()
+      .references(() => shows.id),
+    purpose: text("purpose"),
+    value: text("value").notNull(),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`(unixepoch('now','subsec')*1000)`),
+  },
+  (t) => [index("show_txt_records_show_idx").on(t.showId)],
+);
+
 export const people = sqliteTable("people", {
   id: text("id").primaryKey(),
   showId: text("show_id")
