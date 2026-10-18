@@ -110,6 +110,12 @@ export default function EpisodesRoute({
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Episodes</h1>
         </div>
+        <Link
+          to="/studio/feed/tags"
+          className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Edit show details
+        </Link>
       </div>
 
       <div className="overflow-hidden rounded-[14px] border border-border bg-card">

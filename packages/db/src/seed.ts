@@ -32,6 +32,11 @@ function seed() {
       website: null,
       ownerEmail: "tyler@fullymodulated.com",
       timezone: "America/Chicago",
+      description:
+        "Two voices, one mic, and whatever sports story won't leave us alone this week.",
+      language: "en",
+      explicit: 0,
+      podcastTags: null,
       settings: null,
       theme: null,
       shortStyle: null,

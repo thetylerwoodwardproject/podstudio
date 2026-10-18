@@ -56,7 +56,7 @@ export const SCREENS: ScreenDef[] = [
 
   // Podcast hosting
   { id: "15", label: "Feed overview", path: "/studio/feed", area: "studio", section: "Podcast hosting", inSidebar: true, real: false },
-  { id: "16", label: "Show tags", path: "/studio/feed/tags", area: "studio", section: "Podcast hosting", inSidebar: false, real: false },
+  { id: "16", label: "Show tags", path: "/studio/feed/tags", area: "studio", section: "Podcast hosting", inSidebar: false, real: true },
   { id: "16b", label: "Lock & verify", path: "/studio/feed/lock-verify", area: "studio", section: "Podcast hosting", inSidebar: false, real: false },
   { id: "17", label: "Storage", path: "/studio/storage", area: "studio", section: "Podcast hosting", inSidebar: true, real: false },
   { id: "17b", label: "Move podcast", path: "/studio/storage/move", area: "studio", section: "Podcast hosting", inSidebar: false, real: false },

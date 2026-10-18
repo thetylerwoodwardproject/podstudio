@@ -133,6 +133,15 @@ export const shows = sqliteTable("shows", {
   website: text("website"),
   ownerEmail: text("owner_email").notNull(),
   timezone: text("timezone").notNull().default("UTC"),
+  // Core RSS 2.0 / iTunes fields — added for screen 16 (Show tags). Podcasting 2.0
+  // extension tags that don't need their own columns yet (funding, value, medium,
+  // trailer, updateFrequency, license) live in `podcastTags` json below. `person`
+  // belongs on the `people` table (already modeled), `podroll` is Stage 11, and
+  // `txt` records are screen 16b's own flow — none of those three live here.
+  description: text("description"),
+  language: text("language").notNull().default("en"),
+  explicit: integer("explicit").notNull().default(0),
+  podcastTags: text("podcast_tags", { mode: "json" }),
   settings: text("settings", { mode: "json" }),
   theme: text("theme", { mode: "json" }),
   shortStyle: text("short_style", { mode: "json" }),

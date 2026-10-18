@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-18 (later) — Show tags (screen 16)
+- `/studio/feed/tags`, linked from Episodes ("Edit show details"). Real RSS 2.0/
+  iTunes fields (title, description, website, language, explicit) plus a scoped
+  subset of Podcasting 2.0 tags (funding, value, medium, trailer, update
+  frequency, license) stored in a new `shows.podcastTags` json column.
+- Added `shows.description`, `shows.language`, `shows.explicit` columns — core
+  RSS fields the compressed schema had simply omitted. Additive migration
+  (`0001_yummy_famine.sql`), no reset needed this time (plain `ADD COLUMN`s).
+- Deliberately not here, per README's own screen split: `person` (belongs on the
+  already-modeled `people` table, not duplicated), `podroll` (Stage 11), TXT
+  records (screen 16b, Lock & verify). `podcast:guid` and lock status are shown
+  read-only with an explicit "never editable here" note — BUILD_PLAN's GUID
+  non-negotiable #1.
+- Verified: sign in, load the form, save (checked the DB row and the JSON blob),
+  reload and confirm every field — including the checkbox — repopulates from
+  what was actually saved. Production build clean.
+
 ## 2026-10-18 — Real sign-in gate + episode details (not a stage pass)
 - **Auth (screen 01):** Better Auth (`better-auth` 1.7.10), Drizzle SQLite adapter, email/password only. `/studio/*` now actually requires a session — `apps/web/app/routes/studio/_layout.tsx`'s loader is the gate, redirecting to `/login`. This is deliberately short of Stage 01's full scope: email verification, password reset and invite redemption all need email delivery, which is still an open "Outstanding input" — `requireEmailVerification: false`, one seeded admin, no reset flow. Revisit when email delivery is chosen.
 - Schema change: generated Better Auth's adapter tables with `@better-auth/cli generate` (pointed at `apps/web/app/lib/auth.server.ts`) using `usePlural: true` so they read `users`/`sessions`/`accounts`/`verifications`, matching BUILD_PLAN §4's naming convention instead of Better Auth's singular default. This **replaced** the earlier hand-rolled `users` table (which only had id/email/emailVerifiedAt/name/role) with Better Auth's real shape (adds image/updatedAt, emailVerified as boolean not a timestamp) plus a `role` additionalField (admin/editor), set server-side only (`input: false` — the public sign-up API can't set it). One identity table, not two.
