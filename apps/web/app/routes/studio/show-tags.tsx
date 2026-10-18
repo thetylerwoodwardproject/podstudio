@@ -23,6 +23,71 @@ interface PodcastTags {
   license?: string;
 }
 
+// Controlled vocabularies from the Podcast Namespace spec — these are dropdowns,
+// not free text, because the field only means something to apps/directories if
+// it's one of these values. `valueAddress`, `fundingUrl`/`fundingMessage` and
+// `trailerUrl` stay free text because they're genuinely user-specific.
+const VALUE_TYPE_OPTIONS = ["lightning"];
+const VALUE_METHOD_OPTIONS = ["keysend", "lnaddress"];
+const MEDIUM_OPTIONS = [
+  "podcast",
+  "music",
+  "video",
+  "film",
+  "audiobook",
+  "newsletter",
+  "blog",
+];
+const UPDATE_FREQUENCY_OPTIONS = [
+  "daily",
+  "weekly",
+  "biweekly",
+  "monthly",
+  "yearly",
+  "adhoc",
+];
+const LICENSE_OPTIONS = [
+  "cc-by",
+  "cc-by-nc",
+  "cc-by-nd",
+  "cc-by-sa",
+  "cc-by-nc-nd",
+  "cc-by-nc-sa",
+  "cc0",
+  "all-rights-reserved",
+];
+
+function SelectField({
+  id,
+  label,
+  defaultValue,
+  options,
+}: {
+  id: string;
+  label: string;
+  defaultValue?: string;
+  options: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        name={id}
+        defaultValue={defaultValue ?? ""}
+        className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        <option value="">Not set</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export async function loader() {
   const show = db.select().from(shows).get();
   if (!show) throw new Response("No show seeded yet", { status: 404 });
@@ -136,14 +201,18 @@ export default function ShowTags({
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="valueType">Value type</Label>
-              <Input id="valueType" name="valueType" placeholder="lightning" defaultValue={tags.valueType ?? ""} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="valueMethod">Value method</Label>
-              <Input id="valueMethod" name="valueMethod" placeholder="keysend" defaultValue={tags.valueMethod ?? ""} />
-            </div>
+            <SelectField
+              id="valueType"
+              label="Value type"
+              defaultValue={tags.valueType}
+              options={VALUE_TYPE_OPTIONS}
+            />
+            <SelectField
+              id="valueMethod"
+              label="Value method"
+              defaultValue={tags.valueMethod}
+              options={VALUE_METHOD_OPTIONS}
+            />
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="valueAddress">Value address</Label>
               <Input id="valueAddress" name="valueAddress" defaultValue={tags.valueAddress ?? ""} />
@@ -151,10 +220,12 @@ export default function ShowTags({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="medium">Medium</Label>
-              <Input id="medium" name="medium" placeholder="podcast" defaultValue={tags.medium ?? ""} />
-            </div>
+            <SelectField
+              id="medium"
+              label="Medium"
+              defaultValue={tags.medium}
+              options={MEDIUM_OPTIONS}
+            />
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="trailerUrl">Trailer URL</Label>
               <Input id="trailerUrl" name="trailerUrl" type="url" defaultValue={tags.trailerUrl ?? ""} />
@@ -162,14 +233,18 @@ export default function ShowTags({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="updateFrequency">Update frequency</Label>
-              <Input id="updateFrequency" name="updateFrequency" placeholder="weekly" defaultValue={tags.updateFrequency ?? ""} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="license">License</Label>
-              <Input id="license" name="license" defaultValue={tags.license ?? ""} />
-            </div>
+            <SelectField
+              id="updateFrequency"
+              label="Update frequency"
+              defaultValue={tags.updateFrequency}
+              options={UPDATE_FREQUENCY_OPTIONS}
+            />
+            <SelectField
+              id="license"
+              label="License"
+              defaultValue={tags.license}
+              options={LICENSE_OPTIONS}
+            />
           </div>
         </section>
 
