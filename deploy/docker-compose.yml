@@ -15,8 +15,10 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+      - "8081:8081" # bootstrap-only: fetch the internal CA root before it's trusted
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/ca:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

@@ -11,3 +11,4 @@ data/*.db-*
 .DS_Store
 .vite
 build/
+deploy/certs/

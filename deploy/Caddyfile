@@ -8,3 +8,15 @@ studio.tylerwoodward.me {
 
 	reverse_proxy web:3000
 }
+
+# Plain HTTP, reachable only by raw LAN IP (http://<server-ip>:8081/podstudio-ca-root.crt).
+# Exists purely so a browser can fetch Caddy's internal CA root to trust it — if
+# tylerwoodward.me has HSTS with includeSubDomains, Chrome will refuse to even show
+# a "proceed anyway" option for studio.tylerwoodward.me until that root is trusted,
+# and it can't fetch the cert *from* that hostname to break the chicken-and-egg. A
+# bare IP:port isn't covered by that HSTS policy, so this works as the bootstrap.
+# Safe to remove once the cert is installed on every device that needs it.
+:8081 {
+	root * /ca
+	file_server
+}
