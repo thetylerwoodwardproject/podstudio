@@ -4,6 +4,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
+import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
 
 // Screen 16 (Show tags). Per README: "RSS 2.0/iTunes fields plus Podcasting 2.0
 // tags... GUID is never editable or removable through a toggle." Scoped down from
@@ -185,9 +186,41 @@ export default function ShowTags({
         </section>
 
         <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            Podcasting 2.0 (subset)
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted-foreground">
+              Podcasting 2.0 (subset)
+            </h2>
+            <HelpPopover label="Podcasting 2.0 tags">
+              <HelpTerm term="funding">
+                A link + message inviting listeners to support the show financially
+                (Patreon, a donation page, etc.).
+              </HelpTerm>
+              <HelpTerm term="value">
+                "Value4Value" micropayments over the Lightning Network. Type is
+                always <code>lightning</code> today; method is how the payment is
+                routed (<code>keysend</code> sends directly to a node,{" "}
+                <code>lnaddress</code> uses a human-readable address like an
+                email); address is your actual node pubkey or lightning address.
+              </HelpTerm>
+              <HelpTerm term="medium">
+                What kind of show this is — affects how podcast apps categorize
+                and display it. Most shows are <code>podcast</code>.
+              </HelpTerm>
+              <HelpTerm term="trailer URL">
+                A short preview episode's media URL, for apps that show a trailer
+                before someone subscribes.
+              </HelpTerm>
+              <HelpTerm term="update frequency">
+                How often you publish — lets apps know how often to check for new
+                episodes instead of polling constantly.
+              </HelpTerm>
+              <HelpTerm term="license">
+                The content license listeners and other apps must follow when
+                reusing your audio (e.g. Creative Commons variants, or "all
+                rights reserved").
+              </HelpTerm>
+            </HelpPopover>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
