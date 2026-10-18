@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.turbo
+*.log
+.env
+.env.*
+!.env.example
+data/*.db
+data/*.db-*
+.DS_Store
+.vite
+build/

@@ -1,0 +1,50 @@
+# Tonight's scope: caddy + web + worker, sharing one SQLite file on a named
+# volume. Deliberately NOT included yet (see CHANGELOG + STATUS):
+#   - litestream: no off-site backup target has been chosen (BUILD_PLAN §7,
+#     "Before Stage 00: independent off-site backup target"). Add its service
+#     here once that target exists — don't wire it to nowhere just to look done.
+#   - minio / S3: no storage target chosen yet (Stage 02).
+#   - livekit: Stage 08.
+name: podstudio
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      PODSTUDIO_DB_PATH: /data/podstudio.db
+    volumes:
+      - podstudio_data:/data
+    expose:
+      - "3000"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      PODSTUDIO_DB_PATH: /data/podstudio.db
+    volumes:
+      - podstudio_data:/data
+
+volumes:
+  podstudio_data:
+  caddy_data:
+  caddy_config:

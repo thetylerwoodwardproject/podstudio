@@ -1,0 +1,10 @@
+# studio.tylerwoodward.me is internal-DNS-only (resolves via 192.168.2.2 to this
+# host's LAN IP; no public A record). Public ACME would fail/rate-limit against
+# a name Let's Encrypt can't reach, so this uses Caddy's internal CA instead.
+# Browsers will warn once until you trust that local CA — fine for tonight;
+# revisit if/when this gets a real public hostname.
+studio.tylerwoodward.me {
+	tls internal
+
+	reverse_proxy web:3000
+}

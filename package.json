@@ -1,0 +1,18 @@
+{
+  "name": "podstudio",
+  "private": true,
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:seed": "pnpm --filter @podstudio/db run seed",
+    "db:migrate": "pnpm --filter @podstudio/db run migrate",
+    "db:generate": "pnpm --filter @podstudio/db run generate"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  }
+}

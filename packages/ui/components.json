@@ -1,0 +1,13 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": { "config": "", "css": "globals.css", "baseColor": "zinc", "cssVariables": true },
+  "iconLibrary": "lucide",
+  "aliases": { "components": "@/components", "ui": "@/components/ui", "lib": "@/lib", "hooks": "@/hooks", "utils": "@/lib/utils" },
+  "registries": {
+    "@audiocn": "https://audiocn.dev/r/{name}.json",
+    "@elevenlabs": "https://ui.elevenlabs.io/r/{name}.json"
+  }
+}

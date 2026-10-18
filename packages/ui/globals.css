@@ -1,0 +1,93 @@
+/* Podstudio theme for shadcn/ui (Tailwind v4). Dark-first; the guest join page and mobile app use .theme-paper. */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root, .dark {
+  --radius: 0.5rem;            /* 8px buttons/inputs; cards use radius-xl (14px) */
+  --background: #111113;       /* app canvas */
+  --foreground: #ecebe6;
+  --card: #151517;             /* sidebar, panels, inspector */
+  --card-foreground: #ecebe6;
+  --popover: #1d1d21;
+  --popover-foreground: #ecebe6;
+  --primary: #ecebe6;          /* primary buttons are bone-on-graphite */
+  --primary-foreground: #111113;
+  --secondary: #1d1d21;
+  --secondary-foreground: #ecebe6;
+  --muted: #1d1d21;
+  --muted-foreground: #8f8e88;
+  --accent: #1f1f24;
+  --accent-foreground: #ecebe6;
+  --destructive: #e5484d;      /* tally red: ONLY for recording / destructive */
+  --border: #26262b;
+  --input: #2e2e34;
+  --ring: #ecebe6;
+  --sidebar: #151517;
+  --sidebar-foreground: #ecebe6;
+  --sidebar-accent: #1f1f24;
+  --sidebar-border: #26262b;
+  /* Podstudio extras */
+  --speaker-host: #e8b04a;     /* amber: host everywhere (waveform, tile ring, name tag, transcript) */
+  --speaker-guest: #6fc3c9;    /* teal: guest */
+  --speaker-music: #b49ae6;
+  --ok: #7fd69a;               /* connected, level OK, switch on */
+  --surface-deep: #0b0b0d;     /* video monitor, prompter */
+  --chart-1: #e8b04a; --chart-2: #6fc3c9; --chart-3: #b49ae6; --chart-4: #7fd69a; --chart-5: #8f8e88;
+}
+
+.theme-paper {
+  --background: #f3f1ec;
+  --foreground: #1b1a18;
+  --card: #ffffff;
+  --card-foreground: #1b1a18;
+  --primary: #1b1a18;
+  --primary-foreground: #f3f1ec;
+  --muted: #e9e6df;
+  --muted-foreground: #6b6963;
+  --border: #dcd8cf;
+  --input: #d3cfc5;
+  --ring: #1b1a18;
+}
+
+@theme inline {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-host: var(--speaker-host);
+  --color-guest: var(--speaker-guest);
+  --color-music: var(--speaker-music);
+  --color-ok: var(--ok);
+  --color-deep: var(--surface-deep);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+}
