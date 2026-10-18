@@ -1,5 +1,6 @@
-# Tonight's scope: caddy + web + worker, sharing one SQLite file on a named
-# volume. Deliberately NOT included yet (see CHANGELOG + STATUS):
+# caddy + web + worker, sharing one SQLite file on a named volume. web needs
+# deploy/.env (see .env.example — BETTER_AUTH_SECRET, PODSTUDIO_ADMIN_PASSWORD).
+# Deliberately NOT included yet (see CHANGELOG + STATUS):
 #   - litestream: no off-site backup target has been chosen (BUILD_PLAN §7,
 #     "Before Stage 00: independent off-site backup target"). Add its service
 #     here once that target exists — don't wire it to nowhere just to look done.
@@ -31,6 +32,9 @@ services:
     restart: unless-stopped
     environment:
       PODSTUDIO_DB_PATH: /data/podstudio.db
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set this in deploy/.env — see .env.example}
+      BETTER_AUTH_URL: https://studio.tylerwoodward.me
+      PODSTUDIO_ADMIN_PASSWORD: ${PODSTUDIO_ADMIN_PASSWORD:?set this in deploy/.env — see .env.example}
     volumes:
       - podstudio_data:/data
     expose:

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
   Mic,
   LayoutList,
@@ -11,9 +11,11 @@ import {
   BarChart3,
   Settings,
   Command,
+  LogOut,
 } from "lucide-react";
 import { sidebarScreens } from "~/lib/screens";
 import { cn } from "~/lib/utils";
+import { signOut } from "~/lib/auth-client";
 import { CommandPalette } from "./command-palette";
 
 // One icon per sidebar section, matching Stage-00's "sidebar with Podcast hosting
@@ -30,10 +32,16 @@ const SECTION_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   "Storage": HardDrive,
 };
 
-export function StudioShell() {
+export function StudioShell({ user }: { user: { name: string; email: string } }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const groups = sidebarScreens();
+
+  async function handleSignOut() {
+    await signOut();
+    navigate("/login");
+  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -89,16 +97,27 @@ export function StudioShell() {
               .flatMap((g) => g.screens)
               .find((s) => s.path === location.pathname)?.label ?? "Podstudio"}
           </span>
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="flex items-center gap-2 rounded-lg border border-input bg-card px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent"
-          >
-            <Command className="h-3.5 w-3.5" />
-            <span>Command menu</span>
-            <kbd className="rounded border border-border bg-background px-1 font-mono text-[11px]">
-              ⌘K
-            </kbd>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-input bg-card px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent"
+            >
+              <Command className="h-3.5 w-3.5" />
+              <span>Command menu</span>
+              <kbd className="rounded border border-border bg-background px-1 font-mono text-[11px]">
+                ⌘K
+              </kbd>
+            </button>
+            <button
+              onClick={handleSignOut}
+              aria-label={`Sign out of ${user.email}`}
+              title={user.email}
+              className="flex items-center gap-1.5 rounded-lg border border-input bg-card px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>{user.name}</span>
+            </button>
+          </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />

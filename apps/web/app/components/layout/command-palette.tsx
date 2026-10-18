@@ -20,13 +20,18 @@ export function CommandPalette({
     if (!open) setQuery("");
   }, [open]);
 
+  // Dynamic routes (e.g. episode details' /studio/episodes/:id) have no single
+  // destination to jump to — leave them out of the palette rather than navigate
+  // to a literal ":id".
+  const navigable = useMemo(() => SCREENS.filter((s) => !s.path.includes(":")), []);
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SCREENS.slice(0, 8);
-    return SCREENS.filter(
-      (s) => s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
-    ).slice(0, 8);
-  }, [query]);
+    if (!q) return navigable.slice(0, 8);
+    return navigable
+      .filter((s) => s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [query, navigable]);
 
   if (!open) return null;
 

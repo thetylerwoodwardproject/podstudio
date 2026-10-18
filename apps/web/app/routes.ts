@@ -2,16 +2,17 @@ import { type RouteConfig, route, index } from "@react-router/dev/routes";
 import { SCREENS } from "./lib/screens";
 
 // Every screen id gets a route (Stage-00: "all 36 screen ids have placeholder
-// routes"). Screen 02 (Episodes) is the only one built with real data tonight;
+// routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
+const REAL_SCREEN_IDS = ["01", "02", "11"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
 }
 
 const studioScreens = SCREENS.filter(
-  (s) => s.area === "studio" && s.id !== "02" && s.id !== "01",
+  (s) => s.area === "studio" && !REAL_SCREEN_IDS.includes(s.id),
 );
 const guestScreens = SCREENS.filter((s) => s.area === "guest");
 const mobileScreens = SCREENS.filter((s) => s.area === "mobile");
@@ -22,12 +23,14 @@ export default [
 
   route("studio", "routes/studio/_layout.tsx", [
     route("episodes", "routes/studio/episodes.tsx"),
+    route("episodes/:id", "routes/studio/episode-detail.tsx", { id: "screen-11" }),
     ...studioScreens.map((s) =>
       route(stripPrefix(s.path, "/studio/"), PLACEHOLDER, { id: `screen-${s.id}` }),
     ),
   ]),
 
-  route("login", PLACEHOLDER, { id: "screen-01" }),
+  route("api/auth/*", "routes/api.auth.$.ts"),
+  route("login", "routes/login.tsx", { id: "screen-01" }),
   ...guestScreens.map((s) =>
     route(stripPrefix(s.path, "/"), PLACEHOLDER, { id: `screen-${s.id}` }),
   ),

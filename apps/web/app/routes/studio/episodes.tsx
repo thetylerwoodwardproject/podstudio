@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
 import { db, episodes, shows, people, episodePeople } from "@podstudio/db";
 import { eq, desc } from "drizzle-orm";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -145,7 +146,12 @@ export default function EpisodesRoute({
                       {ep.number}
                     </div>
                     <div>
-                      <div className="font-medium text-foreground">{ep.title}</div>
+                      <Link
+                        to={`/studio/episodes/${ep.id}`}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {ep.title}
+                      </Link>
                       <div className="text-[12.5px] text-muted-foreground">
                         {ep.guest ? `with ${ep.guest}` : "Solo"}
                       </div>

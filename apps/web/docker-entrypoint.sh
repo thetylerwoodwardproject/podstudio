@@ -8,6 +8,7 @@ if [ ! -f "$PODSTUDIO_DB_PATH" ]; then
   echo "[web] no database found at $PODSTUDIO_DB_PATH — migrating + seeding"
   (cd /repo/packages/db && pnpm exec tsx src/migrate.ts)
   (cd /repo/packages/db && pnpm exec tsx src/seed.ts)
+  (cd /repo/apps/web && pnpm exec tsx scripts/seed-admin.ts)
 fi
 
 exec pnpm exec react-router-serve ./build/server/index.js

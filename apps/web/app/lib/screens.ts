@@ -46,7 +46,7 @@ export const SCREENS: ScreenDef[] = [
   { id: "08", label: "Editor", path: "/studio/editor", area: "studio", section: "Edit", inSidebar: true, real: false },
   { id: "09", label: "Retake cleanup", path: "/studio/editor/retakes", area: "studio", section: "Edit", inSidebar: false, real: false },
   { id: "10", label: "Transcript", path: "/studio/editor/transcript", area: "studio", section: "Edit", inSidebar: false, real: false },
-  { id: "11", label: "Episode details", path: "/studio/episodes/detail", area: "studio", section: "Edit", inSidebar: false, real: false },
+  { id: "11", label: "Episode details", path: "/studio/episodes/:id", area: "studio", section: "Edit", inSidebar: false, real: true },
   { id: "12", label: "Export", path: "/studio/export", area: "studio", section: "Edit", inSidebar: false, real: false },
 
   // Publish & share
