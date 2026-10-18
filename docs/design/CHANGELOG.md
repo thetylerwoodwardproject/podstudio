@@ -1,6 +1,23 @@
 # Changelog
 
-## 2026-10-18 (latest) — Real bug: two sidebar links silently failed to navigate
+## 2026-10-18 (latest) — Screen 15 (Feed overview): real counts/table, analytics honestly deferred
+- `/studio/feed`: episode-status counts (recording/editing/scheduled/
+  published) and a 5-row recent-episodes table are real, from
+  `feed.server.ts` queries against the actual episodes table. Quick links to
+  Show tags, Lock & verify and Storage.
+- README's "Cards for downloads/listeners, Chart (Recharts)" are explicitly
+  NOT built: no OP3 integration exists, and `analytics_daily` (BUILD_PLAN
+  §4) is a Stage 11 table that hasn't been created. That section of the
+  screen is one sentence saying so, not a chart with zero/fake data or
+  Recharts installed to render nothing real — same "never ship
+  working-looking placeholder behind real controls" rule CLAUDE.md states
+  for DSP, generalized to analytics.
+- Followed the `.server.ts`-only-access pattern from the bug fixed just
+  below this entry from the start, rather than writing the direct-db-import
+  version and having to fix it again: `feed-overview.tsx` imports nothing
+  from `@podstudio/db`.
+
+## 2026-10-18 (earlier) — Real bug: two sidebar links silently failed to navigate
 - Tyler reported the Storage link "goes nowhere" (a hard refresh didn't fix
   it, ruling out a stale-client-bundle theory I tried first). Root cause,
   found by driving a real headless browser (Playwright against a cached

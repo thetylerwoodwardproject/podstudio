@@ -55,7 +55,7 @@ export const SCREENS: ScreenDef[] = [
   { id: "14", label: "Publish to feed", path: "/studio/publish", area: "studio", section: "Publish & share", inSidebar: false, real: false },
 
   // Podcast hosting
-  { id: "15", label: "Feed overview", path: "/studio/feed", area: "studio", section: "Podcast hosting", inSidebar: true, real: false },
+  { id: "15", label: "Feed overview", path: "/studio/feed", area: "studio", section: "Podcast hosting", inSidebar: true, real: true, note: "Episode counts + recent-episodes table are real; downloads/listeners need OP3 (Stage 11), deferred honestly rather than faked" },
   { id: "16", label: "Show tags", path: "/studio/feed/tags", area: "studio", section: "Podcast hosting", inSidebar: false, real: true },
   { id: "16b", label: "Lock & verify", path: "/studio/feed/lock-verify", area: "studio", section: "Podcast hosting", inSidebar: false, real: true, note: "TXT records real; unlock deferred until email delivery is chosen" },
   { id: "17", label: "Storage", path: "/studio/storage", area: "studio", section: "Podcast hosting", inSidebar: true, real: true, note: "Target config, test-connection and routing are real; nothing uploads to them yet (Stage 02)" },

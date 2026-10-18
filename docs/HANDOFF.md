@@ -5,12 +5,9 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-18 (night) — fixed a real bug: the Storage and
-Episode details sidebar links silently failed to navigate (a route file
-rendering a `@podstudio/db`-exported array client-side pulled drizzle-orm's
-runtime into the browser, where it threw). See CHANGELOG for the mechanism
-and the fix pattern — relevant to any future screen that needs an
-enum/option list from the db package.
+**Last updated:** 2026-10-18 (night) — screen 15 (Feed overview): real
+episode-status counts and a recent-episodes table; downloads/listeners are
+an honest "not available yet" note, not faked numbers (needs OP3, Stage 11).
 
 ## Live right now
 
@@ -40,10 +37,11 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 01 Sign in | Real — Better Auth email/password |
 | 02 Episodes | Real — seeded SQLite, paginated table, status badges |
 | 11 Episode details | Real — edit/delete at `/studio/episodes/:id` |
+| 15 Feed overview | Half real, at `/studio/feed` — episode-status counts and a recent-episodes table are real DB queries. Downloads/listeners cards + chart are explicitly "not available yet" rather than fabricated — no OP3 integration or `analytics_daily` table exists (Stage 11) |
 | 16 Show tags | Real — RSS/iTunes + a subset of Podcasting 2.0 tags at `/studio/feed/tags`, linked from Episodes. `person`/`podroll` deliberately not here; TXT records moved to 16b |
 | 16b Lock & verify | Half real, at `/studio/feed/lock-verify` — TXT records CRUD and locking the feed are real; unlocking is deliberately not built (needs a verified owner email + emailed 6-digit code; no email delivery exists yet) |
 | 17 Storage | Real config/routing, at `/studio/storage` — add/remove S3-compatible targets, a real test-connection (HeadBucket call), and routing raw/exports/feed-media to a target. Access/secret keys are entered through the screen's own form and stored server-side in the DB (never echoed back to the browser), not in `deploy/.env`. Nothing uploads to a target yet — that's Stage 02 |
-| everything else (30 screens) | Placeholder route only, zero feature logic |
+| everything else (29 screens) | Placeholder route only, zero feature logic |
 
 **None of this is a passed BUILD_PLAN stage.** PREBUILD is still current per
 `docs/design/STATUS.md` — its actual proofs (OPFS capture+crash-recovery
