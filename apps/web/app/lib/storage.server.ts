@@ -1,40 +1,25 @@
 import { S3Client, HeadBucketCommand } from "@aws-sdk/client-s3";
 import type { storageTargets } from "@podstudio/db";
 
-// Server-only: real S3 credentials live in env vars named by `keyRef`, never
-// in the database or the browser (CLAUDE.md's secrets rule, same pattern as
-// BETTER_AUTH_SECRET/PODSTUDIO_ADMIN_PASSWORD). A target's `keyRef` of
-// "primary" expects PODSTUDIO_S3_PRIMARY_ACCESS_KEY_ID and
-// PODSTUDIO_S3_PRIMARY_SECRET_ACCESS_KEY in deploy/.env.
-function envNames(keyRef: string) {
-  const upper = keyRef.toUpperCase().replace(/-/g, "_");
-  return {
-    accessKeyId: `PODSTUDIO_S3_${upper}_ACCESS_KEY_ID`,
-    secretAccessKey: `PODSTUDIO_S3_${upper}_SECRET_ACCESS_KEY`,
-  };
-}
-
+// Server-only. Real S3 credentials are entered through the Storage screen's
+// own form and stored in `storage_targets` — never in deploy/.env, per
+// Tyler's direction that all settings go through the real web UI. They still
+// never reach the browser after that: callers of this module only pass in a
+// full row fetched server-side, and no route ever echoes `secretAccessKey`
+// back out (see storage.tsx's loader, which selects every column except it).
 export type StorageTarget = typeof storageTargets.$inferSelect;
 
 export async function testStorageConnection(
   target: StorageTarget,
 ): Promise<{ ok: boolean; message: string }> {
-  const names = envNames(target.keyRef);
-  const accessKeyId = process.env[names.accessKeyId];
-  const secretAccessKey = process.env[names.secretAccessKey];
-
-  if (!accessKeyId || !secretAccessKey) {
-    return {
-      ok: false,
-      message: `No credentials configured for key reference "${target.keyRef}" — set ${names.accessKeyId} and ${names.secretAccessKey} in deploy/.env.`,
-    };
-  }
-
   const client = new S3Client({
     endpoint: target.endpoint ?? undefined,
     region: target.region ?? "us-east-1",
     forcePathStyle: target.provider !== "aws",
-    credentials: { accessKeyId, secretAccessKey },
+    credentials: {
+      accessKeyId: target.accessKeyId,
+      secretAccessKey: target.secretAccessKey,
+    },
   });
 
   try {

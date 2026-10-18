@@ -173,11 +173,14 @@ export const showTxtRecords = sqliteTable(
 );
 
 // Storage targets for screen 17. Per BUILD_PLAN §4: `storage_targets(id,
-// provider, endpoint, bucket, region, key_ref, routes json)`. `keyRef` is
-// never the actual secret — it names an env var pair in `deploy/.env`
-// (`PODSTUDIO_S3_<KEYREF upper>_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`), same
-// pattern as `BETTER_AUTH_SECRET`/`PODSTUDIO_ADMIN_PASSWORD` — S3 keys never
-// touch the database or the browser. `routes` lists which asset kinds this
+// provider, endpoint, bucket, region, key_ref, routes json)` — revised on
+// Tyler's direction to take real keys through the Storage screen's own form
+// instead of `deploy/.env`, so `accessKeyId`/`secretAccessKey` replace the
+// `key_ref` indirection. Still never reaches the browser after it's set: the
+// loader (storage.tsx) selects every column except `secretAccessKey`, and no
+// route ever echoes it back. Not encrypted at rest — same plaintext-at-rest
+// posture as `deploy/.env`'s own secrets, appropriate for this single-tenant
+// home server, not a multi-tenant one. `routes` lists which asset kinds this
 // target currently handles; the routing-table UI keeps each kind assigned to
 // exactly one target by rewriting every target's `routes` array together.
 // `label` is a UI-only addition beyond BUILD_PLAN's first-pass columns, for
@@ -202,7 +205,8 @@ export const storageTargets = sqliteTable("storage_targets", {
   endpoint: text("endpoint"),
   bucket: text("bucket").notNull(),
   region: text("region"),
-  keyRef: text("key_ref").notNull(),
+  accessKeyId: text("access_key_id").notNull(),
+  secretAccessKey: text("secret_access_key").notNull(),
   routes: text("routes", { mode: "json" }).$type<StorageRoute[]>().notNull(),
   createdAt: integer("created_at")
     .notNull()

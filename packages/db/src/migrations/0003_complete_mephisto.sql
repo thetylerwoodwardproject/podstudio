@@ -5,7 +5,8 @@ CREATE TABLE `storage_targets` (
 	`endpoint` text,
 	`bucket` text NOT NULL,
 	`region` text,
-	`key_ref` text NOT NULL,
+	`access_key_id` text NOT NULL,
+	`secret_access_key` text NOT NULL,
 	`routes` text NOT NULL,
 	`created_at` integer DEFAULT (unixepoch('now','subsec')*1000) NOT NULL
 );

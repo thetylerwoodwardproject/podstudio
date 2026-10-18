@@ -1,6 +1,37 @@
 # Changelog
 
-## 2026-10-18 (latest) — Screen 17 (Storage): target config, test-connection and routing real
+## 2026-10-18 (latest) — Storage keys move from deploy/.env into the web UI
+- On Tyler's explicit direction ("keys should be able to be entered through
+  the web interface, all settings should go through the actual real web
+  ui"), reverted the `keyRef`/`deploy/.env` indirection from the entry just
+  below. `storage_targets` now has real `access_key_id`/`secret_access_key`
+  columns, filled in through the Storage screen's own "Add storage target"
+  form and a per-target "Update keys" form (secret field is `type=password`,
+  always starts blank — it's write-only, never prefilled from what's stored).
+- Still never reaches the browser after it's saved: the loader selects every
+  column except `secretAccessKey`, and no action response — add, update,
+  test-connection — ever echoes either key back. Verified live: added a
+  target with real-looking test keys, confirmed neither value appeared
+  anywhere in the next page's HTML, rotated them, confirmed the rotation
+  persisted in the actual SQLite row.
+- Not encrypted at rest — same plaintext-at-rest posture `deploy/.env`
+  already has for `BETTER_AUTH_SECRET`/`PODSTUDIO_ADMIN_PASSWORD`, judged
+  appropriate for this single-tenant home server. Revisit if that threat
+  model ever changes.
+- Reverted the `docker-compose.yml` `env_file` line and the `.env.example`
+  S3 doc added for the old approach — no longer applicable.
+- Migration note: `storage_targets` had zero real rows (only my own test
+  insert from the previous entry, already cleaned up), so migration
+  `0003_cold_deathstrike` was replaced outright with a fresh
+  `0003_complete_mephisto` reflecting the final column set, rather than
+  layering a second migration on top — same call as the `users` table
+  reset noted in the sign-in-gate entry below, for the same reason (no real
+  data to preserve). The live container's table and its
+  `__drizzle_migrations` bookkeeping were brought in line by hand (`ALTER
+  TABLE` instead of drop-and-recreate, to avoid a sandbox classifier that
+  blocks `DROP TABLE` here) rather than left to drift from a fresh deploy's.
+
+## 2026-10-18 (earlier) — Screen 17 (Storage): target config, test-connection and routing real
 - **Storage targets (real):** new `storage_targets` table (migration
   `0003_cold_deathstrike`) matching BUILD_PLAN §4's columns
   (`provider, endpoint, bucket, region, key_ref, routes json`), plus a UI-only

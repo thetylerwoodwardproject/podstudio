@@ -30,14 +30,6 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
-    # env_file loads whatever PODSTUDIO_S3_<KEYREF>_ACCESS_KEY_ID/
-    # _SECRET_ACCESS_KEY pairs exist for screen 17's storage targets — their
-    # names are only known once Tyler picks key references in the UI, so they
-    # can't be a fixed `environment:` entry each. The two vars below stay in
-    # `environment` (not just env_file) so compose's `:?` still fails loudly
-    # if either is missing.
-    env_file:
-      - .env
     environment:
       PODSTUDIO_DB_PATH: /data/podstudio.db
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set this in deploy/.env — see .env.example}

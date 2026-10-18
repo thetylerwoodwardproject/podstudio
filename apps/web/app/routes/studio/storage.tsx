@@ -17,14 +17,15 @@ import { Separator } from "~/components/ui/separator";
 import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
 
 // Screen 17 (Storage). Per BUILD_PLAN §4: `storage_targets(id, provider,
-// endpoint, bucket, region, key_ref, routes json)`. Real S3 access/secret
-// keys are never stored here or sent to the browser — `keyRef` only names an
-// env var pair in deploy/.env (see app/lib/storage.server.ts). "Test
-// connection" makes a real HeadBucket call rather than faking a result;
-// against an unconfigured target it honestly reports missing credentials.
-// The mockup's RadioGroup provider cards are built as plain radio inputs —
-// no shadcn RadioGroup is installed yet, same kind of practical substitution
-// as screen 02's hand-built table instead of TanStack.
+// endpoint, bucket, region, key_ref, routes json)` — revised on Tyler's
+// direction so access/secret keys are entered through this screen's own
+// form and stored in the DB, not through deploy/.env. They still never reach
+// the browser after that: the loader below selects every column except
+// `secretAccessKey`, and no action response ever echoes either key back.
+// "Test connection" makes a real HeadBucket call rather than faking a
+// result. The mockup's RadioGroup provider cards are built as plain radio
+// inputs — no shadcn RadioGroup is installed yet, same kind of practical
+// substitution as screen 02's hand-built table instead of TanStack.
 const PROVIDER_LABELS: Record<StorageProvider, string> = {
   linode: "Linode Object Storage",
   "backblaze-b2": "Backblaze B2",
@@ -40,10 +41,21 @@ const ROUTE_LABELS: Record<StorageRoute, string> = {
   feedMedia: "Feed media",
 };
 
-const KEY_REF_PATTERN = /^[a-z0-9-]+$/;
-
 export async function loader() {
-  const targets = db.select().from(storageTargets).orderBy(storageTargets.createdAt).all();
+  const targets = db
+    .select({
+      id: storageTargets.id,
+      provider: storageTargets.provider,
+      label: storageTargets.label,
+      endpoint: storageTargets.endpoint,
+      bucket: storageTargets.bucket,
+      region: storageTargets.region,
+      routes: storageTargets.routes,
+      createdAt: storageTargets.createdAt,
+    })
+    .from(storageTargets)
+    .orderBy(storageTargets.createdAt)
+    .all();
   return { targets };
 }
 
@@ -58,13 +70,13 @@ export async function action({ request }: { request: Request }) {
     const endpoint = str("endpoint");
     const bucket = str("bucket");
     const region = str("region");
-    const keyRef = str("keyRef");
+    const accessKeyId = str("accessKeyId");
+    const secretAccessKey = str("secretAccessKey");
 
     if (!label) return { error: "Label is required." };
     if (!bucket) return { error: "Bucket is required." };
-    if (!keyRef || !KEY_REF_PATTERN.test(keyRef)) {
-      return { error: "Key reference must be lowercase letters, numbers and dashes only." };
-    }
+    if (!accessKeyId) return { error: "Access key ID is required." };
+    if (!secretAccessKey) return { error: "Secret access key is required." };
     if (provider !== "aws" && !endpoint) {
       return { error: "Endpoint is required for this provider." };
     }
@@ -77,7 +89,8 @@ export async function action({ request }: { request: Request }) {
         endpoint: endpoint || null,
         bucket,
         region: region || null,
-        keyRef,
+        accessKeyId,
+        secretAccessKey,
         routes: [],
       })
       .run();
@@ -87,6 +100,20 @@ export async function action({ request }: { request: Request }) {
   if (intent === "delete-target") {
     db.delete(storageTargets).where(eq(storageTargets.id, str("id"))).run();
     return { removed: true };
+  }
+
+  if (intent === "update-keys") {
+    const id = str("id");
+    const accessKeyId = str("accessKeyId");
+    const secretAccessKey = str("secretAccessKey");
+    if (!accessKeyId) return { error: "Access key ID is required.", keysTargetId: id };
+    if (!secretAccessKey) return { error: "Secret access key is required.", keysTargetId: id };
+
+    db.update(storageTargets)
+      .set({ accessKeyId, secretAccessKey })
+      .where(eq(storageTargets.id, id))
+      .run();
+    return { keysUpdated: id };
   }
 
   if (intent === "test-connection") {
@@ -124,6 +151,8 @@ export default function Storage({
     added?: boolean;
     removed?: boolean;
     routed?: boolean;
+    keysUpdated?: string;
+    keysTargetId?: string;
     testResult?: { targetId: string; ok: boolean; message: string };
   };
 }) {
@@ -131,6 +160,7 @@ export default function Storage({
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const [provider, setProvider] = useState<StorageProvider>("minio");
+  const [editingKeysFor, setEditingKeysFor] = useState<string | null>(null);
 
   const routing: Record<StorageRoute, string> = { raw: "", exports: "", feedMedia: "" };
   for (const t of targets) {
@@ -152,17 +182,15 @@ export default function Storage({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-muted-foreground">Targets</h2>
           <HelpPopover label="Storage targets">
-            <HelpTerm term="key reference">
-              Never the actual access key — a short name pointing at an env var
-              pair in <code>deploy/.env</code> (e.g. "primary" →{" "}
-              <code>PODSTUDIO_S3_PRIMARY_ACCESS_KEY_ID</code> /{" "}
-              <code>_SECRET_ACCESS_KEY</code>). Keeps real credentials out of
-              the database.
+            <HelpTerm term="access key / secret key">
+              Entered here and stored server-side. Once saved, neither value
+              is ever sent back to the browser again — "Update keys" always
+              starts blank, it doesn't show what's currently stored.
             </HelpTerm>
             <HelpTerm term="test connection">
               Makes a real HeadBucket call against the target. Reports the
-              actual result — including "no credentials configured" — rather
-              than a canned success.
+              actual result — including a real auth failure — rather than a
+              canned success.
             </HelpTerm>
           </HelpPopover>
         </div>
@@ -174,6 +202,8 @@ export default function Storage({
             {targets.map((t) => {
               const result =
                 actionData?.testResult?.targetId === t.id ? actionData.testResult : undefined;
+              const editingKeys = editingKeysFor === t.id;
+              const keysError = actionData?.keysTargetId === t.id ? actionData.error : undefined;
               return (
                 <li key={t.id} className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
                   <div className="flex items-center justify-between gap-3 text-[13px]">
@@ -192,6 +222,14 @@ export default function Storage({
                           Test connection
                         </Button>
                       </Form>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingKeysFor(editingKeys ? null : t.id)}
+                      >
+                        Update keys
+                      </Button>
                       <Form method="post">
                         <input type="hidden" name="intent" value="delete-target" />
                         <input type="hidden" name="id" value={t.id} />
@@ -205,6 +243,44 @@ export default function Storage({
                     <p className={`text-[12.5px] ${result.ok ? "text-ok" : "text-destructive"}`}>
                       {result.message}
                     </p>
+                  )}
+                  {actionData?.keysUpdated === t.id && (
+                    <p className="text-[12.5px] text-ok">Keys updated.</p>
+                  )}
+                  {editingKeys && (
+                    <Form
+                      method="post"
+                      className="flex flex-col gap-2 rounded-md border border-border bg-background p-3"
+                      onSubmit={() => setEditingKeysFor(null)}
+                    >
+                      <input type="hidden" name="intent" value="update-keys" />
+                      <input type="hidden" name="id" value={t.id} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor={`accessKeyId-${t.id}`} className="text-[12px]">
+                            New access key ID
+                          </Label>
+                          <Input id={`accessKeyId-${t.id}`} name="accessKeyId" required />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor={`secretAccessKey-${t.id}`} className="text-[12px]">
+                            New secret access key
+                          </Label>
+                          <Input
+                            id={`secretAccessKey-${t.id}`}
+                            name="secretAccessKey"
+                            type="password"
+                            required
+                          />
+                        </div>
+                      </div>
+                      {keysError && <p className="text-[12.5px] text-destructive">{keysError}</p>}
+                      <div>
+                        <Button type="submit" size="sm" disabled={submitting}>
+                          Save keys
+                        </Button>
+                      </div>
+                    </Form>
                   )}
                 </li>
               );
@@ -270,12 +346,20 @@ export default function Storage({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="keyRef">Key reference</Label>
-            <Input id="keyRef" name="keyRef" placeholder="primary" pattern="[a-z0-9-]+" required />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="accessKeyId">Access key ID</Label>
+              <Input id="accessKeyId" name="accessKeyId" required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="secretAccessKey">Secret access key</Label>
+              <Input id="secretAccessKey" name="secretAccessKey" type="password" required />
+            </div>
           </div>
 
-          {actionData?.error && <p className="text-[13px] text-destructive">{actionData.error}</p>}
+          {actionData?.error && !actionData.keysTargetId && (
+            <p className="text-[13px] text-destructive">{actionData.error}</p>
+          )}
           {actionData?.added && <p className="text-[13px] text-ok">Added.</p>}
 
           <div>

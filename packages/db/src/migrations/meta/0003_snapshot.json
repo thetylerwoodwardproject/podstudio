@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "bd6e4506-66ff-46e9-b5c2-8ac162c869c4",
+  "id": "cb47d6ef-2a85-402e-b756-dac6e35acf5e",
   "prevId": "c353cd8c-64cc-4dc8-b60f-22c20fdd00c2",
   "tables": {
     "accounts": {
@@ -817,8 +817,15 @@
           "notNull": false,
           "autoincrement": false
         },
-        "key_ref": {
-          "name": "key_ref",
+        "access_key_id": {
+          "name": "access_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "secret_access_key": {
+          "name": "secret_access_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
