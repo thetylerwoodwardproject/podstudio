@@ -5,7 +5,7 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "node server.js",
     "typecheck": "react-router typegen && tsc",
     "seed:admin": "tsx scripts/seed-admin.ts"
   },
@@ -13,8 +13,11 @@
     "@base-ui/react": "^1.9.0",
     "@podstudio/db": "workspace:*",
     "@react-router/node": "^8.4.0",
-    "@react-router/serve": "^8.4.0",
+    "@react-router/express": "^8.4.0",
     "class-variance-authority": "^0.7.1",
+    "compression": "^1.7.5",
+    "express": "^5.1.0",
+    "morgan": "^1.10.0",
     "clsx": "^2.1.1",
     "cn": "^0.5.0",
     "isbot": "^5.1.36",

@@ -11,4 +11,4 @@ if [ ! -f "$PODSTUDIO_DB_PATH" ]; then
   (cd /repo/apps/web && pnpm exec tsx scripts/seed-admin.ts)
 fi
 
-exec pnpm exec react-router-serve ./build/server/index.js
+exec node server.js
