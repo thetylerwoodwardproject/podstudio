@@ -1,6 +1,40 @@
 # Changelog
 
-## 2026-10-18 (latest) — Screen 18 (Server settings): real user management, rest honestly deferred
+## 2026-10-18 (latest) — Screen 29 (Public page links): real social links, rest honestly scoped down
+- **Social links (real):** new `show_links` table (migration
+  `0004_ordinary_gambit`), matching BUILD_PLAN §4's columns exactly
+  (`id, show_id, platform, value, visible, position`). CRUD at
+  `/studio/public/links`: add (platform picker, one of each of the 12
+  listed platforms, enforced app-side since each show's link count is too
+  small to need a DB-level partial-unique index), toggle visible/hidden,
+  remove, reorder.
+- **Handle normalization (real):** a bare handle gets expanded to a full
+  profile URL on save for the 9 platforms with a stable 1:1 mapping
+  (`instagram`/`youtube`/`tiktok`/`bluesky`/`threads`/`x`/`facebook`/
+  `twitch`/`patreon`), plus a special case for Mastodon's
+  `@user@instance.tld` format. Discord (invite links aren't handles) and
+  LinkedIn (personal `/in/` vs. company `/company/` profiles look
+  identical as a bare handle) require a full URL instead of guessing wrong
+  — an honest limitation, not a missed case.
+- **Website:** shown read-only, linking to Show tags (16) — it's already a
+  real field there (`shows.website`); a second edit form for the same
+  column would just invite the two to disagree.
+- **Deliberate substitutions:** reordering is plain up/down buttons, not
+  dnd-kit drag-and-drop (same kind of practical substitution as screen 02's
+  hand-built table or screen 17's plain radio inputs). No per-platform
+  brand icons — lucide-react only has icons for half the 12 platforms
+  (nothing for TikTok/Bluesky/Mastodon/Threads/Discord/Patreon), so plain
+  text labels avoid an inconsistent-looking row.
+- **Not built:** the spec's "live preview" of the actual hero-link-row/
+  footer layout — that needs the public page itself (screen 25), which
+  doesn't exist at any stage yet. Host/guest personal websites+socials
+  (the `people` table's own columns) are a separate, already-deferred
+  concern, not duplicated here.
+- Followed the `.server.ts`-only-access pattern from the start (new
+  `public-links.server.ts`) — confirmed via the build output that no
+  drizzle-orm leaked into this route's client chunk (4.96 kB).
+
+## 2026-10-18 (earlier) — Screen 18 (Server settings): real user management, rest honestly deferred
 - **Users (real):** `/studio/settings/server` — list, add, change role,
   remove, entirely on the existing Better Auth `users` table. No migration
   needed. "Add user" (via `auth.api.signUpEmail`, same call `seed-admin.ts`

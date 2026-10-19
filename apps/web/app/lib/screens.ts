@@ -64,7 +64,7 @@ export const SCREENS: ScreenDef[] = [
   // Public page & embeds (admin config lives in studio; the pages themselves are public)
   { id: "27", label: "Embed players", path: "/studio/public/embeds", area: "studio", section: "Public page & embeds", inSidebar: true, real: false },
   { id: "28", label: "Player themes", path: "/studio/public/embeds/themes", area: "studio", section: "Public page & embeds", inSidebar: false, real: false },
-  { id: "29", label: "Public page links", path: "/studio/public/links", area: "studio", section: "Public page & embeds", inSidebar: false, real: false },
+  { id: "29", label: "Public page links", path: "/studio/public/links", area: "studio", section: "Public page & embeds", inSidebar: true, real: true, note: "Social links CRUD + reordering (plain up/down, not dnd-kit) are real; website is read-only here (edit in 16); live preview deferred (needs public page 25, not built)" },
   { id: "29b", label: "Brand & theme", path: "/studio/public/brand", area: "studio", section: "Public page & embeds", inSidebar: false, real: false },
   { id: "25", label: "Public show page", path: "/public/show", area: "public", section: "Public page & embeds", inSidebar: false, real: false },
   { id: "26", label: "Episode page on a phone", path: "/public/episode-phone", area: "public", section: "Public page & embeds", inSidebar: false, real: false },

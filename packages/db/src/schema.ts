@@ -213,6 +213,45 @@ export const storageTargets = sqliteTable("storage_targets", {
     .default(sql`(unixepoch('now','subsec')*1000)`),
 });
 
+// Social links for screen 29 (Public page links). Per BUILD_PLAN §4:
+// `show_links(id, show_id, platform, value, visible, position)`. `platform`
+// is one of a fixed list (each used at most once per show, enforced in the
+// route action, not a DB constraint — SQLite's partial-unique-index support
+// would need its own migration decision, and a single show's link count is
+// small enough that an app-level check is fine). Host/guest personal
+// websites+socials (the `people` table's own `website`/`socials` columns)
+// are a separate, already-deferred concern — this table is show-level only.
+export const showLinkPlatforms = [
+  "instagram",
+  "youtube",
+  "tiktok",
+  "bluesky",
+  "mastodon",
+  "threads",
+  "x",
+  "facebook",
+  "discord",
+  "linkedin",
+  "twitch",
+  "patreon",
+] as const;
+export type ShowLinkPlatform = (typeof showLinkPlatforms)[number];
+
+export const showLinks = sqliteTable(
+  "show_links",
+  {
+    id: text("id").primaryKey(),
+    showId: text("show_id")
+      .notNull()
+      .references(() => shows.id),
+    platform: text("platform", { enum: showLinkPlatforms }).notNull(),
+    value: text("value").notNull(),
+    visible: integer("visible").notNull().default(1),
+    position: integer("position").notNull(),
+  },
+  (t) => [index("show_links_show_idx").on(t.showId)],
+);
+
 export const people = sqliteTable("people", {
   id: text("id").primaryKey(),
   showId: text("show_id")
