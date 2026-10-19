@@ -98,8 +98,59 @@ proof #1 (dependency compatibility) as a side effect.
 
 ## Where to look next
 
-- `docs/design/STATUS.md` — the stage-gate table and what's blocking each one.
-- `docs/design/CHANGELOG.md` — dated, detailed account of every session.
-- `docs/design/BUILD_PLAN.md` — full confirmed scope, architecture, data
-  model, release gates. The source of truth for *what Podstudio should become*.
-- `CLAUDE.md` (repo root) — working rules, copied from the design handoff.
+Reference docs: `docs/design/STATUS.md` (stage-gate table), `docs/design/CHANGELOG.md`
+(dated session history), `docs/design/BUILD_PLAN.md` (confirmed scope/architecture/
+data model — the source of truth for what Podstudio should become), `CLAUDE.md`
+(working rules).
+
+**Direction, confirmed with Tyler:** keep building screens ahead of the formal
+stage gate, same compressed-shell approach as every screen so far — not a pivot
+to PREBUILD's technical validation, not a technical-debt-only session.
+
+1. **Primary next pick: screen 27 (Embed players)**, `/studio/public/embeds` —
+   currently a placeholder despite being in the sidebar. Read its full README
+   spec first (options for what to embed, player type, theme/accent, toggles,
+   three code-snippet tabs). Apply the same scoping process as every screen
+   this session:
+   - Likely real: the config form itself — needs a schema decision (a json
+     column on `shows`, similar to the existing unused `shows.settings`/
+     `shows.theme`, or a dedicated table — check BUILD_PLAN §4 for whether
+     embeds have their own table before inventing one). The three
+     code-snippet tabs can be real (static HTML/JS templates reflecting the
+     configured options).
+   - Likely deferred, and should say so honestly: the "live preview" and the
+     snippets' actual embed URL won't work end-to-end — screen 28 (the real
+     embed player bundle, a separate `packages/embed`/Preact build target)
+     doesn't exist. Same shape as 29's deferred live preview needing screen 25.
+   - Follow the proven pattern without exception: all `@podstudio/db`/
+     `drizzle-orm`/`better-auth` access goes in a new `.server.ts` file, never
+     imported directly into the route file — a hard rule now (see CHANGELOG,
+     "Real bug: two sidebar links silently failed to navigate"), not optional
+     tidiness.
+
+2. **Fallback candidates** if 27 turns out bigger than expected, roughly by
+   tractability: **31 Analytics** (mostly OP3-dependent like 15 already is —
+   expect little new real surface) is the easiest fallback. **13 Clips**,
+   **08 Editor**, **06 Record** all need real capture/editing infrastructure
+   (Stage 03/04 territory) — a different category of work; don't start these
+   without discussing scope first.
+
+3. **Decisions that would unblock other screens if Tyler makes them** (not
+   asking him to decide now, just recorded): an **email delivery provider**
+   unblocks 16b's real unlock flow and 18's real invite-by-email; an
+   **S3-compatible storage provider + credentials** unblocks actually testing
+   17's "Test connection" for real; an **off-site backup target** unblocks
+   Stage 00 starting; **home-server hardware/network specs, supported
+   browsers, performance budgets** unblock PREBUILD's real proofs.
+
+4. **Known technical debt** — see "Known issues, left as-is" above, still
+   unprioritized: the duplicate `cn` helper, worker's slow cold start, no CI,
+   no off-site backup, no S3 target chosen.
+
+5. **Standing process reminder** (caught two real bugs this session): after
+   any new screen, run `pnpm typecheck && pnpm build` and check the new
+   route's client chunk stays small — then rebuild the Docker image,
+   redeploy, and verify with an actual browser (the scratchpad has a working
+   Playwright setup using the cached `chromium_headless_shell`, not just
+   curl) before calling anything done. Clean up any test data created during
+   verification against the live DB before finishing.
