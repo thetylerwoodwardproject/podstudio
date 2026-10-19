@@ -1,6 +1,39 @@
 # Changelog
 
-## 2026-10-18 (latest) — Screen 29 (Public page links): real social links, rest honestly scoped down
+## 2026-10-18 (latest) — Screen 29: Font Awesome brand icons for the platform list
+- On Tyler's ask, added real per-platform icons instead of the plain-text
+  labels the entry below settled for. Used Font Awesome 6 Free brands per
+  CLAUDE.md's own stated icon convention ("Font Awesome 6 Free (solid +
+  brands), imported one by one"), not lucide — lucide only covers half the
+  12 platforms. All 12 (including Bluesky, which is newer) exist in FA6
+  free brands, so the earlier "no consistent icon coverage" reasoning for
+  skipping icons entirely no longer applies.
+- Installed `@fortawesome/{fontawesome-svg-core,free-brands-svg-icons,
+  react-fontawesome}` pinned to the 6.x line (the default install resolved
+  to FA7, which CLAUDE.md doesn't call for). Each icon is imported from its
+  own subpath (`free-brands-svg-icons/faXxx`), not the package barrel —
+  confirmed via the build output this keeps the chunk to just the 12 icons
+  actually used, not all 400+ in the free-brands set.
+- **Found and fixed a real UI bug via screenshot, not just console-error
+  checking:** the platform-icon preview next to the "Add link" picker used
+  raw `platform` state, which goes stale the moment its value drops out of
+  `availablePlatforms` (e.g. right after a successful add revalidates the
+  list) — the native `<select>` silently falls back to showing its first
+  remaining `<option>`, but the icon preview kept pointing at the old,
+  no-longer-selected platform. A screenshot caught it immediately (text-only
+  checks wouldn't have — the DOM text was self-consistent, the icon vs.
+  label mismatch was purely visual). Fixed by deriving an
+  `effectivePlatform` (falls back to the first available platform when the
+  stored one is no longer in the list) and using it for both the select's
+  value and the icon, so they can't drift apart.
+- Verified live with a screenshot: all 12 icons render correctly (X,
+  Instagram, TikTok, Bluesky, Mastodon, Discord, YouTube confirmed
+  visually), picker/icon stay in sync after an add. Discovered Tyler had
+  already added real `x`/`instagram` links through the shipped feature —
+  left those alone and tested only with unused platforms, cleaned up
+  after.
+
+## 2026-10-18 (earlier) — Screen 29 (Public page links): real social links, rest honestly scoped down
 - **Social links (real):** new `show_links` table (migration
   `0004_ordinary_gambit`), matching BUILD_PLAN §4's columns exactly
   (`id, show_id, platform, value, visible, position`). CRUD at

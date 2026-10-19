@@ -1,5 +1,19 @@
 import { useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { faInstagram } from "@fortawesome/free-brands-svg-icons/faInstagram";
+import { faYoutube } from "@fortawesome/free-brands-svg-icons/faYoutube";
+import { faTiktok } from "@fortawesome/free-brands-svg-icons/faTiktok";
+import { faBluesky } from "@fortawesome/free-brands-svg-icons/faBluesky";
+import { faMastodon } from "@fortawesome/free-brands-svg-icons/faMastodon";
+import { faThreads } from "@fortawesome/free-brands-svg-icons/faThreads";
+import { faXTwitter } from "@fortawesome/free-brands-svg-icons/faXTwitter";
+import { faFacebook } from "@fortawesome/free-brands-svg-icons/faFacebook";
+import { faDiscord } from "@fortawesome/free-brands-svg-icons/faDiscord";
+import { faLinkedin } from "@fortawesome/free-brands-svg-icons/faLinkedin";
+import { faTwitch } from "@fortawesome/free-brands-svg-icons/faTwitch";
+import { faPatreon } from "@fortawesome/free-brands-svg-icons/faPatreon";
 import {
   getShowWebsite,
   listShowLinks,
@@ -22,9 +36,11 @@ import { Separator } from "~/components/ui/separator";
 // - Reordering is plain up/down buttons, not dnd-kit drag-and-drop — same
 //   kind of practical substitution as screen 02's hand-built table instead
 //   of TanStack, or screen 17's plain radio inputs instead of RadioGroup.
-// - No per-platform brand icons: lucide-react only covers half the 12
-//   platforms (no TikTok/Bluesky/Mastodon/Threads/Discord/Patreon icons),
-//   so plain text labels avoid an inconsistent-looking row.
+// - Platform icons use Font Awesome 6 Free brands per CLAUDE.md ("Icons:
+//   Font Awesome 6 Free (solid + brands), imported one by one"), not
+//   lucide-react — lucide only covers half the 12 platforms. Each icon is
+//   imported from its own subpath (`free-brands-svg-icons/faXxx`), not the
+//   package barrel, so unused brand icons don't end up in the bundle.
 // - The spec's "live preview" of the actual hero-link-row/footer layout
 //   needs the public page itself (screen 25), which doesn't exist yet —
 //   this screen is the structured data, not a rendered mockup of it.
@@ -51,6 +67,21 @@ const PLATFORM_LABELS = {
 } as const;
 type Platform = keyof typeof PLATFORM_LABELS;
 const PLATFORM_LIST = Object.keys(PLATFORM_LABELS) as Platform[];
+
+const PLATFORM_ICONS: Record<Platform, IconDefinition> = {
+  instagram: faInstagram,
+  youtube: faYoutube,
+  tiktok: faTiktok,
+  bluesky: faBluesky,
+  mastodon: faMastodon,
+  threads: faThreads,
+  x: faXTwitter,
+  facebook: faFacebook,
+  discord: faDiscord,
+  linkedin: faLinkedin,
+  twitch: faTwitch,
+  patreon: faPatreon,
+};
 
 // Platforms with a stable 1:1 handle -> profile-URL mapping get normalized
 // from a bare handle. Discord (invite links, not handles) and LinkedIn
@@ -158,6 +189,15 @@ export default function PublicLinks({
 
   const usedPlatforms = new Set(links.map((l) => l.platform));
   const availablePlatforms = PLATFORM_LIST.filter((p) => !usedPlatforms.has(p));
+  // `platform` state can go stale after a successful add revalidates this
+  // list (the platform just added drops out of `availablePlatforms`) — a
+  // plain uncontrolled/stale `platform` would then mismatch what the native
+  // <select> actually falls back to showing (its first remaining <option>).
+  // Deriving the effective value here keeps the icon preview and the select
+  // showing the same platform always, instead of drifting apart.
+  const effectivePlatform = availablePlatforms.includes(platform)
+    ? platform
+    : availablePlatforms[0];
 
   return (
     <div className="mx-auto max-w-2xl p-6">
@@ -190,16 +230,22 @@ export default function PublicLinks({
                 key={l.id}
                 className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-[13px]"
               >
-                <div className="flex min-w-0 flex-col">
-                  <span className="font-medium">{PLATFORM_LABELS[l.platform as Platform]}</span>
-                  <a
-                    href={l.value}
-                    target="_blank"
-                    rel="me noopener"
-                    className="truncate font-mono text-[12px] text-muted-foreground hover:text-foreground hover:underline"
-                  >
-                    {l.value}
-                  </a>
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <FontAwesomeIcon
+                    icon={PLATFORM_ICONS[l.platform as Platform]}
+                    className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                  />
+                  <div className="flex min-w-0 flex-col">
+                    <span className="font-medium">{PLATFORM_LABELS[l.platform as Platform]}</span>
+                    <a
+                      href={l.value}
+                      target="_blank"
+                      rel="me noopener"
+                      className="truncate font-mono text-[12px] text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      {l.value}
+                    </a>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Form method="post">
@@ -256,19 +302,25 @@ export default function PublicLinks({
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="platform">Platform</Label>
-                <select
-                  id="platform"
-                  name="platform"
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value as Platform)}
-                  className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                  {availablePlatforms.map((p) => (
-                    <option key={p} value={p}>
-                      {PLATFORM_LABELS[p]}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon
+                    icon={PLATFORM_ICONS[effectivePlatform]}
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                  />
+                  <select
+                    id="platform"
+                    name="platform"
+                    value={effectivePlatform}
+                    onChange={(e) => setPlatform(e.target.value as Platform)}
+                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    {availablePlatforms.map((p) => (
+                      <option key={p} value={p}>
+                        {PLATFORM_LABELS[p]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="value">Handle or URL</Label>
