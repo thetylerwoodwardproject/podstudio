@@ -5,10 +5,8 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-18 (night) — screen 29: added Font Awesome brand
-icons to the platform list (pinned to FA6 per CLAUDE.md), and fixed a real
-bug the icon work surfaced (platform-icon preview going stale vs. the
-select after an add).
+**Last updated:** 2026-10-22 — screen 27 (Embed players) built; found the
+Caddy/port-80 reboot issue (see Known issues).
 
 ## Live right now
 
@@ -43,8 +41,9 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 16b Lock & verify | Half real, at `/studio/feed/lock-verify` — TXT records CRUD and locking the feed are real; unlocking is deliberately not built (needs a verified owner email + emailed 6-digit code; no email delivery exists yet) |
 | 17 Storage | Real config/routing, at `/studio/storage` — add/remove S3-compatible targets, a real test-connection (HeadBucket call), and routing raw/exports/feed-media to a target. Access/secret keys are entered through the screen's own form and stored server-side in the DB (never echoed back to the browser), not in `deploy/.env`. Nothing uploads to a target yet — that's Stage 02 |
 | 18 Server settings | Half real, at `/studio/settings/server` — Users (add/change role/remove) is real, on the existing Better Auth `users` table; "Add user" substitutes for "invite" (no email delivery yet, same gap as 16b). Domain shows the real hostname + "Caddy internal CA, LAN-only" as plain text, not a status badge (there's no real auto-TLS to report). Storage links out to 17 instead of duplicating it. AI keys (Whisper/LLM) and LiveKit URL/keys are an explicit "not configured" note — no schema, no stage reached |
+| 27 Embed players | Half real, at `/studio/public/embeds` — the config form (what to embed: one episode/latest/whole show; audio/video; theme; accent; chapters/transcript/follow toggles) is real, saved as the show default under `shows.settings.embed` (no table; BUILD_PLAN §4 has none). Only public+published episodes are selectable. The three code tabs (iframe / Script / Paste a link) are real, generated live from the form. Live preview is an explicit "not available" note and the snippets' URLs (`/{show}/embed/*`, `/embed.js`, `/oembed`) don't resolve — screen 28's player and the public routes don't exist. Snippet origin is whatever host the studio is served from (public domain not chosen) |
 | 29 Public page links | Half real, at `/studio/public/links` — social links (add/toggle-visible/remove/reorder) are real on a new `show_links` table; platform picker enforces one-per-platform; handles get normalized to full profile URLs on save (Discord/LinkedIn require a full URL — their handle format can't be guessed). Real Font Awesome 6 brand icons per platform. Website is read-only, linking to Show tags (16) instead of duplicating that field. No drag-and-drop (plain up/down buttons instead), no live preview (needs the public page, screen 25, not built) |
-| everything else (27 screens) | Placeholder route only, zero feature logic |
+| everything else (26 screens) | Placeholder route only, zero feature logic |
 
 **None of this is a passed BUILD_PLAN stage.** PREBUILD is still current per
 `docs/design/STATUS.md` — its actual proofs (OPFS capture+crash-recovery
@@ -96,6 +95,16 @@ proof #1 (dependency compatibility) as a side effect.
   off-site backup target chosen (Litestream isn't in docker-compose yet), no
   S3-compatible storage target chosen, no real worker job runner.
 
+- **Caddy container can lose a port-80 race after a host reboot** (found
+  2026-10-22): the apt-installed system `caddy.service` is *enabled* with a
+  stray `/etc/caddy/Caddyfile` (`:80 { reverse_proxy localhost:8000 }`, nothing
+  on :8000) and starts at boot before Docker, so `podstudio-caddy-1` can't bind
+  host port 80 and exits 128 — the studio URL then refuses connections. Fix
+  needs sudo and is Tyler's call (it's a host service, possibly used for
+  something else): `sudo systemctl disable --now caddy` then
+  `docker compose -f deploy/docker-compose.yml up -d caddy`. Until then a
+  temporary workaround is a throwaway Caddy on 443 only (see CHANGELOG).
+
 ## Where to look next
 
 Reference docs: `docs/design/STATUS.md` (stage-gate table), `docs/design/CHANGELOG.md`
@@ -107,8 +116,7 @@ data model — the source of truth for what Podstudio should become), `CLAUDE.md
 stage gate, same compressed-shell approach as every screen so far — not a pivot
 to PREBUILD's technical validation, not a technical-debt-only session.
 
-1. **Primary next pick: screen 27 (Embed players)**, `/studio/public/embeds` —
-   currently a placeholder despite being in the sidebar. Read its full README
+1. **(Done 2026-10-22 — screen 27 is built; this list item is the spec it followed.)** Screen 27 (Embed players), `/studio/public/embeds`. Read its full README
    spec first (options for what to embed, player type, theme/accent, toggles,
    three code-snippet tabs). Apply the same scoping process as every screen
    this session:

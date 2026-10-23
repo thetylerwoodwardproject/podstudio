@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-10-22 — Screen 27 (Embed players): real config + snippets, preview honestly deferred
+- Config form at `/studio/public/embeds`: source (one episode / latest / whole
+  show), player (audio/video), theme (dark/light/match device), accent (amber/
+  teal/ink), chapters/transcript/follow toggles. Saved as the show default under
+  `shows.settings.embed` — BUILD_PLAN §4 has no embeds table and the existing
+  `settings` JSON column was unused, so no migration. Server module
+  `embeds.server.ts` validates every field against allow-lists and only accepts
+  public+published episodes (README: "Only public published episodes are
+  eligible"); a stored episode that later becomes ineligible is shown as unset.
+- iframe / Script / Paste-a-link tabs are real, built by a pure
+  `embed-snippets.ts` from the form as currently edited (copy works before
+  Save). Off toggles emit `chapters=0` etc.; defaults are omitted.
+- Deferred, stated on the screen: live preview and working URLs need screen
+  28's player, the public `/{show}/embed/*` route, `/embed.js`, `/oembed`.
+  Snippet origin is the studio's own host — public domain isn't chosen.
+- Verified in a real browser (client-side nav via the sidebar link, no console
+  errors): all three tabs, option changes reflected in snippets, episode picker
+  lists only Ep. 38–40, Save → reload round-trips (including an unchecked
+  toggle). Route chunk 8.7 kB (3 kB gz). Test config removed from the live DB.
+- **Infra finding:** after a host reboot (05:33 on 10-22) the apt-installed
+  system `caddy.service` grabbed port 80, so `podstudio-caddy-1` exited 128 and
+  the studio URL refused connections (~16 h). Did not touch the host service
+  (needs sudo, may be Tyler's); tested through a throwaway Caddy on 443 only
+  (`docker run --network podstudio_default -p 443:443` with the same Caddyfile
+  and volumes), removed afterwards. Fix is in HANDOFF Known issues.
+
 ## 2026-10-18 (latest) — Screen 29: Font Awesome brand icons for the platform list
 - On Tyler's ask, added real per-platform icons instead of the plain-text
   labels the entry below settled for. Used Font Awesome 6 Free brands per
