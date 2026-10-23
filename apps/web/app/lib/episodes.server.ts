@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { slugify } from "~/lib/episode-fields";
 import { db, episodes, episodePeople, people, shows, type EpisodeStatus } from "@podstudio/db";
 
@@ -139,4 +139,62 @@ export function createEpisode(input: {
     })
     .run();
   return { ok: true, id };
+}
+
+export const CREDIT_ROLES = ["host", "guest"] as const;
+export type CreditRole = (typeof CREDIT_ROLES)[number];
+
+/** Everyone credited anywhere on the show — feeds the name suggestions. */
+export function listShowPeople() {
+  const show = db.select({ id: shows.id }).from(shows).get();
+  if (!show) return [];
+  return db.select({ id: people.id, name: people.name }).from(people).where(eq(people.showId, show.id)).all();
+}
+
+// Credits (episode_people) drive `podcast:person` in the feed and the host /
+// guest lines on the public pages. Adding by name reuses an existing person
+// (case-insensitive) so one human isn't duplicated per episode; an unknown
+// name creates a new person whose default role is the one chosen.
+export function addCredit(
+  episodeId: string,
+  rawName: string,
+  role: string,
+): { ok: true } | { ok: false; error: string } {
+  const episode = db.select({ showId: episodes.showId }).from(episodes).where(eq(episodes.id, episodeId)).get();
+  if (!episode) return { ok: false, error: "Episode not found." };
+  const name = rawName.trim();
+  if (!name) return { ok: false, error: "A name is required." };
+  if (name.length > 120) return { ok: false, error: "Name must be 120 characters or fewer." };
+  if (!CREDIT_ROLES.includes(role as CreditRole)) return { ok: false, error: "Role must be host or guest." };
+
+  let person = db
+    .select({ id: people.id })
+    .from(people)
+    .where(and(eq(people.showId, episode.showId), sql`lower(${people.name}) = ${name.toLowerCase()}`))
+    .get();
+  if (!person) {
+    const id = crypto.randomUUID();
+    db.insert(people).values({ id, showId: episode.showId, name, role, avatar: null, website: null, socials: null }).run();
+    person = { id };
+  }
+
+  const dup = db
+    .select({ personId: episodePeople.personId })
+    .from(episodePeople)
+    .where(
+      and(eq(episodePeople.episodeId, episodeId), eq(episodePeople.personId, person.id), eq(episodePeople.role, role)),
+    )
+    .get();
+  if (dup) return { ok: false, error: `${name} is already credited as ${role} on this episode.` };
+
+  db.insert(episodePeople).values({ episodeId, personId: person.id, role }).run();
+  return { ok: true };
+}
+
+export function removeCredit(episodeId: string, personId: string, role: string) {
+  db.delete(episodePeople)
+    .where(
+      and(eq(episodePeople.episodeId, episodeId), eq(episodePeople.personId, personId), eq(episodePeople.role, role)),
+    )
+    .run();
 }

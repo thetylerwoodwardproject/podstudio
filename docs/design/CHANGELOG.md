@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-22 (late night) — Episode credits (People) editing
+- Episode details gained a People section (`addCredit`/`removeCredit`/
+  `listShowPeople` in episodes.server.ts). Verified in a real browser on a
+  throwaway episode: "alex rivera" reuses the existing person (people count
+  unchanged), same person can be host and guest, exact duplicate rejected with
+  a message, a new name creates a person (+1), the Publish screen's item XML
+  shows the matching `podcast:person` lines, removal works, and cleanup left
+  the people/episodes/credits tables as they were.
+- A first run of the test printed an empty name-suggestion list; re-probing
+  twice (including on a freshly created episode) showed the datalist populated
+  correctly, so I'm treating that first reading as a test timing artifact — not
+  proven, flagging it in case it recurs.
+
 ## 2026-10-22 (late night) — New episode flow; season/number/explicit on Episode details
 - The app could not create an episode at all. `createEpisode` (episodes.server.ts)
   adds a private `recording` draft: fresh UUID v4 `guid`, `guidIsPermalink`

@@ -4,6 +4,9 @@ import {
   getEpisodeWithCredits,
   deleteEpisode,
   updateEpisode,
+  addCredit,
+  removeCredit,
+  listShowPeople,
 } from "~/lib/episodes.server";
 import { parseOptionalInt } from "~/lib/episode-fields";
 import { Button } from "~/components/ui/button";
@@ -25,12 +28,21 @@ const EPISODE_STATUS = ["recording", "editing", "scheduled", "published"] as con
 export async function loader({ params }: { params: { id: string } }) {
   const result = getEpisodeWithCredits(params.id);
   if (!result) throw new Response("Episode not found", { status: 404 });
-  return result;
+  return { ...result, knownPeople: listShowPeople() };
 }
 
 export async function action({ request, params }: { request: Request; params: { id: string } }) {
   const form = await request.formData();
   const intent = form.get("intent");
+
+  if (intent === "add-credit") {
+    const r = addCredit(params.id, String(form.get("name") ?? ""), String(form.get("role") ?? ""));
+    return r.ok ? { credited: true } : { creditError: r.error };
+  }
+  if (intent === "remove-credit") {
+    removeCredit(params.id, String(form.get("personId") ?? ""), String(form.get("role") ?? ""));
+    return { creditRemoved: true };
+  }
 
   if (intent === "delete") {
     deleteEpisode(params.id);
@@ -66,9 +78,9 @@ export default function EpisodeDetail({
   actionData,
 }: {
   loaderData: Awaited<ReturnType<typeof loader>>;
-  actionData?: { saved?: boolean; error?: string };
+  actionData?: { saved?: boolean; error?: string; creditError?: string; credited?: boolean };
 }) {
-  const { episode, credits } = loaderData;
+  const { episode, credits, knownPeople } = loaderData;
   const navigation = useNavigation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const saving = navigation.state === "submitting";
@@ -161,12 +173,6 @@ export default function EpisodeDetail({
           </div>
         </div>
 
-        <div className="text-[12.5px] text-muted-foreground">
-          {credits.length > 0
-            ? credits.map((c) => `${c.name} (${c.role})`).join(", ")
-            : "No credited people yet"}
-        </div>
-
         {actionData?.error && <p className="text-[13px] text-destructive">{actionData.error}</p>}
         {actionData?.saved && (
           <p className="text-[13px] text-ok">Saved.</p>
@@ -178,6 +184,59 @@ export default function EpisodeDetail({
           </Button>
         </div>
       </Form>
+
+      <section className="mt-5 flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold text-muted-foreground">People</h2>
+        {credits.length === 0 ? (
+          <p className="text-[12.5px] text-muted-foreground">No credited people yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5" data-testid="credits">
+            {credits.map((c) => (
+              <li key={`${c.id}-${c.role}`} className="flex items-center justify-between text-[13px]">
+                <span>
+                  {c.name} <span className="text-muted-foreground">({c.role ?? "unset"})</span>
+                </span>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="remove-credit" />
+                  <input type="hidden" name="personId" value={c.id} />
+                  <input type="hidden" name="role" value={c.role ?? ""} />
+                  <Button type="submit" variant="ghost" size="sm">
+                    Remove
+                  </Button>
+                </Form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Form method="post" className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="intent" value="add-credit" />
+          <div className="flex min-w-[200px] flex-1 flex-col gap-1.5">
+            <Label htmlFor="credit-name">Name</Label>
+            <Input id="credit-name" name="name" list="known-people" required maxLength={120} />
+            <datalist id="known-people">
+              {knownPeople.map((p) => (
+                <option key={p.id} value={p.name} />
+              ))}
+            </datalist>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="credit-role">Role</Label>
+            <select
+              id="credit-role"
+              name="role"
+              defaultValue="guest"
+              className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              <option value="host">Host</option>
+              <option value="guest">Guest</option>
+            </select>
+          </div>
+          <Button type="submit" variant="outline">
+            Add
+          </Button>
+        </Form>
+        {actionData?.creditError && <p className="text-[13px] text-destructive">{actionData.creditError}</p>}
+      </section>
 
       <Separator className="my-6" />
 
