@@ -6,12 +6,13 @@ import { PublicLayout, SocialLinks, formatDate, formatDuration } from "~/compone
 // (title, cadence, description, hosts, follow links), latest episode, support
 // card, paginated public episodes list; server-rendered with Open Graph.
 // Built from real data: shows/people/show_links/episodes + Brand & theme.
+// The RSS button links to the real `/{show}/feed` (channel metadata only — it
+// has no items until audio exists).
 // Not built (needs things that don't exist yet, none faked): artwork (no
 // artwork pipeline), category (no field), Apple/Spotify/etc. follow buttons
-// (only the 12 social platforms from screen 29 exist as links), RSS button
-// (`shows.feedUrl` is set but nothing serves that URL yet — no feed generator —
-// so a button would be a dead link), playable audio/video + chapters + transcript (no
-// media or transcripts yet), transcript search, oEmbed discovery (no /oembed).
+// (only the 12 social platforms from screen 29 exist as links), playable
+// audio/video + chapters + transcript (no media or transcripts yet),
+// transcript search, oEmbed discovery (no /oembed).
 // Episode "Play" therefore links to the episode page rather than playing.
 // Only public + published episodes are queried — see public.server.ts.
 export async function loader({ params, request }: { params: { showSlug?: string }; request: Request }) {
@@ -54,6 +55,9 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
             </p>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <a className="pub-btn" href={`/${show.slug}/feed`}>
+              RSS
+            </a>
             {show.website && (
               <a className="pub-btn pub-btn-ghost" href={show.website} rel="noopener">
                 Website

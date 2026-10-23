@@ -71,6 +71,10 @@ export default function FeedOverview({
           <Link to="/studio/storage" className="hover:text-foreground hover:underline">
             Storage
           </Link>
+          {/* Plain <a>: the feed is an XML resource route, not a client-navigable page. */}
+          <a href={`/${show.slug}/feed`} className="hover:text-foreground hover:underline">
+            View feed XML
+          </a>
         </div>
       </div>
 

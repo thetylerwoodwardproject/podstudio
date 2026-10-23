@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-22 (late night) — Real RSS feed route (channel only)
+- `/{show-slug}/feed`: `lib/feed-xml.ts` (pure), `lib/feed-data.server.ts`,
+  `routes/feed.ts`. Ties together everything the earlier screens store: show
+  tags (16), lock + TXT (16b), funding/medium/frequency/license, host persons,
+  the podroll (32). Zero items by design (no audio enclosure exists), and
+  `podcast:value`/`podcast:trailer` omitted because stored data can't produce
+  a valid element. An expired unlock window counts as locked.
+- Verified over HTTPS: 200, `application/rss+xml; charset=utf-8`, no
+  Set-Cookie, parses as XML, `podcast:guid` equals the DB value, unknown slug
+  404s, and with temporary data (removed afterwards, rows restored byte-for-
+  byte) `Tom & "J" <S>`-style strings round-trip through description, funding,
+  TXT (with and without `purpose`) and podroll attributes.
+- Found: the live show is **unlocked** (`locked=0`). The seed does that; README
+  says locked by default. Left for Tyler (lock via 16b).
+
 ## 2026-10-22 (night) — Screen 14 (Publish to feed): scheduling + item XML real, publish-now/uploads deferred
 - `/studio/publish?episode=<id>`; `publish.server.ts` (schedule/unschedule with
   validation: future-only, no `recording`/`published`), `lib/item-xml.ts`

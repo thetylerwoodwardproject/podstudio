@@ -55,6 +55,7 @@ export default [
 
   // Real public pages. Dynamic `:showSlug` ranks below every static route above
   // (studio, login, guest/*, mobile/*, public/*, api/*), so it can't shadow them.
+  route(":showSlug/feed", "routes/feed.ts"),
   route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
   route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
 ] satisfies RouteConfig;
