@@ -26,9 +26,10 @@ import { Label } from "~/components/ui/label";
 // maths in lib/brand-theme.ts and a live preview that applies the generated
 // `--brand-*` variables to sample elements (so the contrast result is visible
 // and the ratios are printed).
-// Deferred, stated on the screen: nothing consumes the saved theme yet — the
-// public pages (25/26/30) and embed player (28) don't exist, and the Studio
-// scope is saved but not applied to this app's own chrome.
+// Consumers: the public pages (25/30) apply it under the Public-site scope, and
+// the Studio layout applies accent -> primary buttons / focus ring / active nav
+// bar under the Studio scope. Nothing reads the Embed-players scope yet (the
+// embed player, screen 28, doesn't exist).
 // No db imports here — see brand.server.ts.
 const APPEARANCE_OPTIONS: { value: Appearance; label: string }[] = [
   { value: "light", label: "Light" },
@@ -195,8 +196,8 @@ function BrandForm({ initial, actionData }: { initial: BrandTheme; actionData?: 
             </label>
           ))}
           <p className="text-[11.5px] text-muted-foreground">
-            Saved now, but nothing consumes it yet: the public pages and embed player aren't built, and
-            the Studio scope isn't applied to this app's own chrome.
+            The public site and Studio apply these now. The Embed players scope is saved but unused until
+            the embed player (screen 28) exists.
           </p>
         </section>
 

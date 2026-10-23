@@ -76,7 +76,7 @@ export function StudioShell({ user }: { user: { name: string; email: string } })
                     className={({ isActive }) =>
                       cn(
                         "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-secondary-foreground hover:bg-sidebar-accent",
-                        isActive && "bg-sidebar-accent",
+                        isActive && "bg-sidebar-accent shadow-[inset_2px_0_0_var(--studio-nav-bar,transparent)]",
                       )
                     }
                   >

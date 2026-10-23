@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-22 (late night) — Brand & theme Studio scope now applied
+- `_layout.tsx` reads the theme; with `scopes.studio` on it wraps the shell in a
+  `display: contents` div setting `--primary`, `--primary-foreground`, `--ring`
+  and `--studio-nav-bar` (active nav gets an inset 2px bar; transparent when
+  unset, so nothing changes with the scope off). Accent goes through
+  `studioAccent` (ink→bone, <3:1 lightened) and the foreground through
+  `onAccent`.
+- Verified in a real browser: default bone button; rose + scope → rgb(194,54,
+  107) with white text on both the Brand and Episodes pages, matching the
+  "Studio accent would be #c2366b" readout; ink → bone; scope off → back to
+  bone with no wrapper; teal scope → active nav link has a 2px inset
+  rgb(23,138,146) bar. Theme reset to null afterwards.
+- Note: the Save-theme `button[type=submit]` probe hit whichever submit button
+  came first; results were consistent across pages so the reading is sound.
+
 ## 2026-10-22 (late night) — Episode credits (People) editing
 - Episode details gained a People section (`addCredit`/`removeCredit`/
   `listShowPeople` in episodes.server.ts). Verified in a real browser on a
