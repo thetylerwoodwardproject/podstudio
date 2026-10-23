@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-22 (late night) — Fonts self-hosted; no third-party requests
+- Replaced the Google Fonts `<link>`s in `root.tsx` with `@fontsource/geist`
+  (400/500/600/700) and `@fontsource/jetbrains-mono` (400/500/600), latin
+  subset, imported in `app.css` — public pages must not make third-party
+  requests. Verified in a real browser by recording every request host on the
+  public show page and a studio page: only `studio.tylerwoodward.me`; Geist
+  and JetBrains Mono report `loaded`; no failed requests. Docker image builds
+  with the new deps (and vitest).
+
 ## 2026-10-22 (late night) — Vitest wired up; 34 unit tests over the pure libs
 - `pnpm test` (turbo `test` task) → `vitest run` in `apps/web` with an `~`
   alias (`vitest.config.ts`, separate from the React Router vite config).

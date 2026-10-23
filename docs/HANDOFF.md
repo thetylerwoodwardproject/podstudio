@@ -119,9 +119,7 @@ proof #1 (dependency compatibility) as a side effect.
   migration in a rebuilt image never reached the existing DB — screen 32 500'd
   with `no such table: podroll_items`, and 0004 (`show_links`) must have been
   applied by hand last session. Seeding is still first-boot only.
-- Public pages inherit `root.tsx`'s Google Fonts `<link>`, i.e. a third-party
-  request from listener browsers, which CLAUDE.md's "no third-party trackers"
-  rule arguably forbids. Self-host the fonts before the public site goes live.
+- Fonts (Geist, JetBrains Mono) are self-hosted via `@fontsource/*` (latin subset, imported in `app.css`); verified the public page and studio contact only `studio.tylerwoodward.me` — no Google Fonts request. (Fixed 2026-10-22; it used to violate CLAUDE.md's no-third-party rule on public pages.)
 - **`pnpm test` now runs Vitest** (`apps/web`, 34 unit tests over the pure libs:
   brand-theme contrast maths, item/feed/podroll XML, DST-correct timezone
   conversion; mutation-checked — breaking the code makes them fail). Still no

@@ -1,6 +1,15 @@
 /* Podstudio theme for shadcn/ui (Tailwind v4). Dark-first; the guest join page and mobile app use .theme-paper. */
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Self-hosted fonts (latin subset): the studio and the public pages must not make
+   third-party requests (CLAUDE.md: no third-party trackers on public pages). */
+@import "@fontsource/geist/latin-400.css";
+@import "@fontsource/geist/latin-500.css";
+@import "@fontsource/geist/latin-600.css";
+@import "@fontsource/geist/latin-700.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+@import "@fontsource/jetbrains-mono/latin-600.css";
 
 @custom-variant dark (&:is(.dark *));
 
