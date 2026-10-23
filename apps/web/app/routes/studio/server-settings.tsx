@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Form, useNavigation } from "react-router";
+import { Form, data, useNavigation } from "react-router";
 import { Link } from "react-router";
 import {
   getDomainInfo,
   listUsers,
   getCurrentUserId,
+  getCurrentUserRole,
+  changeOwnPassword,
+  MIN_PASSWORD_LENGTH,
   addUser,
   updateUserRole,
   removeUser,
@@ -89,10 +92,13 @@ function formatDate(date: Date) {
 
 export async function loader({ request }: { request: Request }) {
   const currentUserId = await getCurrentUserId(request);
+  const role = await getCurrentUserRole(request);
   return {
     domain: getDomainInfo(),
     users: listUsers(),
     currentUserId,
+    isAdmin: role === "admin",
+    minPasswordLength: MIN_PASSWORD_LENGTH,
   };
 }
 
@@ -100,6 +106,29 @@ export async function action({ request }: { request: Request }) {
   const form = await request.formData();
   const intent = form.get("intent");
   const str = (name: string) => ((form.get(name) as string) || "").trim();
+
+  // Anyone signed in may change their OWN password...
+  if (intent === "change-password") {
+    // (not trimmed: passwords may legitimately start/end with spaces)
+    const raw = (name: string) => String(form.get(name) ?? "");
+    const result = await changeOwnPassword(request, {
+      current: raw("currentPassword"),
+      next: raw("newPassword"),
+      confirm: raw("confirmPassword"),
+    });
+    if (!result.ok) return { passwordError: result.error };
+    return data({ passwordChanged: true }, { headers: result.headers });
+  }
+
+  // ...but managing other accounts is admin-only. The layout loader only checks
+  // that a session exists, so without this an editor could POST add-user /
+  // update-role and promote themselves. Enforced here (server-side), not just
+  // by hiding the controls.
+  if (intent === "add-user" || intent === "update-role" || intent === "remove-user") {
+    if ((await getCurrentUserRole(request)) !== "admin") {
+      throw new Response("Only admins can manage users.", { status: 403 });
+    }
+  }
 
   if (intent === "add-user") {
     const name = str("name");
@@ -147,9 +176,11 @@ export default function ServerSettings({
     roleUpdateFailedId?: string;
     removeFailedId?: string;
     removed?: boolean;
+    passwordError?: string;
+    passwordChanged?: boolean;
   };
 }) {
-  const { domain, users, currentUserId } = loaderData;
+  const { domain, users, currentUserId, isAdmin, minPasswordLength } = loaderData;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
@@ -197,8 +228,44 @@ export default function ServerSettings({
 
       <Separator className="my-6" />
 
+      <section className="flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold text-muted-foreground">Your account</h2>
+        <Form method="post" className="flex flex-col gap-3" key={actionData?.passwordChanged ? "changed" : "form"}>
+          <input type="hidden" name="intent" value="change-password" />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="currentPassword">Current password</Label>
+              <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="newPassword">New password</Label>
+              <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={minPasswordLength} required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="confirmPassword">Confirm new password</Label>
+              <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required />
+            </div>
+          </div>
+          <p className="text-[11.5px] text-muted-foreground">
+            At least {minPasswordLength} characters. Changing it signs you out everywhere else.
+          </p>
+          {actionData?.passwordError && <p className="text-[13px] text-destructive">{actionData.passwordError}</p>}
+          {actionData?.passwordChanged && <p className="text-[13px] text-ok">Password changed.</p>}
+          <div>
+            <Button type="submit" variant="outline" disabled={submitting}>
+              Change password
+            </Button>
+          </div>
+        </Form>
+      </section>
+
+      <Separator className="my-6" />
+
       <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Users</h2>
+        {!isAdmin && (
+          <p className="text-[12.5px] text-muted-foreground">Only admins can add, change or remove users.</p>
+        )}
 
         <ul className="flex flex-col gap-2">
           {users.map((u) => {
@@ -223,9 +290,13 @@ export default function ServerSettings({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <RoleSelect userId={u.id} role={u.role ?? "editor"} disabled={submitting} />
+                    {isAdmin ? (
+                      <RoleSelect userId={u.id} role={u.role ?? "editor"} disabled={submitting} />
+                    ) : (
+                      <span className="text-muted-foreground">{u.role ?? "editor"}</span>
+                    )}
 
-                    {confirming ? (
+                    {!isAdmin ? null : confirming ? (
                       <>
                         <Form method="post">
                           <input type="hidden" name="intent" value="remove-user" />
@@ -270,8 +341,9 @@ export default function ServerSettings({
           })}
         </ul>
 
-        <Separator />
+        {isAdmin && <Separator />}
 
+        {isAdmin && (
         <Form method="post" className="flex flex-col gap-3">
           <input type="hidden" name="intent" value="add-user" />
           <div className="grid grid-cols-2 gap-4">
@@ -324,6 +396,7 @@ export default function ServerSettings({
             </Button>
           </div>
         </Form>
+        )}
       </section>
     </div>
   );

@@ -32,6 +32,45 @@ export async function getCurrentUserId(request: Request): Promise<string | null>
   return session?.user.id ?? null;
 }
 
+// Role comes from the DB, not the (5-minute cookie-cached) session payload, so
+// a demotion takes effect immediately.
+export async function getCurrentUserRole(request: Request): Promise<"admin" | "editor" | null> {
+  const id = await getCurrentUserId(request);
+  if (!id) return null;
+  const row = db.select({ role: users.role }).from(users).where(eq(users.id, id)).get();
+  return row?.role === "admin" ? "admin" : row ? "editor" : null;
+}
+
+export const MIN_PASSWORD_LENGTH = 8; // Better Auth's own minimum; stated here so the UI and the check agree
+
+export async function changeOwnPassword(
+  request: Request,
+  input: { current: string; next: string; confirm: string },
+): Promise<{ ok: true; headers: Headers } | { ok: false; error: string }> {
+  if (!input.current) return { ok: false, error: "Enter your current password." };
+  if (input.next.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
+  }
+  if (input.next !== input.confirm) return { ok: false, error: "The new passwords don't match." };
+  if (input.next === input.current) return { ok: false, error: "The new password must differ from the current one." };
+  try {
+    // revokeOtherSessions signs out every other device — the right default
+    // after a password change (e.g. a lost laptop).
+    // With revokeOtherSessions Better Auth issues a NEW session for this device;
+    // its Set-Cookie has to reach the browser (returnHeaders) or this user is
+    // signed out by their own password change.
+    const { headers } = await auth.api.changePassword({
+      body: { currentPassword: input.current, newPassword: input.next, revokeOtherSessions: true },
+      headers: request.headers,
+      returnHeaders: true,
+    });
+    return { ok: true, headers };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: /invalid password/i.test(message) ? "Your current password is wrong." : message };
+  }
+}
+
 function adminCount(excludingId?: string) {
   return db
     .select()

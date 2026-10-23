@@ -23,9 +23,12 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
   },
-  session: {
-    cookieCache: { enabled: true, maxAge: 5 * 60 },
-  },
+  // No cookieCache: with it on, getSession() trusted a signed cookie for up to 5
+  // minutes without touching the DB, so a revoked session (password change with
+  // revokeOtherSessions, a removed user) kept working until the cache expired —
+  // confirmed in a browser test. One indexed SQLite lookup per request is cheap
+  // for a single-tenant studio; immediate revocation is worth more.
+  session: {},
   user: {
     additionalFields: {
       role: {

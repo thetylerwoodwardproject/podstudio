@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-23 (later) — Change password, admin-only user management, immediate session revocation
+- **Security gap found and fixed:** Server settings' `add-user`, `update-role`
+  and `remove-user` actions only required *a* session (the studio layout checks
+  nothing about role), so any editor could POST them — e.g. promote themselves
+  to admin. Now enforced in the action via a DB-backed role check (403), and the
+  controls are hidden for non-admins. Verified: as a throwaway editor, direct
+  POSTs for add-user (as admin), self-promotion and removing the admin all
+  returned 403 and the users table was unchanged.
+- **Change password** ("Your account" on Server settings; `changeOwnPassword`
+  → Better Auth `changePassword`, `revokeOtherSessions: true`). Errors verified:
+  wrong current, mismatch, too short, same-as-current. The admin's own password
+  was never touched — all testing used a throwaway editor, removed afterwards.
+- **Two real bugs the testing surfaced:**
+  1. `session.cookieCache` (5 min) meant a revoked session kept working — the
+     "other device" stayed signed in after the password change. Removed the
+     cache; revocation (and user removal) is now immediate.
+  2. With the cache gone, the password change signed the *current* user out:
+     `changePassword` issues a new session for this device but I wasn't
+     forwarding its Set-Cookie. Fixed with `returnHeaders: true` +
+     `data(..., { headers })`. The cache had been hiding this.
+- Final browser run: editor stays signed in after changing password; other
+  session redirected to login; old password rejected, new accepted; a removed
+  user's live session ended immediately; full smoke over every sidebar link and
+  public route has no 5xx and no console errors. Users table back to just the
+  admin.
+- Process slips worth knowing: two overlapping `docker compose up --build`
+  runs collided on a container name (harmless — the first one won), and I again
+  tripped on shell-quoting SQL in test scripts; test helper now pipes JS via
+  stdin.
+
 ## 2026-10-23 — Caddy port-80 conflict fixed
 - Tyler disabled the system `caddy.service` (`sudo systemctl disable --now
   caddy`; it needs a password, so I couldn't). Removed my throwaway `pw-caddy`.
