@@ -98,7 +98,7 @@ proof #1 (dependency compatibility) as a side effect.
   `Slot` from the unified `radix-ui` package, while hand-written files
   (`episodes.tsx`, `studio-shell.tsx`, etc.) use this repo's own
   `~/lib/utils`. Both work; pick one before there are many more files.
-- No CI (lint/typecheck run manually, no Vitest/Playwright wired up), no
+- No CI (lint/typecheck/test run manually; no Playwright wired up), no
   off-site backup target chosen (Litestream isn't in docker-compose yet), no
   S3-compatible storage target chosen, no real worker job runner.
 
@@ -122,9 +122,14 @@ proof #1 (dependency compatibility) as a side effect.
 - Public pages inherit `root.tsx`'s Google Fonts `<link>`, i.e. a third-party
   request from listener browsers, which CLAUDE.md's "no third-party trackers"
   rule arguably forbids. Self-host the fonts before the public site goes live.
-- No test runner is wired up; verification is ad-hoc Playwright scripts (not
-  committed). `playwright-core` isn't in the repo — install it in a temp dir
-  and point at `~/.cache/ms-playwright/chromium_headless_shell-*`.
+- **`pnpm test` now runs Vitest** (`apps/web`, 34 unit tests over the pure libs:
+  brand-theme contrast maths, item/feed/podroll XML, DST-correct timezone
+  conversion; mutation-checked — breaking the code makes them fail). Still no
+  `lint` task, no CI, and no committed browser tests: UI verification has been
+  ad-hoc Playwright scripts. `playwright-core` isn't in the repo — install it
+  in a temp dir and point at `~/.cache/ms-playwright/chromium_headless_shell-*`.
+  Hidden traps from those scripts: `waitForURL(/studio/)` matches the hostname;
+  read the DOM only after waiting for the new text, not right after a click.
 
 ## Where to look next
 

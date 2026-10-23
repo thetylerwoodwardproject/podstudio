@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-22 (late night) — Vitest wired up; 34 unit tests over the pure libs
+- `pnpm test` (turbo `test` task) → `vitest run` in `apps/web` with an `~`
+  alias (`vitest.config.ts`, separate from the React Router vite config).
+  Covers `brand-theme` (contrast ≥ 4.5:1 for every preset in both modes,
+  on-accent choice, ink→bone, config validation), `item-xml` (guid verbatim,
+  isPermaLink only when stored, escaping, no invented enclosure/role,
+  `zonedToUtcMs` across CST/CDT/Asia/DST boundary/invalid input), `feed-xml`
+  and `podroll-xml`.
+- Mutation-checked: loosening the link-contrast threshold and removing the
+  DST second pass each made the matching test fail; restored and green.
+
 ## 2026-10-22 (late night) — Real RSS feed route (channel only)
 - `/{show-slug}/feed`: `lib/feed-xml.ts` (pure), `lib/feed-data.server.ts`,
   `routes/feed.ts`. Ties together everything the earlier screens store: show

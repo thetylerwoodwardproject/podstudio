@@ -9,7 +9,8 @@
     "typecheck": "turbo run typecheck",
     "db:seed": "pnpm --filter @podstudio/db run seed",
     "db:migrate": "pnpm --filter @podstudio/db run migrate",
-    "db:generate": "pnpm --filter @podstudio/db run generate"
+    "db:generate": "pnpm --filter @podstudio/db run generate",
+    "test": "turbo run test"
   },
   "devDependencies": {
     "turbo": "^2.3.0",
