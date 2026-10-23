@@ -5,8 +5,13 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-22 — screens 27, 31, 29b, 25, 30 (+26 layout), 32 and 14 built, plus a real (item-less) RSS feed; found the
-Caddy/port-80 reboot issue (see Known issues).
+**Last updated:** 2026-10-23 — a long build session. New this session: embed
+player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
+applied to public pages and optionally the studio chrome), public show/episode
+pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
+channel-level RSS feed, New-episode + credits editing, self-hosted fonts,
+migrations on every boot, Vitest (49 tests). Also found the Caddy/port-80 reboot
+problem — **read the first Known issue before assuming the studio URL works.**
 
 ## Live right now
 
@@ -139,55 +144,53 @@ proof #1 (dependency compatibility) as a side effect.
 ## Where to look next
 
 Reference docs: `docs/design/STATUS.md` (stage-gate table), `docs/design/CHANGELOG.md`
-(dated session history), `docs/design/BUILD_PLAN.md` (confirmed scope/architecture/
-data model — the source of truth for what Podstudio should become), `CLAUDE.md`
-(working rules).
+(dated session history, newest first), `docs/design/BUILD_PLAN.md` (confirmed
+scope/architecture/data model), `CLAUDE.md` (working rules).
 
-**Direction, confirmed with Tyler:** keep building screens ahead of the formal
-stage gate, same compressed-shell approach as every screen so far — not a pivot
-to PREBUILD's technical validation, not a technical-debt-only session.
+**First thing next session:** check `docker ps`. The real `caddy` container is
+down (system `caddy.service` owns :80 — see Known issues) and a throwaway
+`pw-caddy` may or may not still be serving :443. Also note `:8081` (the CA-root
+bootstrap route) lives in the real Caddy, so it's down too.
 
-1. **(Done 2026-10-22 — screen 27 is built; this list item is the spec it followed.)** Screen 27 (Embed players), `/studio/public/embeds`. Read its full README
-   spec first (options for what to embed, player type, theme/accent, toggles,
-   three code-snippet tabs). Apply the same scoping process as every screen
-   this session:
-   - Likely real: the config form itself — needs a schema decision (a json
-     column on `shows`, similar to the existing unused `shows.settings`/
-     `shows.theme`, or a dedicated table — check BUILD_PLAN §4 for whether
-     embeds have their own table before inventing one). The three
-     code-snippet tabs can be real (static HTML/JS templates reflecting the
-     configured options).
-   - Likely deferred, and should say so honestly: the "live preview" and the
-     snippets' actual embed URL won't work end-to-end — screen 28 (the real
-     embed player bundle, a separate `packages/embed`/Preact build target)
-     doesn't exist. Same shape as 29's deferred live preview needing screen 25.
-   - Follow the proven pattern without exception: all `@podstudio/db`/
-     `drizzle-orm`/`better-auth` access goes in a new `.server.ts` file, never
-     imported directly into the route file — a hard rule now (see CHANGELOG,
-     "Real bug: two sidebar links silently failed to navigate"), not optional
-     tidiness.
+**The screens that don't need new infrastructure are done.** What's left is
+blocked, not forgotten:
 
-2. **Fallback candidates** (31 Analytics is now done): **13 Clips**,
-   **08 Editor**, **06 Record** all need real capture/editing infrastructure
-   (Stage 03/04 territory) — a different category of work; don't start these
-   without discussing scope first.
+- **13 Clips, 13b Short video style, 08 Editor, 09 Retakes, 10 Transcript, 12
+  Export, 06/07 Record, 03/04/05 remote/guest, 19–24 mobile** all need capture,
+  editing, transcription or render infrastructure (Stages 03–10, 12) — each is
+  a different category of work; discuss scope with Tyler before starting any.
+- **17b Move podcast** needs the owner-consent unlock (emailed code) and Stage 11
+  redirect machinery.
+- **28 Player themes** (the actual audio/video player) needs media to play.
+- **Media / uploads (Stage 02)** is the next real unblocker: it would give the
+  feed `<enclosure>`s and items, make "Publish now" possible in 14, give the
+  embed and public episode page something to play, and unblock 12/13. The plan
+  explicitly says *not* to build a bare local-disk adapter ("home hosting does
+  not imply a bare local-disk adapter") — it needs an S3-compatible target
+  (local MinIO or an external provider), which is Tyler's call.
 
-3. **Decisions that would unblock other screens if Tyler makes them** (not
-   asking him to decide now, just recorded): an **email delivery provider**
-   unblocks 16b's real unlock flow and 18's real invite-by-email; an
-   **S3-compatible storage provider + credentials** unblocks actually testing
-   17's "Test connection" for real; an **off-site backup target** unblocks
-   Stage 00 starting; **home-server hardware/network specs, supported
-   browsers, performance budgets** unblock PREBUILD's real proofs.
+**Decisions recorded for Tyler (none requested right now):**
+1. **S3-compatible storage target** (MinIO on this box vs. an external provider)
+   — unblocks Stage 02, hence media, items, playback, Publish-now.
+2. **Email delivery provider** — unblocks 16b's real unlock flow, 18's invites,
+   17b.
+3. **Off-site backup target** — unblocks Stage 00 / Litestream.
+4. **A genuinely public hostname** for the public pages/embeds — the LAN-only
+   host breaks embeds from public sites (Known issues) and `shows.feedUrl` is
+   still the studio host.
+5. **Lock the feed?** The seeded show is `locked = no`; README says locked by
+   default. One click on Lock & verify.
+6. Hardware/browsers/performance budgets — unblock PREBUILD's real proofs.
+7. Episode 41's title still reads "Dana's Draft Day Rules (verified live)" —
+   residue from an earlier session's edit.
 
-4. **Known technical debt** — see "Known issues, left as-is" above, still
-   unprioritized: the duplicate `cn` helper, worker's slow cold start, no CI,
-   no off-site backup, no S3 target chosen.
+**Known technical debt** (see Known issues): duplicate `cn` helper, worker's slow
+cold start, no `lint` task / CI, no committed browser tests, no off-site backup,
+no S3 target.
 
-5. **Standing process reminder** (caught two real bugs this session): after
-   any new screen, run `pnpm typecheck && pnpm build` and check the new
-   route's client chunk stays small — then rebuild the Docker image,
-   redeploy, and verify with an actual browser (the scratchpad has a working
-   Playwright setup using the cached `chromium_headless_shell`, not just
-   curl) before calling anything done. Clean up any test data created during
-   verification against the live DB before finishing.
+**Standing process** (it has caught real bugs every session): after any change,
+`pnpm typecheck && pnpm test && pnpm build`, rebuild the Docker image, redeploy,
+and verify in an actual browser — navigate via sidebar/in-page links (client-side
+nav is where the db-import-in-route class of bug hides) and read the console;
+don't trust curl or a typecheck alone. Wait for the *specific new text* before
+reading the DOM. Clean up any test data from the live DB and say so.
