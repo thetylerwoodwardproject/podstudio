@@ -5,7 +5,7 @@ import { SCREENS } from "./lib/screens";
 // routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
-const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "31"]; // handled explicitly below, not generated
+const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "31", "32"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
@@ -16,7 +16,7 @@ const studioScreens = SCREENS.filter(
 );
 const guestScreens = SCREENS.filter((s) => s.area === "guest");
 const mobileScreens = SCREENS.filter((s) => s.area === "mobile");
-const publicScreens = SCREENS.filter((s) => s.area === "public");
+const publicScreens = SCREENS.filter((s) => s.area === "public" && !s.real);
 
 export default [
   index("routes/root-redirect.tsx"),
@@ -30,6 +30,7 @@ export default [
     route("storage", "routes/studio/storage.tsx", { id: "screen-17" }),
     route("settings/server", "routes/studio/server-settings.tsx", { id: "screen-18" }),
     route("public/embeds", "routes/studio/embeds.tsx", { id: "screen-27" }),
+    route("podroll", "routes/studio/podroll.tsx", { id: "screen-32" }),
     route("analytics", "routes/studio/analytics.tsx", { id: "screen-31" }),
     route("public/brand", "routes/studio/brand.tsx", { id: "screen-29b" }),
     route("public/links", "routes/studio/public-links.tsx", { id: "screen-29" }),
@@ -39,6 +40,7 @@ export default [
   ]),
 
   route("api/auth/*", "routes/api.auth.$.ts"),
+
   route("login", "routes/login.tsx", { id: "screen-01" }),
   ...guestScreens.map((s) =>
     route(stripPrefix(s.path, "/"), PLACEHOLDER, { id: `screen-${s.id}` }),
@@ -49,4 +51,9 @@ export default [
   ...publicScreens.map((s) =>
     route(stripPrefix(s.path, "/"), PLACEHOLDER, { id: `screen-${s.id}` }),
   ),
+
+  // Real public pages. Dynamic `:showSlug` ranks below every static route above
+  // (studio, login, guest/*, mobile/*, public/*, api/*), so it can't shadow them.
+  route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
+  route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
 ] satisfies RouteConfig;

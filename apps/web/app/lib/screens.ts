@@ -66,13 +66,13 @@ export const SCREENS: ScreenDef[] = [
   { id: "28", label: "Player themes", path: "/studio/public/embeds/themes", area: "studio", section: "Public page & embeds", inSidebar: false, real: false },
   { id: "29", label: "Public page links", path: "/studio/public/links", area: "studio", section: "Public page & embeds", inSidebar: true, real: true, note: "Social links CRUD + reordering (plain up/down, not dnd-kit) are real; website is read-only here (edit in 16); live preview deferred (needs public page 25, not built)" },
   { id: "29b", label: "Brand & theme", path: "/studio/public/brand", area: "studio", section: "Public page & embeds", inSidebar: false, real: true, note: "Theme form + contrast maths + live preview are real (shows.theme); nothing consumes the theme yet (public pages/embed player not built; Studio scope not applied to this app)" },
-  { id: "25", label: "Public show page", path: "/public/show", area: "public", section: "Public page & embeds", inSidebar: false, real: false },
+  { id: "25", label: "Public show page", path: "/:showSlug", area: "public", section: "Public page & embeds", inSidebar: false, real: true, note: "Real SSR page from DB (hero, latest, support card, paginated public episodes, social links, brand theme); no artwork/player/chapters/transcript/oEmbed yet" },
   { id: "26", label: "Episode page on a phone", path: "/public/episode-phone", area: "public", section: "Public page & embeds", inSidebar: false, real: false },
-  { id: "30", label: "Public episode page", path: "/public/episode", area: "public", section: "Public page & embeds", inSidebar: false, real: false },
+  { id: "30", label: "Public episode page", path: "/:showSlug/episodes/:publicId/:slug", area: "public", section: "Public page & embeds", inSidebar: false, real: true, note: "Real SSR episode page with canonical 301; no player/transcript/chapters/soundbites yet" },
 
   // Analytics & discovery
   { id: "31", label: "Analytics", path: "/studio/analytics", area: "studio", section: "Analytics & discovery", inSidebar: true, real: true, note: "Range control, published-episodes table and the public-overview switch are real; every download number needs OP3 (Stage 11) and is shown as No data, not faked" },
-  { id: "32", label: "Podroll", path: "/studio/podroll", area: "studio", section: "Analytics & discovery", inSidebar: false, real: false },
+  { id: "32", label: "Podroll", path: "/studio/podroll", area: "studio", section: "Analytics & discovery", inSidebar: true, real: true, note: "Manual add (podcast:guid required), reorder, remove, XML preview and the public-page switch are real; Podcast Index search/verification needs an API key (Stage 11)" },
 
   // Server
   { id: "18", label: "Server settings", path: "/studio/settings/server", area: "studio", section: "Server", inSidebar: true, real: true, note: "Users (add/role/remove) are real; domain is read-only facts, not a status badge; AI keys/LiveKit deferred (no stage reached)" },

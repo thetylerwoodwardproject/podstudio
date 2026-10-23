@@ -1,0 +1,156 @@
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db, shows, showLinks, people, episodes, episodePeople, podrollItems } from "@podstudio/db";
+import { readBrandTheme } from "~/lib/brand-theme";
+
+// Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
+// bug: two sidebar links silently failed to navigate." Per README: "Expose
+// only public, non-stale published data" and "Do not expose protected
+// episodes or assets" — so every episode query here requires status
+// "published" AND visibility "public"; unlisted/private/scheduled episodes
+// never leave this module. Public identity is the immutable `publicId`, never
+// the episode number.
+const PUBLIC_EPISODE = (showId: string) =>
+  and(eq(episodes.showId, showId), eq(episodes.status, "published"), eq(episodes.visibility, "public"));
+
+const PUBLIC_DATE = sql<number>`coalesce(${episodes.publishAt}, ${episodes.createdAt})`;
+
+const episodeColumns = {
+  id: episodes.id,
+  publicId: episodes.publicId,
+  slug: episodes.slug,
+  number: episodes.number,
+  season: episodes.season,
+  title: episodes.title,
+  subtitle: episodes.subtitle,
+  description: episodes.description,
+  durationS: episodes.durationS,
+  hasVideo: episodes.hasVideo,
+  date: PUBLIC_DATE,
+};
+
+function findShow(slug: string) {
+  return db.select().from(shows).where(eq(shows.slug, slug)).get();
+}
+
+function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
+  const tags = (show.podcastTags && typeof show.podcastTags === "object" ? show.podcastTags : {}) as Record<
+    string,
+    unknown
+  >;
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return {
+    slug: show.slug,
+    title: show.title,
+    description: show.description,
+    website: show.website,
+    feedUrl: show.feedUrl,
+    language: show.language,
+    updateFrequency: str(tags.updateFrequency),
+    fundingUrl: str(tags.fundingUrl),
+    fundingMessage: str(tags.fundingMessage),
+    brand: readBrandTheme(show.theme),
+  };
+}
+
+export function getPublicShowPage(slug: string, page: number, pageSize = 10) {
+  const show = findShow(slug);
+  if (!show) return null;
+
+  const total =
+    db.select({ n: sql<number>`count(*)` }).from(episodes).where(PUBLIC_EPISODE(show.id)).get()?.n ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(Math.max(1, page), pageCount);
+
+  const list = db
+    .select(episodeColumns)
+    .from(episodes)
+    .where(PUBLIC_EPISODE(show.id))
+    .orderBy(desc(PUBLIC_DATE))
+    .limit(pageSize)
+    .offset((current - 1) * pageSize)
+    .all();
+
+  const latest = db
+    .select(episodeColumns)
+    .from(episodes)
+    .where(PUBLIC_EPISODE(show.id))
+    .orderBy(desc(PUBLIC_DATE))
+    .limit(1)
+    .get();
+
+  const links = db
+    .select({ platform: showLinks.platform, value: showLinks.value })
+    .from(showLinks)
+    .where(and(eq(showLinks.showId, show.id), eq(showLinks.visible, 1)))
+    .orderBy(showLinks.position)
+    .all();
+
+  const hosts = db
+    .select({ name: people.name })
+    .from(people)
+    .where(and(eq(people.showId, show.id), eq(people.role, "host")))
+    .all();
+
+  // "Shows we recommend" — only when the Podroll screen's switch is on; same
+  // order as the feed (position).
+  const settings = (show.settings && typeof show.settings === "object" ? show.settings : {}) as Record<string, unknown>;
+  const podrollSettings = (settings.podroll && typeof settings.podroll === "object" ? settings.podroll : {}) as Record<string, unknown>;
+  const recommended =
+    podrollSettings.showOnPublicPage === true
+      ? db
+          .select({ title: podrollItems.title, feedUrl: podrollItems.feedUrl, note: podrollItems.note })
+          .from(podrollItems)
+          .where(eq(podrollItems.showId, show.id))
+          .orderBy(podrollItems.position)
+          .all()
+      : [];
+
+  return {
+    show: showHeader(show),
+    links,
+    hosts,
+    recommended,
+    latest: latest ?? null,
+    episodes: list,
+    total,
+    page: current,
+    pageCount,
+  };
+}
+
+export function getPublicEpisodePage(slug: string, publicId: string) {
+  const show = findShow(slug);
+  if (!show) return null;
+
+  const episode = db
+    .select(episodeColumns)
+    .from(episodes)
+    .where(and(PUBLIC_EPISODE(show.id), eq(episodes.publicId, publicId)))
+    .get();
+  if (!episode) return null;
+
+  const credits = db
+    .select({ name: people.name, role: episodePeople.role })
+    .from(episodePeople)
+    .innerJoin(people, eq(people.id, episodePeople.personId))
+    .where(eq(episodePeople.episodeId, episode.id))
+    .all();
+
+  // "Up next" = the next-older public episode, by the same public date order.
+  const upNext = db
+    .select({ publicId: episodes.publicId, slug: episodes.slug, title: episodes.title, number: episodes.number })
+    .from(episodes)
+    .where(and(PUBLIC_EPISODE(show.id), sql`${PUBLIC_DATE} < ${episode.date}`))
+    .orderBy(desc(PUBLIC_DATE))
+    .limit(1)
+    .get();
+
+  const links = db
+    .select({ platform: showLinks.platform, value: showLinks.value })
+    .from(showLinks)
+    .where(and(eq(showLinks.showId, show.id), eq(showLinks.visible, 1)))
+    .orderBy(showLinks.position)
+    .all();
+
+  return { show: showHeader(show), links, episode, credits, upNext: upNext ?? null };
+}

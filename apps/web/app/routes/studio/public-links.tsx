@@ -1,19 +1,7 @@
 import { useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
-import { faInstagram } from "@fortawesome/free-brands-svg-icons/faInstagram";
-import { faYoutube } from "@fortawesome/free-brands-svg-icons/faYoutube";
-import { faTiktok } from "@fortawesome/free-brands-svg-icons/faTiktok";
-import { faBluesky } from "@fortawesome/free-brands-svg-icons/faBluesky";
-import { faMastodon } from "@fortawesome/free-brands-svg-icons/faMastodon";
-import { faThreads } from "@fortawesome/free-brands-svg-icons/faThreads";
-import { faXTwitter } from "@fortawesome/free-brands-svg-icons/faXTwitter";
-import { faFacebook } from "@fortawesome/free-brands-svg-icons/faFacebook";
-import { faDiscord } from "@fortawesome/free-brands-svg-icons/faDiscord";
-import { faLinkedin } from "@fortawesome/free-brands-svg-icons/faLinkedin";
-import { faTwitch } from "@fortawesome/free-brands-svg-icons/faTwitch";
-import { faPatreon } from "@fortawesome/free-brands-svg-icons/faPatreon";
+import { PLATFORM_LABELS, PLATFORM_LIST, PLATFORM_ICONS, type Platform } from "~/lib/platforms";
 import {
   getShowWebsite,
   listShowLinks,
@@ -51,38 +39,6 @@ import { Separator } from "~/components/ui/separator";
 // This file imports nothing from @podstudio/db or drizzle-orm — all of
 // that lives in public-links.server.ts. See CHANGELOG, "Real bug: two
 // sidebar links silently failed to navigate," for why that's a hard rule.
-const PLATFORM_LABELS = {
-  instagram: "Instagram",
-  youtube: "YouTube",
-  tiktok: "TikTok",
-  bluesky: "Bluesky",
-  mastodon: "Mastodon",
-  threads: "Threads",
-  x: "X",
-  facebook: "Facebook",
-  discord: "Discord",
-  linkedin: "LinkedIn",
-  twitch: "Twitch",
-  patreon: "Patreon",
-} as const;
-type Platform = keyof typeof PLATFORM_LABELS;
-const PLATFORM_LIST = Object.keys(PLATFORM_LABELS) as Platform[];
-
-const PLATFORM_ICONS: Record<Platform, IconDefinition> = {
-  instagram: faInstagram,
-  youtube: faYoutube,
-  tiktok: faTiktok,
-  bluesky: faBluesky,
-  mastodon: faMastodon,
-  threads: faThreads,
-  x: faXTwitter,
-  facebook: faFacebook,
-  discord: faDiscord,
-  linkedin: faLinkedin,
-  twitch: faTwitch,
-  patreon: faPatreon,
-};
-
 // Platforms with a stable 1:1 handle -> profile-URL mapping get normalized
 // from a bare handle. Discord (invite links, not handles) and LinkedIn
 // (personal /in/ vs. company /company/ profiles aren't distinguishable

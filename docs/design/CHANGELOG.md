@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-22 (evening) — Public pages 25/30, Podroll 32, and a deploy bug found by testing
+- **Screens 25/30 (+26's layout)**: real SSR public pages at `/{show-slug}` and
+  `/{show}/episodes/{public-id}/{slug}` (dynamic `:showSlug` routes rank below
+  every static route, so `/studio`, `/login`, etc. aren't shadowed). New
+  `lib/public.server.ts` queries only published+public episodes — verified that
+  the three non-published seed episodes appear nowhere in the HTML, their
+  public ids 404, unknown show/episode 404, wrong/missing slug 301s, no
+  Set-Cookie on the public response, theme vars applied (teal/round/dark) and
+  ignored when the Public-site scope is off, 390 px viewport has no horizontal
+  scroll and every button/link ≥44 px. Shared platform labels/icons moved to
+  `lib/platforms.ts` (used by 29 and the public pages).
+- **Bug found while testing**: `meta()` in React Router v8 receives
+  `loaderData`, not `data` — my first version typechecked (I'd typed the arg
+  myself) but produced `Not found` titles and no OG tags in the browser. Fixed
+  and re-verified. A dead "RSS" button was removed (nothing serves
+  `shows.feedUrl`).
+- **Screen 32 (Podroll)**: new `podroll_items` table (migration 0005, matches
+  BUILD_PLAN §4). Manual add with validation, reorder, remove, XML preview with
+  escaping (`Tom & "Jerry" <Show>` round-trips as `&amp; &quot; &lt;&gt;`), and
+  a public-page switch that drives "Shows we recommend" on 25 in podroll order.
+- **Deploy bug (real)**: `docker-entrypoint.sh` only migrated when the DB file
+  didn't exist, so shipping migration 0005 left the live DB without the table
+  and `/studio/podroll` returned 500 ("no such table"). Entrypoint now migrates
+  on every boot (seed stays first-boot-only); confirmed "migrations applied" in
+  the container log on the next rebuild and the screen then worked.
+- **Test-harness gotchas worth knowing**: `waitForURL(/studio/)` matches the
+  hostname `studio.tylerwoodward.me` and races past login — use `/\/studio\//`;
+  and reading the DOM right after a form click without waiting for the new text
+  gives off-by-one-state results.
+- Also: header title for non-sidebar screens now correct (verified on 29b).
+
 ## 2026-10-22 (later still) — Screen 29b (Brand & theme): real form + contrast maths, nothing consumes it yet
 - `shows.theme` JSON (existing column, no migration): accent (the mockup's 8
   presets — hexes taken from the mockup — or a custom hex, normalized from

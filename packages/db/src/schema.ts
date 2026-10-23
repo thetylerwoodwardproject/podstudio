@@ -252,6 +252,32 @@ export const showLinks = sqliteTable(
   (t) => [index("show_links_show_idx").on(t.showId)],
 );
 
+// Screen 32 (Podroll): recommended shows, written to the feed as
+// <podcast:podroll><podcast:remoteItem feedGuid=… feedUrl=… title=…/>. BUILD_PLAN §4
+// lists `author, artwork, verified_at` too; those stay null until Podcast Index
+// search/verification (Stage 11) exists — nothing populates them yet.
+export const podrollItems = sqliteTable(
+  "podroll_items",
+  {
+    id: text("id").primaryKey(),
+    showId: text("show_id")
+      .notNull()
+      .references(() => shows.id),
+    feedGuid: text("feed_guid").notNull(),
+    feedUrl: text("feed_url"),
+    title: text("title").notNull(),
+    author: text("author"),
+    artwork: text("artwork"),
+    note: text("note"),
+    position: integer("position").notNull(),
+    verifiedAt: integer("verified_at"),
+  },
+  (t) => [
+    index("podroll_items_show_idx").on(t.showId),
+    uniqueIndex("podroll_items_show_guid_unique").on(t.showId, t.feedGuid),
+  ],
+);
+
 export const people = sqliteTable("people", {
   id: text("id").primaryKey(),
   showId: text("show_id")
