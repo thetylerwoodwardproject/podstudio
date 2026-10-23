@@ -5,6 +5,7 @@ import {
   deleteEpisode,
   updateEpisode,
 } from "~/lib/episodes.server";
+import { parseOptionalInt } from "~/lib/episode-fields";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -38,8 +39,19 @@ export async function action({ request, params }: { request: Request; params: { 
 
   // Deliberately not editable here: `guid`/`guidIsPermalink`/`publicId` — immutable
   // once set, per BUILD_PLAN's GUID rules (non-negotiable #1).
+  const season = parseOptionalInt(String(form.get("season") ?? ""));
+  const number = parseOptionalInt(String(form.get("number") ?? ""));
+  if (season === undefined || number === undefined) {
+    return { error: "Season and episode must be whole numbers (or blank)." };
+  }
+  const title = String(form.get("title") ?? "").trim();
+  if (!title) return { error: "A title is required." };
+
   updateEpisode(params.id, {
-    title: String(form.get("title") ?? ""),
+    season,
+    number,
+    explicit: form.get("explicit") === "on",
+    title,
     subtitle: (form.get("subtitle") as string) || null,
     description: (form.get("description") as string) || null,
     status: form.get("status") as (typeof EPISODE_STATUS)[number],
@@ -54,7 +66,7 @@ export default function EpisodeDetail({
   actionData,
 }: {
   loaderData: Awaited<ReturnType<typeof loader>>;
-  actionData?: { saved?: boolean };
+  actionData?: { saved?: boolean; error?: string };
 }) {
   const { episode, credits } = loaderData;
   const navigation = useNavigation();
@@ -103,6 +115,21 @@ export default function EpisodeDetail({
           />
         </div>
 
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex w-28 flex-col gap-1.5">
+            <Label htmlFor="season">Season</Label>
+            <Input id="season" name="season" inputMode="numeric" defaultValue={episode.season ?? ""} />
+          </div>
+          <div className="flex w-28 flex-col gap-1.5">
+            <Label htmlFor="number">Episode</Label>
+            <Input id="number" name="number" inputMode="numeric" defaultValue={episode.number ?? ""} />
+          </div>
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input type="checkbox" name="explicit" defaultChecked={!!episode.explicit} />
+            Explicit
+          </label>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="status">Status</Label>
@@ -140,6 +167,7 @@ export default function EpisodeDetail({
             : "No credited people yet"}
         </div>
 
+        {actionData?.error && <p className="text-[13px] text-destructive">{actionData.error}</p>}
         {actionData?.saved && (
           <p className="text-[13px] text-ok">Saved.</p>
         )}

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-22 (late night) — New episode flow; season/number/explicit on Episode details
+- The app could not create an episode at all. `createEpisode` (episodes.server.ts)
+  adds a private `recording` draft: fresh UUID v4 `guid`, `guidIsPermalink`
+  null, a separate UUID v4 `publicId`, slug from the title (cosmetic, may
+  repeat), number/season defaulting to next/latest. "New episode" form on the
+  Episodes screen redirects to the new episode's details page.
+- Episode details gained season, episode number and explicit (README 11);
+  blank clears to null, junk is rejected with a message (`episode-fields.ts`,
+  unit-tested, 39 tests total).
+- Episodes list loader moved out of the route file into `episodes.server.ts`
+  (the route had been importing `@podstudio/db` values directly — against the
+  hard rule).
+- Verified in a real browser: invalid season rejected and nothing created;
+  auto numbering gave 1/44; guid and public_id both v4 and distinct; edit +
+  reload persists 2/7/explicit; a duplicate season/number pair is accepted;
+  the private drafts don't appear on the public page (still "3 episodes");
+  deleted both through the UI (row count back to 6, no orphaned credits).
+
 ## 2026-10-22 (late night) — Fonts self-hosted; no third-party requests
 - Replaced the Google Fonts `<link>`s in `root.tsx` with `@fontsource/geist`
   (400/500/600/700) and `@fontsource/jetbrains-mono` (400/500/600), latin

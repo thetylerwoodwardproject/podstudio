@@ -1,46 +1,30 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router";
-import { db, episodes, shows, people, episodePeople } from "@podstudio/db";
-import { eq, desc } from "drizzle-orm";
+import { Form, Link, redirect, useNavigation } from "react-router";
+import { listEpisodeRows, createEpisode } from "~/lib/episodes.server";
+import { parseOptionalInt } from "~/lib/episode-fields";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { cn } from "~/lib/utils";
 
 const PAGE_SIZE = 7;
 
 export async function loader() {
-  const show = db.select().from(shows).get();
-  if (!show) return { show: null, rows: [] as EpisodeRow[] };
+  return listEpisodeRows();
+}
 
-  const rows = db
-    .select({
-      id: episodes.id,
-      number: episodes.number,
-      title: episodes.title,
-      status: episodes.status,
-      durationS: episodes.durationS,
-      updatedAt: episodes.updatedAt,
-    })
-    .from(episodes)
-    .where(eq(episodes.showId, show.id))
-    .orderBy(desc(episodes.number))
-    .all();
-
-  const guestByEpisode = new Map<string, string>();
-  for (const row of rows) {
-    const credits = db
-      .select({ name: people.name, role: episodePeople.role })
-      .from(episodePeople)
-      .innerJoin(people, eq(people.id, episodePeople.personId))
-      .where(eq(episodePeople.episodeId, row.id))
-      .all();
-    const guest = credits.find((c) => c.role === "guest");
-    if (guest) guestByEpisode.set(row.id, guest.name);
+export async function action({ request }: { request: Request }) {
+  const form = await request.formData();
+  if (form.get("intent") !== "create") return null;
+  const number = parseOptionalInt(String(form.get("number") ?? ""));
+  const season = parseOptionalInt(String(form.get("season") ?? ""));
+  if (number === undefined || season === undefined) {
+    return { error: "Season and episode must be whole numbers (or blank)." };
   }
-
-  return {
-    show,
-    rows: rows.map((r) => ({ ...r, guest: guestByEpisode.get(r.id) ?? null })),
-  };
+  const result = createEpisode({ title: String(form.get("title") ?? ""), number, season });
+  if (!result.ok) return { error: result.error };
+  return redirect(`/studio/episodes/${result.id}`);
 }
 
 type EpisodeRow = {
@@ -70,10 +54,15 @@ function formatRelative(ms: number) {
 
 export default function EpisodesRoute({
   loaderData,
+  actionData,
 }: {
   loaderData: Awaited<ReturnType<typeof loader>>;
+  actionData?: { error?: string } | null;
 }) {
   const { show, rows } = loaderData;
+  const navigation = useNavigation();
+  const creating = navigation.state === "submitting";
+  const [showNew, setShowNew] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -110,13 +99,40 @@ export default function EpisodesRoute({
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Episodes</h1>
         </div>
-        <Link
-          to="/studio/feed/tags"
-          className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
-        >
-          Edit show details
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            to="/studio/feed/tags"
+            className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Edit show details
+          </Link>
+          <Button type="button" size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
+            New episode
+          </Button>
+        </div>
       </div>
+
+      {(showNew || actionData?.error) && (
+        <Form method="post" className="mb-5 flex flex-wrap items-end gap-3 rounded-[14px] border border-border bg-card p-4">
+          <input type="hidden" name="intent" value="create" />
+          <div className="flex min-w-[240px] flex-1 flex-col gap-1.5">
+            <Label htmlFor="new-title">Title</Label>
+            <Input id="new-title" name="title" required maxLength={200} autoFocus />
+          </div>
+          <div className="flex w-24 flex-col gap-1.5">
+            <Label htmlFor="new-season">Season</Label>
+            <Input id="new-season" name="season" inputMode="numeric" placeholder="auto" />
+          </div>
+          <div className="flex w-24 flex-col gap-1.5">
+            <Label htmlFor="new-number">Episode</Label>
+            <Input id="new-number" name="number" inputMode="numeric" placeholder="auto" />
+          </div>
+          <Button type="submit" disabled={creating}>
+            Create
+          </Button>
+          {actionData?.error && <p className="w-full text-[13px] text-destructive">{actionData.error}</p>}
+        </Form>
+      )}
 
       <div className="overflow-hidden rounded-[14px] border border-border bg-card">
         <table className="w-full text-sm">
