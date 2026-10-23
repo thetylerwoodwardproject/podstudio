@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
 import { getEmbedContext, saveEmbedConfig } from "~/lib/embeds.server";
 import type { EmbedConfig } from "~/lib/embeds.server";
-import { buildSnippets } from "~/lib/embed-snippets";
+import { buildSnippets, embedSrc } from "~/lib/embed-snippets";
 import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 
@@ -12,10 +12,10 @@ import { Label } from "~/components/ui/label";
 // - The config is one default set stored under `shows.settings.embed` (no
 //   embeds table in BUILD_PLAN §4); snippets are derived from it.
 // - The three code tabs are real, generated from the saved options.
-// - The live preview and the URLs inside the snippets don't work end to end:
-//   the embed player bundle (screen 28, `packages/embed`), the public
-//   `/{show}/embed/*` route, `/embed.js` and `/oembed` aren't built. The
-//   screen says so plainly instead of rendering a fake player.
+// - The snippets' URLs now resolve: `/{show}/embed/*` (routes/embed.ts),
+//   `/embed.js` and `/oembed` exist, and the live preview is an iframe of that
+//   real route. The audio player itself (screen 28) isn't built, so the embed
+//   shows show/episode info with "Audio isn't available yet" — no fake player.
 // - The snippet origin is whatever host this studio is served from; the real
 //   public domain isn't chosen yet.
 // This file imports nothing from @podstudio/db or drizzle-orm (type-only
@@ -305,10 +305,24 @@ function EmbedsForm({
 
       <section className="mt-5 flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Live preview</h2>
-        <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
-          Not available yet — the embed player itself (screen 28) isn't built, so there's nothing real
-          to render here. The snippets below reflect your options exactly, but their URLs won't
-          resolve until the player and the public embed route exist.
+        {noEpisodes ? (
+          <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
+            Pick an eligible episode to preview.
+          </p>
+        ) : (
+          <iframe
+            key={embedSrc(origin, ctx.slug, live)}
+            src={embedSrc(origin, ctx.slug, live)}
+            title="Embed preview"
+            sandbox="allow-scripts allow-popups"
+            className="w-full rounded-md border border-border"
+            style={{ height: player === "video" ? 360 : 152 }}
+            data-testid="preview"
+          />
+        )}
+        <p className="text-[11.5px] text-muted-foreground">
+          This is the real embed route. The audio player itself (screen 28) isn't built, so it shows the
+          show and episode with "Audio isn't available yet" — no play button, chapters or transcript.
         </p>
       </section>
 

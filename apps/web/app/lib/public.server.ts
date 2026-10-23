@@ -154,3 +154,43 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
 
   return { show: showHeader(show), links, episode, credits, upNext: upNext ?? null };
 }
+
+// Embed player data (`/{show}/embed/{public-id|latest|all}`) — same public +
+// published-only rule as everything above.
+export function getEmbedView(slug: string, target: string, origin: string) {
+  const show = findShow(slug);
+  if (!show) return null;
+  const url = (e: { publicId: string; slug: string }) => `${origin}/${show.slug}/episodes/${e.publicId}/${e.slug}`;
+  const cols = { publicId: episodes.publicId, slug: episodes.slug, title: episodes.title, number: episodes.number };
+  const showUrl = `${origin}/${show.slug}`;
+
+  if (target === "all") {
+    const list = db.select(cols).from(episodes).where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(50).all();
+    return { showTitle: show.title, showUrl, mode: "playlist" as const, episodes: list.map((e) => ({ title: e.title, number: e.number, url: url(e) })) };
+  }
+  const row =
+    target === "latest"
+      ? db.select(cols).from(episodes).where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(1).get()
+      : db.select(cols).from(episodes).where(and(PUBLIC_EPISODE(show.id), eq(episodes.publicId, target))).get();
+  if (!row && target !== "latest") return null; // unknown / non-public id -> 404; "latest" with none yet renders empty
+  return {
+    showTitle: show.title,
+    showUrl,
+    mode: "single" as const,
+    episodes: row ? [{ title: row.title, number: row.number, url: url(row) }] : [],
+  };
+}
+
+/** For oEmbed: resolve a public page URL path to {show slug, optional episode public id}, public episodes only. */
+export function resolveOembedTarget(slug: string, publicId: string | null) {
+  const show = findShow(slug);
+  if (!show) return null;
+  if (!publicId) return { title: show.title, target: "latest" as const, slug: show.slug };
+  const ep = db
+    .select({ title: episodes.title })
+    .from(episodes)
+    .where(and(PUBLIC_EPISODE(show.id), eq(episodes.publicId, publicId)))
+    .get();
+  if (!ep) return null;
+  return { title: `${ep.title} — ${show.title}`, target: publicId, slug: show.slug };
+}

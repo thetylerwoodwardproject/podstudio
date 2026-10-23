@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-23 — Embed route, `/embed.js`, `/oembed`; Embed players preview is real
+- New resource routes: `/{show}/embed/{id|latest|all}` (`lib/embed-player.ts`
+  builds the document; only public+published episodes, 404 otherwise),
+  `/embed.js`, `/oembed`. Screen 27's live preview is now an iframe of the real
+  route (re-keyed on option change); public pages carry oEmbed discovery links.
+  Still no audio, so the embed says so rather than faking a player.
+- 49 unit tests now (embed escaping/allow-lists/no-audio-claims/theme=auto).
+- Verified in a real browser + HTTP: escaped XSS probe episode (title with
+  `<img onerror>`) renders as text in the embed and oEmbed; private/unknown
+  ids and foreign-origin oEmbed URLs 404; hostile query params fall back to
+  defaults; no Set-Cookie; the **actual Script snippet copied from the studio
+  screen** on a mock third-party https page builds the iframe and the iframe's
+  postMessage resizes it (152→247 px for the playlist); the preview iframe's
+  src changes with the options and shows the 4-item playlist. Probe episode
+  removed (episodes back to 6).
+- Finding: Chrome's Local Network Access check blocks a public page from
+  loading `embed.js` from this LAN-only host (see HANDOFF Known issues); the
+  test ran with that check disabled. Not a code bug — a hosting constraint.
+- Test gotcha: first attempts failed on that same check, which looked like a
+  broken script until the console error was read.
+
 ## 2026-10-22 (late night) — Brand & theme Studio scope now applied
 - `_layout.tsx` reads the theme; with `scopes.studio` on it wraps the shell in a
   `display: contents` div setting `--primary`, `--primary-foreground`, `--ring`

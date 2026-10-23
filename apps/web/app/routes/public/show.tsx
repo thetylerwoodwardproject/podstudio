@@ -19,7 +19,7 @@ export async function loader({ params, request }: { params: { showSlug?: string 
   const page = Number(new URL(request.url).searchParams.get("page") ?? "1") || 1;
   const result = getPublicShowPage(params.showSlug ?? "", page);
   if (!result) throw data("Not found", { status: 404 });
-  return result;
+  return { ...result, origin: new URL(request.url).origin };
 }
 
 export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof loader>> }) {
@@ -31,6 +31,13 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
     { property: "og:type", content: "website" },
     { property: "og:title", content: d.show.title },
     { property: "og:description", content: description },
+    {
+      tagName: "link",
+      rel: "alternate",
+      type: "application/json+oembed",
+      href: `${d.origin}/oembed?url=${encodeURIComponent(`${d.origin}/${d.show.slug}`)}`,
+      title: d.show.title,
+    },
   ];
 }
 

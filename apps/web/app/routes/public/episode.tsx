@@ -12,13 +12,13 @@ import { PublicLayout, formatDate, formatDuration } from "~/components/public/pu
 // transcript + dialog, soundbites, mentioned links, MP3 download, listen-in-app
 // buttons / sticky bar, share-at-time, JSON-LD (omitted until audio URL exists).
 // Only public + published episodes resolve — see public.server.ts.
-export async function loader({ params }: { params: { showSlug?: string; publicId?: string; slug?: string } }) {
+export async function loader({ params, request }: { params: { showSlug?: string; publicId?: string; slug?: string }; request: Request }) {
   const result = getPublicEpisodePage(params.showSlug ?? "", params.publicId ?? "");
   if (!result) throw data("Not found", { status: 404 });
   if (params.slug !== result.episode.slug) {
     throw redirect(`/${result.show.slug}/episodes/${result.episode.publicId}/${result.episode.slug}`, 301);
   }
-  return result;
+  return { ...result, origin: new URL(request.url).origin };
 }
 
 export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof loader>> }) {
@@ -31,6 +31,13 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
     { property: "og:type", content: "article" },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
+    {
+      tagName: "link",
+      rel: "alternate",
+      type: "application/json+oembed",
+      href: `${d.origin}/oembed?url=${encodeURIComponent(`${d.origin}/${d.show.slug}/episodes/${d.episode.publicId}/${d.episode.slug}`)}`,
+      title,
+    },
   ];
 }
 

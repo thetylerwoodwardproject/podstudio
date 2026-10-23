@@ -2,15 +2,22 @@ import type { EmbedConfig } from "~/lib/embeds.server";
 
 // Pure string builder — kept out of the route module so the route only
 // exports loader/action/default, and out of embeds.server.ts so the client can use it.
-export function buildSnippets(origin: string, slug: string, c: EmbedConfig) {
-  const target =
-    c.source === "episode" ? (c.episodePublicId ?? "") : c.source === "latest" ? "latest" : "all";
+export function embedTarget(c: EmbedConfig) {
+  return c.source === "episode" ? (c.episodePublicId ?? "") : c.source === "latest" ? "latest" : "all";
+}
+
+/** The real `/{show}/embed/*` URL for a config — what the iframe snippet and the live preview load. */
+export function embedSrc(origin: string, slug: string, c: EmbedConfig) {
   const params = new URLSearchParams({ player: c.player, theme: c.theme, accent: c.accent });
   if (!c.chapters) params.set("chapters", "0");
   if (!c.transcript) params.set("transcript", "0");
   if (!c.follow) params.set("follow", "0");
+  return `${origin}/${slug}/embed/${embedTarget(c)}?${params.toString()}`;
+}
 
-  const src = `${origin}/${slug}/embed/${target}?${params.toString()}`;
+export function buildSnippets(origin: string, slug: string, c: EmbedConfig) {
+  const target = embedTarget(c);
+  const src = embedSrc(origin, slug, c);
   const height = c.player === "video" ? 360 : 152;
   const iframe =
     `<iframe src="${src.replace(/&/g, "&amp;")}"\n` +
