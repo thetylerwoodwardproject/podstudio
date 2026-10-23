@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-23 — Caddy port-80 conflict fixed
+- Tyler disabled the system `caddy.service` (`sudo systemctl disable --now
+  caddy`; it needs a password, so I couldn't). Removed my throwaway `pw-caddy`.
+  Plain `docker compose up -d caddy` started the old exited container but
+  Docker had not published its ports (`ports={}`, nothing listening) — it
+  needed `--force-recreate`. Named volumes were kept, so the internal CA is
+  unchanged.
+- Verified: ports 80/443/8081 listening; http→https 308; `/login` 200;
+  `/the-mic-drop/feed` 200; `:8081/podstudio-ca-root.crt` 627 bytes;
+  certificate issuer is the same Caddy Local Authority; system caddy
+  inactive + disabled.
+
 ## 2026-10-23 — Embed route, `/embed.js`, `/oembed`; Embed players preview is real
 - New resource routes: `/{show}/embed/{id|latest|all}` (`lib/embed-player.ts`
   builds the document; only public+published episodes, 404 otherwise),

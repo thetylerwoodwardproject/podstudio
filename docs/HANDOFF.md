@@ -10,8 +10,8 @@ player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
 applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
 channel-level RSS feed, New-episode + credits editing, self-hosted fonts,
-migrations on every boot, Vitest (49 tests). Also found the Caddy/port-80 reboot
-problem — **read the Caddy/port-80 item under Known issues before assuming the studio URL works.**
+migrations on every boot, Vitest (49 tests). Also found and fixed the Caddy/port-80
+reboot problem (see Known issues).
 
 ## Live right now
 
@@ -114,18 +114,18 @@ proof #1 (dependency compatibility) as a side effect.
   off-site backup target chosen (Litestream isn't in docker-compose yet), no
   S3-compatible storage target chosen, no real worker job runner.
 
-- **Caddy container can lose a port-80 race after a host reboot** (found
-  2026-10-22): the apt-installed system `caddy.service` is *enabled* with a
-  stray `/etc/caddy/Caddyfile` (`:80 { reverse_proxy localhost:8000 }`, nothing
-  on :8000) and starts at boot before Docker, so `podstudio-caddy-1` can't bind
-  host port 80 and exits 128 — the studio URL then refuses connections. Fix
-  needs sudo and is Tyler's call (it's a host service, possibly used for
-  something else): `sudo systemctl disable --now caddy` then
-  `docker compose -f deploy/docker-compose.yml up -d caddy`. Until then a
-  temporary workaround is a throwaway Caddy on 443 only (see CHANGELOG) —
-  **a container named `pw-caddy` is currently running as that workaround**
-  (plain `docker run --rm`, no restart policy, gone after a reboot); `docker rm -f
-  pw-caddy` before starting the real `caddy` service or they'll fight over :443.
+- **Fixed 2026-10-23: Caddy lost a port-80 race after a host reboot.** The
+  apt-installed system `caddy.service` was *enabled* (with a stray `:80 {
+  reverse_proxy localhost:8000 }` config, nothing on :8000), so after the
+  05:33 reboot on 10-22 it took :80 before Docker and `podstudio-caddy-1` exited
+  128 — the studio URL refused connections for ~16 h. Tyler ran `sudo systemctl
+  disable --now caddy`; the real container was then **force-recreated**
+  (`docker compose -f deploy/docker-compose.yml up -d --force-recreate caddy`)
+  because merely starting the stale failed container left its ports unpublished.
+  Verified: :80 → 308 to https, :443 → 200, :8081 serves the CA root, feed 200,
+  and the served chain is the same "Caddy Local Authority" root (no re-trust
+  needed). If this ever recurs, check `ss -ltn | grep ':80 '` and
+  `systemctl is-enabled caddy` first.
 - **Migrations now run on every web-container boot** (fixed 2026-10-22). Before
   this the entrypoint only migrated against an *empty* volume, so any new
   migration in a rebuilt image never reached the existing DB — screen 32 500'd
@@ -147,10 +147,7 @@ Reference docs: `docs/design/STATUS.md` (stage-gate table), `docs/design/CHANGEL
 (dated session history, newest first), `docs/design/BUILD_PLAN.md` (confirmed
 scope/architecture/data model), `CLAUDE.md` (working rules).
 
-**First thing next session:** check `docker ps`. The real `caddy` container is
-down (system `caddy.service` owns :80 — see Known issues) and a throwaway
-`pw-caddy` may or may not still be serving :443. Also note `:8081` (the CA-root
-bootstrap route) lives in the real Caddy, so it's down too.
+**First thing next session:** `docker compose -f deploy/docker-compose.yml ps` — `caddy`, `web`, `worker` should all be `Up` (Caddy was repaired 2026-10-23; see Known issues).
 
 **The screens that don't need new infrastructure are done.** What's left is
 blocked, not forgotten:
