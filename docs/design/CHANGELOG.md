@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-10-23 (later still) — Security: unauthenticated writes closed; Storage admin-only
+- **Found by accident while hardening roles:** the `/studio` layout's session
+  check was a loader; React Router does not run a parent loader as a guard for a
+  child route's action, so `curl -X POST /studio/podroll -d intent=toggle-public…`
+  with no cookie executed. Probed with four harmless-but-visible writes
+  (podroll switch, analytics switch, brand theme, create episode) — all took
+  effect behind a 302. I restored the live DB to its prior state immediately
+  (settings NULL, theme as before, episodes back to 6) and fixed it.
+- **Fix:** `export const middleware` on `routes/studio/_layout.tsx` (stable in
+  react-router 8.4, no flag) throws `redirect("/login")` before any loader or
+  action runs; the loader keeps its own check as defense in depth. Verified with
+  `scripts/verify-studio-auth.sh` (new): 10 unauthenticated mutating POSTs →
+  302, five child `.data` GETs → single-fetch redirect, and a before/after
+  snapshot of shows/episodes/counts is **identical**. Signed-in flows re-tested
+  (account/roles/password, storage authorization, full smoke): all pass; one
+  smoke run timed out inside a batch and passed on immediate rerun — treated as
+  a flake, cause not identified.
+- **Storage is admin-only** (S3 keys + outbound "Test connection"): editors see a
+  note and no target list; every action 403s server-side (`lib/authz.server.ts`
+  `requireAdmin`, now shared with Server settings). Verified as a throwaway
+  editor: add/delete/test/update-keys/routing all 403, targets unchanged, and
+  Episodes still works for them.
+- Process note: a rebuild was slow enough that my test first ran against the
+  previous container and failed in a confusing way; check the running image
+  actually contains the change before debugging the test.
+
 ## 2026-10-23 (later) — Change password, admin-only user management, immediate session revocation
 - **Security gap found and fixed:** Server settings' `add-user`, `update-role`
   and `remove-user` actions only required *a* session (the studio layout checks

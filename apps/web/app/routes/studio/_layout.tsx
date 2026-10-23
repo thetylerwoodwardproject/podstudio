@@ -1,11 +1,23 @@
-import { redirect } from "react-router";
+import { redirect, type MiddlewareFunction } from "react-router";
 import { auth } from "~/lib/auth.server";
 import { StudioShell } from "~/components/layout/studio-shell";
 import { getBrandTheme } from "~/lib/brand.server";
 import { accentHex, onAccent, studioAccent } from "~/lib/brand-theme";
 
-// The actual gate: every /studio/* route sits behind this loader. No session,
-// no studio — this is Deliverable 1 of the 2026-10-18 plan (see CHANGELOG).
+// The actual gate. This is MIDDLEWARE, not just a loader, on purpose: a parent
+// layout's loader guards page loads but does NOT stop a child route's *action*
+// from running — an unauthenticated POST to e.g. /studio/podroll executed (and
+// wrote to the DB) and was only redirected afterwards. Middleware runs before
+// every loader and action under /studio, so no session means nothing runs.
+// (See CHANGELOG 2026-10-23, "unauthenticated writes".) The loader below keeps
+// its own check as defense in depth and to get the user for the shell.
+export const middleware: MiddlewareFunction[] = [
+  async ({ request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw redirect("/login");
+  },
+];
+
 export async function loader({ request }: { request: Request }) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return redirect("/login");

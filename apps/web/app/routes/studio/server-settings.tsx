@@ -5,13 +5,13 @@ import {
   getDomainInfo,
   listUsers,
   getCurrentUserId,
-  getCurrentUserRole,
   changeOwnPassword,
   MIN_PASSWORD_LENGTH,
   addUser,
   updateUserRole,
   removeUser,
 } from "~/lib/server-settings.server";
+import { getCurrentUserRole, requireAdmin } from "~/lib/authz.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -125,9 +125,7 @@ export async function action({ request }: { request: Request }) {
   // update-role and promote themselves. Enforced here (server-side), not just
   // by hiding the controls.
   if (intent === "add-user" || intent === "update-role" || intent === "remove-user") {
-    if ((await getCurrentUserRole(request)) !== "admin") {
-      throw new Response("Only admins can manage users.", { status: 403 });
-    }
+    await requireAdmin(request);
   }
 
   if (intent === "add-user") {

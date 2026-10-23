@@ -95,6 +95,25 @@ proof #1 (dependency compatibility) as a side effect.
 
 ## Known issues, left as-is
 
+- **FIXED 2026-10-23 — unauthenticated writes (security).** The studio's login
+  gate was a *loader* on the `/studio` layout, which guards page loads but does
+  not stop a child route's **action** from running: an unauthenticated
+  `POST /studio/<anything>` executed its write and was only redirected
+  afterwards (I confirmed it by flipping the podroll/analytics switches,
+  rewriting the brand theme and creating an episode with curl and no session;
+  all reverted). The gate is now **middleware** (`routes/studio/_layout.tsx`),
+  which runs before every loader and action. Re-verified: with no session all
+  writes are blocked (DB identical before/after) and `.data` requests redirect.
+  `scripts/verify-studio-auth.sh` re-runs that check. **Exposure/forensics:**
+  the studio host is LAN-only DNS, so this was reachable by machines on the
+  home network, not the open internet; I can't tell whether it was ever
+  exploited — web logs record method/path/status but not sessions, and old
+  container logs were discarded on rebuild. If you want to be careful, skim the
+  show/episodes/podroll/links/TXT/users data for anything you didn't make, and
+  consider changing the admin password (Server settings → Your account).
+  Any *new* route with an `action` must live under `routes/studio/` (so the
+  middleware covers it) or do its own session check.
+
 - **Embeds can't work from public sites while the studio host is LAN-only.**
   `studio.tylerwoodward.me` resolves to 192.168.x.x, so Chrome's Local Network
   Access check blocks `embed.js`/iframes loaded from a public page ("Permission

@@ -8,6 +8,7 @@ import {
   setStorageRouting,
   testStorageConnectionById,
 } from "~/lib/storage.server";
+import { getCurrentUserRole, requireAdmin } from "~/lib/authz.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -55,11 +56,16 @@ type StorageRoute = keyof typeof ROUTE_LABELS;
 const PROVIDER_LIST = Object.keys(PROVIDER_LABELS) as StorageProvider[];
 const ROUTE_LIST = Object.keys(ROUTE_LABELS) as StorageRoute[];
 
-export async function loader() {
-  return { targets: listStorageTargets() };
+// Storage holds S3 credentials and makes outbound requests ("Test connection"),
+// so the whole screen is admin-only: editors see a note, get no target list,
+// and every action is refused with a 403 server-side.
+export async function loader({ request }: { request: Request }) {
+  const isAdmin = (await getCurrentUserRole(request)) === "admin";
+  return { targets: isAdmin ? listStorageTargets() : [], isAdmin };
 }
 
 export async function action({ request }: { request: Request }) {
+  await requireAdmin(request);
   const form = await request.formData();
   const intent = form.get("intent");
   const str = (name: string) => ((form.get(name) as string) || "").trim();
@@ -128,10 +134,21 @@ export async function action({ request }: { request: Request }) {
   return null;
 }
 
-export default function Storage({
-  loaderData,
-  actionData,
-}: {
+export default function Storage(props: StorageProps) {
+  if (!props.loaderData.isAdmin) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Storage</h1>
+        <p className="mt-4 text-[13px] text-muted-foreground">
+          Storage holds the server's S3 credentials, so only admins can view or change it.
+        </p>
+      </div>
+    );
+  }
+  return <StorageAdmin {...props} />;
+}
+
+type StorageProps = {
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: {
     error?: string;
@@ -142,7 +159,9 @@ export default function Storage({
     keysTargetId?: string;
     testResult?: { targetId: string; ok: boolean; message: string };
   };
-}) {
+};
+
+function StorageAdmin({ loaderData, actionData }: StorageProps) {
   const { targets } = loaderData;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";

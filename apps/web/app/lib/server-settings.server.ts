@@ -32,15 +32,6 @@ export async function getCurrentUserId(request: Request): Promise<string | null>
   return session?.user.id ?? null;
 }
 
-// Role comes from the DB, not the (5-minute cookie-cached) session payload, so
-// a demotion takes effect immediately.
-export async function getCurrentUserRole(request: Request): Promise<"admin" | "editor" | null> {
-  const id = await getCurrentUserId(request);
-  if (!id) return null;
-  const row = db.select({ role: users.role }).from(users).where(eq(users.id, id)).get();
-  return row?.role === "admin" ? "admin" : row ? "editor" : null;
-}
-
 export const MIN_PASSWORD_LENGTH = 8; // Better Auth's own minimum; stated here so the UI and the check agree
 
 export async function changeOwnPassword(
