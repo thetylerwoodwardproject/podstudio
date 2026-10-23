@@ -11,7 +11,7 @@ applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
 channel-level RSS feed, New-episode + credits editing, self-hosted fonts,
 migrations on every boot, Vitest (49 tests). Also found the Caddy/port-80 reboot
-problem — **read the first Known issue before assuming the studio URL works.**
+problem — **read the Caddy/port-80 item under Known issues before assuming the studio URL works.**
 
 ## Live right now
 
