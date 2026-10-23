@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-22 — screens 27 (Embed players) and 31 (Analytics) built; found the
+**Last updated:** 2026-10-22 — screens 27 (Embed players), 31 (Analytics) and 29b (Brand & theme) built; found the
 Caddy/port-80 reboot issue (see Known issues).
 
 ## Live right now
@@ -43,8 +43,9 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 18 Server settings | Half real, at `/studio/settings/server` — Users (add/change role/remove) is real, on the existing Better Auth `users` table; "Add user" substitutes for "invite" (no email delivery yet, same gap as 16b). Domain shows the real hostname + "Caddy internal CA, LAN-only" as plain text, not a status badge (there's no real auto-TLS to report). Storage links out to 17 instead of duplicating it. AI keys (Whisper/LLM) and LiveKit URL/keys are an explicit "not configured" note — no schema, no stage reached |
 | 27 Embed players | Half real, at `/studio/public/embeds` — the config form (what to embed: one episode/latest/whole show; audio/video; theme; accent; chapters/transcript/follow toggles) is real, saved as the show default under `shows.settings.embed` (no table; BUILD_PLAN §4 has none). Only public+published episodes are selectable. The three code tabs (iframe / Script / Paste a link) are real, generated live from the form. Live preview is an explicit "not available" note and the snippets' URLs (`/{show}/embed/*`, `/embed.js`, `/oembed`) don't resolve — screen 28's player and the public routes don't exist. Snippet origin is whatever host the studio is served from (public domain not chosen) |
 | 31 Analytics | Thin by design, at `/studio/analytics` — every number (KPIs, chart, top apps, countries, per-episode Day 1/7/30/all-time) needs OP3 and is shown as "No data" rather than faked. Real: the 30d/90d/12m range control (URL `?range=`), the published-episodes table rows, the "Show overview on public page" switch (persisted at `shows.settings.analytics.showOnPublicPage`; nothing reads it until screen 25 exists), and an honest "OP3 / Podcast Index: Not connected" status |
+| 29b Brand & theme | Half real, at `/studio/public/brand` (linked from Embed players and Public page links, not in the sidebar) — accent (8 mockup presets or validated custom hex), public-site appearance, corners (Sharp 3/4 · Soft 8/12 · Round 20/18 px), and Public site / Embed players / Studio scopes, all persisted to `shows.theme`. The README's contrast rules are implemented in `app/lib/brand-theme.ts` (on-accent #111113 or #fff by contrast; link colour stepped until 4.5:1; studio ink→bone and <3:1 lightening) and shown in a live light/dark preview with the measured ratios. **Nothing consumes the saved theme yet** — public pages/embed player don't exist and the Studio scope isn't applied to this app's own chrome |
 | 29 Public page links | Half real, at `/studio/public/links` — social links (add/toggle-visible/remove/reorder) are real on a new `show_links` table; platform picker enforces one-per-platform; handles get normalized to full profile URLs on save (Discord/LinkedIn require a full URL — their handle format can't be guessed). Real Font Awesome 6 brand icons per platform. Website is read-only, linking to Show tags (16) instead of duplicating that field. No drag-and-drop (plain up/down buttons instead), no live preview (needs the public page, screen 25, not built) |
-| everything else (25 screens) | Placeholder route only, zero feature logic |
+| everything else (24 screens) | Placeholder route only, zero feature logic |
 
 **None of this is a passed BUILD_PLAN stage.** PREBUILD is still current per
 `docs/design/STATUS.md` — its actual proofs (OPFS capture+crash-recovery

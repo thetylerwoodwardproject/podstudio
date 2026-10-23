@@ -13,7 +13,7 @@ import {
   Command,
   LogOut,
 } from "lucide-react";
-import { sidebarScreens } from "~/lib/screens";
+import { SCREENS, sidebarScreens } from "~/lib/screens";
 import { cn } from "~/lib/utils";
 import { signOut } from "~/lib/auth-client";
 import { CommandPalette } from "./command-palette";
@@ -93,9 +93,7 @@ export function StudioShell({ user }: { user: { name: string; email: string } })
       <div className="flex min-h-0 flex-col">
         <header className="flex h-[54px] items-center justify-between border-b border-border bg-[#141416] px-4">
           <span className="text-sm text-muted-foreground">
-            {groups
-              .flatMap((g) => g.screens)
-              .find((s) => s.path === location.pathname)?.label ?? "Podstudio"}
+            {SCREENS.find((s) => s.path === location.pathname)?.label ?? "Podstudio"}
           </span>
           <div className="flex items-center gap-2">
             <button

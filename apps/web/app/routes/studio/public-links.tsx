@@ -206,6 +206,9 @@ export default function PublicLinks({
           Public page &amp; embeds
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Public page links</h1>
+        <Link to="/studio/public/brand" className="text-[12.5px] text-muted-foreground underline hover:text-foreground">
+          Brand &amp; theme
+        </Link>
       </div>
 
       <section className="flex flex-col gap-2 rounded-[14px] border border-border bg-card p-5">

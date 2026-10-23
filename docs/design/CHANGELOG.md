@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-10-22 (later still) — Screen 29b (Brand & theme): real form + contrast maths, nothing consumes it yet
+- `shows.theme` JSON (existing column, no migration): accent (the mockup's 8
+  presets — hexes taken from the mockup — or a custom hex, normalized from
+  #rgb/#rrggbb), appearance (light/dark/match device), corners, and three
+  scopes. Every field re-validated against allow-lists server-side
+  (`brand.server.ts`, `readBrandTheme`); invalid custom hex is rejected in
+  the UI (Save disabled) and on the server.
+- README contrast rules live in pure `lib/brand-theme.ts`: text-on-accent is
+  #111113 or #fff by higher contrast; link colour is stepped toward black
+  (light) / white (dark) until ≥4.5:1; studio accent turns ink into bone and
+  lightens anything under 3:1 on #111113. Emits `--brand-accent`,
+  `--brand-on-accent`, `--brand-link`, `--brand-tint`, and
+  `--brand-radius-control/-card` (README only says `--brand-radius-*`; the
+  two names are my choice for its two radii).
+- Live preview applies those variables to sample button/link/tint in light and
+  dark and prints the measured ratios. Verified in a real browser: amber 9.6:1
+  on-accent, link 4.7:1 light; ink→bone in studio; teal on-accent 4.6:1;
+  invalid hex blocks save; custom `#fa0` → `#ffaa00` persists across reload;
+  no console errors. Test theme cleared from the live DB afterwards.
+- Not done, stated on the screen: nothing reads the theme (public pages and
+  embed player unbuilt); the Studio scope isn't applied to this app's chrome.
+- Small fix found along the way: the studio header showed "Podstudio" for any
+  screen not in the sidebar (it searched only sidebar screens); it now looks
+  the title up in the full `SCREENS` registry.
+
 ## 2026-10-22 (later) — Screen 31 (Analytics): range control + switch real, all numbers honestly "No data"
 - OP3 isn't integrated (no token, no prefixed feed, no `analytics_daily`), so
   KPIs, downloads chart, top apps, countries and the per-episode Day 1/7/30/

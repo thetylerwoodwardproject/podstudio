@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, useNavigation } from "react-router";
+import { Form, Link, useNavigation } from "react-router";
 import { getEmbedContext, saveEmbedConfig } from "~/lib/embeds.server";
 import type { EmbedConfig } from "~/lib/embeds.server";
 import { buildSnippets } from "~/lib/embed-snippets";
@@ -342,7 +342,9 @@ function EmbedsForm({
           </pre>
         )}
         <p className="text-[11.5px] text-muted-foreground">
-          Origin shown is this studio's own host ({origin}); the real public domain isn't chosen yet.
+          Default accent for new embeds comes from{" "}
+          <Link to="/studio/public/brand" className="underline hover:text-foreground">Brand &amp; theme</Link>.
+          {" "}Origin shown is this studio's own host ({origin}); the real public domain isn't chosen yet.
         </p>
       </section>
     </div>
