@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-23 (end of day) — Security headers
+- `server.js` now sets `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin` and `X-Frame-Options: SAMEORIGIN` on every
+  response, skipping XFO only for the embed document path (it must be framable;
+  its CSP carries `frame-ancestors *`).
+- Verified over HTTP on /login, public page, feed, embed and a studio redirect,
+  and in a browser with a mock third-party page: the login and studio iframes
+  are refused ("X-Frame-Options 'sameorigin'"), the embed iframe renders. The
+  studio's own same-origin embed preview and `embed.js` on a third-party page
+  both still work (re-ran the embed suite).
+- Deliberately not done: site-wide CSP and HSTS — each can break things
+  (inline styles/scripts, the LAN CA setup, the parent domain's HSTS) and wants a
+  considered pass.
+
 ## 2026-10-23 (end of day) — Security: open self-sign-up closed
 - Probing for other unauthenticated entry points after the middleware fix: the
   Better Auth handler mounted at `/api/auth/*` accepted

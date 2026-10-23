@@ -118,6 +118,13 @@ proof #1 (dependency compatibility) as a side effect.
   returns 403 for `/api/auth/sign-up*`; admin "Add user" and the seed script
   create accounts in-process (`auth.api.signUpEmail`) and are unaffected
   (re-verified). Accounts exist only if an admin adds them.
+  **Also added the same day:** baseline response headers from `apps/web/server.js`
+  — `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin`, and `X-Frame-Options: SAMEORIGIN` on
+  everything **except** `/{show}/embed/*`, which must stay framable (it sets its
+  own `frame-ancestors *` CSP). Verified a third-party page can frame the embed
+  but not `/login` or `/studio`. Not done: a site-wide CSP, HSTS (Caddy/host
+  decision — careful, `tylerwoodward.me` already has HSTS includeSubDomains).
   Any *new* route with an `action` must live under `routes/studio/` (so the
   middleware covers it) or do its own session check.
 

@@ -20,6 +20,19 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(compression());
+// Baseline security headers on every response. The studio must not be framable
+// by other sites (clickjacking), so X-Frame-Options is SAMEORIGIN everywhere
+// EXCEPT the embed player document (`/{show}/embed/*`), which exists to be
+// framed and sets its own `Content-Security-Policy: frame-ancestors *` (an XFO
+// header here would override that in browsers that honour both, so it's skipped).
+// The studio's own preview iframe is same-origin, so SAMEORIGIN allows it.
+const EMBED_PATH = /^\/[^/]+\/embed\/[^/]+\/?$/;
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (!EMBED_PATH.test(req.path)) res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  next();
+});
 app.use(
   "/assets",
   express.static(path.join("build/client", "assets"), { immutable: true, maxAge: "1y" }),
