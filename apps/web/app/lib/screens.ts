@@ -71,7 +71,7 @@ export const SCREENS: ScreenDef[] = [
   { id: "30", label: "Public episode page", path: "/public/episode", area: "public", section: "Public page & embeds", inSidebar: false, real: false },
 
   // Analytics & discovery
-  { id: "31", label: "Analytics", path: "/studio/analytics", area: "studio", section: "Analytics & discovery", inSidebar: true, real: false },
+  { id: "31", label: "Analytics", path: "/studio/analytics", area: "studio", section: "Analytics & discovery", inSidebar: true, real: true, note: "Range control, published-episodes table and the public-overview switch are real; every download number needs OP3 (Stage 11) and is shown as No data, not faked" },
   { id: "32", label: "Podroll", path: "/studio/podroll", area: "studio", section: "Analytics & discovery", inSidebar: false, real: false },
 
   // Server

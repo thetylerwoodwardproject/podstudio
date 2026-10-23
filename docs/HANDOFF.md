@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-22 — screen 27 (Embed players) built; found the
+**Last updated:** 2026-10-22 — screens 27 (Embed players) and 31 (Analytics) built; found the
 Caddy/port-80 reboot issue (see Known issues).
 
 ## Live right now
@@ -42,8 +42,9 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 17 Storage | Real config/routing, at `/studio/storage` — add/remove S3-compatible targets, a real test-connection (HeadBucket call), and routing raw/exports/feed-media to a target. Access/secret keys are entered through the screen's own form and stored server-side in the DB (never echoed back to the browser), not in `deploy/.env`. Nothing uploads to a target yet — that's Stage 02 |
 | 18 Server settings | Half real, at `/studio/settings/server` — Users (add/change role/remove) is real, on the existing Better Auth `users` table; "Add user" substitutes for "invite" (no email delivery yet, same gap as 16b). Domain shows the real hostname + "Caddy internal CA, LAN-only" as plain text, not a status badge (there's no real auto-TLS to report). Storage links out to 17 instead of duplicating it. AI keys (Whisper/LLM) and LiveKit URL/keys are an explicit "not configured" note — no schema, no stage reached |
 | 27 Embed players | Half real, at `/studio/public/embeds` — the config form (what to embed: one episode/latest/whole show; audio/video; theme; accent; chapters/transcript/follow toggles) is real, saved as the show default under `shows.settings.embed` (no table; BUILD_PLAN §4 has none). Only public+published episodes are selectable. The three code tabs (iframe / Script / Paste a link) are real, generated live from the form. Live preview is an explicit "not available" note and the snippets' URLs (`/{show}/embed/*`, `/embed.js`, `/oembed`) don't resolve — screen 28's player and the public routes don't exist. Snippet origin is whatever host the studio is served from (public domain not chosen) |
+| 31 Analytics | Thin by design, at `/studio/analytics` — every number (KPIs, chart, top apps, countries, per-episode Day 1/7/30/all-time) needs OP3 and is shown as "No data" rather than faked. Real: the 30d/90d/12m range control (URL `?range=`), the published-episodes table rows, the "Show overview on public page" switch (persisted at `shows.settings.analytics.showOnPublicPage`; nothing reads it until screen 25 exists), and an honest "OP3 / Podcast Index: Not connected" status |
 | 29 Public page links | Half real, at `/studio/public/links` — social links (add/toggle-visible/remove/reorder) are real on a new `show_links` table; platform picker enforces one-per-platform; handles get normalized to full profile URLs on save (Discord/LinkedIn require a full URL — their handle format can't be guessed). Real Font Awesome 6 brand icons per platform. Website is read-only, linking to Show tags (16) instead of duplicating that field. No drag-and-drop (plain up/down buttons instead), no live preview (needs the public page, screen 25, not built) |
-| everything else (26 screens) | Placeholder route only, zero feature logic |
+| everything else (25 screens) | Placeholder route only, zero feature logic |
 
 **None of this is a passed BUILD_PLAN stage.** PREBUILD is still current per
 `docs/design/STATUS.md` — its actual proofs (OPFS capture+crash-recovery
@@ -136,9 +137,7 @@ to PREBUILD's technical validation, not a technical-debt-only session.
      "Real bug: two sidebar links silently failed to navigate"), not optional
      tidiness.
 
-2. **Fallback candidates** if 27 turns out bigger than expected, roughly by
-   tractability: **31 Analytics** (mostly OP3-dependent like 15 already is —
-   expect little new real surface) is the easiest fallback. **13 Clips**,
+2. **Fallback candidates** (31 Analytics is now done): **13 Clips**,
    **08 Editor**, **06 Record** all need real capture/editing infrastructure
    (Stage 03/04 territory) — a different category of work; don't start these
    without discussing scope first.

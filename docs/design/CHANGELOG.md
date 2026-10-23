@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-22 (later) — Screen 31 (Analytics): range control + switch real, all numbers honestly "No data"
+- OP3 isn't integrated (no token, no prefixed feed, no `analytics_daily`), so
+  KPIs, downloads chart, top apps, countries and the per-episode Day 1/7/30/
+  all-time columns render "No data" under an explicit banner — nothing is
+  estimated or sample data. Same stance as screen 15.
+- Real: range control (30 days daily / 90 weekly / 12 months monthly, kept in
+  `?range=`), the published-episodes table rows, the "Show overview on public
+  page" switch (`shows.settings.analytics.showOnPublicPage`, read by nothing
+  until screen 25), and OP3/Podcast Index shown as "Not connected".
+- Verified in a real browser via sidebar nav: range buttons change the chart
+  heading and URL, switch persists across reload, no console errors. Switch
+  reset and the test setting removed from the live DB. Chunk 5.7 kB (1.75 gz).
+
 ## 2026-10-22 — Screen 27 (Embed players): real config + snippets, preview honestly deferred
 - Config form at `/studio/public/embeds`: source (one episode / latest / whole
   show), player (audio/video), theme (dark/light/match device), accent (amber/
