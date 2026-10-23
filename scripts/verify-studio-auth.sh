@@ -23,6 +23,7 @@ post episodes "intent=create&title=UnauthProbe"
 # (feed/tags omitted: its payload would overwrite the real show title; it is guarded by the same middleware)
 post feed/lock-verify "intent=add-txt&value=hacked"
 post settings/server "intent=add-user&name=E&email=e@e.invalid&password=whatever123&role=admin"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "signup:%{http_code} " -X POST -H "Origin: https://$H" -H "Content-Type: application/json" -d '{"name":"P","email":"signup-probe@example.invalid","password":"probe-pass-1234"}' "https://$H/api/auth/sign-up/email"
 post storage "intent=add-target&provider=minio&label=x&endpoint=http://x&bucket=b&accessKeyId=a&secretAccessKey=s"
 echo
 for p in storage settings/server episodes feed/tags podroll; do
@@ -36,9 +37,10 @@ for(const {id} of d.prepare("select id from episodes where title=?").all("Unauth
 d.prepare("delete from podroll_items where title=?").run("Z");
 d.prepare("delete from show_links where value like ?").run("%@a@b.c%").changes;
 d.prepare("delete from show_txt_records where value=?").run("hacked");
-d.prepare("delete from users where email=?").run("e@e.invalid");
+d.prepare("delete from users where email in (?,?)").run("e@e.invalid","signup-probe@example.invalid");
 d.prepare("delete from storage_targets where label=?").run("x");
 console.log("cleanup ran");
 JS
 }
-if [ "$BEFORE" == "$AFTER" ]; then echo "RESULT: database identical before/after — no unauthenticated writes"; else echo "RESULT: DATABASE CHANGED (cleaning up probe rows; settings/theme must be restored by hand)"; cleanup; diff <(echo "$BEFORE" | tr ',' '\n') <(echo "$AFTER" | tr ',' '\n') | head -20; fi
+if [ "$BEFORE" == "$AFTER" ]; then echo "RESULT: database identical before/after — no unauthenticated writes"; exit 0; else echo "RESULT: DATABASE CHANGED (cleaning up probe rows; settings/theme must be restored by hand)"; cleanup; diff <(echo "$BEFORE" | tr ',' '\n') <(echo "$AFTER" | tr ',' '\n') | head -20; fi
+exit 1

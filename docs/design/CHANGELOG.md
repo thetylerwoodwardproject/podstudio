@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-23 (end of day) — Security: open self-sign-up closed
+- Probing for other unauthenticated entry points after the middleware fix: the
+  Better Auth handler mounted at `/api/auth/*` accepted
+  `POST /api/auth/sign-up/email` from anyone and returned a session token for a
+  new `editor` account (role default). That account could then use the studio.
+  Deleted the probe account immediately (users table = admin only).
+- Fix: `routes/api.auth.$.ts` rejects `/api/auth/sign-up*` with 403. Used a
+  route-level block rather than `disableSignUp: true` because the latter also
+  breaks the in-process `auth.api.signUpEmail` that admin "Add user" and
+  `seed-admin.ts` rely on. `scripts/verify-studio-auth.sh` now includes the
+  sign-up probe (`signup:403`, DB identical).
+- Re-verified after deploy: probe script clean; account/role/password test
+  (which adds a user through the admin UI, i.e. the in-process path) passes;
+  full smoke has no 5xx or console errors.
+- Remaining honest unknowns: whether either hole (unauthenticated actions,
+  open sign-up) was ever used — logs can't say. Both were only reachable from
+  the LAN (internal DNS).
+
 ## 2026-10-23 (later still) — Security: unauthenticated writes closed; Storage admin-only
 - **Found by accident while hardening roles:** the `/studio` layout's session
   check was a loader; React Router does not run a parent loader as a guard for a

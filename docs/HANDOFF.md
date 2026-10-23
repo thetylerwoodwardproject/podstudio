@@ -111,6 +111,13 @@ proof #1 (dependency compatibility) as a side effect.
   container logs were discarded on rebuild. If you want to be careful, skim the
   show/episodes/podroll/links/TXT/users data for anything you didn't make, and
   consider changing the admin password (Server settings → Your account).
+  **Second hole, same day: open self-registration.** Better Auth serves
+  `POST /api/auth/sign-up/email` whenever email+password is enabled, so anyone
+  who could reach the host could create an `editor` account and sign into the
+  studio (confirmed with a probe account, deleted). `routes/api.auth.$.ts` now
+  returns 403 for `/api/auth/sign-up*`; admin "Add user" and the seed script
+  create accounts in-process (`auth.api.signUpEmail`) and are unaffected
+  (re-verified). Accounts exist only if an admin adds them.
   Any *new* route with an `action` must live under `routes/studio/` (so the
   middleware covers it) or do its own session check.
 
