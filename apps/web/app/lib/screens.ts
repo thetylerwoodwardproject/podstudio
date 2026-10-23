@@ -52,7 +52,7 @@ export const SCREENS: ScreenDef[] = [
   // Publish & share
   { id: "13", label: "Clips", path: "/studio/clips", area: "studio", section: "Publish & share", inSidebar: true, real: false },
   { id: "13b", label: "Short video style", path: "/studio/clips/style", area: "studio", section: "Publish & share", inSidebar: false, real: false },
-  { id: "14", label: "Publish to feed", path: "/studio/publish", area: "studio", section: "Publish & share", inSidebar: false, real: false },
+  { id: "14", label: "Publish to feed", path: "/studio/publish", area: "studio", section: "Publish & share", inSidebar: true, real: true, note: "Schedule/unschedule and the item XML preview are real; publish-now, uploads, enclosure and media-backed tags need Stage 02+" },
 
   // Podcast hosting
   { id: "15", label: "Feed overview", path: "/studio/feed", area: "studio", section: "Podcast hosting", inSidebar: true, real: true, note: "Episode counts + recent-episodes table are real; downloads/listeners need OP3 (Stage 11), deferred honestly rather than faked" },

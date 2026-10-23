@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-22 (night) — Screen 14 (Publish to feed): scheduling + item XML real, publish-now/uploads deferred
+- `/studio/publish?episode=<id>`; `publish.server.ts` (schedule/unschedule with
+  validation: future-only, no `recording`/`published`), `lib/item-xml.ts`
+  (item builder + `zonedToUtcMs` for wall-clock-in-show-timezone → UTC).
+- Verified in a real browser, reaching it via the Episode-details link: XML
+  guid equals the DB value and has no `isPermaLink` (stored flag is null);
+  past time rejected; Jan 15 09:30 America/Chicago → 15:30Z and Jul 15 →
+  14:30Z (DST handled); pubDate in the XML follows the schedule; Unschedule
+  → editing/null; recording episode's Schedule button disabled; bogus id shows
+  an error; published episodes excluded from the picker. Episode 41 restored
+  to its exact original row afterwards.
+- Test-harness trap: adding Publish to the sidebar meant `a:has-text("Publish
+  to feed")` matched the sidebar link, not the in-page one — select by href.
+- Noticed, left alone: episode 41's live title is "Dana's Draft Day Rules
+  (verified live)" — residue from an earlier session's verification edit (the
+  seed title has no suffix). Tyler may want to rename it.
+
 ## 2026-10-22 (evening) — Public pages 25/30, Podroll 32, and a deploy bug found by testing
 - **Screens 25/30 (+26's layout)**: real SSR public pages at `/{show-slug}` and
   `/{show}/episodes/{public-id}/{slug}` (dynamic `:showSlug` routes rank below

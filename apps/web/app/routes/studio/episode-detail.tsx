@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, redirect, useNavigation } from "react-router";
+import { Form, Link, redirect, useNavigation } from "react-router";
 import {
   getEpisodeWithCredits,
   deleteEpisode,
@@ -69,6 +69,14 @@ export default function EpisodeDetail({
             Episode {episode.number}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{episode.title}</h1>
+          {episode.status !== "published" && (
+            <Link
+              to={`/studio/publish?episode=${episode.id}`}
+              className="text-[12.5px] text-muted-foreground underline hover:text-foreground"
+            >
+              Publish to feed
+            </Link>
+          )}
         </div>
         <StatusBadge status={episode.status} />
       </div>
