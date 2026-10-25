@@ -100,12 +100,12 @@ export default function EpisodeDetail({
             Episode {episode.number}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{episode.title}</h1>
-          {episode.status !== "published" && (
+          {(
             <Link
               to={`/studio/publish?episode=${episode.id}`}
               className="text-[12.5px] text-muted-foreground underline hover:text-foreground"
             >
-              Publish to feed
+              {episode.status === "published" ? "Manage publishing / unpublish" : "Publish to feed"}
             </Link>
           )}
         </div>

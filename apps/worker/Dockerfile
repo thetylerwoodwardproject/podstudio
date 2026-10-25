@@ -10,7 +10,10 @@ COPY apps/worker/package.json apps/worker/package.json
 COPY packages/db/package.json packages/db/package.json
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
-RUN pnpm install --frozen-lockfile
+# Persistent pnpm package cache across builds: when this layer does re-run, packages
+# come from the cache instead of the network.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store \
+    pnpm install --frozen-lockfile --store-dir /pnpm-store
 
 FROM deps AS runtime
 COPY . .

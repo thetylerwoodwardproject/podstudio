@@ -1,0 +1,14 @@
+# Keep the build context small and — importantly — keep secrets out of the images
+# (`COPY . .` used to copy deploy/.env into them).
+**/node_modules
+**/build
+**/.react-router
+.turbo
+**/.turbo
+.git
+data
+docs
+validation
+deploy/.env
+deploy/certs
+*.log

@@ -8,6 +8,7 @@ import { getEpisodeAudio } from "~/lib/media.server";
 // uploaded and checked", so Publish now requires a *verified* audio asset.
 // Scheduling (status "scheduled" + publishAt) and unscheduling are real, but
 // nothing yet flips a scheduled episode to published when its time arrives.
+// Includes already-published episodes so they can be unpublished from the same screen.
 export function listPublishable() {
   const show = db.select({ id: shows.id }).from(shows).get();
   if (!show) return [];
@@ -16,8 +17,7 @@ export function listPublishable() {
     .from(episodes)
     .where(eq(episodes.showId, show.id))
     .orderBy(desc(episodes.number))
-    .all()
-    .filter((e) => e.status !== "published");
+    .all();
 }
 
 export function getPublishData(id: string) {
@@ -66,6 +66,21 @@ export function publishNow(id: string): { ok: true } | { ok: false; error: strin
   const now = Date.now();
   db.update(episodes)
     .set({ status: "published", visibility: "public", publishAt: now, updatedAt: now })
+    .where(eq(episodes.id, id))
+    .run();
+  return { ok: true };
+}
+
+// Reverses publishNow: out of the feed and off the public pages immediately
+// (status editing, visibility private, publishAt cleared). The audio and the
+// guid are kept, so publishing again reuses both. Podcast apps that already
+// fetched the item may keep it — that's outside our control.
+export function unpublishEpisode(id: string): { ok: true } | { ok: false; error: string } {
+  const episode = db.select({ status: episodes.status }).from(episodes).where(eq(episodes.id, id)).get();
+  if (!episode) return { ok: false, error: "Episode not found." };
+  if (episode.status !== "published") return { ok: false, error: "This episode isn't published." };
+  db.update(episodes)
+    .set({ status: "editing", visibility: "private", publishAt: null, updatedAt: Date.now() })
     .where(eq(episodes.id, id))
     .run();
   return { ok: true };

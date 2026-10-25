@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
-import { listPublishable, getPublishData, scheduleEpisode, unscheduleEpisode, publishNow } from "~/lib/publish.server";
+import { listPublishable, getPublishData, scheduleEpisode, unscheduleEpisode, publishNow, unpublishEpisode } from "~/lib/publish.server";
 import { itemXml } from "~/lib/item-xml";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -36,6 +37,10 @@ export async function action({ request }: { request: Request }) {
     const r = publishNow(id);
     return r.ok ? { published: true } : { error: r.error };
   }
+  if (intent === "unpublish") {
+    const r = unpublishEpisode(id);
+    return r.ok ? { unpublished: true } : { error: r.error };
+  }
   if (intent === "unschedule") {
     const r = unscheduleEpisode(id);
     return r.ok ? { unscheduled: true } : { error: r.error };
@@ -60,12 +65,13 @@ export default function Publish({
   actionData,
 }: {
   loaderData: Awaited<ReturnType<typeof loader>>;
-  actionData?: { error?: string; scheduled?: boolean; unscheduled?: boolean; published?: boolean };
+  actionData?: { error?: string; scheduled?: boolean; unscheduled?: boolean; published?: boolean; unpublished?: boolean };
 }) {
   const { choices, data, origin } = loaderData;
   const [params, setParams] = useSearchParams();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
 
   return (
     <div className="mx-auto max-w-3xl p-6">
@@ -107,6 +113,34 @@ export default function Publish({
               <h2 className="text-sm font-semibold text-muted-foreground">Release</h2>
               <StatusBadge status={data.episode.status} />
             </div>
+            {data.episode.status === "published" ? (
+              <Form method="post" className="flex flex-wrap items-center gap-3" onSubmit={() => setConfirmUnpublish(false)}>
+                <input type="hidden" name="id" value={data.episode.id} />
+                {confirmUnpublish ? (
+                  <>
+                    <span className="text-[13px] text-muted-foreground">
+                      Remove it from the feed and the public pages?
+                    </span>
+                    <Button type="submit" name="intent" value="unpublish" variant="destructive" size="sm" disabled={submitting}>
+                      Confirm unpublish
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmUnpublish(false)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setConfirmUnpublish(true)}>
+                      Unpublish
+                    </Button>
+                    <span className="text-[12.5px] text-muted-foreground">
+                      Returns it to editing and makes it private. Apps that already fetched it may keep their copy.
+                    </span>
+                  </>
+                )}
+              </Form>
+            ) : (
+              <>
             <Form method="post" className="flex flex-wrap items-center gap-3">
               <input type="hidden" name="id" value={data.episode.id} />
               <Button type="submit" name="intent" value="publish-now" disabled={submitting || !data.audio || data.episode.status === "recording"}>
@@ -147,8 +181,11 @@ export default function Publish({
             {data.episode.status === "recording" && (
               <p className="text-[12.5px] text-muted-foreground">Finish recording and editing before scheduling.</p>
             )}
+              </>
+            )}
             {actionData?.error && <p className="text-[13px] text-destructive">{actionData.error}</p>}
             {actionData?.scheduled && <p className="text-[13px] text-ok">Scheduled.</p>}
+            {actionData?.unpublished && <p className="text-[13px] text-ok">Unpublished — it's out of the feed.</p>}
             {actionData?.published && <p className="text-[13px] text-ok">Published — it's in the feed now.</p>}
             {actionData?.unscheduled && <p className="text-[13px] text-ok">Unscheduled — back to editing.</p>}
           </section>
