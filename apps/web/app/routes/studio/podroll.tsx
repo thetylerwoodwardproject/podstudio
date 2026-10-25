@@ -1,3 +1,4 @@
+import { ViewPublicPage } from "~/components/view-public";
 import { Form, useNavigation } from "react-router";
 import {
   getPodroll,
@@ -81,11 +82,14 @@ export default function Podroll({
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-          Analytics &amp; discovery
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+            Analytics &amp; discovery
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Podroll</h1>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Podroll</h1>
+        <ViewPublicPage />
       </div>
 
       <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">

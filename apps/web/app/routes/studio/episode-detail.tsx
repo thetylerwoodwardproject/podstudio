@@ -1,3 +1,4 @@
+import { ViewPublicPage } from "~/components/view-public";
 import { useState } from "react";
 import { Form, Link, redirect, useNavigation } from "react-router";
 import {
@@ -109,7 +110,12 @@ export default function EpisodeDetail({
             </Link>
           )}
         </div>
-        <StatusBadge status={episode.status} />
+        <div className="flex flex-wrap items-center gap-3">
+          {episode.status === "published" && episode.visibility === "public" && (
+            <ViewPublicPage path={`/episodes/${episode.publicId}/${episode.slug}`} label="View public episode page" />
+          )}
+          <StatusBadge status={episode.status} />
+        </div>
       </div>
 
       <Form method="post" className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">

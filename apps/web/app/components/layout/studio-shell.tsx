@@ -13,6 +13,7 @@ import {
 import { cn } from "~/lib/utils";
 import { signOut } from "~/lib/auth-client";
 import { CommandPalette } from "./command-palette";
+import { ShowSlugContext } from "./shell-context";
 
 // Sidebar laid out after the mockup (docs/design "Podstudio v2": logo, show card,
 // Episodes, Podcast hosting with its sub-nav, then the settings-style items).
@@ -58,7 +59,7 @@ export function StudioShell({
   role,
 }: {
   user: { name: string; email: string };
-  show: { title: string; episodes: number; artworkUrl: string | null } | null;
+  show: { title: string; slug: string; episodes: number; artworkUrl: string | null } | null;
   role: "admin" | "editor" | null;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -236,7 +237,9 @@ export function StudioShell({
       </aside>
 
       <main className="min-h-0 overflow-y-auto">
-        <Outlet />
+        <ShowSlugContext.Provider value={show?.slug ?? null}>
+          <Outlet />
+        </ShowSlugContext.Provider>
       </main>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

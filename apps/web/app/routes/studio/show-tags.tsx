@@ -1,3 +1,4 @@
+import { ViewPublicPage } from "~/components/view-public";
 import { useState } from "react";
 import { db, shows } from "@podstudio/db";
 import { eq } from "drizzle-orm";
@@ -208,11 +209,14 @@ export default function ShowTags({
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-          Podcast hosting
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+            Podcast hosting
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Show tags</h1>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Show tags</h1>
+        <ViewPublicPage />
       </div>
 
       <ShowArtwork artwork={artwork} storageReady={storageReady} />

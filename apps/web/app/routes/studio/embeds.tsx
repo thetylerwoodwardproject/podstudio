@@ -1,3 +1,4 @@
+import { ViewPublicPage } from "~/components/view-public";
 import { useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
 import { getEmbedContext, saveEmbedConfig } from "~/lib/embeds.server";
@@ -207,11 +208,14 @@ function EmbedsForm({
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-          Public page &amp; embeds
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+            Public page &amp; embeds
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Embed players</h1>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Embed players</h1>
+        <ViewPublicPage />
       </div>
 
       <Form method="post" className="flex flex-col gap-5">

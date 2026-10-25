@@ -279,3 +279,6 @@ Show tags (`/studio/feed/tags`) now has **Show artwork** (upload/replace/remove)
 
 ## Public artwork + "where do I fix this" links (2026-10-25)
 The public show page (`/{slug}`) shows the show artwork in the hero, and both public pages emit `og:image` when artwork is set. Every problem the Feed overview reports (`lib/feed-check.ts`, `FeedIssue`) now carries a `fix` — the studio location, shown as "Fix it in Podcast hosting → Show tags → Category →" and linking to `/studio/feed/tags#category`. The studio shell scrolls to and focuses `#anchor` targets (the page scrolls inside `<main>`, so the browser's own anchor handling doesn't work). The Publish screen's "needs a verified MP3" hints link to the episode's audio upload the same way. **Convention for new warnings: say where to fix it and link there.**
+
+## "View public page" shortcuts (2026-10-25)
+Brand & theme, Public page links, Embed players, Show tags and Podroll have a **View public page ↗** button (new tab, `components/view-public.tsx`; the show slug comes from `ShowSlugContext`, set by the studio shell). The episode page has **View public episode page ↗** when the episode is published + public (hidden otherwise, since it would 404). Convention: any screen that changes what the public site shows gets this button.

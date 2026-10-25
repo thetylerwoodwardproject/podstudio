@@ -8,5 +8,5 @@ export function getShellShow() {
   if (!show) return null;
   const n = db.select({ n: sql<number>`count(*)` }).from(episodes).where(eq(episodes.showId, show.id)).get()?.n ?? 0;
   const art = getShowArtwork();
-  return { title: show.title, episodes: n, artworkUrl: art ? `/${show.slug}/artwork/${artworkFile(art)}` : null };
+  return { title: show.title, slug: show.slug, episodes: n, artworkUrl: art ? `/${show.slug}/artwork/${artworkFile(art)}` : null };
 }

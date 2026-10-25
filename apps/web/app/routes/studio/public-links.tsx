@@ -1,3 +1,4 @@
+import { ViewPublicPage } from "~/components/view-public";
 import { useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -157,14 +158,17 @@ export default function PublicLinks({
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-          Public page &amp; embeds
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+            Public page &amp; embeds
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Public page links</h1>
+          <Link to="/studio/public/brand" className="text-[12.5px] text-muted-foreground underline hover:text-foreground">
+            Brand &amp; theme
+          </Link>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Public page links</h1>
-        <Link to="/studio/public/brand" className="text-[12.5px] text-muted-foreground underline hover:text-foreground">
-          Brand &amp; theme
-        </Link>
+        <ViewPublicPage />
       </div>
 
       <section className="flex flex-col gap-2 rounded-[14px] border border-border bg-card p-5">
