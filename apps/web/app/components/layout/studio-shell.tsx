@@ -153,8 +153,12 @@ export function StudioShell({
     </NavLink>
   );
 
+  // Pinned to the viewport (not h-screen/100vh, which can exceed the visible height
+  // and let the whole page scroll). overflow-clip, unlike hidden, also blocks
+  // programmatic scrolling of this box (focus, scrollIntoView), so only <main> and
+  // the sidebar nav ever scroll.
   return (
-    <div className="grid h-screen grid-cols-[248px_1fr] bg-background text-foreground">
+    <div className="fixed inset-0 grid grid-cols-[248px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-clip bg-background text-foreground">
       <aside className="flex min-h-0 flex-col border-r border-sidebar-border bg-sidebar px-3.5 py-4">
         <div className="mb-4 flex items-center gap-2.5 px-1.5 text-[15px] font-bold tracking-tight">
           <span className="flex size-[18px] items-center justify-center rounded-full border-2 border-destructive">
@@ -179,7 +183,7 @@ export function StudioShell({
           </div>
         )}
 
-        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Studio">
+        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-y-contain" aria-label="Studio">
           <NavLink
             to="/studio/episodes"
             className={cn(
@@ -290,7 +294,7 @@ export function StudioShell({
         </div>
       </aside>
 
-      <main className="min-h-0 overflow-y-auto">
+      <main className="min-h-0 overflow-y-auto overscroll-y-contain">
         <ShowSlugContext.Provider value={show?.slug ?? null}>
           <Outlet />
         </ShowSlugContext.Provider>
