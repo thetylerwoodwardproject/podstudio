@@ -191,7 +191,7 @@ export const storageProviders = [
   "wasabi",
   "r2",
   "aws",
-  "minio",
+  "garage",
 ] as const;
 export type StorageProvider = (typeof storageProviders)[number];
 

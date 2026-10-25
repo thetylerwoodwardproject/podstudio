@@ -49,24 +49,26 @@ services:
     volumes:
       - podstudio_data:/data
 
-  # S3-compatible primary target (Tyler chose MinIO on this box, 2026-10-25).
-  # Internal only: no host ports, reachable from web/worker as http://minio:9000.
+  # S3-compatible primary target: Garage, single node, on this box (replaced
+  # MinIO 2026-10-25 — MinIO's repo is archived and ships no images). Internal
+  # only: no host ports, reachable from web/worker as http://garage:3900.
+  # Image is scratch-based: run the CLI as `docker compose exec garage /garage ...`.
   # NOT an off-site backup — it shares this machine's disk.
-  minio:
-    build:
-      context: ./minio
+  garage:
+    image: dxflrs/garage:v2.1.0
     restart: unless-stopped
-    command: server /data
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set this in deploy/.env — see .env.example}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set this in deploy/.env — see .env.example}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set this in deploy/.env — see .env.example}
     volumes:
-      - minio_data:/data
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
     expose:
-      - "9000"
+      - "3900"
 
 volumes:
   podstudio_data:
-  minio_data:
+  garage_meta:
+  garage_data:
   caddy_data:
   caddy_config:

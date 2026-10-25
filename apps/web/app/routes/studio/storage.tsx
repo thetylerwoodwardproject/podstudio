@@ -42,7 +42,7 @@ const PROVIDER_LABELS = {
   wasabi: "Wasabi",
   r2: "Cloudflare R2",
   aws: "AWS S3",
-  minio: "MinIO (self-hosted)",
+  garage: "Garage (self-hosted)",
 } as const;
 type StorageProvider = keyof typeof PROVIDER_LABELS;
 
@@ -165,7 +165,7 @@ function StorageAdmin({ loaderData, actionData }: StorageProps) {
   const { targets } = loaderData;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
-  const [provider, setProvider] = useState<StorageProvider>("minio");
+  const [provider, setProvider] = useState<StorageProvider>("garage");
   const [editingKeysFor, setEditingKeysFor] = useState<string | null>(null);
 
   const routing: Record<StorageRoute, string> = { raw: "", exports: "", feedMedia: "" };
