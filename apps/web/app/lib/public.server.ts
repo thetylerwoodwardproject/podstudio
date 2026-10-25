@@ -178,23 +178,47 @@ export function getEmbedView(slug: string, target: string, origin: string) {
   const show = findShow(slug);
   if (!show) return null;
   const url = (e: { publicId: string; slug: string }) => `${origin}/${show.slug}/episodes/${e.publicId}/${e.slug}`;
-  const cols = { publicId: episodes.publicId, slug: episodes.slug, title: episodes.title, number: episodes.number };
+  const cols = {
+    publicId: episodes.publicId,
+    slug: episodes.slug,
+    title: episodes.title,
+    number: episodes.number,
+    audioId: assets.id,
+    audioDuration: assets.durationS,
+  };
+  // Only a *verified* audio asset makes an episode playable; otherwise audioUrl is null.
+  const base = () =>
+    db
+      .select(cols)
+      .from(episodes)
+      .leftJoin(assets, and(eq(assets.id, episodes.audioAssetId), eq(assets.status, "verified")));
+  const shape = (e: { publicId: string; slug: string; title: string; number: number | null; audioId: string | null; audioDuration: number | null }) => ({
+    id: e.publicId,
+    title: e.title,
+    number: e.number,
+    url: url(e),
+    audioUrl: e.audioId ? `${origin}/${show.slug}/media/${e.publicId}/episode.mp3` : null,
+    durationS: e.audioDuration,
+  });
+  const art = getShowArtwork();
+  const artworkUrl = art ? `${origin}/${show.slug}/artwork/${artworkFile(art)}` : null;
   const showUrl = `${origin}/${show.slug}`;
 
   if (target === "all") {
-    const list = db.select(cols).from(episodes).where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(50).all();
-    return { showTitle: show.title, showUrl, mode: "playlist" as const, episodes: list.map((e) => ({ title: e.title, number: e.number, url: url(e) })) };
+    const list = base().where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(50).all();
+    return { showTitle: show.title, showUrl, artworkUrl, mode: "playlist" as const, episodes: list.map(shape) };
   }
   const row =
     target === "latest"
-      ? db.select(cols).from(episodes).where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(1).get()
-      : db.select(cols).from(episodes).where(and(PUBLIC_EPISODE(show.id), eq(episodes.publicId, target))).get();
+      ? base().where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(1).get()
+      : base().where(and(PUBLIC_EPISODE(show.id), eq(episodes.publicId, target))).get();
   if (!row && target !== "latest") return null; // unknown / non-public id -> 404; "latest" with none yet renders empty
   return {
     showTitle: show.title,
     showUrl,
+    artworkUrl,
     mode: "single" as const,
-    episodes: row ? [{ title: row.title, number: row.number, url: url(row) }] : [],
+    episodes: row ? [shape(row)] : [],
   };
 }
 

@@ -12,7 +12,7 @@ export async function loader({ params, request }: { params: { showSlug?: string;
   return new Response(embedHtml(view, parseEmbedOptions(url.searchParams)), {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Security-Policy": "frame-ancestors *; default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+      "Content-Security-Policy": "frame-ancestors *; default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; media-src 'self'; img-src 'self'",
       "Cache-Control": "public, max-age=60",
     },
   });
