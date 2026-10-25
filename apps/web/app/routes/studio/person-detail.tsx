@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { ShowArtwork } from "~/components/show-artwork";
+import { RichTextField } from "~/components/rich-text-field";
 import { ViewPublicPage } from "~/components/view-public";
 
 export async function loader({ params }: { params: { id?: string } }) {
@@ -81,15 +82,7 @@ export default function PersonDetail({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="bio">Bio</Label>
-          <textarea
-            id="bio"
-            name="bio"
-            rows={5}
-            maxLength={2000}
-            defaultValue={person.bio ?? ""}
-            placeholder="A few sentences shown on their public profile."
-            className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
+          <RichTextField name="bio" label="Bio" defaultValue={person.bioHtml} minHeight={140} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="website">Website</Label>

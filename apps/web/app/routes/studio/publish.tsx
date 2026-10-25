@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
+import { htmlToText, sanitizeFeedHtml } from "~/lib/rich-text.server";
 import { listPublishable, getPublishData, scheduleEpisode, unscheduleEpisode, publishNow, unpublishEpisode } from "~/lib/publish.server";
 import { itemXml } from "~/lib/item-xml";
 import { Button } from "~/components/ui/button";
@@ -22,7 +23,12 @@ import { StatusBadge } from "~/components/ui/status-badge";
 export async function loader({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("episode");
-  return { choices: listPublishable(), data: id ? getPublishData(id) : null, origin: url.origin };
+  const data = id ? getPublishData(id) : null;
+  // The feed item preview uses exactly what the feed will carry.
+  const feed = data
+    ? { description: sanitizeFeedHtml(data.episode.description) || null, summary: htmlToText(data.episode.description) || null }
+    : null;
+  return { choices: listPublishable(), data, feed, origin: url.origin };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -90,7 +96,7 @@ export default function Publish({
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: { error?: string; scheduled?: boolean; unscheduled?: boolean; published?: boolean; unpublished?: boolean };
 }) {
-  const { choices, data, origin } = loaderData;
+  const { choices, data, feed, origin } = loaderData;
   const [params, setParams] = useSearchParams();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
@@ -264,7 +270,8 @@ export default function Publish({
                 durationS: data.episode.durationS,
                 explicit: !!data.episode.explicit,
                 people: data.credits,
-                description: data.episode.description,
+                description: feed?.description,
+                summary: feed?.summary,
                 enclosure: data.audio
                   ? { url: `${origin}/${data.showSlug}/media/${data.episode.publicId}/episode.mp3`, bytes: data.audio.bytes ?? 0 }
                   : null,

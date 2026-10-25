@@ -3,6 +3,7 @@ import { db, shows, showTxtRecords, podrollItems, people, episodes, episodePeopl
 import { itemXml } from "~/lib/item-xml";
 import { buildFeed } from "~/lib/feed-xml";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
+import { htmlToText, sanitizeFeedHtml } from "~/lib/rich-text.server";
 import { cleanCategory } from "~/lib/podcast-categories";
 
 // Server-only — gathers the stored show data for `/{show-slug}/feed`. Nothing
@@ -73,7 +74,8 @@ export function getFeedXml(slug: string, origin: string): string | null {
       number: e.number,
       durationS: e.durationS,
       explicit: !!e.explicit,
-      description: e.description,
+      description: sanitizeFeedHtml(e.description) || null,
+      summary: htmlToText(e.description) || null,
       people: db
         .select({ name: people.name, role: episodePeople.role })
         .from(episodePeople)
@@ -88,7 +90,7 @@ export function getFeedXml(slug: string, origin: string): string | null {
     title: show.title,
     link: show.website || `${origin}/${show.slug}`,
     selfUrl: `${origin}/${show.slug}/feed`,
-    description: show.description || show.title,
+    description: htmlToText(show.description) || show.title,
     language: show.language,
     explicit: !!show.explicit,
     podcastGuid: show.podcastGuid,

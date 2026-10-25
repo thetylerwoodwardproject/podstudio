@@ -1,3 +1,5 @@
+import { toHtml } from "~/lib/rich-text.server";
+import { RichTextField } from "~/components/rich-text-field";
 import { ViewPublicPage } from "~/components/view-public";
 import { useState } from "react";
 import { Form, Link, redirect, useNavigation } from "react-router";
@@ -36,6 +38,7 @@ export async function loader({ params }: { params: { id: string } }) {
     knownPeople: listShowPeople(),
     audio: getEpisodeAudio(params.id),
     storageReady: hasFeedMediaTarget(),
+    descriptionHtml: toHtml(result.episode.description),
   };
 }
 
@@ -88,7 +91,7 @@ export default function EpisodeDetail({
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: { saved?: boolean; error?: string; creditError?: string; credited?: boolean };
 }) {
-  const { episode, credits, knownPeople, audio, storageReady } = loaderData;
+  const { episode, credits, knownPeople, audio, storageReady, descriptionHtml } = loaderData;
   const navigation = useNavigation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const saving = navigation.state === "submitting";
@@ -131,17 +134,11 @@ export default function EpisodeDetail({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="description">Description</Label>
-          <textarea
-            id="description"
-            name="description"
-            defaultValue={episode.description ?? ""}
-            rows={8}
-            className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
+          <RichTextField name="description" label="Episode description" defaultValue={descriptionHtml} minHeight={200} />
           <p className="text-[12px] text-muted-foreground">
-            These are the show notes: shown on the episode page, as the snippet in the episode list, and in podcast apps.
-            Plain text — web links and timestamps like <span className="font-mono">12:34</span> become clickable, and lines
-            starting with <span className="font-mono">-</span> become a bullet list.
+            These are the show notes: shown on the episode page, as the snippet in the episode list, and in podcast apps (apps
+            get the simple formatting only). Web links and timestamps like <span className="font-mono">12:34</span> become
+            clickable on the public page.
           </p>
         </div>
 

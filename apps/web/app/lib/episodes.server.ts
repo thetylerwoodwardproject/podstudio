@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { removeEpisodeAudio } from "~/lib/media.server";
 import { slugify } from "~/lib/episode-fields";
+import { cleanForStorage } from "~/lib/rich-text.server";
 import { db, episodes, episodePeople, people, shows, type EpisodeStatus } from "@podstudio/db";
 
 // Server-only, same reasoning as storage.server.ts: route files that import
@@ -47,7 +48,7 @@ export function updateEpisode(
 ) {
   const { explicit, ...rest } = fields;
   db.update(episodes)
-    .set({ ...rest, explicit: explicit ? 1 : 0, updatedAt: Date.now() })
+    .set({ ...rest, description: cleanForStorage(fields.description), explicit: explicit ? 1 : 0, updatedAt: Date.now() })
     .where(eq(episodes.id, id))
     .run();
 }

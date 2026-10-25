@@ -6,6 +6,7 @@ import { db, assets, episodes, episodePeople, people, shows, storageTargets } fr
 import { avatarProblem, imageInfo, ARTWORK_MAX_BYTES } from "~/lib/image-info";
 import { clientFor, routedTarget } from "~/lib/media.server";
 import { slugify } from "~/lib/episode-fields";
+import { cleanForStorage, toHtml } from "~/lib/rich-text.server";
 
 // Server-only. "Hosts & guests": the public profile of everyone credited on the
 // show — bio, website, headshot. The headshot goes to the public feedMedia target
@@ -82,7 +83,7 @@ export function getPersonAdmin(id: string) {
     .all();
   const onPublicSite = p.role === "host" || credits.some((c) => c.status === "published" && c.visibility === "public");
   return {
-    person: { id: p.id, name: p.name, role: p.role, bio: p.bio, website: p.website },
+    person: { id: p.id, name: p.name, role: p.role, bio: p.bio, bioHtml: toHtml(p.bio), website: p.website },
     slug: show.slug,
     publicPath: `/people/${p.id}/${slugify(p.name)}`,
     onPublicSite,
@@ -118,7 +119,7 @@ export function updatePerson(
   const name = input.name.trim().slice(0, 120);
   if (!name) return { ok: false, error: "Name is required." };
   if (!PERSON_ROLES.includes(input.role as (typeof PERSON_ROLES)[number])) return { ok: false, error: "Pick host or guest." };
-  const bio = input.bio.trim().slice(0, 2000);
+  const bio = cleanForStorage(input.bio.slice(0, 20000)) ?? "";
   let website: string | null = null;
   if (input.website.trim()) {
     try {

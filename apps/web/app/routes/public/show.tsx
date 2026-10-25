@@ -17,7 +17,8 @@ import {
 import { AudioPlayer } from "~/components/public/audio-player";
 import { usePlayer } from "~/components/public/player-context";
 import { episodeTrack } from "~/components/public/track";
-import { CopyRss, ShowMore } from "~/components/public/small";
+import { CopyRss } from "~/components/public/small";
+import { RichClamp } from "~/components/public/rich-notes";
 import { pageMeta, jsonLdMeta, showJsonLd } from "~/lib/seo";
 import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import type { DirectoryId } from "~/lib/directories";
@@ -101,7 +102,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
             {eyebrow.join(" · ")}
           </div>
           <h1 style={{ marginTop: 10 }}>{show.title}</h1>
-          {show.description && <ShowMore text={show.description} />}
+          {show.descriptionHtml && <RichClamp html={show.descriptionHtml} long={(show.description ?? "").length > 240} />}
           {hosts.length > 0 && (
             <div className="pub-hosts">
               <span className="pub-avatars" aria-hidden>

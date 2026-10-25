@@ -6,6 +6,7 @@ import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
 import { getPublicPerson } from "~/lib/public.server";
 import { formatClock, formatDate, initials } from "~/components/public/public-layout";
 import { usePlayer } from "~/components/public/player-context";
+import { RichNotes } from "~/components/public/rich-notes";
 import { episodeTrack } from "~/components/public/track";
 import { jsonLdMeta, pageMeta, personJsonLd } from "~/lib/seo";
 
@@ -62,15 +63,7 @@ export default function PublicPerson({ loaderData }: { loaderData: Awaited<Retur
         <div style={{ flex: 1, minWidth: 260 }}>
           <div className="pub-eyebrow">{person.role === "host" ? "Host" : person.role === "guest" ? "Guest" : "Contributor"}</div>
           <h1 style={{ marginTop: 8 }}>{person.name}</h1>
-          {person.bio && (
-            <div className="pub-notes" style={{ marginTop: 14 }}>
-              {person.bio.split(/\n{2,}/).map((para, i) => (
-                <p key={i} style={{ whiteSpace: "pre-line" }}>
-                  {para}
-                </p>
-              ))}
-            </div>
-          )}
+          {person.bioHtml && <div style={{ marginTop: 14 }}><RichNotes html={person.bioHtml} /></div>}
           {person.website && (
             <a className="pub-pill" href={person.website} rel="me noopener" target="_blank">
               <FontAwesomeIcon icon={faGlobe} />

@@ -6,6 +6,7 @@ import { DIRECTORIES, readDirectoryLinks } from "~/lib/directories";
 import { likePattern } from "~/lib/search";
 import { avatarUrlsFor, isPubliclyListed } from "~/lib/people.server";
 import { slugify } from "~/lib/episode-fields";
+import { htmlToText, sanitizeRichHtml } from "~/lib/rich-text.server";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 
 // Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
@@ -56,6 +57,7 @@ function withGuestsAndAudio<T extends { id: string; publicId: string }>(slug: st
   );
   return rows.map((r) => ({
     ...r,
+    description: htmlToText((r as { description?: string | null }).description) || null,
     guests: guests.filter((g) => g.episodeId === r.id).map((g) => g.name),
     guestPeople: guests
       .filter((g) => g.episodeId === r.id)
@@ -85,7 +87,8 @@ function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
     author: str(tags.author),
     artworkUrl: art ? `/${show.slug}/artwork/${artworkFile(art)}` : null,
     title: show.title,
-    description: show.description,
+    description: htmlToText(show.description) || null,
+    descriptionHtml: sanitizeRichHtml(show.description),
     website: show.website,
     feedUrl: show.feedUrl,
     language: show.language,
@@ -168,7 +171,7 @@ export function getPublicShowPage(slug: string, page: number, pageSize = 10, q =
     .orderBy(people.name)
     .all();
   const hostAvatars = avatarUrlsFor(show.slug, hostRows.map((h) => h.id));
-  const hosts = hostRows.map((h) => ({ ...h, slug: slugify(h.name), avatarUrl: hostAvatars.get(h.id) ?? null }));
+  const hosts = hostRows.map((h) => ({ ...h, bio: htmlToText(h.bio) || null, slug: slugify(h.name), avatarUrl: hostAvatars.get(h.id) ?? null }));
 
   // "Shows we recommend" — only when the Podroll screen's switch is on; same
   // order as the feed (position).
@@ -219,7 +222,7 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     .all();
   const creditAvatars = avatarUrlsFor(show.slug, creditRows.map((c) => c.id));
   // Everyone credited on a public episode may be shown, so each has a profile page.
-  const credits = creditRows.map((c) => ({ ...c, slug: slugify(c.name), avatarUrl: creditAvatars.get(c.id) ?? null }));
+  const credits = creditRows.map((c) => ({ ...c, bio: htmlToText(c.bio) || null, slug: slugify(c.name), avatarUrl: creditAvatars.get(c.id) ?? null }));
   const newer = db
     .select({ publicId: episodes.publicId, slug: episodes.slug, title: episodes.title, number: episodes.number })
     .from(episodes)
@@ -262,7 +265,7 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
   return {
     show: showHeader(show),
     links,
-    episode,
+    episode: { ...episode, description: htmlToText(episode.description) || null, descriptionHtml: sanitizeRichHtml(episode.description) },
     credits,
     upNext: withGuestsAndAudio(show.slug, upNext),
     newer: newer ?? null,
@@ -358,7 +361,8 @@ export function getPublicPerson(slug: string, personId: string) {
       name: person.name,
       slug: slugify(person.name),
       role: person.role,
-      bio: person.bio,
+      bio: htmlToText(person.bio) || null,
+      bioHtml: sanitizeRichHtml(person.bio),
       website: person.website,
       avatarUrl: avatars.get(personId) ?? null,
     },

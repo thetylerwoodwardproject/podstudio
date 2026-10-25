@@ -12,6 +12,8 @@ import { ShowArtwork } from "~/components/show-artwork";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 import { hasFeedMediaTarget } from "~/lib/media.server";
 import { PODCAST_CATEGORIES, cleanCategory } from "~/lib/podcast-categories";
+import { cleanForStorage, toHtml } from "~/lib/rich-text.server";
+import { RichTextField } from "~/components/rich-text-field";
 
 // Screen 16 (Show tags). Per README: "RSS 2.0/iTunes fields plus Podcasting 2.0
 // tags... GUID is never editable or removable through a toggle." Scoped down from
@@ -146,6 +148,7 @@ export async function loader() {
   const dims = (art?.meta ?? {}) as { width?: number; height?: number };
   return {
     show,
+    descriptionHtml: toHtml(show.description),
     storageReady: hasFeedMediaTarget(),
     artwork: art
       ? {
@@ -185,7 +188,7 @@ export async function action({ request }: { request: Request }) {
   db.update(shows)
     .set({
       title: String(form.get("title") ?? show.title),
-      description: str("description") ?? null,
+      description: cleanForStorage(str("description") ?? null),
       website: str("website") ?? null,
       language: String(form.get("language") ?? "en"),
       explicit: form.get("explicit") === "on" ? 1 : 0,
@@ -204,7 +207,7 @@ export default function ShowTags({
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: { saved?: boolean };
 }) {
-  const { show, artwork, storageReady } = loaderData;
+  const { show, artwork, storageReady, descriptionHtml } = loaderData;
   const tags = (show.podcastTags as PodcastTags | null) ?? {};
 
   return (
@@ -232,13 +235,10 @@ export default function ShowTags({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="description">Description</Label>
-            <textarea
-              id="description"
-              name="description"
-              defaultValue={show.description ?? ""}
-              rows={3}
-              className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            />
+            <RichTextField name="description" label="Show description" defaultValue={descriptionHtml} minHeight={120} />
+            <p className="text-[12px] text-muted-foreground">
+              Shown at the top of your public page. Podcast apps get it as plain text.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

@@ -11,7 +11,7 @@ import { formatClock, formatDate, formatDuration, initials } from "~/components/
 import { episodeTrack } from "~/components/public/track";
 import { AudioPlayer } from "~/components/public/audio-player";
 import { ShareMenu } from "~/components/public/small";
-import { ShowNotes } from "~/components/public/show-notes";
+import { RichNotes } from "~/components/public/rich-notes";
 import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import type { DirectoryId } from "~/lib/directories";
 import { pageMeta, jsonLdMeta, episodeJsonLd } from "~/lib/seo";
@@ -156,10 +156,10 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
               )}
             </div>
 
-            {episode.description && (
+            {episode.descriptionHtml && (
               <section className="pub-section" style={{ marginTop: 40 }} aria-labelledby="notes">
                 <h2 id="notes">About this episode</h2>
-                <ShowNotes text={episode.description} track={track} queue={queue} />
+                <RichNotes html={episode.descriptionHtml} track={track} queue={queue} />
               </section>
             )}
 

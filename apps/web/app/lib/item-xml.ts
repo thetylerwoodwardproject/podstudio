@@ -14,7 +14,10 @@ export interface ItemInput {
   durationS: number | null;
   explicit: boolean;
   people: { name: string; role: string | null }[]; // role omitted when unset — never guessed
+  /** Feed-safe HTML (already through sanitizeFeedHtml); written inside CDATA. */
   description?: string | null;
+  /** Plain-text summary for itunes:summary. */
+  summary?: string | null;
   // Only set once the audio is uploaded AND verified (assets.status = verified).
   enclosure?: { url: string; bytes: number } | null;
 }
@@ -23,12 +26,18 @@ function esc(v: string) {
   return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/** CDATA that survives any content (a literal "]]>" is split across two sections). */
+function cdata(v: string) {
+  return `<![CDATA[${v.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`;
+}
+
 export function itemXml(i: ItemInput) {
   const lines = ["<item>", `  <title>${esc(i.title)}</title>`];
   const permalink = i.guidIsPermalink == null ? "" : ` isPermaLink="${i.guidIsPermalink ? "true" : "false"}"`;
   lines.push(`  <guid${permalink}>${esc(i.guid)}</guid>`);
   if (i.pubDate != null) lines.push(`  <pubDate>${new Date(i.pubDate).toUTCString()}</pubDate>`);
-  if (i.description) lines.push(`  <description>${esc(i.description)}</description>`);
+  if (i.description) lines.push(`  <description>${cdata(i.description)}</description>`);
+  if (i.summary) lines.push(`  <itunes:summary>${esc(i.summary.slice(0, 4000))}</itunes:summary>`);
   if (i.enclosure) {
     lines.push(`  <enclosure url="${esc(i.enclosure.url)}" length="${i.enclosure.bytes}" type="audio/mpeg"/>`);
   } else {

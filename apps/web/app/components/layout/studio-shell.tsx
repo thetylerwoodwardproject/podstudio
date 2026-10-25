@@ -116,7 +116,7 @@ export function StudioShell({
       const el = document.getElementById(id);
       if (!el) return;
       el.scrollIntoView({ block: "center" });
-      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) el.focus();
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement || el.isContentEditable) el.focus();
     }, 50);
     return () => clearTimeout(t);
   }, [pathname, hash]);

@@ -23,6 +23,10 @@
     "@podstudio/db": "workspace:*",
     "@react-router/express": "^8.4.0",
     "@react-router/node": "^8.4.0",
+    "@tiptap/extension-image": "^3.32.0",
+    "@tiptap/pm": "^3.32.0",
+    "@tiptap/react": "^3.32.0",
+    "@tiptap/starter-kit": "^3.32.0",
     "better-auth": "^1.7.10",
     "better-sqlite3": "^12.4.1",
     "class-variance-authority": "^0.7.1",
@@ -39,6 +43,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.4.0",
+    "sanitize-html": "^2.18.1",
     "tailwind-merge": "^3.1.0"
   },
   "devDependencies": {
@@ -48,6 +53,7 @@
     "@types/node": "^22",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/sanitize-html": "^2.16.2",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.19.4",
     "tw-animate-css": "^1.3.3",

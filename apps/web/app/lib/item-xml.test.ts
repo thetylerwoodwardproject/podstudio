@@ -71,7 +71,12 @@ describe("itemXml enclosure", () => {
     const x = itemXml({ ...base, enclosure: { url: "https://x.test/a?b=1&c=2", bytes: 1234 } });
     expect(x).toContain('<enclosure url="https://x.test/a?b=1&amp;c=2" length="1234" type="audio/mpeg"/>');
   });
-  it("escapes the description", () => {
-    expect(itemXml({ ...base, description: "a < b & c" })).toContain("<description>a &lt; b &amp; c</description>");
+  it("writes the description as feed HTML in CDATA, and a plain itunes:summary", () => {
+    const x = itemXml({ ...base, description: "<p>a &amp; <a href=\"https://x.test\">b</a></p>", summary: "a & b < c" });
+    expect(x).toContain('<description><![CDATA[<p>a &amp; <a href="https://x.test">b</a></p>]]></description>');
+    expect(x).toContain("<itunes:summary>a &amp; b &lt; c</itunes:summary>");
+  });
+  it("can't break out of CDATA", () => {
+    expect(itemXml({ ...base, description: "x]]><evil/>" })).toContain("<![CDATA[x]]]]><![CDATA[><evil/>]]>");
   });
 });

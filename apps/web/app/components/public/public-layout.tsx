@@ -118,6 +118,28 @@ export function publicCss(brand: BrandTheme) {
 .pub-notes ul{margin:0 0 14px;padding-left:22px;max-width:68ch;font-size:16.5px;line-height:1.7}
 .pub-notes li{margin:2px 0}
 .pub-notes a{overflow-wrap:anywhere}
+.pub-notes>:last-child{margin-bottom:0}
+.pub-notes li>p{margin:0}
+.pub-notes h2,.pub-notes h3,.pub-notes h4,.pub-notes h5,.pub-notes h6{font-weight:700;letter-spacing:-0.01em;line-height:1.25;margin:1.4em 0 .5em}
+.pub-notes h2{font-size:22px}.pub-notes h3{font-size:19px}.pub-notes h4,.pub-notes h5,.pub-notes h6{font-size:16.5px}
+.pub-notes>:first-child{margin-top:0}
+.pub-notes blockquote{margin:0 0 14px;padding:2px 0 2px 16px;border-left:3px solid var(--brand-accent);color:color-mix(in srgb,var(--pub-fg) 85%,var(--pub-muted));max-width:68ch}
+.pub-notes hr{border:0;border-top:1px solid var(--pub-line);margin:22px 0}
+.pub-notes img{max-width:100%;height:auto;border-radius:var(--brand-radius-card);display:block;margin:6px 0 16px}
+.pub-notes pre{background:var(--pub-surface);border:1px solid var(--pub-line);border-radius:10px;padding:12px 14px;overflow-x:auto;font-size:13.5px;line-height:1.55;margin:0 0 14px}
+.pub-notes code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.9em;background:var(--pub-surface);border-radius:5px;padding:1px 5px}
+.pub-notes pre code{background:none;padding:0}
+.pub-notes table{border-collapse:collapse;width:100%;max-width:100%;display:block;overflow-x:auto;margin:0 0 16px;font-size:15px}
+.pub-notes th,.pub-notes td{border:1px solid var(--pub-line);padding:8px 12px;text-align:left;vertical-align:top}
+.pub-notes th{background:var(--pub-surface);font-weight:600}
+.pub-notes caption{caption-side:bottom;color:var(--pub-muted);font-size:13px;padding-top:6px}
+.pub-notes figure{margin:0 0 16px}.pub-notes figcaption{color:var(--pub-muted);font-size:13px;margin-top:6px}
+.pub-notes details{border:1px solid var(--pub-line);border-radius:10px;padding:10px 14px;margin:0 0 14px;max-width:68ch}
+.pub-notes summary{cursor:pointer;font-weight:600}
+.pub-notes iframe{display:block;width:100%;max-width:720px;aspect-ratio:16/9;height:auto;border:0;border-radius:var(--brand-radius-card);margin:6px 0 16px}
+.pub-notes iframe[src*="open.spotify.com"]{aspect-ratio:auto;height:232px}
+.pub-notes mark{background:var(--brand-tint);color:inherit;padding:0 3px;border-radius:3px}
+.pub-notes.pub-lead{max-width:640px}.pub-notes.pub-lead p{font-size:inherit;margin:0 0 .7em}
 .pub-ts{background:var(--brand-tint);color:var(--brand-link);border:0;border-radius:6px;padding:1px 7px;font-size:.88em;cursor:pointer}
 .pub-ts:hover{filter:brightness(1.15)}
 .pub-people{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
