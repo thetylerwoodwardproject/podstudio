@@ -20,6 +20,15 @@ export function CommandPalette({
     if (!open) setQuery("");
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onOpenChange(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onOpenChange]);
+
   // Dynamic routes (e.g. episode details' /studio/episodes/:id) have no single
   // destination to jump to — leave them out of the palette rather than navigate
   // to a literal ":id".

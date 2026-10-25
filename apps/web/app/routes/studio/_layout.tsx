@@ -2,6 +2,8 @@ import { redirect, type MiddlewareFunction } from "react-router";
 import { auth } from "~/lib/auth.server";
 import { StudioShell } from "~/components/layout/studio-shell";
 import { getBrandTheme } from "~/lib/brand.server";
+import { getShellShow } from "~/lib/shell.server";
+import { getCurrentUserRole } from "~/lib/authz.server";
 import { accentHex, onAccent, studioAccent } from "~/lib/brand-theme";
 
 // The actual gate. This is MIDDLEWARE, not just a loader, on purpose: a parent
@@ -30,16 +32,21 @@ export async function loader({ request }: { request: Request }) {
     const accent = studioAccent(accentHex(theme));
     brand = { accent, onAccent: onAccent(accent) };
   }
-  return { user: session.user, brand };
+  return { user: session.user, brand, show: getShellShow(), role: await getCurrentUserRole(request) };
 }
 
 export default function StudioLayout({
   loaderData,
 }: {
-  loaderData: { user: { name: string; email: string }; brand: { accent: string; onAccent: string } | null };
+  loaderData: {
+    user: { name: string; email: string };
+    brand: { accent: string; onAccent: string } | null;
+    show: { title: string; episodes: number } | null;
+    role: "admin" | "editor" | null;
+  };
 }) {
-  const { user, brand } = loaderData;
-  if (!brand) return <StudioShell user={user} />;
+  const { user, brand, show, role } = loaderData;
+  if (!brand) return <StudioShell user={user} show={show} role={role} />;
   // `display: contents` keeps the shell's grid layout while letting the CSS
   // variables inherit to everything inside.
   return (
@@ -55,7 +62,7 @@ export default function StudioLayout({
         } as React.CSSProperties
       }
     >
-      <StudioShell user={user} />
+      <StudioShell user={user} show={show} role={role} />
     </div>
   );
 }
