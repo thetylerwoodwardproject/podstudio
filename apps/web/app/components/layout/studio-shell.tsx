@@ -62,7 +62,7 @@ export function StudioShell({
   role: "admin" | "editor" | null;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   const navigate = useNavigate();
 
   const inHosting =
@@ -72,6 +72,20 @@ export function StudioShell({
     pathname.startsWith("/studio/public/");
   // Publishing and the per-episode screens belong to the Episodes entry.
   const inEpisodes = pathname.startsWith("/studio/episodes") || pathname === "/studio/publish";
+
+  // Deep links like /studio/feed/tags#category: the page scrolls inside <main>, not
+  // the window, so the browser's own anchor scrolling doesn't apply — do it here.
+  useEffect(() => {
+    if (!hash) return;
+    const id = decodeURIComponent(hash.slice(1));
+    const t = setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ block: "center" });
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) el.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [pathname, hash]);
 
   async function handleSignOut() {
     await signOut();

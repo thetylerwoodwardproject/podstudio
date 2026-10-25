@@ -155,17 +155,14 @@ export default function FeedOverview({ loaderData }: { loaderData: Awaited<Retur
 
       {(check.errors.length > 0 || check.warnings.length > 0) && (
         <section className="mt-3 rounded-xl border border-border bg-card p-[18px]" data-testid="feed-problems">
-          <ul className="flex flex-col gap-1.5 text-[13px]">
-            {check.errors.map((m) => (
-              <li key={m} className="flex gap-2">
-                <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-destructive" />
-                <span>{m}</span>
-              </li>
-            ))}
-            {check.warnings.map((m) => (
-              <li key={m} className="flex gap-2 text-muted-foreground">
-                <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-music" />
-                <span>{m}</span>
+          <ul className="flex flex-col gap-2 text-[13px]">
+            {[...check.errors.map((i) => ({ i, bad: true })), ...check.warnings.map((i) => ({ i, bad: false }))].map(({ i, bad }) => (
+              <li key={i.message} className="flex flex-wrap items-baseline gap-x-2">
+                <span className={cn("size-1.5 shrink-0 translate-y-[-1px] rounded-full", bad ? "bg-destructive" : "bg-music")} />
+                <span className={bad ? "" : "text-muted-foreground"}>{i.message}</span>
+                <Link to={i.fix.to} className="text-[12.5px] text-foreground underline underline-offset-2 hover:no-underline">
+                  Fix it in {i.fix.label} →
+                </Link>
               </li>
             ))}
           </ul>

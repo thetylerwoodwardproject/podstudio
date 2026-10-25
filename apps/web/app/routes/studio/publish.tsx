@@ -149,7 +149,15 @@ export default function Publish({
               <span className="text-[12.5px] text-muted-foreground">
                 {data.audio
                   ? "Makes the episode public and adds it to the feed immediately."
-                  : "Needs a verified MP3 — upload one on the episode page first."}
+                  : (
+                      <>
+                        Needs a verified MP3 —{" "}
+                        <Link to={`/studio/episodes/${data.episode.id}#audio-file`} className="text-foreground underline">
+                          upload one on this episode's page
+                        </Link>
+                        .
+                      </>
+                    )}
               </span>
             </Form>
             {data.episode.status === "scheduled" && data.episode.publishAt && (
@@ -179,7 +187,13 @@ export default function Publish({
               )}
             </Form>
             {!data.audio && (
-              <p className="text-[12.5px] text-muted-foreground">Scheduling needs a verified MP3 — upload one on the episode page first.</p>
+              <p className="text-[12.5px] text-muted-foreground">
+                Scheduling needs a verified MP3 —{" "}
+                <Link to={`/studio/episodes/${data.episode.id}#audio-file`} className="text-foreground underline">
+                  upload one on this episode's page
+                </Link>
+                .
+              </p>
             )}
             {data.episode.status === "recording" && (
               <p className="text-[12.5px] text-muted-foreground">Finish recording and editing before scheduling.</p>

@@ -31,6 +31,7 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
     { property: "og:type", content: "article" },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
+    ...(d.show.artworkUrl ? [{ property: "og:image", content: `${d.origin}${d.show.artworkUrl}` }] : []),
     {
       tagName: "link",
       rel: "alternate",

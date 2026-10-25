@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, shows, showLinks, people, episodes, episodePeople, podrollItems, assets } from "@podstudio/db";
 import { readBrandTheme } from "~/lib/brand-theme";
+import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 
 // Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
 // bug: two sidebar links silently failed to navigate." Per README: "Expose
@@ -38,8 +39,10 @@ function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
     unknown
   >;
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const art = getShowArtwork();
   return {
     slug: show.slug,
+    artworkUrl: art ? `/${show.slug}/artwork/${artworkFile(art)}` : null,
     title: show.title,
     description: show.description,
     website: show.website,

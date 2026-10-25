@@ -256,7 +256,7 @@ export default function ShowTags({
           <CategoryPicker primary={tags.category} sub={tags.subcategory} />
 
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="explicit" defaultChecked={!!show.explicit} />
+            <input id="explicit" type="checkbox" name="explicit" defaultChecked={!!show.explicit} />
             Explicit content
           </label>
         </section>

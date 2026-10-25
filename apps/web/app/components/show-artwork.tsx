@@ -42,7 +42,7 @@ export function ShowArtwork({ artwork, storageReady }: { artwork: ArtworkView | 
   }
 
   return (
-    <section className="mb-6 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5" data-testid="artwork-section">
+    <section id="artwork" className="mb-6 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5" data-testid="artwork-section">
       <h2 className="text-sm font-semibold text-muted-foreground">Show artwork</h2>
       <div className="flex flex-wrap items-start gap-5">
         <div className="flex size-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-secondary text-center text-xs text-muted-foreground">

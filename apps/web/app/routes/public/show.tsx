@@ -8,8 +8,9 @@ import { PublicLayout, SocialLinks, formatDate, formatDuration } from "~/compone
 // Built from real data: shows/people/show_links/episodes + Brand & theme.
 // The RSS button links to the real `/{show}/feed` (channel metadata only — it
 // has no items until audio exists).
-// Not built (needs things that don't exist yet, none faked): artwork (no
-// artwork pipeline), category (no field), Apple/Spotify/etc. follow buttons
+// Artwork is the verified show artwork (Show tags screen), when one is set.
+// Not built (needs things that don't exist yet, none faked): category
+// display, Apple/Spotify/etc. follow buttons
 // (only the 12 social platforms from screen 29 exist as links), playable
 // audio/video + chapters + transcript (no media or transcripts yet),
 // transcript search, oEmbed discovery (no /oembed).
@@ -31,6 +32,7 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
     { property: "og:type", content: "website" },
     { property: "og:title", content: d.show.title },
     { property: "og:description", content: description },
+    ...(d.show.artworkUrl ? [{ property: "og:image", content: `${d.origin}${d.show.artworkUrl}` }] : []),
     {
       tagName: "link",
       rel: "alternate",
@@ -48,7 +50,18 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
   return (
     <PublicLayout show={show} links={links}>
       <main className="pub-wrap" style={{ paddingTop: 40 }}>
-        <section id="about">
+        <section id="about" style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+          {show.artworkUrl && (
+            <img
+              src={show.artworkUrl}
+              alt={`${show.title} artwork`}
+              width={168}
+              height={168}
+              data-testid="show-artwork"
+              style={{ width: 168, height: 168, objectFit: "cover", borderRadius: "var(--brand-radius-card)", flex: "none" }}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 260 }}>
           <h1>{show.title}</h1>
           <p className="pub-muted" style={{ margin: "8px 0 0" }} data-testid="meta">
             {[show.updateFrequency && `Updates ${show.updateFrequency}`, `${total} episode${total === 1 ? "" : "s"}`]
@@ -71,6 +84,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
               </a>
             )}
             <SocialLinks links={links} />
+          </div>
           </div>
         </section>
 
