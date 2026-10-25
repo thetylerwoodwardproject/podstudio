@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
   Mic,
@@ -9,6 +9,7 @@ import {
   Server,
   Command,
   LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { signOut } from "~/lib/auth-client";
@@ -71,6 +72,36 @@ export function StudioShell({
     pathname.startsWith("/studio/feed/") ||
     ["/studio/analytics", "/studio/podroll", "/studio/storage"].some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/studio/public/");
+  // Collapsible sections. Default: Podcast hosting open while you're inside it. Choices
+  // persist per browser; entering a collapsed section (e.g. via a "fix it" link)
+  // reopens it so the current page is visible in the menu.
+  const [open, setOpen] = useState<Record<string, boolean>>({ hosting: inHosting, public: true });
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("podstudio.sidebar") ?? "null");
+      if (saved && typeof saved === "object") setOpen((o) => ({ ...o, ...saved }));
+    } catch {
+      /* storage unavailable: defaults apply */
+    }
+  }, []);
+  function toggle(key: string) {
+    setOpen((o) => {
+      const next = { ...o, [key]: !o[key] };
+      try {
+        localStorage.setItem("podstudio.sidebar", JSON.stringify(next));
+      } catch {
+        /* not persisted */
+      }
+      return next;
+    });
+  }
+  // Only on a *transition* into the section — a reload keeps what you chose.
+  const wasInHosting = useRef(inHosting);
+  useEffect(() => {
+    if (inHosting && !wasInHosting.current) setOpen((o) => (o.hosting ? o : { ...o, hosting: true }));
+    wasInHosting.current = inHosting;
+  }, [inHosting]);
+
   // Publishing and the per-episode screens belong to the Episodes entry.
   const inEpisodes = pathname.startsWith("/studio/episodes") || pathname === "/studio/publish";
 
@@ -161,22 +192,45 @@ export function StudioShell({
             Episodes
           </NavLink>
 
-          <NavLink
-            to="/studio/feed"
-            className={cn(
-              row,
-              "text-muted-foreground hover:text-foreground",
-              inHosting && "bg-sidebar-accent font-semibold text-foreground shadow-[inset_3px_0_0_var(--studio-nav-bar,transparent)]",
-            )}
-          >
-            <Rss className="size-4" />
-            Podcast hosting
-          </NavLink>
-          {inHosting && (
-            <div className="my-0.5 ml-[18px] flex flex-col border-l border-border pl-2">
+          <div className="relative">
+            <NavLink
+              to="/studio/feed"
+              className={cn(
+                row,
+                "pr-9 text-muted-foreground hover:text-foreground",
+                inHosting && "bg-sidebar-accent font-semibold text-foreground shadow-[inset_3px_0_0_var(--studio-nav-bar,transparent)]",
+              )}
+            >
+              <Rss className="size-4" />
+              Podcast hosting
+            </NavLink>
+            <button
+              type="button"
+              onClick={() => toggle("hosting")}
+              aria-expanded={!!open.hosting}
+              aria-controls="nav-hosting"
+              aria-label={open.hosting ? "Collapse Podcast hosting" : "Expand Podcast hosting"}
+              data-testid="toggle-hosting"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <ChevronDown className={cn("size-3.5 transition-transform", !open.hosting && "-rotate-90")} />
+            </button>
+          </div>
+          {open.hosting && (
+            <div id="nav-hosting" className="my-0.5 ml-[18px] flex flex-col border-l border-border pl-2">
               {HOSTING.map((i) => sub(i))}
-              <div className="mt-1 px-2.5 pb-0.5 pt-1.5 text-[11px] text-muted-foreground/80">Public page &amp; embeds</div>
-              {PUBLIC.map((i) => sub(i, false))}
+              <button
+                type="button"
+                onClick={() => toggle("public")}
+                aria-expanded={!!open.public}
+                aria-controls="nav-public"
+                data-testid="toggle-public"
+                className="mt-1 flex items-center justify-between rounded-md px-2.5 pb-0.5 pt-1.5 text-left text-[11px] text-muted-foreground/80 hover:text-foreground"
+              >
+                Public page &amp; embeds
+                <ChevronDown className={cn("size-3 transition-transform", !open.public && "-rotate-90")} />
+              </button>
+              {open.public && <div id="nav-public" className="flex flex-col">{PUBLIC.map((i) => sub(i, false))}</div>}
             </div>
           )}
 

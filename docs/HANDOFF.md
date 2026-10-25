@@ -282,3 +282,6 @@ The public show page (`/{slug}`) shows the show artwork in the hero, and both pu
 
 ## "View public page" shortcuts (2026-10-25)
 Brand & theme, Public page links, Embed players, Show tags and Podroll have a **View public page ↗** button (new tab, `components/view-public.tsx`; the show slug comes from `ShowSlugContext`, set by the studio shell). The episode page has **View public episode page ↗** when the episode is published + public (hidden otherwise, since it would 404). Convention: any screen that changes what the public site shows gets this button.
+
+## Collapsible sidebar sections (2026-10-25)
+Podcast hosting and its "Public page & embeds" sub-group have chevron toggles (`aria-expanded`); the choice persists per browser in `localStorage["podstudio.sidebar"]` and survives reloads. Moving *into* a collapsed section from elsewhere (link, ⌘K) reopens it so the active page is visible; a reload on a page inside it keeps your choice. Episodes and Server settings are single items, so there is nothing to collapse.
