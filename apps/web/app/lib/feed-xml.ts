@@ -28,6 +28,12 @@ export interface FeedInput {
   updateFrequency: string | null;
   license: string | null;
   hosts: string[];
+  /** itunes:author — shown by Apple Podcasts under the show title. */
+  author?: string | null;
+  /** Absolute URL of the verified show artwork (itunes:image). */
+  imageUrl?: string | null;
+  /** itunes:category — Apple's closed list; sub is nested inside primary. */
+  category?: { primary: string; sub: string | null } | null;
   podroll: PodrollEntry[];
   items: string[];
 }
@@ -57,6 +63,16 @@ export function buildFeed(f: FeedInput) {
     `<podcast:guid>${esc(f.podcastGuid)}</podcast:guid>`,
     `<podcast:locked owner="${esc(f.ownerEmail)}">${f.locked ? "yes" : "no"}</podcast:locked>`,
   ];
+  if (f.author) ch.push(`<itunes:author>${esc(f.author)}</itunes:author>`);
+  if (f.imageUrl) ch.push(`<itunes:image href="${esc(f.imageUrl)}"/>`);
+  if (f.category) {
+    const sub = f.category.sub ? `<itunes:category text="${esc(f.category.sub)}"/>` : "";
+    ch.push(
+      sub
+        ? `<itunes:category text="${esc(f.category.primary)}">${sub}</itunes:category>`
+        : `<itunes:category text="${esc(f.category.primary)}"/>`,
+    );
+  }
   for (const t of f.txt) {
     const purpose = t.purpose ? ` purpose="${esc(t.purpose)}"` : "";
     ch.push(`<podcast:txt${purpose}>${esc(t.value)}</podcast:txt>`);

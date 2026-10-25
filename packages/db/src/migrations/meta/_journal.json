@@ -50,6 +50,13 @@
       "when": 1792933039685,
       "tag": "0006_bitter_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792945520858,
+      "tag": "0007_modern_roland_deschain",
+      "breakpoints": true
     }
   ]
 }

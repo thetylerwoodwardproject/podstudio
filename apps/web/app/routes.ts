@@ -27,6 +27,7 @@ export default [
     route("episodes/:id/audio", "routes/studio/episode-audio.ts"),
     route("feed", "routes/studio/feed-overview.tsx", { id: "screen-15" }),
     route("feed/tags", "routes/studio/show-tags.tsx", { id: "screen-16" }),
+    route("feed/artwork", "routes/studio/show-artwork.ts"),
     route("feed/lock-verify", "routes/studio/lock-verify.tsx", { id: "screen-16b" }),
     route("storage", "routes/studio/storage.tsx", { id: "screen-17" }),
     route("settings/server", "routes/studio/server-settings.tsx", { id: "screen-18" }),
@@ -61,6 +62,7 @@ export default [
   route(":showSlug/embed/:target", "routes/embed.ts"),
   route(":showSlug/feed", "routes/feed.ts"),
   route(":showSlug/media/:publicId/:file?", "routes/media.ts"),
+  route(":showSlug/artwork/:file", "routes/artwork.ts"),
   route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
   route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
 ] satisfies RouteConfig;

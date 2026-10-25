@@ -142,6 +142,8 @@ export const shows = sqliteTable("shows", {
   language: text("language").notNull().default("en"),
   explicit: integer("explicit").notNull().default(0),
   podcastTags: text("podcast_tags", { mode: "json" }),
+  // The verified show-artwork asset (assets.kind "show_artwork"); null until one is uploaded.
+  artworkAssetId: text("artwork_asset_id"),
   settings: text("settings", { mode: "json" }),
   theme: text("theme", { mode: "json" }),
   shortStyle: text("short_style", { mode: "json" }),
@@ -362,7 +364,7 @@ export const assets = sqliteTable(
       .notNull()
       .references(() => shows.id),
     episodeId: text("episode_id").references(() => episodes.id),
-    kind: text("kind").notNull(), // episode_audio (more in later stages)
+    kind: text("kind").notNull(), // episode_audio | show_artwork (more in later stages)
     access: text("access", { enum: ["private", "public"] }).notNull(),
     storageTargetId: text("storage_target_id")
       .notNull()

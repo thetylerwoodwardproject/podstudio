@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { db, shows } from "@podstudio/db";
 import { eq } from "drizzle-orm";
 import { Button } from "~/components/ui/button";
@@ -6,6 +7,10 @@ import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
 import { Link } from "react-router";
+import { ShowArtwork } from "~/components/show-artwork";
+import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
+import { hasFeedMediaTarget } from "~/lib/media.server";
+import { PODCAST_CATEGORIES, cleanCategory } from "~/lib/podcast-categories";
 
 // Screen 16 (Show tags). Per README: "RSS 2.0/iTunes fields plus Podcasting 2.0
 // tags... GUID is never editable or removable through a toggle." Scoped down from
@@ -14,6 +19,9 @@ import { Link } from "react-router";
 // those three are built here. Funding/value/medium/trailer/updateFrequency/
 // license are stored in `podcastTags` json since they don't need their own columns.
 interface PodcastTags {
+  author?: string;
+  category?: string;
+  subcategory?: string;
   fundingUrl?: string;
   fundingMessage?: string;
   valueType?: string;
@@ -90,10 +98,64 @@ function SelectField({
   );
 }
 
+function CategoryPicker({ primary, sub }: { primary?: string; sub?: string }) {
+  const [cat, setCat] = useState(primary && Object.hasOwn(PODCAST_CATEGORIES, primary) ? primary : "");
+  const subs = cat ? PODCAST_CATEGORIES[cat] ?? [] : [];
+  const select =
+    "rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="category">Category</Label>
+        <select id="category" name="category" value={cat} onChange={(e) => setCat(e.target.value)} className={select}>
+          <option value="">Not set</option>
+          {Object.keys(PODCAST_CATEGORIES).map((c) => (
+            <option key={c} value={c} className="bg-popover">
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="subcategory">Subcategory</Label>
+        <select
+          key={cat}
+          id="subcategory"
+          name="subcategory"
+          defaultValue={cat === primary ? sub ?? "" : ""}
+          disabled={subs.length === 0}
+          className={select}
+        >
+          <option value="">{subs.length === 0 ? "None for this category" : "Not set"}</option>
+          {subs.map((s) => (
+            <option key={s} value={s} className="bg-popover">
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 export async function loader() {
   const show = db.select().from(shows).get();
   if (!show) throw new Response("No show seeded yet", { status: 404 });
-  return { show };
+  const art = getShowArtwork();
+  const dims = (art?.meta ?? {}) as { width?: number; height?: number };
+  return {
+    show,
+    storageReady: hasFeedMediaTarget(),
+    artwork: art
+      ? {
+          url: `/${show.slug}/artwork/${artworkFile(art)}`,
+          width: dims.width ?? null,
+          height: dims.height ?? null,
+          bytes: art.bytes,
+          contentType: art.contentType,
+        }
+      : null,
+  };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -103,7 +165,11 @@ export async function action({ request }: { request: Request }) {
   const form = await request.formData();
   const str = (name: string) => (form.get(name) as string) || undefined;
 
+  const category = cleanCategory(form.get("category"), form.get("subcategory"));
   const podcastTags: PodcastTags = {
+    author: str("author"),
+    category: category?.primary,
+    subcategory: category?.sub ?? undefined,
     fundingUrl: str("fundingUrl"),
     fundingMessage: str("fundingMessage"),
     valueType: str("valueType"),
@@ -137,7 +203,7 @@ export default function ShowTags({
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: { saved?: boolean };
 }) {
-  const { show } = loaderData;
+  const { show, artwork, storageReady } = loaderData;
   const tags = (show.podcastTags as PodcastTags | null) ?? {};
 
   return (
@@ -148,6 +214,8 @@ export default function ShowTags({
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Show tags</h1>
       </div>
+
+      <ShowArtwork artwork={artwork} storageReady={storageReady} />
 
       <form method="post" className="flex flex-col gap-6">
         <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
@@ -179,6 +247,13 @@ export default function ShowTags({
               <Input id="language" name="language" defaultValue={show.language} />
             </div>
           </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="author">Author</Label>
+            <Input id="author" name="author" defaultValue={tags.author ?? ""} placeholder="Shown under the title in Apple Podcasts" />
+          </div>
+
+          <CategoryPicker primary={tags.category} sub={tags.subcategory} />
 
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="explicit" defaultChecked={!!show.explicit} />

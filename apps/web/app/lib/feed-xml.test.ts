@@ -73,3 +73,27 @@ describe("podrollXml", () => {
     expect(x).toContain('feedUrl="https://e.test/f?a=1&amp;b=2" title="B &quot;q&quot;"');
   });
 });
+
+describe("buildFeed artwork, category, author", () => {
+  const base = {
+    title: "T", link: "l", selfUrl: "s", description: "d", language: "en", explicit: false,
+    podcastGuid: "g", locked: false, ownerEmail: "o@x", txt: [], funding: null, medium: null,
+    updateFrequency: null, license: null, hosts: [], podroll: [], items: [],
+  };
+  it("writes itunes:image, nested category and author, escaped", () => {
+    const xml = buildFeed({
+      ...base,
+      author: "A & B",
+      imageUrl: "https://h/s/artwork/abc.jpg",
+      category: { primary: "Sports", sub: "Football" },
+    });
+    expect(xml).toContain('<itunes:image href="https://h/s/artwork/abc.jpg"/>');
+    expect(xml).toContain('<itunes:category text="Sports"><itunes:category text="Football"/></itunes:category>');
+    expect(xml).toContain("<itunes:author>A &amp; B</itunes:author>");
+  });
+  it("writes a primary-only category and omits all three when unset", () => {
+    expect(buildFeed({ ...base, category: { primary: "History", sub: null } })).toContain('<itunes:category text="History"/>');
+    const none = buildFeed(base);
+    expect(none).not.toMatch(/itunes:(image|category|author)/);
+  });
+});

@@ -41,7 +41,7 @@ export default function StudioLayout({
   loaderData: {
     user: { name: string; email: string };
     brand: { accent: string; onAccent: string } | null;
-    show: { title: string; episodes: number } | null;
+    show: { title: string; episodes: number; artworkUrl: string | null } | null;
     role: "admin" | "editor" | null;
   };
 }) {

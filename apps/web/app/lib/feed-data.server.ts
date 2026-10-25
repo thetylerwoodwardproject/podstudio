@@ -2,6 +2,8 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, shows, showTxtRecords, podrollItems, people, episodes, episodePeople, assets } from "@podstudio/db";
 import { itemXml } from "~/lib/item-xml";
 import { buildFeed } from "~/lib/feed-xml";
+import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
+import { cleanCategory } from "~/lib/podcast-categories";
 
 // Server-only — gathers the stored show data for `/{show-slug}/feed`. Nothing
 // private is read: only published + public episodes WITH a verified audio
@@ -35,6 +37,7 @@ export function getFeedXml(slug: string, origin: string): string | null {
     .all()
     .map((h) => h.name);
 
+  const art = getShowArtwork();
   const fundingUrl = str(tags.fundingUrl);
   // A lock whose unlock window has lapsed is locked again, even before a
   // worker job records it.
@@ -97,6 +100,9 @@ export function getFeedXml(slug: string, origin: string): string | null {
     updateFrequency: str(tags.updateFrequency),
     license: str(tags.license),
     hosts,
+    author: str(tags.author),
+    imageUrl: art ? `${origin}/${show.slug}/artwork/${artworkFile(art)}` : null,
+    category: cleanCategory(tags.category, tags.subcategory),
     podroll,
     items: items,
   });

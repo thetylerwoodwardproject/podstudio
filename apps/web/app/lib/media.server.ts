@@ -25,7 +25,7 @@ export const MAX_AUDIO_BYTES = 500 * 1024 * 1024;
 
 type TargetRow = typeof storageTargets.$inferSelect;
 
-function clientFor(target: TargetRow) {
+export function clientFor(target: TargetRow) {
   return new S3Client({
     endpoint: target.endpoint ?? undefined,
     region: target.region ?? "us-east-1",
@@ -34,7 +34,7 @@ function clientFor(target: TargetRow) {
   });
 }
 
-function routedTarget(route: StorageRoute): TargetRow | null {
+export function routedTarget(route: StorageRoute): TargetRow | null {
   const all = db.select().from(storageTargets).all();
   return all.find((t) => (t.routes as StorageRoute[] | null)?.includes(route)) ?? null;
 }

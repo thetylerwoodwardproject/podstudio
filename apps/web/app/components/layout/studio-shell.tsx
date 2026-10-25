@@ -58,7 +58,7 @@ export function StudioShell({
   role,
 }: {
   user: { name: string; email: string };
-  show: { title: string; episodes: number } | null;
+  show: { title: string; episodes: number; artworkUrl: string | null } | null;
   role: "admin" | "editor" | null;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -119,7 +119,11 @@ export function StudioShell({
 
         {show && (
           <div className="mb-4 flex items-center gap-2.5 rounded-[10px] border border-border px-2.5 py-2" data-testid="show-card">
-            <div className="size-8 shrink-0 rounded-md bg-secondary" aria-hidden />
+            {show.artworkUrl ? (
+              <img src={show.artworkUrl} alt="" className="size-8 shrink-0 rounded-md object-cover" />
+            ) : (
+              <div className="size-8 shrink-0 rounded-md bg-secondary" aria-hidden />
+            )}
             <div className="min-w-0">
               <div className="truncate text-[13px] font-semibold leading-tight">{show.title}</div>
               <div className="text-[11px] text-muted-foreground">
