@@ -132,6 +132,15 @@ proof #1 (dependency compatibility) as a side effect.
 
 ## Known issues, left as-is
 
+- **Fixed 2026-10-25: `deploy/.env` was being baked into the web and worker images.**
+  There was no `.dockerignore`, so `COPY . .` copied the secrets file (admin password,
+  `BETTER_AUTH_SECRET`, Garage RPC secret), the dev `data/podstudio.db` and the host's
+  384 MB `node_modules` into every image. Added `.dockerignore`; rebuilt both images and
+  confirmed `/repo/deploy/.env` is absent in the running containers. Images built before
+  this date held a copy — they were replaced, but don't push or share any older image. The
+  same change added a persistent pnpm cache mount; a web+worker rebuild now takes ~3 min
+  (it was 10–15 min per web-only rebuild).
+
 - **FIXED 2026-10-23 — unauthenticated writes (security).** The studio's login
   gate was a *loader* on the `/studio` layout, which guards page loads but does
   not stop a child route's **action** from running: an unauthenticated
