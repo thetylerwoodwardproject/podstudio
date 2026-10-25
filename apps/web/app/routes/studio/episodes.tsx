@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
 import { Form, Link, redirect, useNavigation } from "react-router";
-import { listEpisodeRows, createEpisode } from "~/lib/episodes.server";
+import { listEpisodeRows, createEpisode, duplicateEpisode, deleteEpisode } from "~/lib/episodes.server";
 import { parseOptionalInt } from "~/lib/episode-fields";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { cn } from "~/lib/utils";
 
 const PAGE_SIZE = 7;
 
@@ -16,7 +15,17 @@ export async function loader() {
 
 export async function action({ request }: { request: Request }) {
   const form = await request.formData();
-  if (form.get("intent") !== "create") return null;
+  const intent = form.get("intent");
+  if (intent === "duplicate") {
+    const result = duplicateEpisode(String(form.get("id") ?? ""));
+    if (!result.ok) return { error: result.error };
+    return redirect(`/studio/episodes/${result.id}`);
+  }
+  if (intent === "delete") {
+    deleteEpisode(String(form.get("id") ?? ""));
+    return redirect("/studio/episodes");
+  }
+  if (intent !== "create") return null;
   const number = parseOptionalInt(String(form.get("number") ?? ""));
   const season = parseOptionalInt(String(form.get("season") ?? ""));
   if (number === undefined || season === undefined) {
@@ -66,6 +75,7 @@ export default function EpisodesRoute({
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = useMemo(
@@ -200,19 +210,47 @@ export default function EpisodesRoute({
                   {openMenu === ep.id && (
                     <div
                       className="absolute right-2 top-full z-10 w-36 rounded-lg border border-border bg-popover py-1 text-left shadow-lg"
-                      onMouseLeave={() => setOpenMenu(null)}
+                      onMouseLeave={() => {
+                        setOpenMenu(null);
+                        setConfirmDelete(null);
+                      }}
                     >
-                      {["Open in editor", "Duplicate", "Delete"].map((action) => (
+                      <Link
+                        to={`/studio/episodes/${ep.id}`}
+                        className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
+                      >
+                        Open details
+                      </Link>
+                      <Form method="post">
+                        <input type="hidden" name="id" value={ep.id} />
                         <button
-                          key={action}
-                          className={cn(
-                            "block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent",
-                            action === "Delete" && "text-destructive",
-                          )}
+                          name="intent"
+                          value="duplicate"
+                          className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
                         >
-                          {action}
+                          Duplicate
                         </button>
-                      ))}
+                      </Form>
+                      {confirmDelete === ep.id ? (
+                        <Form method="post">
+                          <input type="hidden" name="id" value={ep.id} />
+                          <button
+                            name="intent"
+                            value="delete"
+                            className="block w-full px-3 py-1.5 text-left text-[13px] font-medium text-destructive hover:bg-accent"
+                          >
+                            Confirm delete
+                          </button>
+                        </Form>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(ep.id)}
+                          className="block w-full px-3 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   )}
                 </td>

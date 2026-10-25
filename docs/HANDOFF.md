@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-23 — a long build session. New this session: embed
+**Last updated:** 2026-10-24 — Episodes row menu (Duplicate/Delete) made real. Earlier, 2026-10-23 — a long build session. New this session: embed
 player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
 applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
@@ -39,7 +39,7 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | Screen | State |
 |---|---|
 | 01 Sign in | Real — Better Auth email/password |
-| 02 Episodes | Real — seeded SQLite, paginated table, status badges, and **"New episode"** (title, optional season/episode that auto-fill to latest season / next number; creates a private `recording` draft with a fresh UUID v4 `guid` (`isPermaLink` absent) and a separate UUID v4 `publicId`; duplicates of season/number allowed on purpose). The row ⋯ menu items (Open in editor / Duplicate / Delete) are still inert |
+| 02 Episodes | Real — seeded SQLite, paginated table, status badges, and **"New episode"** (title, optional season/episode that auto-fill to latest season / next number; creates a private `recording` draft with a fresh UUID v4 `guid` (`isPermaLink` absent) and a separate UUID v4 `publicId`; duplicates of season/number allowed on purpose). The row ⋯ menu is real: **Open details**, **Duplicate** (new private `recording` draft, "Copy of …", next number, credits copied, fresh guid + publicId) and **Delete** (inline confirm). "Open in editor" was dropped — the editor (08) is a placeholder |
 | 11 Episode details | Real — edit/delete at `/studio/episodes/:id`: title, subtitle, description, **season, episode number, explicit**, status, visibility; links to Publish to feed. guid/publicId are never editable. **People section**: add/remove host or guest credits (name autocompletes from existing people; matching is case-insensitive so one person isn't duplicated; the same person may hold two roles; exact duplicates rejected) — these feed `podcast:person` in the item preview and the public pages. Not built: people's own website/socials, per-episode TXT records, chapters/AI suggestions |
 | 15 Feed overview | Half real, at `/studio/feed` — episode-status counts and a recent-episodes table are real DB queries. Downloads/listeners cards + chart are explicitly "not available yet" rather than fabricated — no OP3 integration or `analytics_daily` table exists (Stage 11) |
 | 16 Show tags | Real — RSS/iTunes + a subset of Podcasting 2.0 tags at `/studio/feed/tags`, linked from Episodes. `person`/`podroll` deliberately not here; TXT records moved to 16b |

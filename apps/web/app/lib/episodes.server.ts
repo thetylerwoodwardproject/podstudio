@@ -141,6 +141,46 @@ export function createEpisode(input: {
   return { ok: true, id };
 }
 
+// Duplicate = a new private `recording` draft with the same text and credits,
+// but its own guid and publicId (identity is never copied) and the next number.
+export function duplicateEpisode(id: string): { ok: true; id: string } | { ok: false; error: string } {
+  const src = db.select().from(episodes).where(eq(episodes.id, id)).get();
+  if (!src) return { ok: false, error: "Episode not found." };
+  const latest = db
+    .select({ number: episodes.number })
+    .from(episodes)
+    .where(eq(episodes.showId, src.showId))
+    .orderBy(desc(episodes.number))
+    .limit(1)
+    .get();
+  const title = `Copy of ${src.title}`.slice(0, 200);
+  const newId = crypto.randomUUID();
+  const now = Date.now();
+  db.transaction((tx) => {
+    tx.insert(episodes)
+      .values({
+        ...src,
+        id: newId,
+        guid: crypto.randomUUID(),
+        guidIsPermalink: null,
+        publicId: crypto.randomUUID(),
+        number: (latest?.number ?? 0) + 1,
+        title,
+        slug: slugify(title),
+        status: "recording",
+        visibility: "private",
+        publishAt: null,
+        durationS: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    const credits = tx.select().from(episodePeople).where(eq(episodePeople.episodeId, id)).all();
+    for (const c of credits) tx.insert(episodePeople).values({ ...c, episodeId: newId }).run();
+  });
+  return { ok: true, id: newId };
+}
+
 export const CREDIT_ROLES = ["host", "guest"] as const;
 export type CreditRole = (typeof CREDIT_ROLES)[number];
 
