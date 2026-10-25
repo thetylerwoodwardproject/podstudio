@@ -117,6 +117,14 @@ export default function EpisodeDetail({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to={`/studio/record/solo?episode=${episode.id}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
+            data-testid="record-link"
+          >
+            <span className="size-2 rounded-full bg-destructive" aria-hidden />
+            Record
+          </Link>
           {episode.status === "published" && episode.visibility === "public" && (
             <ViewPublicPage path={`/episodes/${episode.publicId}/${episode.slug}`} label="View public episode page" />
           )}

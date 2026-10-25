@@ -78,6 +78,13 @@
       "when": 1792954506768,
       "tag": "0010_peaceful_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792956037878,
+      "tag": "0011_lethal_magma",
+      "breakpoints": true
     }
   ]
 }

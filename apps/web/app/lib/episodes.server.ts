@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { removeEpisodeAudio } from "~/lib/media.server";
 import { slugify } from "~/lib/episode-fields";
+import { deleteRecordingsForEpisode } from "~/lib/recordings.server";
 import { removeEpisodeArtwork } from "~/lib/episode-art.server";
 import { cleanForStorage } from "~/lib/rich-text.server";
 import { db, episodes, episodePeople, people, shows, type EpisodeStatus } from "@podstudio/db";
@@ -31,6 +32,7 @@ export function getEpisodeWithCredits(id: string) {
 export async function deleteEpisode(id: string) {
   await removeEpisodeAudio(id);
   await removeEpisodeArtwork(id);
+  await deleteRecordingsForEpisode(id);
   db.delete(episodePeople).where(eq(episodePeople.episodeId, id)).run();
   db.delete(episodes).where(eq(episodes.id, id)).run();
 }

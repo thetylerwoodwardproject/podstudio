@@ -40,7 +40,7 @@ export const SCREENS: ScreenDef[] = [
   { id: "04", label: "Guest join", path: "/guest/join", area: "guest", section: "Record", inSidebar: false, real: false },
   { id: "05", label: "Guest phone", path: "/guest/phone", area: "guest", section: "Record", inSidebar: false, real: false },
   { id: "06", label: "Recording with a guest + show prep", path: "/studio/record", area: "studio", section: "Record", inSidebar: true, real: false },
-  { id: "07", label: "Solo prompter", path: "/studio/record/solo", area: "studio", section: "Record", inSidebar: false, real: false },
+  { id: "07", label: "Solo prompter", path: "/studio/record/solo", area: "studio", section: "Record", inSidebar: false, real: true, note: "Stage 03: record in the browser (24-bit 48 kHz), journaled + verified chunk uploads, retake tone on K, recovery, playback; script is manual/steady scroll — voice following is Stage 13" },
 
   // Edit
   { id: "08", label: "Editor", path: "/studio/editor", area: "studio", section: "Edit", inSidebar: true, real: false },

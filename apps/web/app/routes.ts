@@ -5,7 +5,7 @@ import { SCREENS } from "./lib/screens";
 // routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
-const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b"]; // handled explicitly below, not generated
+const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b", "07"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
@@ -30,6 +30,13 @@ export default [
     route("feed/tags", "routes/studio/show-tags.tsx", { id: "screen-16" }),
     route("feed/artwork", "routes/studio/show-artwork.ts"),
     route("public/banner", "routes/studio/show-banner.ts"),
+    route("record/solo", "routes/studio/record-solo.tsx", { id: "screen-07" }),
+    route("recordings", "routes/studio/recordings.ts"),
+    route("recordings/:id", "routes/studio/recording.ts"),
+    route("recordings/:id/chunks/:seq", "routes/studio/recording-chunk.ts"),
+    route("recordings/:id/annotations", "routes/studio/recording-annotations.ts"),
+    route("recordings/:id/finalize", "routes/studio/recording-finalize.ts"),
+    route("recordings/:id/audio", "routes/studio/recording-audio.ts"),
     route("people", "routes/studio/people.tsx", { id: "screen-33" }),
     route("people/:id", "routes/studio/person-detail.tsx", { id: "screen-33b" }),
     route("people/:id/avatar", "routes/studio/person-avatar.ts"),
