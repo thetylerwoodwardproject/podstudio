@@ -2,6 +2,9 @@ import { ViewPublicPage } from "~/components/view-public";
 import { useState } from "react";
 import { Form, useNavigation } from "react-router";
 import { getBrandTheme, saveBrandTheme } from "~/lib/brand.server";
+import { getBannerAdmin } from "~/lib/banner.server";
+import { hasFeedMediaTarget } from "~/lib/media.server";
+import { ShowArtwork } from "~/components/show-artwork";
 import {
   BRAND_PRESETS,
   CORNERS,
@@ -39,7 +42,7 @@ const APPEARANCE_OPTIONS: { value: Appearance; label: string }[] = [
 ];
 
 export async function loader() {
-  return { theme: getBrandTheme() };
+  return { theme: getBrandTheme(), banner: getBannerAdmin(), storageReady: hasFeedMediaTarget() };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -77,14 +80,24 @@ export default function Brand({
       </div>
     );
   }
-  return <BrandForm initial={loaderData.theme} actionData={actionData} />;
+  return <BrandForm initial={loaderData.theme} actionData={actionData} banner={loaderData.banner} storageReady={loaderData.storageReady} />;
 }
 
 function Swatch({ hex }: { hex: string }) {
   return <span aria-hidden className="h-3.5 w-3.5 rounded-full border border-border" style={{ background: hex }} />;
 }
 
-function BrandForm({ initial, actionData }: { initial: BrandTheme; actionData?: ActionData }) {
+function BrandForm({
+  initial,
+  actionData,
+  banner,
+  storageReady,
+}: {
+  initial: BrandTheme;
+  actionData?: ActionData;
+  banner: Awaited<ReturnType<typeof loader>>["banner"];
+  storageReady: boolean;
+}) {
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const [accent, setAccent] = useState<BrandTheme["accent"]>(initial.accent);
@@ -118,6 +131,19 @@ function BrandForm({ initial, actionData }: { initial: BrandTheme; actionData?: 
           <h1 className="text-2xl font-semibold tracking-tight">Brand &amp; theme</h1>
         </div>
         <ViewPublicPage />
+      </div>
+
+      <div className="mb-5">
+        <ShowArtwork
+          artwork={banner}
+          storageReady={storageReady}
+          endpoint="/studio/public/banner"
+          heading="Header image"
+          noun="header image"
+          sectionId="banner"
+          rules="PNG or JPEG, at least 1600×400 pixels and at least 2.5 times wider than tall (3200×800 is ideal), up to 5 MB. It is cropped to fit, so keep anything important near the centre."
+          missing="Optional. Without it, the top of your public page uses a soft wash of your show artwork."
+        />
       </div>
 
       <Form method="post" className="flex flex-col gap-5">

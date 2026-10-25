@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { removeEpisodeAudio } from "~/lib/media.server";
 import { slugify } from "~/lib/episode-fields";
+import { removeEpisodeArtwork } from "~/lib/episode-art.server";
 import { cleanForStorage } from "~/lib/rich-text.server";
 import { db, episodes, episodePeople, people, shows, type EpisodeStatus } from "@podstudio/db";
 
@@ -29,6 +30,7 @@ export function getEpisodeWithCredits(id: string) {
 
 export async function deleteEpisode(id: string) {
   await removeEpisodeAudio(id);
+  await removeEpisodeArtwork(id);
   db.delete(episodePeople).where(eq(episodePeople.episodeId, id)).run();
   db.delete(episodes).where(eq(episodes.id, id)).run();
 }
@@ -164,6 +166,9 @@ export function duplicateEpisode(id: string): { ok: true; id: string } | { ok: f
       .values({
         ...src,
         id: newId,
+        // A copy never shares stored files with the original (deleting one would delete the other's).
+        audioAssetId: null,
+        artworkAssetId: null,
         guid: crypto.randomUUID(),
         guidIsPermalink: null,
         publicId: crypto.randomUUID(),

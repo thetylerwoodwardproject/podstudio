@@ -16,6 +16,8 @@ export interface ItemInput {
   people: { name: string; role: string | null }[]; // role omitted when unset — never guessed
   /** Feed-safe HTML (already through sanitizeFeedHtml); written inside CDATA. */
   description?: string | null;
+  /** Absolute URL of this episode's own cover (omitted when it uses the show artwork). */
+  imageUrl?: string | null;
   /** Plain-text summary for itunes:summary. */
   summary?: string | null;
   // Only set once the audio is uploaded AND verified (assets.status = verified).
@@ -38,6 +40,7 @@ export function itemXml(i: ItemInput) {
   if (i.pubDate != null) lines.push(`  <pubDate>${new Date(i.pubDate).toUTCString()}</pubDate>`);
   if (i.description) lines.push(`  <description>${cdata(i.description)}</description>`);
   if (i.summary) lines.push(`  <itunes:summary>${esc(i.summary.slice(0, 4000))}</itunes:summary>`);
+  if (i.imageUrl) lines.push(`  <itunes:image href="${esc(i.imageUrl)}"/>`);
   if (i.enclosure) {
     lines.push(`  <enclosure url="${esc(i.enclosure.url)}" length="${i.enclosure.bytes}" type="audio/mpeg"/>`);
   } else {

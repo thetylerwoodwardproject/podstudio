@@ -1,4 +1,5 @@
 import { esc } from "~/lib/feed-xml";
+import { thumbUrl } from "~/lib/image-urls";
 
 // Pure HTML builder for the embeddable player document (`/{show}/embed/*`).
 // A working audio player in the README's player tokens: play/pause, −15 / +30,
@@ -34,6 +35,8 @@ export interface EmbedView {
     url: string;
     audioUrl?: string | null;
     durationS?: number | null;
+    /** Absolute URL of this episode's own cover; the show artwork is used when absent. */
+    artworkUrl?: string | null;
   }[]; // 1 for a single episode/latest, N for the whole show
   mode: "single" | "playlist";
 }
@@ -131,7 +134,8 @@ export function embedHtml(view: EmbedView, o: EmbedOptions) {
       : "";
   const first = view.episodes[0];
   const playable = view.episodes.some((e) => e.audioUrl);
-  const art = view.artworkUrl ? `<img class="art" src="${esc(view.artworkUrl)}" alt="" width="104" height="104">` : `<div class="art" aria-hidden="true"></div>`;
+  const firstArt = thumbUrl(first?.artworkUrl ?? view.artworkUrl);
+  const art = firstArt ? `<img class="art" src="${esc(firstArt)}" alt="" width="104" height="104">` : `<div class="art" aria-hidden="true"></div>`;
   const controls = playable
     ? `<audio id="a" preload="none"></audio><div class="ctl">` +
       `<button type="button" id="pp" class="play" aria-label="Play">${ICON_PLAY}</button>` +
@@ -146,7 +150,7 @@ export function embedHtml(view: EmbedView, o: EmbedOptions) {
   const data = JSON.stringify({
     show: view.showTitle,
     art: view.artworkUrl ?? null,
-    eps: view.episodes.map((e) => ({ id: e.id ?? null, t: e.title, a: e.audioUrl ?? null, d: e.durationS ?? null })),
+    eps: view.episodes.map((e) => ({ id: e.id ?? null, t: e.title, a: e.audioUrl ?? null, d: e.durationS ?? null, r: thumbUrl(e.artworkUrl ?? view.artworkUrl) ?? null })),
   }).replace(/</g, "\\u003c");
 
   return (
@@ -193,8 +197,8 @@ const PLAYER_JS =
   `function paint(){var d=dur();seek.value=d?Math.round(a.currentTime/d*1000):0;seek.style.setProperty("--p",(d?Math.min(100,a.currentTime/d*100):0)+"%");tm.textContent=f(a.currentTime)+" / "+f(Math.round(d));seek.setAttribute("aria-valuetext",f(a.currentTime)+" of "+f(Math.round(d)))}` +
   `function say(t){msg.hidden=!t;msg.textContent=t||""}` +
   `function mark(){[].forEach.call(document.querySelectorAll("li[data-i]"),function(li){li.setAttribute("aria-current",String(+li.getAttribute("data-i")===cur))})}` +
-  `function meta(){var e=E[cur];if(ti&&document.querySelectorAll("li[data-i]").length&&e)ti.textContent=e.t;` +
-  `if("mediaSession" in navigator&&window.MediaMetadata&&e)navigator.mediaSession.metadata=new MediaMetadata({title:e.t,artist:D.show,album:D.show,artwork:D.art?[{src:D.art}]:[]})}` +
+  `function meta(){var e=E[cur];var im=document.querySelector("img.art");if(im&&e&&e.r&&im.getAttribute("src")!==e.r)im.src=e.r;if(ti&&document.querySelectorAll("li[data-i]").length&&e)ti.textContent=e.t;` +
+  `if("mediaSession" in navigator&&window.MediaMetadata&&e)navigator.mediaSession.metadata=new MediaMetadata({title:e.t,artist:D.show,album:D.show,artwork:(e.r||D.art)?[{src:e.r||D.art}]:[]})}` +
   `function load(i,go){var e=E[i];if(!e||!e.a)return;cur=i;if(a.getAttribute("src")!==e.a){a.src=e.a;a.playbackRate=RATES[ri]}say("");mark();meta();paint();if(go)start()}` +
   `function start(){var p=a.play();if(p&&p.catch)p.catch(function(){say("Couldn't start playback.")})}` +
   `pp.addEventListener("click",function(){if(!a.getAttribute("src")){var i=E[cur]&&E[cur].a?cur:E.findIndex(function(e){return e.a});if(i<0)return;load(i,true);return}a.paused?start():a.pause()});` +

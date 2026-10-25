@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faRss } from "@fortawesome/free-solid-svg-icons/faRss";
 import { PLATFORM_ICONS, PLATFORM_LABELS, type Platform } from "~/lib/platforms";
 import { usePlayer } from "./player-context";
+import { thumbUrl } from "~/lib/image-urls";
 import { brandVars, DEFAULT_BRAND_THEME, type BrandTheme } from "~/lib/brand-theme";
 
 // Shared chrome for the public (listener-facing) pages. Paper theme by
@@ -56,6 +57,12 @@ export function publicCss(brand: BrandTheme) {
 .pub-pill svg{width:14px;height:14px}
 .pub-pill-accent{background:var(--brand-accent);color:var(--brand-on-accent)!important;border-color:transparent}
 
+.pub-banner{position:relative;height:clamp(120px,19vw,260px);overflow:hidden;background:var(--brand-tint)}
+.pub-banner img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.pub-banner .wash{position:absolute;inset:-30%;background-size:cover;background-position:center;filter:blur(48px) saturate(1.4);opacity:.45}
+.pub-banner::after{content:"";position:absolute;inset:auto 0 0 0;height:55%;background:linear-gradient(to bottom,transparent,var(--pub-bg))}
+.pub-hero.has-banner{padding-top:0;margin-top:-84px;position:relative;z-index:1;align-items:start}
+.pub-hero.has-banner>div:last-child{padding-top:100px}
 .pub-hero{display:grid;grid-template-columns:240px minmax(0,1fr);gap:44px;align-items:center;padding:56px 0 8px}
 .pub-art{width:100%;aspect-ratio:1;border-radius:calc(var(--brand-radius-card) + 4px);object-fit:cover;background:var(--brand-tint);box-shadow:0 24px 48px -24px rgba(0,0,0,.45),0 0 0 1px color-mix(in srgb,var(--pub-fg) 8%,transparent)}
 .pub-lead{font-size:19px;line-height:1.55;max-width:640px;margin:16px 0 0;color:color-mix(in srgb,var(--pub-fg) 88%,var(--pub-muted))}
@@ -92,6 +99,21 @@ export function publicCss(brand: BrandTheme) {
 .pub-ep .mt .g{font-family:Geist,system-ui,sans-serif}
 .pub-ep .mt span+span::before{content:"•";margin-right:8px;opacity:.6}
 .pub-badge{font-size:11px;border:1px solid var(--pub-line);border-radius:999px;padding:1px 8px;color:var(--pub-muted)}
+.pub-seg{margin-left:auto;display:inline-flex;border:1px solid var(--pub-line);border-radius:999px;padding:2px;background:var(--pub-surface)}
+.pub-seg a{color:var(--pub-muted)!important;text-decoration:none;font-size:13px;font-weight:600;padding:5px 14px;border-radius:999px}
+.pub-seg a[aria-pressed=true]{background:var(--brand-accent);color:var(--brand-on-accent)!important}
+.pub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:30px 22px}
+.pub-gc .tile{position:relative;aspect-ratio:16/10;border-radius:var(--brand-radius-card);overflow:hidden;background:var(--brand-tint)}
+.pub-gc .tile-link{position:absolute;inset:0;display:block}
+.pub-gc .bg{position:absolute;inset:-25%;background-size:cover;background-position:center;filter:blur(30px) saturate(1.35);opacity:.6}
+.pub-gc .tile img{position:absolute;left:50%;top:50%;height:76%;aspect-ratio:1;width:auto;transform:translate(-50%,-50%);border-radius:12px;object-fit:cover;box-shadow:0 16px 32px -14px rgba(0,0,0,.6)}
+.pub-gc .go{position:absolute;right:12px;bottom:12px;width:44px;height:44px;border-radius:50%;border:0;background:var(--brand-accent);color:var(--brand-on-accent);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;box-shadow:0 8px 18px -8px rgba(0,0,0,.6)}
+.pub-gc .go:hover{filter:brightness(1.08)}
+.pub-gc .ti{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:12px;font-size:16.5px;line-height:1.3;font-weight:700;letter-spacing:-0.015em;color:var(--pub-fg)!important;text-decoration:none}
+.pub-gc .ti:hover{text-decoration:underline}
+.pub-gc[aria-current=true] .ti{color:var(--brand-link)!important}
+.pub-gc .mt{margin-top:6px;font-size:12.5px;color:var(--pub-muted);display:flex;gap:8px}
+.pub-gc .mt span+span::before{content:"•";margin-right:8px;opacity:.6}
 .pub-pager{display:flex;gap:8px;margin-top:18px;align-items:center}
 
 .pub-recs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
@@ -212,6 +234,8 @@ export function publicCss(brand: BrandTheme) {
 @media (max-width:700px){
   .pub-wrap{padding:0 20px}
   .pub-hero{grid-template-columns:1fr;gap:24px;padding-top:32px}
+  .pub-hero.has-banner{margin-top:-56px}
+  .pub-hero.has-banner>div:last-child{padding-top:0}
   .pub-hero .pub-art{width:min(100%,220px)}
   .pub-latest{grid-template-columns:72px minmax(0,1fr);gap:14px}
   .pub-latest h3{font-size:21px}
@@ -282,7 +306,7 @@ export function PublicChrome({
       <header className="pub-header">
         <div className="pub-wrap">
           <Link to={`/${show.slug}`} className="pub-brand">
-            {show.artworkUrl ? <img src={show.artworkUrl} alt="" width={30} height={30} /> : <i aria-hidden />}
+            {show.artworkUrl ? <img src={thumbUrl(show.artworkUrl)!} alt="" width={30} height={30} /> : <i aria-hidden />}
             <span>{show.title}</span>
           </Link>
           <nav className="pub-nav" aria-label="Main">

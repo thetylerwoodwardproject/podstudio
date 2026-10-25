@@ -64,6 +64,20 @@
       "when": 1792950906256,
       "tag": "0008_amazing_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792954204485,
+      "tag": "0009_hot_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792954506768,
+      "tag": "0010_peaceful_scream",
+      "breakpoints": true
     }
   ]
 }

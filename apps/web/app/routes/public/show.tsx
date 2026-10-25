@@ -20,6 +20,7 @@ import { episodeTrack } from "~/components/public/track";
 import { CopyRss } from "~/components/public/small";
 import { RichClamp } from "~/components/public/rich-notes";
 import { pageMeta, jsonLdMeta, showJsonLd } from "~/lib/seo";
+import { thumbUrl } from "~/lib/image-urls";
 import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import type { DirectoryId } from "~/lib/directories";
 import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons/faMagnifyingGlass";
@@ -36,7 +37,7 @@ export async function loader({ params, request }: { params: { showSlug?: string 
   const page = Number(sp.get("page") ?? "1") || 1;
   const result = getPublicShowPage(params.showSlug ?? "", page, 10, sp.get("q") ?? "");
   if (!result) throw data("Not found", { status: 404 });
-  return { ...result, origin: new URL(request.url).origin };
+  return { ...result, origin: new URL(request.url).origin, view: sp.get("view") === "list" ? ("list" as const) : ("grid" as const) };
 }
 
 export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof loader>> }) {
@@ -76,7 +77,7 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
 }
 
 export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { show, links, hosts, recommended, latest, episodes, total, allTotal, q, sinceYear, page, pageCount } = loaderData;
+  const { show, links, hosts, recommended, latest, episodes, total, allTotal, q, sinceYear, page, pageCount, view } = loaderData;
   const player = usePlayer();
   const href = (e: { publicId: string; slug: string }) => `/${show.slug}/episodes/${e.publicId}/${e.slug}`;
   const eyebrow = [
@@ -86,14 +87,23 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
     `${allTotal} episode${allTotal === 1 ? "" : "s"}`,
   ].filter(Boolean);
   const queue = episodes.map((e) => episodeTrack(show, e)).filter((t): t is NonNullable<typeof t> => !!t);
-  const pageHref = (n: number) => `?${new URLSearchParams({ ...(q ? { q } : {}), page: String(n) })}#episodes`;
+  const pageHref = (n: number) => `?${new URLSearchParams({ ...(q ? { q } : {}), ...(view === "list" ? { view } : {}), page: String(n) })}#episodes`;
+  const viewHref = (v: "grid" | "list") => `?${new URLSearchParams({ ...(q ? { q } : {}), view: v })}#episodes`;
   const latestTrack = latest ? episodeTrack(show, latest) : null;
 
   return (
+    <>
+      <div className="pub-banner" data-testid="banner" aria-hidden>
+        {show.bannerUrl ? (
+          <img src={thumbUrl(show.bannerUrl)!} alt="" fetchPriority="high" />
+        ) : show.artworkUrl ? (
+          <span className="wash" style={{ backgroundImage: `url(${thumbUrl(show.artworkUrl)})` }} />
+        ) : null}
+      </div>
     <main className="pub-wrap">
-      <section id="about" className="pub-hero">
+      <section id="about" className={`pub-hero${show.bannerUrl ? " has-banner" : ""}`}>
         {show.artworkUrl ? (
-          <img src={show.artworkUrl} alt={`${show.title} artwork`} width={240} height={240} data-testid="show-artwork" className="pub-art" />
+          <img src={thumbUrl(show.artworkUrl)!} alt={`${show.title} artwork`} width={240} height={240} data-testid="show-artwork" className="pub-art" />
         ) : (
           <div className="pub-art" aria-hidden />
         )}
@@ -108,7 +118,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
               <span className="pub-avatars" aria-hidden>
                 {hosts.slice(0, 4).map((h) =>
                   h.avatarUrl ? (
-                    <img key={h.id} src={h.avatarUrl} alt="" className="pub-avatar" style={{ objectFit: "cover" }} />
+                    <img key={h.id} src={thumbUrl(h.avatarUrl)!} alt="" className="pub-avatar" style={{ objectFit: "cover" }} />
                   ) : (
                     <span key={h.id} className="pub-avatar">
                       {initials(h.name)}
@@ -164,7 +174,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
           </div>
           <div className="pub-card">
             <div className="pub-latest">
-              {show.artworkUrl ? <img className="pub-art" src={show.artworkUrl} alt="" width={112} height={112} /> : <div className="pub-art" aria-hidden />}
+              {latest.artworkUrl ? <img className="pub-art" src={thumbUrl(latest.artworkUrl)!} alt="" width={112} height={112} /> : <div className="pub-art" aria-hidden />}
               <div style={{ minWidth: 0 }}>
                 <div className="pub-eyebrow">{latest.number != null ? `Ep. ${latest.number}` : show.title}</div>
                 <h3>
@@ -217,9 +227,18 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
               Clear search
             </Link>
           )}
+          <span className="pub-seg" role="group" aria-label="Layout">
+            <Link to={viewHref("grid")} aria-pressed={view === "grid"} aria-label="Grid view" preventScrollReset>
+              Grid
+            </Link>
+            <Link to={viewHref("list")} aria-pressed={view === "list"} aria-label="List view" preventScrollReset>
+              List
+            </Link>
+          </span>
         </div>
         {(allTotal > 5 || q) && (
           <form method="get" action={`/${show.slug}#episodes`} className="pub-search" role="search">
+            {view === "list" && <input type="hidden" name="view" value="list" />}
             <input type="search" name="q" defaultValue={q} placeholder="Search episodes" aria-label="Search episodes" maxLength={100} />
             <button type="submit" className="pub-btn pub-btn-ghost" aria-label="Search">
               <FontAwesomeIcon icon={faMagnifyingGlass} />
@@ -228,6 +247,46 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
         )}
         {episodes.length === 0 ? (
           <p className="pub-muted">{q ? "No episodes match that search." : "No episodes yet."}</p>
+        ) : view === "grid" ? (
+          <div className="pub-grid">
+            {episodes.map((e) => {
+              const t = episodeTrack(show, e);
+              const mine = !!t && player.current?.id === t.id;
+              const playing = mine && player.playing;
+              const art = thumbUrl(e.artworkUrl);
+              return (
+                <article key={e.publicId} className="pub-gc" aria-current={mine}>
+                  <div className="tile">
+                    <Link to={href(e)} tabIndex={-1} aria-hidden className="tile-link">
+                      {art ? (
+                        <>
+                          <span className="bg" style={{ backgroundImage: `url(${art})` }} />
+                          <img src={art} alt="" loading="lazy" decoding="async" />
+                        </>
+                      ) : null}
+                    </Link>
+                    {t && (
+                      <button
+                        type="button"
+                        className="go"
+                        onClick={() => player.play(t, { queue })}
+                        aria-label={`${playing ? "Pause" : "Play"} ${e.title}`}
+                      >
+                        <FontAwesomeIcon icon={playing ? faPause : faPlay} style={playing ? undefined : { marginLeft: 2 }} />
+                      </button>
+                    )}
+                  </div>
+                  <Link to={href(e)} className="ti">
+                    {e.title}
+                  </Link>
+                  <div className="mt pub-mono">
+                    <span>{formatDate(e.date)}</span>
+                    {e.durationS ? <span>{formatClock(e.durationS)}</span> : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         ) : (
           <div className="pub-list">
             {episodes.map((e) => {
@@ -301,7 +360,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
           <div className="pub-hosts-grid">
             {hosts.map((h) => (
               <Link key={h.id} to={`/${show.slug}/people/${h.id}/${h.slug}`} className="pub-card pub-profile">
-                {h.avatarUrl ? <img className="pic" src={h.avatarUrl} alt="" width={72} height={72} /> : <span className="pic" aria-hidden>{initials(h.name)}</span>}
+                {h.avatarUrl ? <img className="pic" src={thumbUrl(h.avatarUrl)!} alt="" width={72} height={72} /> : <span className="pic" aria-hidden>{initials(h.name)}</span>}
                 <span style={{ minWidth: 0 }}>
                   <b>{h.name}</b>
                   <small>Host</small>
@@ -337,5 +396,6 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
         </section>
       )}
     </main>
+    </>
   );
 }

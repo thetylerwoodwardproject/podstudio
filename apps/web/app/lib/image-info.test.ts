@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artworkProblem, avatarProblem, imageInfo } from "./image-info";
+import { artworkProblem, avatarProblem, bannerProblem, imageInfo } from "./image-info";
 import { cleanCategory } from "./podcast-categories";
 
 function png(w: number, h: number) {
@@ -60,5 +60,18 @@ describe("avatarProblem", () => {
     expect(avatarProblem(imageInfo(png(199, 500)))).toMatch(/too small/);
     expect(avatarProblem(imageInfo(png(4001, 500)))).toMatch(/too large/);
     expect(avatarProblem(null)).toMatch(/PNG or JPEG/);
+  });
+});
+
+describe("bannerProblem", () => {
+  it("accepts wide images", () => {
+    expect(bannerProblem(imageInfo(png(3200, 800)))).toBeNull();
+    expect(bannerProblem(imageInfo(jpeg(1600, 400)))).toBeNull();
+  });
+  it("explains too small, too square, too wide and non-images", () => {
+    expect(bannerProblem(imageInfo(png(1200, 300)))).toMatch(/too small/);
+    expect(bannerProblem(imageInfo(png(2000, 1500)))).toMatch(/wide enough/);
+    expect(bannerProblem(imageInfo(png(6001, 1000)))).toMatch(/too wide/);
+    expect(bannerProblem(null)).toMatch(/PNG or JPEG/);
   });
 });

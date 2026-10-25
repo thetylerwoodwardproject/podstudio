@@ -8,6 +8,7 @@ import { formatClock, formatDate, initials } from "~/components/public/public-la
 import { usePlayer } from "~/components/public/player-context";
 import { RichNotes } from "~/components/public/rich-notes";
 import { episodeTrack } from "~/components/public/track";
+import { thumbUrl } from "~/lib/image-urls";
 import { jsonLdMeta, pageMeta, personJsonLd } from "~/lib/seo";
 
 // Public profile for a host or guest at `/{show}/people/{id}/{slug}`. The id is
@@ -54,7 +55,7 @@ export default function PublicPerson({ loaderData }: { loaderData: Awaited<Retur
       </nav>
       <section className="pub-person-hero" style={{ paddingTop: 12 }}>
         {person.avatarUrl ? (
-          <img className="pic" src={person.avatarUrl} alt={person.name} width={168} height={168} data-testid="person-photo" />
+          <img className="pic" src={thumbUrl(person.avatarUrl)!} alt={person.name} width={168} height={168} data-testid="person-photo" />
         ) : (
           <span className="pic" aria-hidden>
             {initials(person.name)}

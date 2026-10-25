@@ -14,6 +14,7 @@ import { ShareMenu } from "~/components/public/small";
 import { RichNotes } from "~/components/public/rich-notes";
 import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import type { DirectoryId } from "~/lib/directories";
+import { thumbUrl } from "~/lib/image-urls";
 import { pageMeta, jsonLdMeta, episodeJsonLd } from "~/lib/seo";
 
 // Screen 30 (Public episode page) at `/{show}/episodes/{public-id}/{slug}`,
@@ -41,7 +42,7 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
   const base = `${d.origin}/${d.show.slug}`;
   const url = `${base}/episodes/${d.episode.publicId}/${d.episode.slug}`;
   const title = `${d.episode.title} — ${d.show.title}`;
-  const image = d.show.artworkUrl ? `${d.origin}${d.show.artworkUrl}` : null;
+  const image = d.episode.artworkUrl ? `${d.origin}${d.episode.artworkUrl}` : null;
   const description = d.episode.description ?? d.show.description ?? d.show.title;
   return [
     ...pageMeta({ title, description, url, siteName: d.show.title, type: "article", image, published: d.episode.date }),
@@ -113,7 +114,7 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
           <div style={{ minWidth: 0 }}>
             <div className="pub-card">
               <div className="pub-latest" style={{ gridTemplateColumns: "88px minmax(0,1fr)" }}>
-                {show.artworkUrl ? <img className="pub-art" src={show.artworkUrl} alt="" width={88} height={88} /> : <div className="pub-art" aria-hidden />}
+                {episode.artworkUrl ? <img className="pub-art" src={thumbUrl(episode.artworkUrl)!} alt="" width={88} height={88} /> : <div className="pub-art" aria-hidden />}
                 <div style={{ minWidth: 0 }}>
                   <div className="pub-eyebrow">{show.title}</div>
                   <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.015em", lineHeight: 1.25, marginTop: 4 }}>{episode.title}</div>
@@ -170,7 +171,7 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
                   {credits.map((c) => (
                     <Link key={`${c.id}-${c.role}`} to={`/${show.slug}/people/${c.id}/${c.slug}`} className="pub-card pub-person" style={{ textDecoration: "none", color: "inherit" }}>
                       {c.avatarUrl ? (
-                        <img className="pub-avatar" src={c.avatarUrl} alt="" width={40} height={40} style={{ objectFit: "cover" }} />
+                        <img className="pub-avatar" src={thumbUrl(c.avatarUrl)!} alt="" width={40} height={40} style={{ objectFit: "cover" }} />
                       ) : (
                         <span className="pub-avatar" aria-hidden>
                           {initials(c.name)}
@@ -224,7 +225,7 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
                 </div>
                 {upNext.map((e) => (
                   <Link key={e.publicId} to={next(e)} className="pub-next">
-                    {show.artworkUrl ? <img src={show.artworkUrl} alt="" width={48} height={48} /> : <i aria-hidden />}
+                    {e.artworkUrl ? <img src={thumbUrl(e.artworkUrl)!} alt="" width={48} height={48} /> : <i aria-hidden />}
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span className="pub-muted pub-mono" style={{ fontSize: 11.5 }}>
                         {[e.number != null ? `Ep. ${e.number}` : null, formatClock(e.durationS)].filter(Boolean).join(" · ")}

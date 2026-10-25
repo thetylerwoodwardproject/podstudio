@@ -4,6 +4,7 @@ import { itemXml } from "~/lib/item-xml";
 import { buildFeed } from "~/lib/feed-xml";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 import { htmlToText, sanitizeFeedHtml } from "~/lib/rich-text.server";
+import { episodeArtUrlsFor } from "~/lib/episode-art.server";
 import { cleanCategory } from "~/lib/podcast-categories";
 
 // Server-only — gathers the stored show data for `/{show-slug}/feed`. Nothing
@@ -64,6 +65,7 @@ export function getFeedXml(slug: string, origin: string): string | null {
     .where(and(eq(episodes.showId, show.id), eq(episodes.status, "published"), eq(episodes.visibility, "public")))
     .orderBy(desc(sql`coalesce(${episodes.publishAt}, ${episodes.createdAt})`))
     .all();
+  const epArt = episodeArtUrlsFor(show.slug, published);
   const items = published.map((e) =>
     itemXml({
       title: e.title,
@@ -76,6 +78,7 @@ export function getFeedXml(slug: string, origin: string): string | null {
       explicit: !!e.explicit,
       description: sanitizeFeedHtml(e.description) || null,
       summary: htmlToText(e.description) || null,
+      imageUrl: epArt.get(e.id) ? `${origin}${epArt.get(e.id)}` : null,
       people: db
         .select({ name: people.name, role: episodePeople.role })
         .from(episodePeople)

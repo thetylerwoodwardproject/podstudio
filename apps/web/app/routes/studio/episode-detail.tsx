@@ -13,6 +13,8 @@ import {
 } from "~/lib/episodes.server";
 import { getEpisodeAudio, hasFeedMediaTarget } from "~/lib/media.server";
 import { EpisodeAudioSection } from "~/components/episode-audio";
+import { ShowArtwork } from "~/components/show-artwork";
+import { getEpisodeArtAdmin } from "~/lib/episode-art.server";
 import { parseOptionalInt } from "~/lib/episode-fields";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -38,6 +40,7 @@ export async function loader({ params }: { params: { id: string } }) {
     knownPeople: listShowPeople(),
     audio: getEpisodeAudio(params.id),
     storageReady: hasFeedMediaTarget(),
+    artwork: getEpisodeArtAdmin(params.id),
     descriptionHtml: toHtml(result.episode.description),
   };
 }
@@ -91,7 +94,7 @@ export default function EpisodeDetail({
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: { saved?: boolean; error?: string; creditError?: string; credited?: boolean };
 }) {
-  const { episode, credits, knownPeople, audio, storageReady, descriptionHtml } = loaderData;
+  const { episode, credits, knownPeople, audio, storageReady, descriptionHtml, artwork } = loaderData;
   const navigation = useNavigation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const saving = navigation.state === "submitting";
@@ -256,6 +259,18 @@ export default function EpisodeDetail({
       <Separator className="my-6" />
 
       <EpisodeAudioSection episodeId={episode.id} audio={audio} storageReady={storageReady} />
+
+      <div className="mt-6">
+        <ShowArtwork
+          artwork={artwork}
+          storageReady={storageReady}
+          endpoint={`/studio/episodes/${episode.id}/artwork`}
+          heading="Episode artwork"
+          sectionId="episode-artwork"
+          rules="Optional. PNG or JPEG, square, between 1400×1400 and 3000×3000 pixels, up to 5 MB."
+          missing="Without it, the show artwork is used for this episode (public page, player, embed and feed)."
+        />
+      </div>
 
       <Separator className="my-6" />
 

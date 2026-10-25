@@ -65,3 +65,20 @@ export function avatarProblem(info: ImageInfo | null): string | null {
   }
   return null;
 }
+
+export const BANNER_MIN_W = 1600;
+export const BANNER_MIN_H = 400;
+export const BANNER_MAX_W = 6000;
+
+/** Header image rules: PNG/JPEG, wide (at least 1600×400, at least 2.5:1, at most 6000 px across). It is cropped to fit, so only the centre is guaranteed to show. */
+export function bannerProblem(info: ImageInfo | null): string | null {
+  if (!info) return "That file isn't a PNG or JPEG image.";
+  if (info.width < BANNER_MIN_W || info.height < BANNER_MIN_H) {
+    return `The image is too small (${info.width}×${info.height}) — use at least ${BANNER_MIN_W}×${BANNER_MIN_H} pixels.`;
+  }
+  if (info.width > BANNER_MAX_W) return `The image is too wide (${info.width} px) — use at most ${BANNER_MAX_W} pixels across.`;
+  if (info.width / info.height < 2.5) {
+    return `The image isn't wide enough (${info.width}×${info.height}) — a header should be at least 2.5 times wider than tall, e.g. 3200×800.`;
+  }
+  return null;
+}

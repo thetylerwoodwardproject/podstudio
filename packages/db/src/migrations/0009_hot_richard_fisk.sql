@@ -1,0 +1,1 @@
+ALTER TABLE `episodes` ADD `artwork_asset_id` text;

@@ -1,0 +1,1 @@
+ALTER TABLE `shows` ADD `banner_asset_id` text;

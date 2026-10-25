@@ -144,6 +144,8 @@ export const shows = sqliteTable("shows", {
   podcastTags: text("podcast_tags", { mode: "json" }),
   // The verified show-artwork asset (assets.kind "show_artwork"); null until one is uploaded.
   artworkAssetId: text("artwork_asset_id"),
+  // Wide header image behind the public show page's hero (assets.kind "show_banner").
+  bannerAssetId: text("banner_asset_id"),
   settings: text("settings", { mode: "json" }),
   theme: text("theme", { mode: "json" }),
   shortStyle: text("short_style", { mode: "json" }),
@@ -333,6 +335,8 @@ export const episodes = sqliteTable(
     // The verified MP3 served as the feed enclosure (assets.id). Null until an
     // upload has been checked end to end; never points at a pending asset.
     audioAssetId: text("audio_asset_id"),
+    // Optional episode cover (assets.kind "episode_artwork"); the show artwork is used when null.
+    artworkAssetId: text("artwork_asset_id"),
     branding: text("branding", { mode: "json" }),
     createdAt: integer("created_at")
       .notNull()
@@ -368,7 +372,7 @@ export const assets = sqliteTable(
       .notNull()
       .references(() => shows.id),
     episodeId: text("episode_id").references(() => episodes.id),
-    kind: text("kind").notNull(), // episode_audio | show_artwork | person_avatar (more in later stages)
+    kind: text("kind").notNull(), // episode_audio | show_artwork | person_avatar | episode_artwork | show_banner (more in later stages)
     access: text("access", { enum: ["private", "public"] }).notNull(),
     storageTargetId: text("storage_target_id")
       .notNull()

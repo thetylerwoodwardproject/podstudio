@@ -202,7 +202,7 @@ export async function removeEpisodeAudio(episodeId: string) {
     .set({ audioAssetId: null, durationS: null, updatedAt: Date.now() })
     .where(eq(episodes.id, episodeId))
     .run();
-  for (const a of db.select({ id: assets.id }).from(assets).where(eq(assets.episodeId, episodeId)).all()) {
+  for (const a of db.select({ id: assets.id }).from(assets).where(and(eq(assets.episodeId, episodeId), eq(assets.kind, "episode_audio"))).all()) {
     await removeAsset(a.id).catch(() => {});
   }
 }

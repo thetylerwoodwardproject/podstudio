@@ -6,6 +6,8 @@ import { DIRECTORIES, readDirectoryLinks } from "~/lib/directories";
 import { likePattern } from "~/lib/search";
 import { avatarUrlsFor, isPubliclyListed } from "~/lib/people.server";
 import { slugify } from "~/lib/episode-fields";
+import { episodeArtUrlsFor } from "~/lib/episode-art.server";
+import { bannerUrl, getShowBanner } from "~/lib/banner.server";
 import { htmlToText, sanitizeRichHtml } from "~/lib/rich-text.server";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 
@@ -38,8 +40,12 @@ const episodeColumns = {
 // Adds who the episode is "with" and the public audio URL (only when a verified MP3
 // exists) to a page of episode rows — one query for people, one for audio.
 function withGuestsAndAudio<T extends { id: string; publicId: string }>(slug: string, rows: T[]) {
-  if (rows.length === 0) return [] as (T & { guests: string[]; guestPeople: { id: string; name: string; slug: string }[]; audioSrc: string | null })[];
+  if (rows.length === 0) return [] as (T & { guests: string[]; guestPeople: { id: string; name: string; slug: string }[]; audioSrc: string | null; artworkUrl: string | null; hasOwnArt: boolean })[];
   const ids = rows.map((r) => r.id);
+  // Own cover when the episode has one, else the show artwork.
+  const ownArt = episodeArtUrlsFor(slug, rows);
+  const showArt = getShowArtwork();
+  const showArtUrl = showArt ? `/${slug}/artwork/${artworkFile(showArt)}` : null;
   const guests = db
     .select({ episodeId: episodePeople.episodeId, personId: people.id, name: people.name })
     .from(episodePeople)
@@ -58,6 +64,8 @@ function withGuestsAndAudio<T extends { id: string; publicId: string }>(slug: st
   return rows.map((r) => ({
     ...r,
     description: htmlToText((r as { description?: string | null }).description) || null,
+    artworkUrl: ownArt.get(r.id) ?? showArtUrl,
+    hasOwnArt: ownArt.has(r.id),
     guests: guests.filter((g) => g.episodeId === r.id).map((g) => g.name),
     guestPeople: guests
       .filter((g) => g.episodeId === r.id)
@@ -86,6 +94,10 @@ function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
     category: cat ? (cat.sub ?? cat.primary) : null,
     author: str(tags.author),
     artworkUrl: art ? `/${show.slug}/artwork/${artworkFile(art)}` : null,
+    bannerUrl: (() => {
+      const b = getShowBanner();
+      return b ? bannerUrl(show.slug, b) : null;
+    })(),
     title: show.title,
     description: htmlToText(show.description) || null,
     descriptionHtml: sanitizeRichHtml(show.description),
@@ -262,10 +274,16 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     .where(eq(episodes.id, episode.id))
     .get();
 
+  const showArtwork = getShowArtwork();
   return {
     show: showHeader(show),
     links,
-    episode: { ...episode, description: htmlToText(episode.description) || null, descriptionHtml: sanitizeRichHtml(episode.description) },
+    episode: {
+      ...episode,
+      description: htmlToText(episode.description) || null,
+      descriptionHtml: sanitizeRichHtml(episode.description),
+      artworkUrl: episodeArtUrlsFor(show.slug, [episode]).get(episode.id) ?? (showArtwork ? `/${show.slug}/artwork/${artworkFile(showArtwork)}` : null),
+    },
     credits,
     upNext: withGuestsAndAudio(show.slug, upNext),
     newer: newer ?? null,
@@ -286,6 +304,7 @@ export function getEmbedView(slug: string, target: string, origin: string) {
     number: episodes.number,
     audioId: assets.id,
     audioDuration: assets.durationS,
+    epId: episodes.id,
   };
   // Only a *verified* audio asset makes an episode playable; otherwise audioUrl is null.
   const base = () =>
@@ -293,13 +312,15 @@ export function getEmbedView(slug: string, target: string, origin: string) {
       .select(cols)
       .from(episodes)
       .leftJoin(assets, and(eq(assets.id, episodes.audioAssetId), eq(assets.status, "verified")));
-  const shape = (e: { publicId: string; slug: string; title: string; number: number | null; audioId: string | null; audioDuration: number | null }) => ({
+  let ownArt = new Map<string, string>(); // episode id → own cover URL, filled once the rows are known
+  const shape = (e: { epId: string; publicId: string; slug: string; title: string; number: number | null; audioId: string | null; audioDuration: number | null }) => ({
     id: e.publicId,
     title: e.title,
     number: e.number,
     url: url(e),
     audioUrl: e.audioId ? `${origin}/${show.slug}/media/${e.publicId}/episode.mp3` : null,
     durationS: e.audioDuration,
+    artworkUrl: ownArt.get(e.epId) ? `${origin}${ownArt.get(e.epId)}` : null,
   });
   const art = getShowArtwork();
   const artworkUrl = art ? `${origin}/${show.slug}/artwork/${artworkFile(art)}` : null;
@@ -307,6 +328,7 @@ export function getEmbedView(slug: string, target: string, origin: string) {
 
   if (target === "all") {
     const list = base().where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(50).all();
+    ownArt = episodeArtUrlsFor(show.slug, list.map((r) => ({ id: r.epId, publicId: r.publicId })));
     return { showTitle: show.title, showUrl, artworkUrl, mode: "playlist" as const, episodes: list.map(shape) };
   }
   const row =
@@ -314,6 +336,7 @@ export function getEmbedView(slug: string, target: string, origin: string) {
       ? base().where(PUBLIC_EPISODE(show.id)).orderBy(desc(PUBLIC_DATE)).limit(1).get()
       : base().where(and(PUBLIC_EPISODE(show.id), eq(episodes.publicId, target))).get();
   if (!row && target !== "latest") return null; // unknown / non-public id -> 404; "latest" with none yet renders empty
+  if (row) ownArt = episodeArtUrlsFor(show.slug, [{ id: row.epId, publicId: row.publicId }]);
   return {
     showTitle: show.title,
     showUrl,
