@@ -1,4 +1,4 @@
-import { type RouteConfig, route, index } from "@react-router/dev/routes";
+import { type RouteConfig, route, index, layout } from "@react-router/dev/routes";
 import { SCREENS } from "./lib/screens";
 
 // Every screen id gets a route (Stage-00: "all 36 screen ids have placeholder
@@ -63,6 +63,8 @@ export default [
   route(":showSlug/feed", "routes/feed.ts"),
   route(":showSlug/media/:publicId/:file?", "routes/media.ts"),
   route(":showSlug/artwork/:file", "routes/artwork.ts"),
-  route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
-  route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
+  layout("routes/public/_layout.tsx", [
+    route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
+    route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
+  ]),
 ] satisfies RouteConfig;

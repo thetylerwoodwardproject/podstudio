@@ -7,7 +7,8 @@ import { faDownload } from "@fortawesome/free-solid-svg-icons/faDownload";
 import { faLayerGroup } from "@fortawesome/free-solid-svg-icons/faLayerGroup";
 import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
 import { faRss } from "@fortawesome/free-solid-svg-icons/faRss";
-import { PublicLayout, formatClock, formatDate, formatDuration, initials } from "~/components/public/public-layout";
+import { formatClock, formatDate, formatDuration, initials } from "~/components/public/public-layout";
+import { episodeTrack } from "~/components/public/track";
 import { AudioPlayer } from "~/components/public/audio-player";
 
 // Screen 30 (Public episode page) at `/{show}/episodes/{public-id}/{slug}`,
@@ -51,14 +52,16 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
 }
 
 export default function PublicEpisode({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { show, links, episode, credits, upNext, audio } = loaderData;
+  const { show, episode, credits, upNext, audio } = loaderData;
+  const track = audio ? episodeTrack(show, { ...episode, audioSrc: audio.src }) : null;
+  const queue = [track, ...upNext.map((e) => episodeTrack(show, e))].filter((t): t is NonNullable<typeof t> => !!t);
   const guests = credits.filter((c) => c.role === "guest").map((c) => c.name);
   const season = episode.season != null && episode.number != null ? `S${episode.season} · Ep. ${episode.number}` : episode.number != null ? `Ep. ${episode.number}` : null;
   const next = (e: { publicId: string; slug: string }) => `/${show.slug}/episodes/${e.publicId}/${e.slug}`;
   const paragraphs = episode.description ? episode.description.split(/\n{2,}/) : [];
 
   return (
-    <PublicLayout show={show} links={links}>
+    <>
       <main className="pub-wrap" style={{ paddingTop: 40 }}>
         <nav aria-label="Breadcrumb" className="pub-crumb">
           <Link to={`/${show.slug}`}>{show.title}</Link> <span aria-hidden>›</span>{" "}
@@ -98,7 +101,7 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
               </div>
               {audio ? (
                 <>
-                  <AudioPlayer src={audio.src} title={episode.title} show={show.title} artwork={show.artworkUrl} durationS={episode.durationS} />
+                  {track && <AudioPlayer track={track} queue={queue} />}
                   <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <a href={audio.src} download className="pub-pill">
                       <FontAwesomeIcon icon={faDownload} />
@@ -182,6 +185,6 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
           </aside>
         </div>
       </main>
-    </PublicLayout>
+    </>
   );
 }

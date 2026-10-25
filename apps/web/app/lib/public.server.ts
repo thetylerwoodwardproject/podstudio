@@ -1,7 +1,9 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db, shows, showLinks, people, episodes, episodePeople, podrollItems, assets } from "@podstudio/db";
 import { readBrandTheme } from "~/lib/brand-theme";
 import { cleanCategory } from "~/lib/podcast-categories";
+import { DIRECTORIES, readDirectoryLinks } from "~/lib/directories";
+import { likePattern } from "~/lib/search";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 
 // Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
@@ -69,7 +71,10 @@ function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
   const art = getShowArtwork();
   const cat = cleanCategory(tags.category, tags.subcategory);
+  const settings = (show.settings && typeof show.settings === "object" ? show.settings : {}) as Record<string, unknown>;
+  const dirLinks = readDirectoryLinks(settings.directories);
   return {
+    directories: DIRECTORIES.filter((d) => dirLinks[d.id]).map((d) => ({ id: d.id, label: d.label, url: dirLinks[d.id]! })),
     slug: show.slug,
     category: cat ? (cat.sub ?? cat.primary) : null,
     author: str(tags.author),
@@ -86,19 +91,51 @@ function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
   };
 }
 
-export function getPublicShowPage(slug: string, page: number, pageSize = 10) {
+// Layout-level data for every public page (header/footer chrome): the show header
+// and its visible social links. 404 for an unknown show.
+export function getPublicShell(slug: string) {
   const show = findShow(slug);
   if (!show) return null;
+  const links = db
+    .select({ platform: showLinks.platform, value: showLinks.value })
+    .from(showLinks)
+    .where(and(eq(showLinks.showId, show.id), eq(showLinks.visible, 1)))
+    .orderBy(showLinks.position)
+    .all();
+  return { show: showHeader(show), links };
+}
 
-  const total =
-    db.select({ n: sql<number>`count(*)` }).from(episodes).where(PUBLIC_EPISODE(show.id)).get()?.n ?? 0;
+export function getPublicShowPage(slug: string, page: number, pageSize = 10, q = "") {
+  const show = findShow(slug);
+  if (!show) return null;
+  const query = q.trim().slice(0, 100);
+  const where = query
+    ? and(
+        PUBLIC_EPISODE(show.id),
+        or(
+          sql`${episodes.title} like ${likePattern(query)} escape '\\'`,
+          sql`${episodes.subtitle} like ${likePattern(query)} escape '\\'`,
+          sql`${episodes.description} like ${likePattern(query)} escape '\\'`,
+        ),
+      )
+    : PUBLIC_EPISODE(show.id);
+  const since = db
+    .select({ first: sql<number | null>`min(${PUBLIC_DATE})` })
+    .from(episodes)
+    .where(PUBLIC_EPISODE(show.id))
+    .get()?.first;
+
+  const total = db.select({ n: sql<number>`count(*)` }).from(episodes).where(where).get()?.n ?? 0;
+  const allTotal = query
+    ? (db.select({ n: sql<number>`count(*)` }).from(episodes).where(PUBLIC_EPISODE(show.id)).get()?.n ?? 0)
+    : total;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const current = Math.min(Math.max(1, page), pageCount);
 
   const list = db
     .select(episodeColumns)
     .from(episodes)
-    .where(PUBLIC_EPISODE(show.id))
+    .where(where)
     .orderBy(desc(PUBLIC_DATE))
     .limit(pageSize)
     .offset((current - 1) * pageSize)
@@ -147,6 +184,9 @@ export function getPublicShowPage(slug: string, page: number, pageSize = 10) {
     latest: latest ? withGuestsAndAudio(show.slug, [latest])[0]! : null,
     episodes: withGuestsAndAudio(show.slug, list),
     total,
+    allTotal,
+    q: query,
+    sinceYear: since ? new Date(since).getUTCFullYear() : null,
     page: current,
     pageCount,
   };
@@ -173,6 +213,7 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
   // "Up next" = the next-older public episodes, by the same public date order.
   const upNext = db
     .select({
+      id: episodes.id,
       publicId: episodes.publicId,
       slug: episodes.slug,
       title: episodes.title,
@@ -205,7 +246,7 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     links,
     episode,
     credits,
-    upNext,
+    upNext: withGuestsAndAudio(show.slug, upNext),
     audio: audio ? { src: `/${show.slug}/media/${episode.publicId}/${episode.slug || "episode"}.mp3`, bytes: audio.bytes } : null,
   };
 }

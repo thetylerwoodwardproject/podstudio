@@ -16,7 +16,6 @@ import { cn } from "~/lib/utils";
 // This file imports nothing from @podstudio/db or drizzle-orm — see
 // feed.server.ts and CHANGELOG, "Real bug: two sidebar links silently
 // failed to navigate," for why that's a hard rule now, not just tidiness.
-const DIRECTORIES = ["Apple Podcasts", "Spotify", "Podcast Index", "YouTube Music", "Amazon Music", "Pocket Casts"];
 
 function formatDuration(s: number | null) {
   if (s == null) return null;
@@ -77,7 +76,7 @@ function Verdict({ ok }: { ok: boolean }) {
 }
 
 export default function FeedOverview({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { show, feedUrl, feedBytes, lastEpisodeAt, check, inFeed, notInFeed } = loaderData;
+  const { show, feedUrl, feedBytes, lastEpisodeAt, check, inFeed, notInFeed, directories } = loaderData;
   const ok1 = check.errors.length === 0;
 
   return (
@@ -229,16 +228,29 @@ export default function FeedOverview({ loaderData }: { loaderData: Awaited<Retur
         <section>
           <div className="mb-2.5 text-xs uppercase tracking-[0.08em] text-muted-foreground">Directories</div>
           <div className="flex flex-col gap-2">
-            {DIRECTORIES.map((d) => (
-              <div key={d} className="flex items-center justify-between rounded-xl border border-border bg-card px-3.5 py-2.5 text-[13px] font-medium">
-                {d}
-                <span className="text-xs font-normal text-muted-foreground">Not tracked yet</span>
+            {directories.map((d) => (
+              <div key={d.id} className="flex items-center justify-between rounded-xl border border-border bg-card px-3.5 py-2.5 text-[13px] font-medium">
+                {d.label}
+                {d.url ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-normal text-ok">
+                    <span className="size-1.5 rounded-full bg-ok" />
+                    Link on public page
+                  </span>
+                ) : (
+                  <Link to="/studio/public/links#directories" className="text-xs font-normal text-muted-foreground underline hover:text-foreground">
+                    Add link
+                  </Link>
+                )}
               </div>
             ))}
           </div>
           <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
-            Submit the feed URL to each directory yourself. Submission status will show here once the Podcast Index
-            integration exists.
+            Submit the feed URL to each directory yourself, then paste your show's page from that app under{" "}
+            <Link to="/studio/public/links#directories" className="text-foreground underline">
+              Public page links → Listen on
+            </Link>{" "}
+            so listeners get a button. Whether a directory has accepted the feed isn't tracked yet (needs the Podcast Index
+            integration).
           </p>
         </section>
       </div>

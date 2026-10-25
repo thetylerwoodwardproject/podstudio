@@ -2,6 +2,7 @@ import { and, eq, desc, sql } from "drizzle-orm";
 import { db, shows, episodes, assets } from "@podstudio/db";
 import { getFeedXml } from "~/lib/feed-data.server";
 import { checkFeed } from "~/lib/feed-check";
+import { DIRECTORIES, readDirectoryLinks } from "~/lib/directories";
 
 // Server-only — same reasoning as storage.server.ts/episodes.server.ts: no
 // @podstudio/db access in feed-overview.tsx itself, so nothing from its
@@ -35,7 +36,11 @@ export function getFeedOverview(origin: string) {
 
   const total = db.select({ n: sql<number>`count(*)` }).from(episodes).where(eq(episodes.showId, show.id)).get()?.n ?? 0;
 
+  const settings = (show.settings && typeof show.settings === "object" ? show.settings : {}) as Record<string, unknown>;
+  const links = readDirectoryLinks(settings.directories);
+
   return {
+    directories: DIRECTORIES.map((d) => ({ id: d.id, label: d.label, url: links[d.id] ?? null })),
     show: { title: show.title, slug: show.slug },
     feedUrl,
     feedBytes: Buffer.byteLength(xml),

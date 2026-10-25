@@ -1,5 +1,6 @@
 import { eq, and, asc } from "drizzle-orm";
 import { db, shows, showLinks, type ShowLinkPlatform } from "@podstudio/db";
+import { DIRECTORIES, normalizeDirectoryUrl, readDirectoryLinks, type DirectoryLinks } from "~/lib/directories";
 
 // Server-only — same hard rule as every other `.server.ts` file this
 // session: no @podstudio/db access in public-links.tsx itself, so none of
@@ -89,4 +90,29 @@ export function moveShowLink(id: string, direction: "up" | "down") {
   const b = links[swapWith];
   db.update(showLinks).set({ position: b.position }).where(eq(showLinks.id, a.id)).run();
   db.update(showLinks).set({ position: a.position }).where(eq(showLinks.id, b.id)).run();
+}
+
+// "Listen on" directory links live under `directories` in the existing
+// `shows.settings` JSON (other keys there — embed, podroll — are preserved).
+export function getDirectoryLinks(): DirectoryLinks {
+  const show = db.select({ settings: shows.settings }).from(shows).get();
+  const settings = (show?.settings && typeof show.settings === "object" ? show.settings : {}) as Record<string, unknown>;
+  return readDirectoryLinks(settings.directories);
+}
+
+export function saveDirectoryLinks(input: Record<string, string>): { ok: true } | { ok: false; error: string } {
+  const show = db.select({ id: shows.id, settings: shows.settings }).from(shows).get();
+  if (!show) return { ok: false, error: "No show seeded yet." };
+  const next: DirectoryLinks = {};
+  for (const d of DIRECTORIES) {
+    const r = normalizeDirectoryUrl(d.id, input[d.id] ?? "");
+    if (!r.ok) return { ok: false, error: r.error };
+    if (r.value) next[d.id] = r.value;
+  }
+  const settings = (show.settings && typeof show.settings === "object" ? show.settings : {}) as Record<string, unknown>;
+  db.update(shows)
+    .set({ settings: { ...settings, directories: next } })
+    .where(eq(shows.id, show.id))
+    .run();
+  return { ok: true };
 }

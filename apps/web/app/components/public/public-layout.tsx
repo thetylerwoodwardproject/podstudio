@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faRss } from "@fortawesome/free-solid-svg-icons/faRss";
 import { PLATFORM_ICONS, PLATFORM_LABELS, type Platform } from "~/lib/platforms";
+import { usePlayer } from "./player-context";
 import { brandVars, DEFAULT_BRAND_THEME, type BrandTheme } from "~/lib/brand-theme";
 
 // Shared chrome for the public (listener-facing) pages. Paper theme by
@@ -78,15 +79,18 @@ export function publicCss(brand: BrandTheme) {
 .pub-clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:10px 0 0;color:color-mix(in srgb,var(--pub-fg) 85%,var(--pub-muted))}
 
 .pub-list{border-top:1px solid var(--pub-line)}
-.pub-ep{display:grid;grid-template-columns:40px 56px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:14px 10px;margin:0 -10px;border-bottom:1px solid var(--pub-line);text-decoration:none;color:var(--pub-fg)!important}
+.pub-ep{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;align-items:start;padding:18px 10px;margin:0 -10px;border-bottom:1px solid var(--pub-line)}
 .pub-ep:hover{background:var(--pub-surface)}
-.pub-ep .go{width:36px;height:36px;border-radius:50%;border:1px solid var(--pub-line);display:inline-flex;align-items:center;justify-content:center;color:var(--pub-fg);font-size:11px}
-.pub-ep:hover .go{background:var(--brand-accent);border-color:var(--brand-accent);color:var(--brand-on-accent)}
-.pub-ep .no{font-size:12.5px;color:var(--pub-muted)}
-.pub-ep .ti{font-weight:600;letter-spacing:-0.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pub-ep .sub{font-size:13px;color:var(--pub-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pub-ep .dt{font-size:13px;color:var(--pub-muted);white-space:nowrap}
-.pub-ep .du{font-size:12.5px;color:var(--pub-muted);min-width:48px;text-align:right}
+.pub-ep .go{width:44px;height:44px;border-radius:50%;border:1px solid var(--pub-line);background:transparent;display:inline-flex;align-items:center;justify-content:center;color:var(--pub-fg);font-size:13px;cursor:pointer;padding:0}
+.pub-ep .go:hover:not(:disabled),.pub-ep[aria-current=true] .go{background:var(--brand-accent);border-color:var(--brand-accent);color:var(--brand-on-accent)}
+.pub-ep .go:disabled{opacity:.4;cursor:default}
+.pub-ep .ti{display:block;font-size:18px;line-height:1.3;font-weight:700;letter-spacing:-0.015em;color:var(--pub-fg)!important;text-decoration:none}
+.pub-ep .ti:hover{text-decoration:underline}
+.pub-ep[aria-current=true] .ti{color:var(--brand-link)!important}
+.pub-ep .sn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:4px 0 0;font-size:14.5px;color:color-mix(in srgb,var(--pub-fg) 80%,var(--pub-muted))}
+.pub-ep .mt{margin-top:8px;font-size:12.5px;color:var(--pub-muted);display:flex;flex-wrap:wrap;gap:2px 8px}
+.pub-ep .mt .g{font-family:Geist,system-ui,sans-serif}
+.pub-ep .mt span+span::before{content:"•";margin-right:8px;opacity:.6}
 .pub-badge{font-size:11px;border:1px solid var(--pub-line);border-radius:999px;padding:1px 8px;color:var(--pub-muted)}
 .pub-pager{display:flex;gap:8px;margin-top:18px;align-items:center}
 
@@ -121,6 +125,24 @@ export function publicCss(brand: BrandTheme) {
 .pub-next:hover b{text-decoration:underline}
 .pub-side{display:flex;flex-direction:column;gap:20px}
 
+/* Site-wide player bar + search */
+.pub-sticky{position:fixed;left:0;right:0;bottom:0;z-index:30;background:color-mix(in srgb,var(--pub-surface) 94%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--pub-line);box-shadow:0 -12px 30px -18px rgba(0,0,0,.5);transition:transform .2s ease}
+.pub-sticky[data-hidden=true]{transform:translateY(110%);pointer-events:none}
+.pub-sticky-in{max-width:1120px;margin:0 auto;padding:10px 32px;display:flex;align-items:center;gap:10px}
+.pub-sticky img,.pub-sticky i{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;background:var(--brand-tint)}
+.pub-sticky .meta{min-width:0;flex:0 1 240px;display:flex;flex-direction:column}
+.pub-sticky .meta a{color:var(--pub-fg);font-weight:600;font-size:14px;letter-spacing:-0.01em;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pub-sticky .meta a:hover{text-decoration:underline}
+.pub-sticky .meta small{color:var(--pub-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pub-sticky .scrub{flex:1 1 160px;min-width:80px}
+.pp-play.small{width:40px;height:40px;font-size:13px}
+.pub-has-player{padding-bottom:84px}
+.pub-search{display:flex;gap:8px;margin:0 0 14px}
+.pub-search input{flex:1;min-width:0;height:44px;border:1px solid var(--pub-line);background:var(--pub-surface);color:var(--pub-fg);border-radius:var(--brand-radius-control);padding:0 14px;font:inherit;font-size:15px}
+.pub-search input::placeholder{color:var(--pub-muted)}
+.pub-more{background:none;border:0;padding:0;margin-top:8px;color:var(--brand-link);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.pub-dirs{display:flex;gap:8px;flex-wrap:wrap}
+
 /* Audio player */
 .pp{margin-top:16px}
 .pp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -146,8 +168,14 @@ export function publicCss(brand: BrandTheme) {
   .pub-hero .pub-art{width:min(100%,220px)}
   .pub-latest{grid-template-columns:72px minmax(0,1fr);gap:14px}
   .pub-latest h3{font-size:21px}
-  .pub-ep{grid-template-columns:36px minmax(0,1fr) auto;gap:10px}
-  .pub-ep .no,.pub-ep .dt{display:none}
+  .pub-ep{grid-template-columns:40px minmax(0,1fr);gap:12px}
+  .pub-ep .go{width:40px;height:40px}
+  .pub-ep .ti{font-size:16.5px}
+  .pub-sticky-in{padding:8px 14px;flex-wrap:wrap;gap:8px}
+  .pub-sticky .meta{flex:1 1 120px}
+  .pub-sticky .scrub{order:9;flex:1 1 100%}
+  .pub-sticky .tm{display:none}
+  .pub-sticky .pp-btn:not(.x):not([aria-label^=Playback]){display:none}
   .pub-nav a:not(.pub-nav-cta){display:none}
   .pub-section{margin-top:48px}
 }
@@ -187,7 +215,7 @@ type LayoutShow = {
   artworkUrl?: string | null;
 };
 
-export function PublicLayout({
+export function PublicChrome({
   show,
   links,
   children,
@@ -200,8 +228,9 @@ export function PublicLayout({
   const brand: BrandTheme = show.brand.scopes.publicSite
     ? show.brand
     : { ...DEFAULT_BRAND_THEME, appearance: "light" };
+  const player = usePlayer();
   return (
-    <div className="pub" data-appearance={brand.appearance}>
+    <div className={`pub${player.current ? " pub-has-player" : ""}`} data-appearance={brand.appearance}>
       <style dangerouslySetInnerHTML={{ __html: publicCss(brand) }} />
       <header className="pub-header">
         <div className="pub-wrap">

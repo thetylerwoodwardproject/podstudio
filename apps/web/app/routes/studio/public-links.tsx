@@ -10,7 +10,11 @@ import {
   removeShowLink,
   setShowLinkVisible,
   moveShowLink,
+  getDirectoryLinks,
+  saveDirectoryLinks,
 } from "~/lib/public-links.server";
+import { DIRECTORIES } from "~/lib/directories";
+import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -96,7 +100,7 @@ function normalizeLinkValue(
 }
 
 export async function loader() {
-  return { website: getShowWebsite(), links: listShowLinks() };
+  return { website: getShowWebsite(), links: listShowLinks(), directories: getDirectoryLinks() };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -112,6 +116,13 @@ export async function action({ request }: { request: Request }) {
     const result = addShowLink(platform, normalized.value);
     if (!result.ok) return { error: result.error };
     return { added: true };
+  }
+
+  if (intent === "save-directories") {
+    const input: Record<string, string> = {};
+    for (const d of DIRECTORIES) input[d.id] = str(d.id);
+    const result = saveDirectoryLinks(input);
+    return result.ok ? { directoriesSaved: true } : { directoriesError: result.error };
   }
 
   if (intent === "remove-link") {
@@ -137,9 +148,9 @@ export default function PublicLinks({
   actionData,
 }: {
   loaderData: Awaited<ReturnType<typeof loader>>;
-  actionData?: { error?: string; added?: boolean };
+  actionData?: { error?: string; added?: boolean; directoriesSaved?: boolean; directoriesError?: string };
 }) {
-  const { website, links } = loaderData;
+  const { website, links, directories } = loaderData;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const [platform, setPlatform] = useState<Platform>(PLATFORM_LIST[0]);
@@ -179,6 +190,46 @@ export default function PublicLinks({
             Edit in Show tags
           </Link>
         </div>
+      </section>
+
+      <section className="mt-6 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5" id="directories">
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground">Listen on</h2>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            Paste your show's page from each app. They appear as buttons in the Follow area of your public page (and
+            only the ones you fill in). RSS is always there. Each link must be on that app's own site.
+          </p>
+        </div>
+        <Form method="post" className="flex flex-col gap-3">
+          <input type="hidden" name="intent" value="save-directories" />
+          {DIRECTORIES.map((d) => (
+            <div key={d.id} className="flex flex-col gap-1.5">
+              <Label htmlFor={`dir-${d.id}`} className="flex items-center gap-2">
+                <FontAwesomeIcon icon={DIRECTORY_ICONS[d.id]} className="h-3.5 w-3.5 text-muted-foreground" />
+                {d.label}
+              </Label>
+              <Input
+                id={`dir-${d.id}`}
+                name={d.id}
+                type="url"
+                inputMode="url"
+                defaultValue={directories[d.id] ?? ""}
+                placeholder={d.hint}
+              />
+            </div>
+          ))}
+          {actionData?.directoriesError && (
+            <p role="alert" className="text-[13px] text-destructive" data-testid="directories-error">
+              {actionData.directoriesError}
+            </p>
+          )}
+          {actionData?.directoriesSaved && <p className="text-[13px] text-ok">Saved.</p>}
+          <div>
+            <Button type="submit" disabled={submitting}>
+              Save directory links
+            </Button>
+          </div>
+        </Form>
       </section>
 
       <section className="mt-6 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">

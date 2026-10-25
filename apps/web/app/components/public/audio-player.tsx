@@ -1,93 +1,51 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPause } from "@fortawesome/free-solid-svg-icons/faPause";
 import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
 import { formatClock } from "./public-layout";
+import { usePlayer, type Track } from "./player-context";
 
-// Listener-facing audio player for the public pages (styles: publicCss, `.pp-*`).
-// Same behaviour as the embeddable player: nothing loads until play is pressed
-// (preload="none"), −15 / +30, scrubber, speed, Media Session for lock-screen
-// controls. Real <audio>, so it also works with keyboard and screen readers.
-const RATES = [1, 1.25, 1.5, 2];
-
-export function AudioPlayer({
-  src,
-  title,
-  show,
-  artwork,
-  durationS,
-}: {
-  src: string;
-  title: string;
-  show: string;
-  artwork?: string | null;
-  durationS: number | null;
-}) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [time, setTime] = useState(0);
-  const [dur, setDur] = useState(durationS ?? 0);
-  const [rate, setRate] = useState(0);
-  const [msg, setMsg] = useState("");
-
-  useEffect(() => {
-    const a = audio.current;
-    if (!a || !("mediaSession" in navigator)) return;
-    const onPlay = () => {
-      if (window.MediaMetadata) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title,
-          artist: show,
-          album: show,
-          artwork: artwork ? [{ src: new URL(artwork, location.href).href }] : [],
-        });
-      }
-    };
-    a.addEventListener("play", onPlay);
-    const set = (n: MediaSessionAction, fn: MediaSessionActionHandler) => {
-      try {
-        navigator.mediaSession.setActionHandler(n, fn);
-      } catch {
-        /* unsupported action */
-      }
-    };
-    set("seekbackward", () => a.currentTime = Math.max(0, a.currentTime - 15));
-    set("seekforward", () => a.currentTime += 30);
-    return () => a.removeEventListener("play", onPlay);
-  }, [title, show, artwork]);
-
-  const total = Number.isFinite(dur) && dur > 0 ? dur : 0;
+// The inline player on a page (latest episode, episode page). It is a *view* of the
+// site-wide player: pressing play starts this track in the shared audio element
+// (so it keeps going when the listener navigates and the sticky bar takes over),
+// and while this track is current its controls mirror the real state.
+export function AudioPlayer({ track, queue }: { track: Track; queue?: Track[] }) {
+  const p = usePlayer();
+  const root = useRef<HTMLDivElement>(null);
+  const mine = p.current?.id === track.id;
+  const playing = mine && p.playing;
+  const total = mine && p.duration > 0 ? p.duration : (track.durationS ?? 0);
+  const time = mine ? p.time : 0;
   const pct = total ? Math.min(100, (time / total) * 100) : 0;
 
-  function toggle() {
-    const a = audio.current;
-    if (!a) return;
-    if (a.paused) a.play().catch(() => setMsg("Couldn't start playback."));
-    else a.pause();
-  }
+  // Tell the sticky bar when this inline player is on screen so it can step aside.
+  const { setInlineVisible } = p;
+  useEffect(() => {
+    const el = root.current;
+    if (!el || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver(([e]) => setInlineVisible(track.id, !!e?.isIntersecting), { threshold: 0.4 });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      setInlineVisible(track.id, false);
+    };
+  }, [track.id, setInlineVisible]);
 
   return (
-    <div className="pp">
-      <audio
-        ref={audio}
-        src={src}
-        preload="none"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDur(e.currentTarget.duration)}
-        onWaiting={() => setMsg("Loading…")}
-        onPlaying={() => setMsg("")}
-        onError={() => setMsg("Couldn't load the audio.")}
-      />
+    <div className="pp" ref={root}>
       <div className="pp-row">
-        <button type="button" className="pp-play" onClick={toggle} aria-label={playing ? `Pause ${title}` : `Play ${title}`}>
+        <button
+          type="button"
+          className="pp-play"
+          onClick={() => p.play(track, { queue })}
+          aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
+        >
           <FontAwesomeIcon icon={playing ? faPause : faPlay} style={playing ? undefined : { marginLeft: 2 }} />
         </button>
-        <button type="button" className="pp-btn" aria-label="Back 15 seconds" onClick={() => audio.current && (audio.current.currentTime = Math.max(0, audio.current.currentTime - 15))}>
+        <button type="button" className="pp-btn" aria-label="Back 15 seconds" disabled={!mine} onClick={() => p.skip(-15)}>
           −15
         </button>
-        <button type="button" className="pp-btn" aria-label="Forward 30 seconds" onClick={() => audio.current && (audio.current.currentTime += 30)}>
+        <button type="button" className="pp-btn" aria-label="Forward 30 seconds" disabled={!mine} onClick={() => p.skip(30)}>
           +30
         </button>
         <div className="pp-scrub">
@@ -102,30 +60,23 @@ export function AudioPlayer({
             aria-label="Seek"
             aria-valuetext={`${formatClock(time)} of ${formatClock(total)}`}
             onChange={(e) => {
-              const a = audio.current;
-              if (a && total) a.currentTime = (Number(e.target.value) / 1000) * total;
+              if (!total) return;
+              const at = (Number(e.target.value) / 1000) * total;
+              if (mine) p.seekTo(at);
+              else p.play(track, { queue, at });
             }}
           />
         </div>
         <span className="pp-time pub-mono">
           {formatClock(time)} / {formatClock(total)}
         </span>
-        <button
-          type="button"
-          className="pp-btn"
-          aria-label="Playback speed"
-          onClick={() => {
-            const next = (rate + 1) % RATES.length;
-            setRate(next);
-            if (audio.current) audio.current.playbackRate = RATES[next]!;
-          }}
-        >
-          {RATES[rate]}×
+        <button type="button" className="pp-btn" aria-label="Playback speed" onClick={p.cycleRate}>
+          {p.rate}×
         </button>
       </div>
-      {msg && (
+      {mine && p.message && (
         <div className="pp-msg" role="status">
-          {msg}
+          {p.message}
         </div>
       )}
     </div>
