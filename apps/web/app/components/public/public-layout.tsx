@@ -143,6 +143,25 @@ export function publicCss(brand: BrandTheme) {
 .pub-more{background:none;border:0;padding:0;margin-top:8px;color:var(--brand-link);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 .pub-dirs{display:flex;gap:8px;flex-wrap:wrap}
 
+.pub-share{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pub-share button{min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--pub-line);background:var(--pub-surface);color:var(--pub-fg);font:500 13px Geist,system-ui,sans-serif;cursor:pointer}
+.pub-share button:hover{border-color:var(--pub-muted)}
+.pub-hosts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.pub-profile{display:flex;gap:16px;align-items:flex-start;text-decoration:none;color:var(--pub-fg)!important}
+.pub-profile:hover b{text-decoration:underline}
+.pub-profile .pic{width:72px;height:72px;border-radius:50%;object-fit:cover;flex:none;background:var(--brand-tint);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:var(--pub-fg)}
+.pub-profile b{display:block;font-size:17px;letter-spacing:-0.01em}
+.pub-profile small{display:block;color:var(--pub-muted);font-size:12.5px;text-transform:capitalize;margin-top:1px}
+.pub-profile p{margin:8px 0 0;font-size:14px;color:color-mix(in srgb,var(--pub-fg) 82%,var(--pub-muted));display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pub-person-hero{display:flex;gap:32px;align-items:center;padding:48px 0 4px;flex-wrap:wrap}
+.pub-person-hero .pic{width:168px;height:168px;border-radius:50%;object-fit:cover;background:var(--brand-tint);display:inline-flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;flex:none;box-shadow:0 20px 40px -22px rgba(0,0,0,.5)}
+.pub-pn{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:40px}
+.pub-pn a{display:block;border:1px solid var(--pub-line);background:var(--pub-surface);border-radius:var(--brand-radius-card);padding:14px 16px;text-decoration:none;color:var(--pub-fg)!important}
+.pub-pn a:hover{border-color:var(--pub-muted)}
+.pub-pn small{display:block;color:var(--pub-muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.pub-pn b{letter-spacing:-0.01em;line-height:1.3}
+.pub-pn .r{text-align:right}
+
 /* Audio player */
 .pp{margin-top:16px}
 .pp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -161,6 +180,7 @@ export function publicCss(brand: BrandTheme) {
 
 @media (max-width:860px){
   .pub-ep-grid{grid-template-columns:minmax(0,1fr)}
+  .pub-pn{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:700px){
   .pub-wrap{padding:0 20px}

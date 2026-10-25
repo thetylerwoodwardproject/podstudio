@@ -70,6 +70,9 @@ export const SCREENS: ScreenDef[] = [
   { id: "26", label: "Episode page on a phone", path: "/public/episode-phone", area: "public", section: "Public page & embeds", inSidebar: false, real: false },
   { id: "30", label: "Public episode page", path: "/:showSlug/episodes/:publicId/:slug", area: "public", section: "Public page & embeds", inSidebar: false, real: true, note: "Real SSR episode page with canonical 301; no player/transcript/chapters/soundbites yet" },
 
+  { id: "33", label: "Hosts & guests", path: "/studio/people", area: "studio", section: "Public page & embeds", inSidebar: false, real: true, note: "Public profiles: headshot, bio, website; hosts always listed, guests only once on a public episode" },
+  { id: "33b", label: "Person", path: "/studio/people/:id", area: "studio", section: "Public page & embeds", inSidebar: false, real: true },
+
   // Analytics & discovery
   { id: "31", label: "Analytics", path: "/studio/analytics", area: "studio", section: "Analytics & discovery", inSidebar: true, real: true, note: "Range control, published-episodes table and the public-overview switch are real; every download number needs OP3 (Stage 11) and is shown as No data, not faked" },
   { id: "32", label: "Podroll", path: "/studio/podroll", area: "studio", section: "Analytics & discovery", inSidebar: true, real: true, note: "Manual add (podcast:guid required), reorder, remove, XML preview and the public-page switch are real; Podcast Index search/verification needs an API key (Stage 11)" },

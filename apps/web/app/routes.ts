@@ -5,7 +5,7 @@ import { SCREENS } from "./lib/screens";
 // routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
-const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32"]; // handled explicitly below, not generated
+const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
@@ -28,6 +28,9 @@ export default [
     route("feed", "routes/studio/feed-overview.tsx", { id: "screen-15" }),
     route("feed/tags", "routes/studio/show-tags.tsx", { id: "screen-16" }),
     route("feed/artwork", "routes/studio/show-artwork.ts"),
+    route("people", "routes/studio/people.tsx", { id: "screen-33" }),
+    route("people/:id", "routes/studio/person-detail.tsx", { id: "screen-33b" }),
+    route("people/:id/avatar", "routes/studio/person-avatar.ts"),
     route("feed/lock-verify", "routes/studio/lock-verify.tsx", { id: "screen-16b" }),
     route("storage", "routes/studio/storage.tsx", { id: "screen-17" }),
     route("settings/server", "routes/studio/server-settings.tsx", { id: "screen-18" }),
@@ -57,14 +60,18 @@ export default [
 
   // Real public pages. Dynamic `:showSlug` ranks below every static route above
   // (studio, login, guest/*, mobile/*, public/*, api/*), so it can't shadow them.
+  route("sitemap.xml", "routes/sitemap.ts"),
+  route("robots.txt", "routes/robots.ts"),
   route("embed.js", "routes/embed-js.ts"),
   route("oembed", "routes/oembed.ts"),
   route(":showSlug/embed/:target", "routes/embed.ts"),
   route(":showSlug/feed", "routes/feed.ts"),
   route(":showSlug/media/:publicId/:file?", "routes/media.ts"),
   route(":showSlug/artwork/:file", "routes/artwork.ts"),
+  route(":showSlug/avatar/:personId/:file", "routes/avatar.ts"),
   layout("routes/public/_layout.tsx", [
     route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
     route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
+    route(":showSlug/people/:personId/:slug?", "routes/public/person.tsx", { id: "screen-34" }),
   ]),
 ] satisfies RouteConfig;

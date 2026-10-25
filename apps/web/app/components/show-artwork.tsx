@@ -13,7 +13,26 @@ export interface ArtworkView {
   contentType: string;
 }
 
-export function ShowArtwork({ artwork, storageReady }: { artwork: ArtworkView | null; storageReady: boolean }) {
+export function ShowArtwork({
+  artwork,
+  storageReady,
+  endpoint = "/studio/feed/artwork",
+  heading = "Show artwork",
+  rules = "PNG or JPEG, square, between 1400×1400 and 3000×3000 pixels, up to 5 MB.",
+  missing = "Apple Podcasts and Spotify won't accept a feed without artwork.",
+  noun = "artwork",
+  sectionId = "artwork",
+}: {
+  artwork: ArtworkView | null;
+  storageReady: boolean;
+  /** Upload endpoint (PUT raw image / DELETE). Defaults to the show artwork route. */
+  endpoint?: string;
+  heading?: string;
+  rules?: string;
+  missing?: string;
+  noun?: string;
+  sectionId?: string;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const { revalidate } = useRevalidator();
   const [busy, setBusy] = useState(false);
@@ -24,7 +43,7 @@ export function ShowArtwork({ artwork, storageReady }: { artwork: ArtworkView | 
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/studio/feed/artwork", init);
+      const res = await fetch(endpoint, init);
       const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !body?.ok) setError(body?.error ?? `Upload failed (${res.status}).`);
       else await revalidate();
@@ -42,14 +61,14 @@ export function ShowArtwork({ artwork, storageReady }: { artwork: ArtworkView | 
   }
 
   return (
-    <section id="artwork" className="mb-6 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5" data-testid="artwork-section">
-      <h2 className="text-sm font-semibold text-muted-foreground">Show artwork</h2>
+    <section id={sectionId} className="mb-6 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5" data-testid="artwork-section">
+      <h2 className="text-sm font-semibold text-muted-foreground">{heading}</h2>
       <div className="flex flex-wrap items-start gap-5">
         <div className="flex size-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-secondary text-center text-xs text-muted-foreground">
           {artwork ? (
-            <img src={artwork.url} alt="Show artwork" className="size-full object-cover" data-testid="artwork-img" />
+            <img src={artwork.url} alt={heading} className="size-full object-cover" data-testid="artwork-img" />
           ) : (
-            "No artwork"
+            `No ${noun}`
           )}
         </div>
         <div className="flex min-w-[260px] flex-1 flex-col gap-3">
@@ -58,18 +77,14 @@ export function ShowArtwork({ artwork, storageReady }: { artwork: ArtworkView | 
               <span className="font-medium text-ok">Server verified</span>
               <span className="text-muted-foreground">
                 {" "}
-                · {artwork.width}×{artwork.height} · {artwork.contentType === "image/png" ? "PNG" : "JPEG"}
+                {artwork.width != null && artwork.height != null ? ` · ${artwork.width}×${artwork.height}` : ""} · {artwork.contentType === "image/png" ? "PNG" : "JPEG"}
                 {artwork.bytes != null && ` · ${(artwork.bytes / 1024).toFixed(0)} KB`}
               </span>
             </div>
           ) : (
-            <p className="text-[13px] text-muted-foreground">
-              Apple Podcasts and Spotify won't accept a feed without artwork.
-            </p>
+            <p className="text-[13px] text-muted-foreground">{missing}</p>
           )}
-          <p className="text-[12.5px] text-muted-foreground">
-            PNG or JPEG, square, between 1400×1400 and 3000×3000 pixels, up to 5 MB.
-          </p>
+          <p className="text-[12.5px] text-muted-foreground">{rules}</p>
           {!storageReady && (
             <p className="text-[12.5px] text-destructive">No storage target is routed for feed media — set one up in Storage first.</p>
           )}
@@ -84,7 +99,7 @@ export function ShowArtwork({ artwork, storageReady }: { artwork: ArtworkView | 
               onChange={(e) => onPick(e.target.files?.[0])}
             />
             <Button type="button" size="sm" disabled={busy || !storageReady} onClick={() => input.current?.click()}>
-              {busy ? "Working…" : artwork ? "Replace artwork" : "Upload artwork"}
+              {busy ? "Working…" : artwork ? `Replace ${noun}` : `Upload ${noun}`}
             </Button>
             {artwork &&
               (confirmRemove ? (

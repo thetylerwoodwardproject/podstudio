@@ -9,13 +9,13 @@ import { usePlayer, type Track } from "./player-context";
 // site-wide player: pressing play starts this track in the shared audio element
 // (so it keeps going when the listener navigates and the sticky bar takes over),
 // and while this track is current its controls mirror the real state.
-export function AudioPlayer({ track, queue }: { track: Track; queue?: Track[] }) {
+export function AudioPlayer({ track, queue, startAt }: { track: Track; queue?: Track[]; startAt?: number | null }) {
   const p = usePlayer();
   const root = useRef<HTMLDivElement>(null);
   const mine = p.current?.id === track.id;
   const playing = mine && p.playing;
   const total = mine && p.duration > 0 ? p.duration : (track.durationS ?? 0);
-  const time = mine ? p.time : 0;
+  const time = mine ? p.time : (startAt ?? 0);
   const pct = total ? Math.min(100, (time / total) * 100) : 0;
 
   // Tell the sticky bar when this inline player is on screen so it can step aside.
@@ -37,7 +37,7 @@ export function AudioPlayer({ track, queue }: { track: Track; queue?: Track[] })
         <button
           type="button"
           className="pp-play"
-          onClick={() => p.play(track, { queue })}
+          onClick={() => p.play(track, { queue, at: mine ? undefined : (startAt ?? undefined) })}
           aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
         >
           <FontAwesomeIcon icon={playing ? faPause : faPlay} style={playing ? undefined : { marginLeft: 2 }} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artworkProblem, imageInfo } from "./image-info";
+import { artworkProblem, avatarProblem, imageInfo } from "./image-info";
 import { cleanCategory } from "./podcast-categories";
 
 function png(w: number, h: number) {
@@ -48,5 +48,17 @@ describe("cleanCategory", () => {
     expect(cleanCategory("Nope", null)).toBeNull();
     expect(cleanCategory("", "")).toBeNull();
     expect(cleanCategory("constructor", null)).toBeNull();
+  });
+});
+
+describe("avatarProblem", () => {
+  it("accepts any aspect within 200–4000 px", () => {
+    expect(avatarProblem(imageInfo(png(600, 800)))).toBeNull();
+    expect(avatarProblem(imageInfo(jpeg(200, 200)))).toBeNull();
+  });
+  it("rejects too small, too large and non-images", () => {
+    expect(avatarProblem(imageInfo(png(199, 500)))).toMatch(/too small/);
+    expect(avatarProblem(imageInfo(png(4001, 500)))).toMatch(/too large/);
+    expect(avatarProblem(null)).toMatch(/PNG or JPEG/);
   });
 });

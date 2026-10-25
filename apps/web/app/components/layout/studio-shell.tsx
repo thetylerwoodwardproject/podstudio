@@ -36,6 +36,7 @@ const HOSTING: Item[] = [
 // item, these are its pages (so Brand & theme / Public page links stay reachable).
 const PUBLIC: Item[] = [
   { label: "Embed players", to: "/studio/public/embeds" },
+  { label: "Hosts & guests", to: "/studio/people", match: (p) => p.startsWith("/studio/people") },
   { label: "Public page links", to: "/studio/public/links" },
   { label: "Brand & theme", to: "/studio/public/brand" },
 ];
@@ -71,6 +72,7 @@ export function StudioShell({
     pathname === "/studio/feed" ||
     pathname.startsWith("/studio/feed/") ||
     ["/studio/analytics", "/studio/podroll", "/studio/storage"].some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith("/studio/people") ||
     pathname.startsWith("/studio/public/");
   // Collapsible sections. Default: Podcast hosting open while you're inside it. Choices
   // persist per browser; entering a collapsed section (e.g. via a "fix it" link)

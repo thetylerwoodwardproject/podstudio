@@ -50,3 +50,18 @@ export function artworkProblem(info: ImageInfo | null): string | null {
   }
   return null;
 }
+
+export const AVATAR_MIN = 200;
+export const AVATAR_MAX = 4000;
+
+/** Headshot rules: PNG/JPEG, at least 200 px on each side, at most 4000. Any aspect (shown cropped to a circle/square). */
+export function avatarProblem(info: ImageInfo | null): string | null {
+  if (!info) return "That file isn't a PNG or JPEG image.";
+  if (info.width < AVATAR_MIN || info.height < AVATAR_MIN) {
+    return `The photo is too small (${info.width}×${info.height}) — use at least ${AVATAR_MIN}×${AVATAR_MIN} pixels.`;
+  }
+  if (info.width > AVATAR_MAX || info.height > AVATAR_MAX) {
+    return `The photo is too large (${info.width}×${info.height}) — use at most ${AVATAR_MAX}×${AVATAR_MAX} pixels.`;
+  }
+  return null;
+}

@@ -70,6 +70,8 @@ function seed() {
         avatar: null,
         website: null,
         socials: null,
+        bio: null,
+        avatarAssetId: null,
       };
       db.insert(people).values(row).run();
       console.log(`seeded person "${p.name}" (${p.role})`);

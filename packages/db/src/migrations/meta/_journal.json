@@ -57,6 +57,13 @@
       "when": 1792945520858,
       "tag": "0007_modern_roland_deschain",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792950906256,
+      "tag": "0008_amazing_hellcat",
+      "breakpoints": true
     }
   ]
 }

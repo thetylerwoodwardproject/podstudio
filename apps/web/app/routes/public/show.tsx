@@ -18,23 +18,17 @@ import { AudioPlayer } from "~/components/public/audio-player";
 import { usePlayer } from "~/components/public/player-context";
 import { episodeTrack } from "~/components/public/track";
 import { CopyRss, ShowMore } from "~/components/public/small";
+import { pageMeta, jsonLdMeta, showJsonLd } from "~/lib/seo";
 import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import type { DirectoryId } from "~/lib/directories";
 import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons/faMagnifyingGlass";
 
-// Screen 25 (Public show page) at `/{show-slug}`. Per README: header, hero
-// (title, cadence, description, hosts, follow links), latest episode, support
-// card, paginated public episodes list; server-rendered with Open Graph.
-// Built from real data: shows/people/show_links/episodes + Brand & theme.
-// The RSS button links to the real `/{show}/feed` (channel metadata only — it
-// has no items until audio exists).
-// Artwork is the verified show artwork (Show tags screen), when one is set.
-// Not built (needs things that don't exist yet, none faked): category
-// display, Apple/Spotify/etc. follow buttons
-// (only the 12 social platforms from screen 29 exist as links), playable
-// audio/video + chapters + transcript (no media or transcripts yet),
-// transcript search, oEmbed discovery (no /oembed).
-// Episode "Play" therefore links to the episode page rather than playing.
+// Screen 25 (Public show page) at `/{show-slug}`: hero (artwork, cadence/category,
+// description, hosts, follow buttons), Latest episode with a player, support card,
+// searchable paginated episode list with in-place play, Hosts, recommendations;
+// server-rendered with Open Graph, canonical and JSON-LD. Built from real data:
+// shows/people/show_links/episodes + Brand & theme + directory links.
+// Not built (no data behind it): chapters, transcript search, soundbites.
 // Only public + published episodes are queried — see public.server.ts.
 export async function loader({ params, request }: { params: { showSlug?: string }; request: Request }) {
   const sp = new URL(request.url).searchParams;
@@ -46,14 +40,30 @@ export async function loader({ params, request }: { params: { showSlug?: string 
 
 export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof loader>> }) {
   if (!d) return [{ title: "Not found" }];
+  const base = `${d.origin}/${d.show.slug}`;
   const description = d.show.description ?? `Episodes of ${d.show.title}`;
   return [
-    { title: d.show.title },
-    { name: "description", content: description },
-    { property: "og:type", content: "website" },
-    { property: "og:title", content: d.show.title },
-    { property: "og:description", content: description },
-    ...(d.show.artworkUrl ? [{ property: "og:image", content: `${d.origin}${d.show.artworkUrl}` }] : []),
+    ...pageMeta({
+      title: d.show.title,
+      description,
+      url: base, // search results and ?page= variants all canonicalize to the show page
+      siteName: d.show.title,
+      type: "website",
+      image: d.show.artworkUrl ? `${d.origin}${d.show.artworkUrl}` : null,
+      noindex: !!d.q,
+    }),
+    jsonLdMeta(
+      showJsonLd({
+        name: d.show.title,
+        url: base,
+        description: d.show.description,
+        imageUrl: d.show.artworkUrl ? `${d.origin}${d.show.artworkUrl}` : null,
+        feedUrl: `${base}/feed`,
+        language: d.show.language,
+        authors: d.hosts.map((h) => h.name),
+        sameAs: [...d.links.map((l) => l.value), ...d.show.directories.map((x) => x.url)],
+      }),
+    ),
     {
       tagName: "link",
       rel: "alternate",
@@ -95,13 +105,27 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
           {hosts.length > 0 && (
             <div className="pub-hosts">
               <span className="pub-avatars" aria-hidden>
-                {hosts.slice(0, 4).map((h) => (
-                  <span key={h.name} className="pub-avatar">
-                    {initials(h.name)}
+                {hosts.slice(0, 4).map((h) =>
+                  h.avatarUrl ? (
+                    <img key={h.id} src={h.avatarUrl} alt="" className="pub-avatar" style={{ objectFit: "cover" }} />
+                  ) : (
+                    <span key={h.id} className="pub-avatar">
+                      {initials(h.name)}
+                    </span>
+                  ),
+                )}
+              </span>
+              <span>
+                Hosted by{" "}
+                {hosts.map((h, i) => (
+                  <span key={h.id}>
+                    {i > 0 && " & "}
+                    <Link to={`/${show.slug}/people/${h.id}/${h.slug}`} style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 3 }}>
+                      {h.name}
+                    </Link>
                   </span>
                 ))}
               </span>
-              <span>Hosted by {hosts.map((h) => h.name).join(" & ")}</span>
             </div>
           )}
           <div id="follow" className="pub-follow" data-testid="follow">
@@ -229,7 +253,18 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
                       <span>{formatDate(e.date)}</span>
                       {e.number != null && <span>Ep. {e.number}</span>}
                       {e.durationS ? <span>{formatClock(e.durationS)}</span> : null}
-                      <span className="g">{e.guests.length ? `with ${e.guests.join(", ")}` : "Solo"}</span>
+                      <span className="g">
+                        {e.guestPeople.length
+                          ? e.guestPeople.map((g, i) => (
+                              <span key={g.id}>
+                                {i === 0 ? "with " : ", "}
+                                <Link to={`/${show.slug}/people/${g.id}/${g.slug}`} style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 3 }}>
+                                  {g.name}
+                                </Link>
+                              </span>
+                            ))
+                          : "Solo"}
+                      </span>
                       {e.hasVideo ? <span className="pub-badge">Video</span> : null}
                     </div>
                   </div>
@@ -256,6 +291,26 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
           </nav>
         )}
       </section>
+
+      {hosts.length > 0 && (
+        <section id="hosts" className="pub-section">
+          <div className="pub-section-head">
+            <h2>{hosts.length === 1 ? "Host" : "Hosts"}</h2>
+          </div>
+          <div className="pub-hosts-grid">
+            {hosts.map((h) => (
+              <Link key={h.id} to={`/${show.slug}/people/${h.id}/${h.slug}`} className="pub-card pub-profile">
+                {h.avatarUrl ? <img className="pic" src={h.avatarUrl} alt="" width={72} height={72} /> : <span className="pic" aria-hidden>{initials(h.name)}</span>}
+                <span style={{ minWidth: 0 }}>
+                  <b>{h.name}</b>
+                  <small>Host</small>
+                  {h.bio && <p>{h.bio}</p>}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {recommended.length > 0 && (
         <section id="recommended" className="pub-section">

@@ -4,6 +4,8 @@ import { readBrandTheme } from "~/lib/brand-theme";
 import { cleanCategory } from "~/lib/podcast-categories";
 import { DIRECTORIES, readDirectoryLinks } from "~/lib/directories";
 import { likePattern } from "~/lib/search";
+import { avatarUrlsFor, isPubliclyListed } from "~/lib/people.server";
+import { slugify } from "~/lib/episode-fields";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 
 // Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
@@ -35,10 +37,10 @@ const episodeColumns = {
 // Adds who the episode is "with" and the public audio URL (only when a verified MP3
 // exists) to a page of episode rows — one query for people, one for audio.
 function withGuestsAndAudio<T extends { id: string; publicId: string }>(slug: string, rows: T[]) {
-  if (rows.length === 0) return [] as (T & { guests: string[]; audioSrc: string | null })[];
+  if (rows.length === 0) return [] as (T & { guests: string[]; guestPeople: { id: string; name: string; slug: string }[]; audioSrc: string | null })[];
   const ids = rows.map((r) => r.id);
   const guests = db
-    .select({ episodeId: episodePeople.episodeId, name: people.name })
+    .select({ episodeId: episodePeople.episodeId, personId: people.id, name: people.name })
     .from(episodePeople)
     .innerJoin(people, eq(people.id, episodePeople.personId))
     .where(and(inArray(episodePeople.episodeId, ids), eq(episodePeople.role, "guest")))
@@ -55,6 +57,9 @@ function withGuestsAndAudio<T extends { id: string; publicId: string }>(slug: st
   return rows.map((r) => ({
     ...r,
     guests: guests.filter((g) => g.episodeId === r.id).map((g) => g.name),
+    guestPeople: guests
+      .filter((g) => g.episodeId === r.id)
+      .map((g) => ({ id: g.personId, name: g.name, slug: slugify(g.name) })),
     audioSrc: withAudio.has(r.id) ? `/${slug}/media/${r.publicId}/episode.mp3` : null,
   }));
 }
@@ -156,11 +161,14 @@ export function getPublicShowPage(slug: string, page: number, pageSize = 10, q =
     .orderBy(showLinks.position)
     .all();
 
-  const hosts = db
-    .select({ name: people.name })
+  const hostRows = db
+    .select({ id: people.id, name: people.name, bio: people.bio })
     .from(people)
     .where(and(eq(people.showId, show.id), eq(people.role, "host")))
+    .orderBy(people.name)
     .all();
+  const hostAvatars = avatarUrlsFor(show.slug, hostRows.map((h) => h.id));
+  const hosts = hostRows.map((h) => ({ ...h, slug: slugify(h.name), avatarUrl: hostAvatars.get(h.id) ?? null }));
 
   // "Shows we recommend" — only when the Podroll screen's switch is on; same
   // order as the feed (position).
@@ -203,12 +211,22 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     .get();
   if (!episode) return null;
 
-  const credits = db
-    .select({ name: people.name, role: episodePeople.role, website: people.website })
+  const creditRows = db
+    .select({ id: people.id, name: people.name, role: episodePeople.role, bio: people.bio })
     .from(episodePeople)
     .innerJoin(people, eq(people.id, episodePeople.personId))
     .where(eq(episodePeople.episodeId, episode.id))
     .all();
+  const creditAvatars = avatarUrlsFor(show.slug, creditRows.map((c) => c.id));
+  // Everyone credited on a public episode may be shown, so each has a profile page.
+  const credits = creditRows.map((c) => ({ ...c, slug: slugify(c.name), avatarUrl: creditAvatars.get(c.id) ?? null }));
+  const newer = db
+    .select({ publicId: episodes.publicId, slug: episodes.slug, title: episodes.title, number: episodes.number })
+    .from(episodes)
+    .where(and(PUBLIC_EPISODE(show.id), sql`${PUBLIC_DATE} > ${episode.date}`))
+    .orderBy(PUBLIC_DATE)
+    .limit(1)
+    .get();
 
   // "Up next" = the next-older public episodes, by the same public date order.
   const upNext = db
@@ -247,6 +265,7 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     episode,
     credits,
     upNext: withGuestsAndAudio(show.slug, upNext),
+    newer: newer ?? null,
     audio: audio ? { src: `/${show.slug}/media/${episode.publicId}/${episode.slug || "episode"}.mp3`, bytes: audio.bytes } : null,
   };
 }
@@ -313,4 +332,57 @@ export function resolveOembedTarget(slug: string, publicId: string | null) {
     .get();
   if (!ep) return null;
   return { title: `${ep.title} — ${show.title}`, target: publicId, slug: show.slug };
+}
+
+// ---- people (public profiles) -------------------------------------------------
+
+/** A host or guest profile + the public episodes they're credited on. Null unless they may appear publicly. */
+export function getPublicPerson(slug: string, personId: string) {
+  const show = findShow(slug);
+  const person = db.select().from(people).where(eq(people.id, personId)).get();
+  if (!show || !person || person.showId !== show.id) return null;
+  if (!isPubliclyListed(person.id, person.role)) return null;
+
+  const rows = db
+    .select(episodeColumns)
+    .from(episodePeople)
+    .innerJoin(episodes, eq(episodes.id, episodePeople.episodeId))
+    .where(and(eq(episodePeople.personId, personId), PUBLIC_EPISODE(show.id)))
+    .orderBy(desc(PUBLIC_DATE))
+    .all();
+  const avatars = avatarUrlsFor(show.slug, [personId]);
+  return {
+    show: showHeader(show),
+    person: {
+      id: person.id,
+      name: person.name,
+      slug: slugify(person.name),
+      role: person.role,
+      bio: person.bio,
+      website: person.website,
+      avatarUrl: avatars.get(personId) ?? null,
+    },
+    episodes: withGuestsAndAudio(show.slug, rows),
+  };
+}
+
+/** Everything crawlers should know about, public data only. */
+export function getSitemapEntries(origin: string) {
+  const show = db.select().from(shows).get();
+  if (!show) return null;
+  const base = `${origin}/${show.slug}`;
+  const eps = db
+    .select({ publicId: episodes.publicId, slug: episodes.slug, updatedAt: episodes.updatedAt, date: PUBLIC_DATE })
+    .from(episodes)
+    .where(PUBLIC_EPISODE(show.id))
+    .orderBy(desc(PUBLIC_DATE))
+    .all();
+  const everyone = db.select({ id: people.id, name: people.name, role: people.role }).from(people).where(eq(people.showId, show.id)).all();
+  const listed = everyone.filter((p) => isPubliclyListed(p.id, p.role));
+  const newest = eps[0] ? Math.max(eps[0].updatedAt ?? 0, eps[0].date) : null;
+  return [
+    { loc: base, lastmod: newest },
+    ...eps.map((e) => ({ loc: `${base}/episodes/${e.publicId}/${e.slug}`, lastmod: Math.max(e.updatedAt ?? 0, e.date) })),
+    ...listed.map((p) => ({ loc: `${base}/people/${p.id}/${slugify(p.name)}`, lastmod: null as number | null })),
+  ];
 }

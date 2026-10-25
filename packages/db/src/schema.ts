@@ -290,6 +290,10 @@ export const people = sqliteTable("people", {
   avatar: text("avatar"),
   website: text("website"),
   socials: text("socials", { mode: "json" }),
+  // Public "Hosts & guests" profile: a short bio and a verified headshot asset
+  // (assets.kind "person_avatar"). `avatar` above is the legacy free-text column, unused.
+  bio: text("bio"),
+  avatarAssetId: text("avatar_asset_id"),
 });
 
 export const episodeStatus = [
@@ -364,7 +368,7 @@ export const assets = sqliteTable(
       .notNull()
       .references(() => shows.id),
     episodeId: text("episode_id").references(() => episodes.id),
-    kind: text("kind").notNull(), // episode_audio | show_artwork (more in later stages)
+    kind: text("kind").notNull(), // episode_audio | show_artwork | person_avatar (more in later stages)
     access: text("access", { enum: ["private", "public"] }).notNull(),
     storageTargetId: text("storage_target_id")
       .notNull()
