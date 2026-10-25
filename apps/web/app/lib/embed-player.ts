@@ -7,7 +7,7 @@ import { esc } from "~/lib/feed-xml";
 // "Audio isn't available" instead of a dead play button. Not built because the
 // data doesn't exist: chapters (scrubber division, current-chapter chip),
 // transcript chip, and a real video player (the video option still shows a
-// "Video isn't available yet" stage above the audio controls). No cookies, no
+// colour-bars "Video not available" stage above the audio controls). No cookies, no
 // scripts from other origins; the one inline script drives the <audio> element,
 // reports its height to the parent for auto-resize, and forwards play / pause /
 // ended / timeupdate to the host page (embed.js re-fires them as DOM events).
@@ -71,23 +71,49 @@ export function embedHtml(view: EmbedView, o: EmbedOptions) {
   const css =
     `:root{${vars(base, o.accent)}color-scheme:${o.theme === "auto" ? "light dark" : base}}` +
     (o.theme === "auto" ? `@media (prefers-color-scheme:light){:root{${vars("light", o.accent)}}}` : "") +
-    `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}` +
-    `.card{padding:14px 16px;border:1px solid var(--line);min-height:100px}` +
-    `.show{font-size:12px;color:var(--muted);text-decoration:none}` +
-    `h1{font-size:16px;margin:2px 0 6px}h1 a{color:inherit;text-decoration:none}` +
-    `.status{color:var(--muted);font-size:13px;border-left:3px solid var(--accent);padding-left:10px;margin:8px 0}` +
-    `ol{margin:8px 0 0;padding:0;list-style:none}li{padding:6px 0;border-top:1px solid var(--line)}li a{color:var(--fg);text-decoration:none}` +
-    `li span{color:var(--muted);margin-right:8px}.follow{display:inline-block;margin-top:8px;color:var(--accent);font-weight:600;text-decoration:none}` +
-    `.top{display:flex;gap:12px;align-items:center}.top img{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none}.top>div{min-width:0}h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}` +
-    `.ctl{display:flex;align-items:center;gap:8px;margin-top:10px}.ctl button{font:inherit;color:var(--fg);background:none;border:1px solid var(--line);border-radius:999px;height:32px;min-width:32px;padding:0 10px;cursor:pointer}` +
-    `.ctl button:hover{border-color:var(--muted)}.ctl button:focus-visible,input[type=range]:focus-visible,li button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}` +
-    `.ctl button:disabled{opacity:.4;cursor:default}.ctl .play{width:40px;height:40px;padding:0;background:var(--accent);border-color:var(--accent);color:#111113;display:flex;align-items:center;justify-content:center}` +
-    `.ctl .play svg{width:18px;height:18px;fill:currentColor}.ctl .t{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;white-space:nowrap}` +
-    `input[type=range]{flex:1;min-width:60px;accent-color:var(--accent);height:20px}` +
-    `li button{all:unset;cursor:pointer;display:flex;gap:8px;width:100%}li button:hover span+span{text-decoration:underline}li[aria-current=true] button{color:var(--accent);font-weight:600}li button[disabled]{cursor:default;opacity:.5}` +
-    (o.player === "video" ? `.stage{aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;margin-bottom:10px}` : "");
+    `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 Geist,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}` +
+    `.mono,.t,li .n,li .d{font-family:ui-monospace,"JetBrains Mono",Menlo,monospace;font-variant-numeric:tabular-nums}` +
+    `.card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg)}` +
+    `.main{display:flex;gap:16px;padding:16px}` +
+    `.art{width:104px;height:104px;border-radius:10px;object-fit:cover;flex:none;background:repeating-linear-gradient(135deg,var(--line) 0 8px,transparent 8px 16px)}` +
+    `.col{flex:1;min-width:0;display:flex;flex-direction:column}` +
+    `.head{display:flex;align-items:center;gap:10px;justify-content:space-between}` +
+    `.show{font-size:12px;color:var(--muted);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.show:hover{color:var(--fg)}` +
+    `.follow{flex:none;font-size:12px;font-weight:600;color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 12px}.follow:hover{border-color:var(--muted)}` +
+    `h1{font-size:18px;line-height:1.25;letter-spacing:-.015em;font-weight:700;margin:4px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h1 a{color:inherit;text-decoration:none}h1 a:hover{text-decoration:underline}` +
+    `.ctl{display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:10px}` +
+    `.ctl button{font:inherit;cursor:pointer;color:var(--muted);background:none;border:0;padding:4px 2px;font-size:12px}.ctl button:hover{color:var(--fg)}` +
+    `.ctl .play{width:44px;height:44px;border-radius:50%;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;padding:0;flex:none}.ctl .play:hover{color:var(--bg);filter:brightness(.92)}` +
+    `.ctl .play svg{width:16px;height:16px;fill:currentColor}.ctl .play svg[data-i=play]{margin-left:2px}` +
+    `.ctl .t{font-size:12px;color:var(--muted);white-space:nowrap}` +
+    `.ctl #spd{border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--fg)}` +
+    `button:focus-visible,input[type=range]:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}` +
+    `input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:60px;height:22px;background:transparent;margin:0;cursor:pointer}` +
+    `input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--accent) var(--p,0%),var(--line) var(--p,0%))}` +
+    `input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--accent) var(--p,0%),var(--line) var(--p,0%))}` +
+    `input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:0;margin-top:-4px}` +
+    `input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);border:0}` +
+    `.status{color:var(--muted);font-size:13px;margin-top:10px}` +
+    `ol{margin:0;padding:0;list-style:none;border-top:1px solid var(--line);max-height:216px;overflow-y:auto}` +
+    `li{border-bottom:1px solid var(--line)}li:last-child{border-bottom:0}` +
+    `li button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:12px;align-items:center;width:100%;padding:9px 16px}li button:hover{background:color-mix(in srgb,var(--fg) 5%,transparent)}` +
+    `li .n{width:26px;font-size:12px;color:var(--muted)}li .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}li .d{font-size:12px;color:var(--muted)}` +
+    `li[aria-current=true] .tt{color:var(--accent);font-weight:700}li button[disabled]{cursor:default;opacity:.45}li button[disabled]:hover{background:none}li button:focus-visible{outline-offset:-2px}` +
+    `.foot{padding:0 16px 14px}` +
+    `@media (max-width:420px){.art{width:64px;height:64px}.main{gap:12px;padding:12px}.ctl{gap:6px}.ctl #back,.ctl #fwd{display:none}}` +
+    // Off-air look for the (not yet built) video player: SMPTE-style colour bars
+    // with the message in a black station-ID rectangle.
+    (o.player === "video"
+      ? `.stage{position:relative;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#131313}` +
+        `.stage i{position:absolute;left:0;right:0}` +
+        `.stage .b1{top:0;height:67%;background:linear-gradient(to right,#c0c0c0 0 14.28%,#c0c000 0 28.57%,#00c0c0 0 42.85%,#00c000 0 57.14%,#c000c0 0 71.42%,#c00000 0 85.71%,#0000c0 0)}` +
+        `.stage .b2{top:67%;height:10%;background:linear-gradient(to right,#0000c0 0 14.28%,#131313 0 28.57%,#c000c0 0 42.85%,#131313 0 57.14%,#00c0c0 0 71.42%,#131313 0 85.71%,#c0c0c0 0)}` +
+        `.stage .b3{top:77%;bottom:0;background:linear-gradient(to right,#00214c 0 17.85%,#fff 0 35.7%,#32006a 0 53.5%,#131313 0 71.4%,#0a0a0a 0)}` +
+        `.stage span{position:relative;background:#000;color:#fff;border:2px solid #fff;padding:10px 22px;font:700 clamp(11px,3.2vw,17px)/1 ui-monospace,"JetBrains Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}`
+      : "");
 
   const ep = view.episodes[0];
+  const label = view.mode === "single" && ep?.number != null ? `${view.showTitle} · Ep. ${ep.number}` : view.showTitle;
   const heading =
     view.mode === "single"
       ? ep
@@ -99,21 +125,21 @@ export function embedHtml(view: EmbedView, o: EmbedOptions) {
       ? `<ol>${view.episodes
           .map(
             (e, i) =>
-              `<li data-i="${i}"><button type="button"${e.audioUrl ? "" : " disabled"}><span>${e.number ?? ""}</span><span>${esc(e.title)}</span></button></li>`,
+              `<li data-i="${i}"><button type="button"${e.audioUrl ? "" : " disabled"}><span class="n">${e.number ?? ""}</span><span class="tt">${esc(e.title)}</span><span class="d">${e.durationS ? fmtTime(e.durationS) : ""}</span></button></li>`,
           )
           .join("")}</ol>`
       : "";
   const first = view.episodes[0];
   const playable = view.episodes.some((e) => e.audioUrl);
-  const art = view.artworkUrl ? `<img src="${esc(view.artworkUrl)}" alt="" width="56" height="56">` : "";
+  const art = view.artworkUrl ? `<img class="art" src="${esc(view.artworkUrl)}" alt="" width="104" height="104">` : `<div class="art" aria-hidden="true"></div>`;
   const controls = playable
     ? `<audio id="a" preload="none"></audio><div class="ctl">` +
       `<button type="button" id="pp" class="play" aria-label="Play">${ICON_PLAY}</button>` +
-      `<button type="button" id="back" aria-label="Back 15 seconds">−15</button>` +
-      `<button type="button" id="fwd" aria-label="Forward 30 seconds">+30</button>` +
+      `<button type="button" id="back" class="mono" aria-label="Back 15 seconds">−15</button>` +
+      `<button type="button" id="fwd" class="mono" aria-label="Forward 30 seconds">+30</button>` +
       `<input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">` +
       `<span class="t" id="time">0:00 / ${fmtTime(first?.durationS ?? 0)}</span>` +
-      `<button type="button" id="spd" aria-label="Playback speed">1×</button></div>` +
+      `<button type="button" id="spd" class="mono" aria-label="Playback speed">1×</button></div>` +
       `<div class="status" id="msg" role="status" hidden></div>`
     : `<div class="status">Audio isn't available${view.mode === "playlist" ? " yet" : " for this episode yet"}.</div>`;
   // Plain JSON for the script; "<" escaped so a title can never close the tag.
@@ -127,11 +153,12 @@ export function embedHtml(view: EmbedView, o: EmbedOptions) {
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
     `<meta name="robots" content="noindex"><title>${esc(view.showTitle)}</title><style>${css}</style></head><body>` +
     `<div class="card">` +
-    (o.player === "video" ? `<div class="stage">Video isn't available yet</div>` : "") +
-    `<div class="top">${art}<div><a class="show" href="${esc(view.showUrl)}" target="_blank" rel="noopener">${esc(view.showTitle)}</a>${heading}</div></div>` +
-    controls +
-    list +
+    (o.player === "video" ? `<div class="stage" role="img" aria-label="Video not available"><i class="b1"></i><i class="b2"></i><i class="b3"></i><span>Video not available</span></div>` : "") +
+    `<div class="main">${art}<div class="col">` +
+    `<div class="head"><a class="show" href="${esc(view.showUrl)}" target="_blank" rel="noopener">${esc(label)}</a>` +
     (o.follow ? `<a class="follow" href="${esc(view.showUrl)}" target="_blank" rel="noopener">Follow</a>` : "") +
+    `</div>${heading}${view.mode === "single" ? controls : ""}</div></div>` +
+    (view.mode === "playlist" ? `<div class="foot" style="padding:0 16px 4px">${controls}</div>${list}` : "") +
     `</div>` +
     `<script type="application/json" id="d">${data}</script>` +
     `<script>${PLAYER_JS}</script>` +
@@ -147,7 +174,7 @@ export function fmtTime(sec: number) {
   return `${h ? `${h}:${String(m).padStart(2, "0")}` : m}:${String(x).padStart(2, "0")}`;
 }
 
-const ICON_PLAY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+const ICON_PLAY = `<svg viewBox="0 0 24 24" data-i="play" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
 const ICON_PAUSE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>`;
 
 // The in-iframe player. Plain ES5, no dependencies. Messages to the host page:
@@ -163,7 +190,7 @@ const PLAYER_JS =
   `var PLAY=${JSON.stringify(ICON_PLAY)},PAUSE=${JSON.stringify(ICON_PAUSE)},RATES=[1,1.25,1.5,2],ri=0;` +
   `function f(s){s=Math.max(0,Math.floor(s||0));var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+":"+(m<10?"0":""):"")+m+":"+(x<10?"0":"")+x}` +
   `function dur(){return isFinite(a.duration)&&a.duration>0?a.duration:(E[cur]&&E[cur].d)||0}` +
-  `function paint(){var d=dur();seek.value=d?Math.round(a.currentTime/d*1000):0;tm.textContent=f(a.currentTime)+" / "+f(Math.round(d));seek.setAttribute("aria-valuetext",f(a.currentTime)+" of "+f(Math.round(d)))}` +
+  `function paint(){var d=dur();seek.value=d?Math.round(a.currentTime/d*1000):0;seek.style.setProperty("--p",(d?Math.min(100,a.currentTime/d*100):0)+"%");tm.textContent=f(a.currentTime)+" / "+f(Math.round(d));seek.setAttribute("aria-valuetext",f(a.currentTime)+" of "+f(Math.round(d)))}` +
   `function say(t){msg.hidden=!t;msg.textContent=t||""}` +
   `function mark(){[].forEach.call(document.querySelectorAll("li[data-i]"),function(li){li.setAttribute("aria-current",String(+li.getAttribute("data-i")===cur))})}` +
   `function meta(){var e=E[cur];if(ti&&document.querySelectorAll("li[data-i]").length&&e)ti.textContent=e.t;` +

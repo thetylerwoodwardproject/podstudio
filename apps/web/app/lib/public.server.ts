@@ -1,6 +1,7 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, shows, showLinks, people, episodes, episodePeople, podrollItems, assets } from "@podstudio/db";
 import { readBrandTheme } from "~/lib/brand-theme";
+import { cleanCategory } from "~/lib/podcast-categories";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
 
 // Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
@@ -29,6 +30,33 @@ const episodeColumns = {
   date: PUBLIC_DATE,
 };
 
+// Adds who the episode is "with" and the public audio URL (only when a verified MP3
+// exists) to a page of episode rows — one query for people, one for audio.
+function withGuestsAndAudio<T extends { id: string; publicId: string }>(slug: string, rows: T[]) {
+  if (rows.length === 0) return [] as (T & { guests: string[]; audioSrc: string | null })[];
+  const ids = rows.map((r) => r.id);
+  const guests = db
+    .select({ episodeId: episodePeople.episodeId, name: people.name })
+    .from(episodePeople)
+    .innerJoin(people, eq(people.id, episodePeople.personId))
+    .where(and(inArray(episodePeople.episodeId, ids), eq(episodePeople.role, "guest")))
+    .all();
+  const withAudio = new Set(
+    db
+      .select({ id: episodes.id })
+      .from(episodes)
+      .innerJoin(assets, and(eq(assets.id, episodes.audioAssetId), eq(assets.status, "verified")))
+      .where(inArray(episodes.id, ids))
+      .all()
+      .map((r) => r.id),
+  );
+  return rows.map((r) => ({
+    ...r,
+    guests: guests.filter((g) => g.episodeId === r.id).map((g) => g.name),
+    audioSrc: withAudio.has(r.id) ? `/${slug}/media/${r.publicId}/episode.mp3` : null,
+  }));
+}
+
 function findShow(slug: string) {
   return db.select().from(shows).where(eq(shows.slug, slug)).get();
 }
@@ -40,8 +68,11 @@ function showHeader(show: NonNullable<ReturnType<typeof findShow>>) {
   >;
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
   const art = getShowArtwork();
+  const cat = cleanCategory(tags.category, tags.subcategory);
   return {
     slug: show.slug,
+    category: cat ? (cat.sub ?? cat.primary) : null,
+    author: str(tags.author),
     artworkUrl: art ? `/${show.slug}/artwork/${artworkFile(art)}` : null,
     title: show.title,
     description: show.description,
@@ -113,8 +144,8 @@ export function getPublicShowPage(slug: string, page: number, pageSize = 10) {
     links,
     hosts,
     recommended,
-    latest: latest ?? null,
-    episodes: list,
+    latest: latest ? withGuestsAndAudio(show.slug, [latest])[0]! : null,
+    episodes: withGuestsAndAudio(show.slug, list),
     total,
     page: current,
     pageCount,
@@ -133,20 +164,27 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
   if (!episode) return null;
 
   const credits = db
-    .select({ name: people.name, role: episodePeople.role })
+    .select({ name: people.name, role: episodePeople.role, website: people.website })
     .from(episodePeople)
     .innerJoin(people, eq(people.id, episodePeople.personId))
     .where(eq(episodePeople.episodeId, episode.id))
     .all();
 
-  // "Up next" = the next-older public episode, by the same public date order.
+  // "Up next" = the next-older public episodes, by the same public date order.
   const upNext = db
-    .select({ publicId: episodes.publicId, slug: episodes.slug, title: episodes.title, number: episodes.number })
+    .select({
+      publicId: episodes.publicId,
+      slug: episodes.slug,
+      title: episodes.title,
+      number: episodes.number,
+      durationS: episodes.durationS,
+      date: PUBLIC_DATE,
+    })
     .from(episodes)
     .where(and(PUBLIC_EPISODE(show.id), sql`${PUBLIC_DATE} < ${episode.date}`))
     .orderBy(desc(PUBLIC_DATE))
-    .limit(1)
-    .get();
+    .limit(3)
+    .all();
 
   const links = db
     .select({ platform: showLinks.platform, value: showLinks.value })
@@ -167,7 +205,7 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     links,
     episode,
     credits,
-    upNext: upNext ?? null,
+    upNext,
     audio: audio ? { src: `/${show.slug}/media/${episode.publicId}/${episode.slug || "episode"}.mp3`, bytes: audio.bytes } : null,
   };
 }

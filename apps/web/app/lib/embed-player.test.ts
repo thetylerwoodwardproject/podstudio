@@ -65,7 +65,7 @@ describe("embedHtml", () => {
     expect(html).toMatch(/<li data-i="1"><button type="button" disabled>/);
   });
   it("shows artwork when the show has some", () => {
-    expect(embedHtml({ ...view, artworkUrl: "https://x.test/art.png" }, opts)).toContain('<img src="https://x.test/art.png"');
+    expect(embedHtml({ ...view, artworkUrl: "https://x.test/art.png" }, opts)).toContain('src="https://x.test/art.png"');
     expect(embedHtml(view, opts)).not.toContain("<img");
   });
   it("uses the README tokens and follows the OS only for theme=auto", () => {
@@ -76,7 +76,7 @@ describe("embedHtml", () => {
   });
   it("hides Follow when follow is off and shows a video stage for the video player", () => {
     expect(embedHtml(view, { ...opts, follow: false })).not.toContain('class="follow"');
-    expect(embedHtml(view, { ...opts, player: "video" })).toContain("Video isn't available yet");
+    expect(embedHtml(view, { ...opts, player: "video" })).toContain("Video not available");
   });
   it("lists every episode in playlist mode", () => {
     const html = embedHtml(

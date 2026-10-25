@@ -1,6 +1,20 @@
 import { Link, data } from "react-router";
 import { getPublicShowPage } from "~/lib/public.server";
-import { PublicLayout, SocialLinks, formatDate, formatDuration } from "~/components/public/public-layout";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowRight } from "@fortawesome/free-solid-svg-icons/faArrowRight";
+import { faGlobe } from "@fortawesome/free-solid-svg-icons/faGlobe";
+import { faHeart } from "@fortawesome/free-solid-svg-icons/faHeart";
+import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
+import { faRss } from "@fortawesome/free-solid-svg-icons/faRss";
+import {
+  PublicLayout,
+  SocialLinks,
+  formatClock,
+  formatDate,
+  formatDuration,
+  initials,
+} from "~/components/public/public-layout";
+import { AudioPlayer } from "~/components/public/audio-player";
 
 // Screen 25 (Public show page) at `/{show-slug}`. Per README: header, hero
 // (title, cadence, description, hosts, follow links), latest episode, support
@@ -46,108 +60,146 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
 export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
   const { show, links, hosts, recommended, latest, episodes, total, page, pageCount } = loaderData;
   const href = (e: { publicId: string; slug: string }) => `/${show.slug}/episodes/${e.publicId}/${e.slug}`;
+  const eyebrow = [show.updateFrequency, show.category, `${total} episode${total === 1 ? "" : "s"}`].filter(Boolean);
 
   return (
     <PublicLayout show={show} links={links}>
-      <main className="pub-wrap" style={{ paddingTop: 40 }}>
-        <section id="about" style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
-          {show.artworkUrl && (
+      <main className="pub-wrap">
+        <section id="about" className="pub-hero">
+          {show.artworkUrl ? (
             <img
               src={show.artworkUrl}
               alt={`${show.title} artwork`}
-              width={168}
-              height={168}
+              width={240}
+              height={240}
               data-testid="show-artwork"
-              style={{ width: 168, height: 168, objectFit: "cover", borderRadius: "var(--brand-radius-card)", flex: "none" }}
+              className="pub-art"
             />
+          ) : (
+            <div className="pub-art" aria-hidden />
           )}
-          <div style={{ flex: 1, minWidth: 260 }}>
-          <h1>{show.title}</h1>
-          <p className="pub-muted" style={{ margin: "8px 0 0" }} data-testid="meta">
-            {[show.updateFrequency && `Updates ${show.updateFrequency}`, `${total} episode${total === 1 ? "" : "s"}`]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          {show.description && <p style={{ fontSize: 17, maxWidth: 640 }}>{show.description}</p>}
-          {hosts.length > 0 && (
-            <p className="pub-muted" style={{ fontSize: 14 }}>
-              Hosted by {hosts.map((h) => h.name).join(", ")}
-            </p>
-          )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <a className="pub-btn" href={`/${show.slug}/feed`}>
-              RSS
-            </a>
-            {show.website && (
-              <a className="pub-btn pub-btn-ghost" href={show.website} rel="noopener">
-                Website
-              </a>
+          <div>
+            <div className="pub-eyebrow" data-testid="meta">
+              {eyebrow.join(" · ")}
+            </div>
+            <h1 style={{ marginTop: 10 }}>{show.title}</h1>
+            {show.description && <p className="pub-lead">{show.description}</p>}
+            {hosts.length > 0 && (
+              <div className="pub-hosts">
+                <span className="pub-avatars" aria-hidden>
+                  {hosts.slice(0, 4).map((h) => (
+                    <span key={h.name} className="pub-avatar">
+                      {initials(h.name)}
+                    </span>
+                  ))}
+                </span>
+                <span>Hosted by {hosts.map((h) => h.name).join(" & ")}</span>
+              </div>
             )}
-            <SocialLinks links={links} />
-          </div>
+            <div id="follow" className="pub-follow">
+              <a className="pub-pill pub-pill-accent" href={`/${show.slug}/feed`}>
+                <FontAwesomeIcon icon={faRss} />
+                RSS
+              </a>
+              {show.website && (
+                <a className="pub-pill" href={show.website} rel="noopener">
+                  <FontAwesomeIcon icon={faGlobe} />
+                  Website
+                </a>
+              )}
+              <SocialLinks links={links} labelled />
+            </div>
           </div>
         </section>
 
         {latest && (
-          <section style={{ marginTop: 40 }} aria-labelledby="latest">
-            <h2 id="latest">Latest episode</h2>
-            <div className="pub-tint">
-              <div className="pub-muted" style={{ fontSize: 13 }}>
-                {formatDate(latest.date)}
-                {latest.durationS ? ` · ${formatDuration(latest.durationS)}` : ""}
+          <section className="pub-section" aria-labelledby="latest">
+            <div className="pub-section-head">
+              <h2 id="latest">Latest episode</h2>
+              <span className="pub-muted" style={{ fontSize: 14 }}>
+                {[formatDate(latest.date), formatDuration(latest.durationS), latest.guests.length ? `with ${latest.guests.join(", ")}` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </div>
+            <div className="pub-card">
+              <div className="pub-latest">
+                {show.artworkUrl ? <img className="pub-art" src={show.artworkUrl} alt="" width={112} height={112} /> : <div className="pub-art" aria-hidden />}
+                <div style={{ minWidth: 0 }}>
+                  <div className="pub-eyebrow">{latest.number != null ? `Ep. ${latest.number}` : show.title}</div>
+                  <h3>
+                    <Link to={href(latest)}>{latest.title}</Link>
+                  </h3>
+                  {latest.description && <p className="pub-clamp">{latest.description}</p>}
+                </div>
               </div>
-              <h3 style={{ margin: "4px 0 8px", fontSize: 22 }}>
-                <Link to={href(latest)} style={{ color: "inherit" }}>
-                  {latest.title}
+              {latest.audioSrc ? (
+                <AudioPlayer src={latest.audioSrc} title={latest.title} show={show.title} artwork={show.artworkUrl} durationS={latest.durationS} />
+              ) : (
+                <p className="pub-muted" style={{ margin: "16px 0 0", fontSize: 14 }}>
+                  Audio isn't available for this episode yet.
+                </p>
+              )}
+              <div style={{ marginTop: 16 }}>
+                <Link className="pub-btn pub-btn-ghost" to={href(latest)}>
+                  Open episode <FontAwesomeIcon icon={faArrowRight} style={{ width: 12 }} />
                 </Link>
-              </h3>
-              {latest.description && <p style={{ margin: "0 0 12px" }}>{latest.description}</p>}
-              <Link className="pub-btn" to={href(latest)}>
-                Open episode
-              </Link>
+              </div>
             </div>
           </section>
         )}
 
         {show.fundingUrl && (
-          <section id="support" style={{ marginTop: 40 }}>
-            <div className="pub-card">
-              <h2>Support the show</h2>
-              {show.fundingMessage && <p style={{ margin: "0 0 12px" }}>{show.fundingMessage}</p>}
-              <a className="pub-btn" href={show.fundingUrl} rel="noopener">
-                Support
-              </a>
+          <section id="support" className="pub-section">
+            <div className="pub-card pub-support">
+              <span className="ic">
+                <FontAwesomeIcon icon={faHeart} />
+              </span>
+              <div>
+                <h2 style={{ fontSize: 18, marginBottom: 4 }}>Support the show</h2>
+                {show.fundingMessage && <p style={{ margin: "0 0 12px" }}>{show.fundingMessage}</p>}
+                <a className="pub-btn" href={show.fundingUrl} rel="noopener">
+                  Support
+                </a>
+              </div>
             </div>
           </section>
         )}
 
-        <section id="episodes" style={{ marginTop: 40 }}>
-          <h2>All episodes</h2>
+        <section id="episodes" className="pub-section">
+          <div className="pub-section-head">
+            <h2>All episodes</h2>
+            <span className="pub-muted" style={{ fontSize: 14 }}>
+              {total} total
+            </span>
+          </div>
           {episodes.length === 0 ? (
             <p className="pub-muted">No episodes yet.</p>
           ) : (
-            <div>
+            <div className="pub-list">
               {episodes.map((e) => (
-                <div key={e.publicId} className="pub-row">
-                  <span className="pub-muted" style={{ minWidth: 28 }}>
-                    {e.number ?? ""}
+                <Link key={e.publicId} to={href(e)} className="pub-ep" aria-label={`${e.title}${e.audioSrc ? "" : " (audio not available)"}`}>
+                  <span className="go" aria-hidden>
+                    <FontAwesomeIcon icon={faPlay} style={{ marginLeft: 2 }} />
                   </span>
-                  <span style={{ flex: 1 }}>
-                    <Link className="t" to={href(e)}>
+                  <span className="no pub-mono">{e.number != null ? `Ep. ${e.number}` : ""}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="ti" style={{ display: "block" }}>
                       {e.title}
-                    </Link>
-                    {e.hasVideo ? <span className="pub-badge" style={{ marginLeft: 8 }}>Video</span> : null}
+                      {e.hasVideo ? <span className="pub-badge" style={{ marginLeft: 8, fontWeight: 400 }}>Video</span> : null}
+                    </span>
+                    <span className="sub" style={{ display: "block" }}>
+                      {e.guests.length ? `with ${e.guests.join(", ")}` : "Solo"}
+                    </span>
                   </span>
-                  <span className="pub-muted" style={{ fontSize: 13 }}>
-                    {formatDate(e.date)}
-                    {e.durationS ? ` · ${formatDuration(e.durationS)}` : ""}
-                  </span>
-                </div>
+                  <span className="dt">{formatDate(e.date)}</span>
+                  <span className="du pub-mono">{formatClock(e.durationS)}</span>
+                </Link>
               ))}
             </div>
           )}
           {pageCount > 1 && (
-            <nav aria-label="Pagination" style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
+            <nav aria-label="Pagination" className="pub-pager">
               {page > 1 && (
                 <Link className="pub-btn pub-btn-ghost" to={`?page=${page - 1}`}>
                   Newer
@@ -166,21 +218,23 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
         </section>
 
         {recommended.length > 0 && (
-          <section id="recommended" style={{ marginTop: 40 }}>
-            <h2>Shows we recommend</h2>
-            <div>
+          <section id="recommended" className="pub-section">
+            <div className="pub-section-head">
+              <h2>Shows we recommend</h2>
+            </div>
+            <div className="pub-recs">
               {recommended.map((r) => (
-                <div key={r.title} className="pub-row">
-                  <span style={{ flex: 1 }}>
+                <div key={r.title} className="pub-card pub-rec">
+                  <b>
                     {r.feedUrl ? (
-                      <a className="t" href={r.feedUrl} rel="noopener" style={{ fontWeight: 500 }}>
+                      <a href={r.feedUrl} rel="noopener">
                         {r.title}
                       </a>
                     ) : (
-                      <span style={{ fontWeight: 500 }}>{r.title}</span>
+                      r.title
                     )}
-                    {r.note && <span className="pub-muted" style={{ display: "block", fontSize: 13 }}>{r.note}</span>}
-                  </span>
+                  </b>
+                  {r.note && <span className="pub-muted" style={{ fontSize: 14 }}>{r.note}</span>}
                 </div>
               ))}
             </div>
