@@ -169,7 +169,7 @@ export default function Publish({
                 <Label htmlFor="publishAt">Publish at ({data.timezone})</Label>
                 <Input id="publishAt" name="publishAt" type="datetime-local" required />
               </div>
-              <Button type="submit" name="intent" value="schedule" disabled={submitting || data.episode.status === "recording"}>
+              <Button type="submit" name="intent" value="schedule" disabled={submitting || data.episode.status === "recording" || !data.audio}>
                 {data.episode.status === "scheduled" ? "Reschedule" : "Schedule"}
               </Button>
               {data.episode.status === "scheduled" && (
@@ -178,6 +178,9 @@ export default function Publish({
                 </Button>
               )}
             </Form>
+            {!data.audio && (
+              <p className="text-[12.5px] text-muted-foreground">Scheduling needs a verified MP3 — upload one on the episode page first.</p>
+            )}
             {data.episode.status === "recording" && (
               <p className="text-[12.5px] text-muted-foreground">Finish recording and editing before scheduling.</p>
             )}

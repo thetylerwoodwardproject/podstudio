@@ -6,8 +6,8 @@ import { getEpisodeAudio } from "~/lib/media.server";
 // Server-only — see CHANGELOG, "Real bug: two sidebar links silently failed
 // to navigate." "The episode only appears in the feed after every file is
 // uploaded and checked", so Publish now requires a *verified* audio asset.
-// Scheduling (status "scheduled" + publishAt) and unscheduling are real, but
-// nothing yet flips a scheduled episode to published when its time arrives.
+// Scheduling (status "scheduled" + publishAt) and unscheduling are real; the
+// worker flips a due scheduled episode to published (packages/db/src/scheduler.ts).
 // Includes already-published episodes so they can be unpublished from the same screen.
 export function listPublishable() {
   const show = db.select({ id: shows.id }).from(shows).get();
@@ -39,6 +39,7 @@ export function scheduleEpisode(id: string, local: string): { ok: true } | { ok:
   const { episode, timezone } = data;
   if (episode.status === "published") return { ok: false, error: "This episode is already published." };
   if (episode.status === "recording") return { ok: false, error: "Finish recording and editing before scheduling." };
+  if (!data.audio) return { ok: false, error: "Upload and verify the episode's MP3 before scheduling." };
 
   const at = zonedToUtcMs(local, timezone);
   if (at == null) return { ok: false, error: "Enter a valid date and time." };
