@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-10-24 — Episodes row menu (Duplicate/Delete) made real. Earlier, 2026-10-23 — a long build session. New this session: embed
+**Last updated:** 2026-10-25 — MinIO added (see Storage below). 2026-10-24 — Episodes row menu (Duplicate/Delete) made real. Earlier, 2026-10-23 — a long build session. New this session: embed
 player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
 applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
@@ -44,7 +44,7 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 15 Feed overview | Half real, at `/studio/feed` — episode-status counts and a recent-episodes table are real DB queries. Downloads/listeners cards + chart are explicitly "not available yet" rather than fabricated — no OP3 integration or `analytics_daily` table exists (Stage 11) |
 | 16 Show tags | Real — RSS/iTunes + a subset of Podcasting 2.0 tags at `/studio/feed/tags`, linked from Episodes. `person`/`podroll` deliberately not here; TXT records moved to 16b |
 | 16b Lock & verify | Half real, at `/studio/feed/lock-verify` — TXT records CRUD and locking the feed are real; unlocking is deliberately not built (needs a verified owner email + emailed 6-digit code; no email delivery exists yet) |
-| 17 Storage | Real config/routing, at `/studio/storage` — add/remove S3-compatible targets, a real test-connection (HeadBucket call), and routing raw/exports/feed-media to a target. Access/secret keys are entered through the screen's own form and stored server-side in the DB (never echoed back to the browser), not in `deploy/.env`. Nothing uploads to a target yet — that's Stage 02 |
+| 17 Storage | Real config/routing, at `/studio/storage` — add/remove S3-compatible targets, a real test-connection (HeadBucket call), and routing raw/exports/feed-media to a target. Access/secret keys are entered through the screen's own form and stored server-side in the DB (never echoed back to the browser), not in `deploy/.env`. Nothing uploads to a target yet — that's Stage 02. **Two MinIO targets are now configured and routed** (see Architecture → Storage) |
 | 18 Server settings | Half real, at `/studio/settings/server` — Users (add/change role/remove) is real **and admin-only, enforced server-side (non-admins get 403 on those actions; controls hidden)**; **"Your account" lets any signed-in user change their own password** (current + new ≥ 8 chars + confirm; signs out every other device), on the existing Better Auth `users` table; "Add user" substitutes for "invite" (no email delivery yet, same gap as 16b). Domain shows the real hostname + "Caddy internal CA, LAN-only" as plain text, not a status badge (there's no real auto-TLS to report). Storage links out to 17 instead of duplicating it. AI keys (Whisper/LLM) and LiveKit URL/keys are an explicit "not configured" note — no schema, no stage reached |
 | 27 Embed players | Real end to end except audio, at `/studio/public/embeds` — config form (what to embed: one episode/latest/whole show; audio/video; theme; accent; chapters/transcript/follow) saved as the show default under `shows.settings.embed`; only public+published episodes selectable. The three code tabs are generated live, **and their targets now exist**: `/{show}/embed/{public-id\|latest\|all}` (iframe document in the README-28 dark/light tokens, theme=auto follows the OS, `follow=0` honoured, CSP `frame-ancestors *`, no cookies, query params allow-listed, all text escaped), `/embed.js` (turns `<div data-podstudio="show/target" …>` into the same iframe and auto-resizes from the iframe's postMessage — verified 152→247px), and `/oembed?url=` (JSON `rich` embed for a public episode or show URL on this origin; non-public/foreign-origin 404, bad url 400, non-JSON 501; discovery `<link rel="alternate" type="application/json+oembed">` on the public pages). The live preview is an iframe of that real route. **No player yet** (screen 28's actual player): the embed shows show/episode info with "Audio isn't available yet" — no `<audio>`, play button, chapters or transcript; `embed.js` doesn't forward play/pause/timeupdate or push colour-scheme changes. Snippet origin is whatever host serves the request (public domain not chosen) |
 | 31 Analytics | Thin by design, at `/studio/analytics` — every number (KPIs, chart, top apps, countries, per-episode Day 1/7/30/all-time) needs OP3 and is shown as "No data" rather than faked. Real: the 30d/90d/12m range control (URL `?range=`), the published-episodes table rows, the "Show overview on public page" switch (persisted at `shows.settings.analytics.showOnPublicPage`; nothing reads it until screen 25 exists), and an honest "OP3 / Podcast Index: Not connected" status |
@@ -92,6 +92,19 @@ proof #1 (dependency compatibility) as a side effect.
   If you ever add another reverse proxy hop in front of Caddy, bump that
   number — it's deliberately not `true` (don't trust arbitrary upstream
   headers).
+
+- Storage: **MinIO on this box** (Tyler's choice, 2026-10-25), service `minio` in
+  `deploy/docker-compose.yml`, internal-only (`http://minio:9000`, no host ports).
+  MinIO no longer publishes pullable images (Docker Hub and Quay refuse), so
+  `deploy/minio/Dockerfile` builds it from source with `go install`; the binary
+  reports a DEVELOPMENT.GOGET version — pin `MINIO_REF` when you pick a release.
+  Root creds are `MINIO_ROOT_USER/PASSWORD` in `deploy/.env`. Buckets
+  `podstudio-private` (routes: raw + exports) and `podstudio-feed` (feedMedia)
+  were created by hand with the SDK (no bucket-creation code exists) and added
+  as targets in Studio → Storage using the **root** key (create scoped keys
+  later). Verified in the browser: feed target "Connected"; routing persisted.
+  **This is not a backup** — same disk as everything else, and `/` is ~85% full
+  (14 GB free of 98 GB): raw audio will eat that quickly.
 
 ## Known issues, left as-is
 
@@ -200,8 +213,8 @@ blocked, not forgotten:
   (local MinIO or an external provider), which is Tyler's call.
 
 **Decisions recorded for Tyler (none requested right now):**
-1. **S3-compatible storage target** (MinIO on this box vs. an external provider)
-   — unblocks Stage 02, hence media, items, playback, Publish-now.
+1. ~~S3-compatible storage target~~ — decided: MinIO on this box (2026-10-25).
+   Stage 02 (uploads → enclosures, Publish-now, playback) is now unblocked.
 2. **Email delivery provider** — unblocks 16b's real unlock flow, 18's invites,
    17b.
 3. **Off-site backup target** — unblocks Stage 00 / Litestream.

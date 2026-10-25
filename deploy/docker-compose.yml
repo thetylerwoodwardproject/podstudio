@@ -4,7 +4,6 @@
 #   - litestream: no off-site backup target has been chosen (BUILD_PLAN §7,
 #     "Before Stage 00: independent off-site backup target"). Add its service
 #     here once that target exists — don't wire it to nowhere just to look done.
-#   - minio / S3: no storage target chosen yet (Stage 02).
 #   - livekit: Stage 08.
 name: podstudio
 
@@ -50,7 +49,24 @@ services:
     volumes:
       - podstudio_data:/data
 
+  # S3-compatible primary target (Tyler chose MinIO on this box, 2026-10-25).
+  # Internal only: no host ports, reachable from web/worker as http://minio:9000.
+  # NOT an off-site backup — it shares this machine's disk.
+  minio:
+    build:
+      context: ./minio
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set this in deploy/.env — see .env.example}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set this in deploy/.env — see .env.example}
+    volumes:
+      - minio_data:/data
+    expose:
+      - "9000"
+
 volumes:
   podstudio_data:
+  minio_data:
   caddy_data:
   caddy_config:
