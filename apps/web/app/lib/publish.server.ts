@@ -1,12 +1,13 @@
 import { desc, eq, ne } from "drizzle-orm";
 import { db, shows, episodes, episodePeople, people } from "@podstudio/db";
 import { zonedToUtcMs } from "~/lib/item-xml";
+import { getEpisodeAudio } from "~/lib/media.server";
 
 // Server-only — see CHANGELOG, "Real bug: two sidebar links silently failed
-// to navigate." Publishing for real needs the feed audio file uploaded and
-// verified (Stage 02) — "The episode only appears in the feed after every file
-// is uploaded and checked" — so "publish now" is deliberately not offered.
-// Scheduling (status "scheduled" + publishAt) and unscheduling are real.
+// to navigate." "The episode only appears in the feed after every file is
+// uploaded and checked", so Publish now requires a *verified* audio asset.
+// Scheduling (status "scheduled" + publishAt) and unscheduling are real, but
+// nothing yet flips a scheduled episode to published when its time arrives.
 export function listPublishable() {
   const show = db.select({ id: shows.id }).from(shows).get();
   if (!show) return [];
@@ -22,14 +23,14 @@ export function listPublishable() {
 export function getPublishData(id: string) {
   const episode = db.select().from(episodes).where(eq(episodes.id, id)).get();
   if (!episode) return null;
-  const show = db.select({ timezone: shows.timezone }).from(shows).where(eq(shows.id, episode.showId)).get();
+  const show = db.select({ timezone: shows.timezone, slug: shows.slug }).from(shows).where(eq(shows.id, episode.showId)).get();
   const credits = db
     .select({ name: people.name, role: episodePeople.role })
     .from(episodePeople)
     .innerJoin(people, eq(people.id, episodePeople.personId))
     .where(eq(episodePeople.episodeId, episode.id))
     .all();
-  return { episode, credits, timezone: show?.timezone ?? "UTC" };
+  return { episode, credits, timezone: show?.timezone ?? "UTC", showSlug: show?.slug ?? "", audio: getEpisodeAudio(id) };
 }
 
 export function scheduleEpisode(id: string, local: string): { ok: true } | { ok: false; error: string } {
@@ -52,5 +53,20 @@ export function unscheduleEpisode(id: string): { ok: true } | { ok: false; error
   if (!episode) return { ok: false, error: "Episode not found." };
   if (episode.status !== "scheduled") return { ok: false, error: "This episode isn't scheduled." };
   db.update(episodes).set({ status: "editing", publishAt: null, updatedAt: Date.now() }).where(eq(episodes.id, id)).run();
+  return { ok: true };
+}
+
+// Publishing makes the episode public (status published, visibility public,
+// publishAt = now) — that is what puts it in the feed and on the public pages.
+export function publishNow(id: string): { ok: true } | { ok: false; error: string } {
+  const data = getPublishData(id);
+  if (!data) return { ok: false, error: "Episode not found." };
+  if (data.episode.status === "published") return { ok: false, error: "This episode is already published." };
+  if (!data.audio) return { ok: false, error: "Upload and verify the episode's MP3 first." };
+  const now = Date.now();
+  db.update(episodes)
+    .set({ status: "published", visibility: "public", publishAt: now, updatedAt: now })
+    .where(eq(episodes.id, id))
+    .run();
   return { ok: true };
 }

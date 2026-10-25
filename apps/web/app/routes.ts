@@ -24,6 +24,7 @@ export default [
   route("studio", "routes/studio/_layout.tsx", [
     route("episodes", "routes/studio/episodes.tsx"),
     route("episodes/:id", "routes/studio/episode-detail.tsx", { id: "screen-11" }),
+    route("episodes/:id/audio", "routes/studio/episode-audio.ts"),
     route("feed", "routes/studio/feed-overview.tsx", { id: "screen-15" }),
     route("feed/tags", "routes/studio/show-tags.tsx", { id: "screen-16" }),
     route("feed/lock-verify", "routes/studio/lock-verify.tsx", { id: "screen-16b" }),
@@ -59,6 +60,7 @@ export default [
   route("oembed", "routes/oembed.ts"),
   route(":showSlug/embed/:target", "routes/embed.ts"),
   route(":showSlug/feed", "routes/feed.ts"),
+  route(":showSlug/media/:publicId/:file?", "routes/media.ts"),
   route(":showSlug", "routes/public/show.tsx", { id: "screen-25" }),
   route(":showSlug/episodes/:publicId/:slug?", "routes/public/episode.tsx", { id: "screen-30" }),
 ] satisfies RouteConfig;

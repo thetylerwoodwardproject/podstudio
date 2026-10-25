@@ -1,6 +1,6 @@
-// Pure builder for a feed <item>, used by Publish to feed (14)'s read-only
-// preview and, later, the feed generator. Only emits what the data actually
-// supports: no enclosure/transcript/chapters/soundbite/alternateEnclosure/value
+// Pure builder for a feed <item>, used by Publish to feed (14)'s preview and
+// the real feed. Only emits what the data actually supports: the enclosure only
+// with a verified upload; no transcript/chapters/soundbite/alternateEnclosure/value
 // until the files behind them exist. The guid is written exactly as stored —
 // never regenerated or normalized (CLAUDE.md GUID rule) — and
 // `isPermaLink` is emitted only when the stored flag is non-null.
@@ -14,6 +14,9 @@ export interface ItemInput {
   durationS: number | null;
   explicit: boolean;
   people: { name: string; role: string | null }[]; // role omitted when unset — never guessed
+  description?: string | null;
+  // Only set once the audio is uploaded AND verified (assets.status = verified).
+  enclosure?: { url: string; bytes: number } | null;
 }
 
 function esc(v: string) {
@@ -25,7 +28,12 @@ export function itemXml(i: ItemInput) {
   const permalink = i.guidIsPermalink == null ? "" : ` isPermaLink="${i.guidIsPermalink ? "true" : "false"}"`;
   lines.push(`  <guid${permalink}>${esc(i.guid)}</guid>`);
   if (i.pubDate != null) lines.push(`  <pubDate>${new Date(i.pubDate).toUTCString()}</pubDate>`);
-  lines.push("  <!-- enclosure: no audio file yet -->");
+  if (i.description) lines.push(`  <description>${esc(i.description)}</description>`);
+  if (i.enclosure) {
+    lines.push(`  <enclosure url="${esc(i.enclosure.url)}" length="${i.enclosure.bytes}" type="audio/mpeg"/>`);
+  } else {
+    lines.push("  <!-- enclosure: no verified audio file yet -->");
+  }
   if (i.season != null) lines.push(`  <itunes:season>${i.season}</itunes:season>`);
   if (i.number != null) lines.push(`  <itunes:episode>${i.number}</itunes:episode>`);
   if (i.durationS != null) lines.push(`  <itunes:duration>${i.durationS}</itunes:duration>`);

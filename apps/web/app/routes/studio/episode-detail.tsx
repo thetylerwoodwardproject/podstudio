@@ -8,6 +8,8 @@ import {
   removeCredit,
   listShowPeople,
 } from "~/lib/episodes.server";
+import { getEpisodeAudio, hasFeedMediaTarget } from "~/lib/media.server";
+import { EpisodeAudioSection } from "~/components/episode-audio";
 import { parseOptionalInt } from "~/lib/episode-fields";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -28,7 +30,12 @@ const EPISODE_STATUS = ["recording", "editing", "scheduled", "published"] as con
 export async function loader({ params }: { params: { id: string } }) {
   const result = getEpisodeWithCredits(params.id);
   if (!result) throw new Response("Episode not found", { status: 404 });
-  return { ...result, knownPeople: listShowPeople() };
+  return {
+    ...result,
+    knownPeople: listShowPeople(),
+    audio: getEpisodeAudio(params.id),
+    storageReady: hasFeedMediaTarget(),
+  };
 }
 
 export async function action({ request, params }: { request: Request; params: { id: string } }) {
@@ -45,7 +52,7 @@ export async function action({ request, params }: { request: Request; params: { 
   }
 
   if (intent === "delete") {
-    deleteEpisode(params.id);
+    await deleteEpisode(params.id);
     return redirect("/studio/episodes");
   }
 
@@ -80,7 +87,7 @@ export default function EpisodeDetail({
   loaderData: Awaited<ReturnType<typeof loader>>;
   actionData?: { saved?: boolean; error?: string; creditError?: string; credited?: boolean };
 }) {
-  const { episode, credits, knownPeople } = loaderData;
+  const { episode, credits, knownPeople, audio, storageReady } = loaderData;
   const navigation = useNavigation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const saving = navigation.state === "submitting";
@@ -237,6 +244,10 @@ export default function EpisodeDetail({
         </Form>
         {actionData?.creditError && <p className="text-[13px] text-destructive">{actionData.creditError}</p>}
       </section>
+
+      <Separator className="my-6" />
+
+      <EpisodeAudioSection episodeId={episode.id} audio={audio} storageReady={storageReady} />
 
       <Separator className="my-6" />
 

@@ -1,5 +1,5 @@
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
-import { listPublishable, getPublishData, scheduleEpisode, unscheduleEpisode } from "~/lib/publish.server";
+import { listPublishable, getPublishData, scheduleEpisode, unscheduleEpisode, publishNow } from "~/lib/publish.server";
 import { itemXml } from "~/lib/item-xml";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -19,8 +19,9 @@ import { StatusBadge } from "~/components/ui/status-badge";
 // omitted: toggling tags that can't be emitted would be decoration.
 // No db imports here — see publish.server.ts.
 export async function loader({ request }: { request: Request }) {
-  const id = new URL(request.url).searchParams.get("episode");
-  return { choices: listPublishable(), data: id ? getPublishData(id) : null };
+  const url = new URL(request.url);
+  const id = url.searchParams.get("episode");
+  return { choices: listPublishable(), data: id ? getPublishData(id) : null, origin: url.origin };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -30,6 +31,10 @@ export async function action({ request }: { request: Request }) {
   if (intent === "schedule") {
     const r = scheduleEpisode(id, String(form.get("publishAt") ?? ""));
     return r.ok ? { scheduled: true } : { error: r.error };
+  }
+  if (intent === "publish-now") {
+    const r = publishNow(id);
+    return r.ok ? { published: true } : { error: r.error };
   }
   if (intent === "unschedule") {
     const r = unscheduleEpisode(id);
@@ -42,7 +47,7 @@ const TAGS: { label: string; real: (d: NonNullable<Awaited<ReturnType<typeof loa
   { label: "title, guid, pubDate", real: () => true, missing: "" },
   { label: "itunes:season / episode / duration / explicit", real: () => true, missing: "" },
   { label: "podcast:person", real: (d) => d.credits.length > 0, missing: "no people credited on this episode" },
-  { label: "enclosure (MP3)", real: () => false, missing: "no audio file uploaded — Stage 02" },
+  { label: "enclosure (MP3)", real: (d) => !!d.audio, missing: "no verified audio file — upload one on the episode page" },
   { label: "podcast:transcript", real: () => false, missing: "no transcript — Stage 07" },
   { label: "podcast:chapters", real: () => false, missing: "no chapters yet" },
   { label: "podcast:soundbite", real: () => false, missing: "no soundbites yet" },
@@ -55,9 +60,9 @@ export default function Publish({
   actionData,
 }: {
   loaderData: Awaited<ReturnType<typeof loader>>;
-  actionData?: { error?: string; scheduled?: boolean; unscheduled?: boolean };
+  actionData?: { error?: string; scheduled?: boolean; unscheduled?: boolean; published?: boolean };
 }) {
-  const { choices, data } = loaderData;
+  const { choices, data, origin } = loaderData;
   const [params, setParams] = useSearchParams();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
@@ -102,10 +107,17 @@ export default function Publish({
               <h2 className="text-sm font-semibold text-muted-foreground">Release</h2>
               <StatusBadge status={data.episode.status} />
             </div>
-            <p className="text-[12.5px] text-muted-foreground">
-              Publish now isn't available: an episode only appears in the feed after its audio file is
-              uploaded and verified, and there's no upload pipeline yet. You can schedule it.
-            </p>
+            <Form method="post" className="flex flex-wrap items-center gap-3">
+              <input type="hidden" name="id" value={data.episode.id} />
+              <Button type="submit" name="intent" value="publish-now" disabled={submitting || !data.audio || data.episode.status === "recording"}>
+                Publish now
+              </Button>
+              <span className="text-[12.5px] text-muted-foreground">
+                {data.audio
+                  ? "Makes the episode public and adds it to the feed immediately."
+                  : "Needs a verified MP3 — upload one on the episode page first."}
+              </span>
+            </Form>
             {data.episode.status === "scheduled" && data.episode.publishAt && (
               <p className="text-[13px]" data-testid="scheduled-at">
                 Scheduled for{" "}
@@ -137,6 +149,7 @@ export default function Publish({
             )}
             {actionData?.error && <p className="text-[13px] text-destructive">{actionData.error}</p>}
             {actionData?.scheduled && <p className="text-[13px] text-ok">Scheduled.</p>}
+            {actionData?.published && <p className="text-[13px] text-ok">Published — it's in the feed now.</p>}
             {actionData?.unscheduled && <p className="text-[13px] text-ok">Unscheduled — back to editing.</p>}
           </section>
 
@@ -169,6 +182,10 @@ export default function Publish({
                 durationS: data.episode.durationS,
                 explicit: !!data.episode.explicit,
                 people: data.credits,
+                description: data.episode.description,
+                enclosure: data.audio
+                  ? { url: `${origin}/${data.showSlug}/media/${data.episode.publicId}/episode.mp3`, bytes: data.audio.bytes ?? 0 }
+                  : null,
               })}
             </pre>
             <Link to={`/studio/episodes/${data.episode.id}`} className="text-[12.5px] text-muted-foreground underline hover:text-foreground">

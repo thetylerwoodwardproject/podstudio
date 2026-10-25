@@ -324,6 +324,9 @@ export const episodes = sqliteTable(
     durationS: integer("duration_s"),
     hasVideo: integer("has_video").notNull().default(0),
     artworkUrl: text("artwork_url"),
+    // The verified MP3 served as the feed enclosure (assets.id). Null until an
+    // upload has been checked end to end; never points at a pending asset.
+    audioAssetId: text("audio_asset_id"),
     branding: text("branding", { mode: "json" }),
     createdAt: integer("created_at")
       .notNull()
@@ -344,3 +347,39 @@ export const episodePeople = sqliteTable("episode_people", {
     .references(() => people.id),
   role: text("role"), // host | guest
 });
+
+// Stage 02: one row per stored object. `status` stays "pending" until the bytes
+// in the bucket have been read back/size-checked against what was received, so
+// nothing is ever treated as server-saved on the strength of an upload call alone.
+export const assetStatus = ["pending", "verified", "failed"] as const;
+export type AssetStatus = (typeof assetStatus)[number];
+
+export const assets = sqliteTable(
+  "assets",
+  {
+    id: text("id").primaryKey(),
+    showId: text("show_id")
+      .notNull()
+      .references(() => shows.id),
+    episodeId: text("episode_id").references(() => episodes.id),
+    kind: text("kind").notNull(), // episode_audio (more in later stages)
+    access: text("access", { enum: ["private", "public"] }).notNull(),
+    storageTargetId: text("storage_target_id")
+      .notNull()
+      .references(() => storageTargets.id),
+    key: text("key").notNull(),
+    filename: text("filename"),
+    contentType: text("content_type").notNull(),
+    bytes: integer("bytes"),
+    sha256: text("sha256"),
+    durationS: integer("duration_s"),
+    sampleRate: integer("sample_rate"),
+    channels: integer("channels"),
+    status: text("status", { enum: assetStatus }).notNull().default("pending"),
+    error: text("error"),
+    meta: text("meta", { mode: "json" }),
+    createdAt: integer("created_at").notNull(),
+    verifiedAt: integer("verified_at"),
+  },
+  (t) => [index("assets_episode_idx").on(t.episodeId)],
+);

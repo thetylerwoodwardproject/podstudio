@@ -60,3 +60,18 @@ describe("itemXml", () => {
     expect(itemXml(base)).not.toMatch(/<enclosure/);
   });
 });
+
+describe("itemXml enclosure", () => {
+  it("writes a placeholder comment, not an enclosure, without verified audio", () => {
+    const x = itemXml(base);
+    expect(x).not.toContain("<enclosure");
+    expect(x).toContain("no verified audio file yet");
+  });
+  it("writes an escaped enclosure with the byte length and audio/mpeg", () => {
+    const x = itemXml({ ...base, enclosure: { url: "https://x.test/a?b=1&c=2", bytes: 1234 } });
+    expect(x).toContain('<enclosure url="https://x.test/a?b=1&amp;c=2" length="1234" type="audio/mpeg"/>');
+  });
+  it("escapes the description", () => {
+    expect(itemXml({ ...base, description: "a < b & c" })).toContain("<description>a &lt; b &amp; c</description>");
+  });
+});

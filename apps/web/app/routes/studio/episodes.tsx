@@ -22,7 +22,7 @@ export async function action({ request }: { request: Request }) {
     return redirect(`/studio/episodes/${result.id}`);
   }
   if (intent === "delete") {
-    deleteEpisode(String(form.get("id") ?? ""));
+    await deleteEpisode(String(form.get("id") ?? ""));
     return redirect("/studio/episodes");
   }
   if (intent !== "create") return null;

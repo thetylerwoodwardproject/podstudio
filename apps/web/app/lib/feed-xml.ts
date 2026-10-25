@@ -9,9 +9,9 @@ import { podrollXml, type PodrollEntry } from "~/lib/podroll-xml";
 //   built from them honestly.
 // - `podcast:trailer` is omitted: it needs a pubdate/length/type that
 //   `trailerUrl` alone doesn't carry.
-// - Items are passed in already-built; none exist yet because items need an
-//   `<enclosure>` and there's no uploaded audio (Stage 02) — an item without
-//   one would make the feed invalid for podcast apps.
+// - Items are passed in already-built (feed-data.server.ts); only episodes with
+//   a verified uploaded audio file become items — an item without an
+//   `<enclosure>` would make the feed invalid for podcast apps.
 export interface FeedInput {
   title: string;
   link: string;

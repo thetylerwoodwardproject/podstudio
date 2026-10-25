@@ -1,4 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import { removeEpisodeAudio } from "~/lib/media.server";
 import { slugify } from "~/lib/episode-fields";
 import { db, episodes, episodePeople, people, shows, type EpisodeStatus } from "@podstudio/db";
 
@@ -25,7 +26,8 @@ export function getEpisodeWithCredits(id: string) {
   return { episode, credits };
 }
 
-export function deleteEpisode(id: string) {
+export async function deleteEpisode(id: string) {
+  await removeEpisodeAudio(id);
   db.delete(episodePeople).where(eq(episodePeople.episodeId, id)).run();
   db.delete(episodes).where(eq(episodes.id, id)).run();
 }

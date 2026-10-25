@@ -1,5 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import { db, shows, showLinks, people, episodes, episodePeople, podrollItems } from "@podstudio/db";
+import { db, shows, showLinks, people, episodes, episodePeople, podrollItems, assets } from "@podstudio/db";
 import { readBrandTheme } from "~/lib/brand-theme";
 
 // Server-only data access for the public pages (25/30) — see CHANGELOG, "Real
@@ -152,7 +152,21 @@ export function getPublicEpisodePage(slug: string, publicId: string) {
     .orderBy(showLinks.position)
     .all();
 
-  return { show: showHeader(show), links, episode, credits, upNext: upNext ?? null };
+  const audio = db
+    .select({ bytes: assets.bytes })
+    .from(episodes)
+    .innerJoin(assets, and(eq(assets.id, episodes.audioAssetId), eq(assets.status, "verified")))
+    .where(eq(episodes.id, episode.id))
+    .get();
+
+  return {
+    show: showHeader(show),
+    links,
+    episode,
+    credits,
+    upNext: upNext ?? null,
+    audio: audio ? { src: `/${show.slug}/media/${episode.publicId}/${episode.slug || "episode"}.mp3`, bytes: audio.bytes } : null,
+  };
 }
 
 // Embed player data (`/{show}/embed/{public-id|latest|all}`) — same public +

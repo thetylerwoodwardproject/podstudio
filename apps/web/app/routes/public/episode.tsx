@@ -42,7 +42,7 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
 }
 
 export default function PublicEpisode({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { show, links, episode, credits, upNext } = loaderData;
+  const { show, links, episode, credits, upNext, audio } = loaderData;
   const guests = credits.filter((c) => c.role === "guest").map((c) => c.name);
   const hosts = credits.filter((c) => c.role === "host").map((c) => c.name);
   const meta = [
@@ -64,9 +64,18 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
           {meta.join(" · ")}
         </p>
 
-        <div className="pub-tint" style={{ margin: "20px 0" }}>
-          Audio isn't available on this page yet.
-        </div>
+        {audio ? (
+          <div style={{ margin: "20px 0" }}>
+            <audio controls preload="none" src={audio.src} style={{ width: "100%" }} aria-label={`Play ${episode.title}`} />
+            <a href={audio.src} download className="pub-muted" style={{ fontSize: 13 }}>
+              Download MP3
+            </a>
+          </div>
+        ) : (
+          <div className="pub-tint" style={{ margin: "20px 0" }}>
+            Audio isn't available on this page yet.
+          </div>
+        )}
 
         <section>
           <h2>Show notes</h2>
