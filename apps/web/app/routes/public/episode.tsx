@@ -11,6 +11,7 @@ import { formatClock, formatDate, formatDuration, initials } from "~/components/
 import { episodeTrack } from "~/components/public/track";
 import { AudioPlayer } from "~/components/public/audio-player";
 import { ShareMenu } from "~/components/public/small";
+import { ShowNotes } from "~/components/public/show-notes";
 import { DIRECTORY_ICONS } from "~/lib/directory-icons";
 import type { DirectoryId } from "~/lib/directories";
 import { pageMeta, jsonLdMeta, episodeJsonLd } from "~/lib/seo";
@@ -78,7 +79,6 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
   const guests = credits.filter((c) => c.role === "guest").map((c) => c.name);
   const season = episode.season != null && episode.number != null ? `S${episode.season} · Ep. ${episode.number}` : episode.number != null ? `Ep. ${episode.number}` : null;
   const next = (e: { publicId: string; slug: string }) => `/${show.slug}/episodes/${e.publicId}/${e.slug}`;
-  const paragraphs = episode.description ? episode.description.split(/\n{2,}/) : [];
 
   return (
     <>
@@ -156,16 +156,10 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
               )}
             </div>
 
-            {paragraphs.length > 0 && (
-              <section className="pub-section" style={{ marginTop: 40 }}>
-                <h2>About this episode</h2>
-                <div className="pub-notes">
-                  {paragraphs.map((para, i) => (
-                    <p key={i} style={{ whiteSpace: "pre-line" }}>
-                      {para}
-                    </p>
-                  ))}
-                </div>
+            {episode.description && (
+              <section className="pub-section" style={{ marginTop: 40 }} aria-labelledby="notes">
+                <h2 id="notes">About this episode</h2>
+                <ShowNotes text={episode.description} track={track} queue={queue} />
               </section>
             )}
 

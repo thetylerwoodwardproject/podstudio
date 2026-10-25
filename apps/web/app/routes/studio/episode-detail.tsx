@@ -135,9 +135,14 @@ export default function EpisodeDetail({
             id="description"
             name="description"
             defaultValue={episode.description ?? ""}
-            rows={4}
+            rows={8}
             className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
           />
+          <p className="text-[12px] text-muted-foreground">
+            These are the show notes: shown on the episode page, as the snippet in the episode list, and in podcast apps.
+            Plain text — web links and timestamps like <span className="font-mono">12:34</span> become clickable, and lines
+            starting with <span className="font-mono">-</span> become a bullet list.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-end gap-4">

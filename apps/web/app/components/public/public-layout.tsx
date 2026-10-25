@@ -115,6 +115,11 @@ export function publicCss(brand: BrandTheme) {
 .pub-meta span{display:inline-flex;align-items:center;gap:7px}.pub-meta svg{width:14px;height:14px;opacity:.8}
 .pub-ep-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:48px;margin-top:32px;align-items:start}
 .pub-notes p{margin:0 0 14px;font-size:16.5px;line-height:1.7;max-width:68ch}
+.pub-notes ul{margin:0 0 14px;padding-left:22px;max-width:68ch;font-size:16.5px;line-height:1.7}
+.pub-notes li{margin:2px 0}
+.pub-notes a{overflow-wrap:anywhere}
+.pub-ts{background:var(--brand-tint);color:var(--brand-link);border:0;border-radius:6px;padding:1px 7px;font-size:.88em;cursor:pointer}
+.pub-ts:hover{filter:brightness(1.15)}
 .pub-people{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .pub-person{display:flex;align-items:center;gap:12px;padding:14px 16px}
 .pub-person .pub-avatar{width:40px;height:40px;font-size:13px;margin:0;border:0}

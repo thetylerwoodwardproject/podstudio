@@ -48,11 +48,34 @@ export async function action({ request }: { request: Request }) {
   return null;
 }
 
-const TAGS: { label: string; real: (d: NonNullable<Awaited<ReturnType<typeof loader>>["data"]>) => boolean; missing: string }[] = [
+type TagRow = {
+  label: string;
+  real: (d: NonNullable<Awaited<ReturnType<typeof loader>>["data"]>) => boolean;
+  missing: string;
+  /** Where the studio lets you fix it (label + path), shown as a link. */
+  fix?: (id: string) => { label: string; to: string };
+};
+const TAGS: TagRow[] = [
   { label: "title, guid, pubDate", real: () => true, missing: "" },
   { label: "itunes:season / episode / duration / explicit", real: () => true, missing: "" },
-  { label: "podcast:person", real: (d) => d.credits.length > 0, missing: "no people credited on this episode" },
-  { label: "enclosure (MP3)", real: (d) => !!d.audio, missing: "no verified audio file — upload one on the episode page" },
+  {
+    label: "description (show notes)",
+    real: (d) => !!d.episode.description?.trim(),
+    missing: "no description — it is the show notes on the episode page and in podcast apps",
+    fix: (id) => ({ label: "Add it in Episode details", to: `/studio/episodes/${id}#description` }),
+  },
+  {
+    label: "podcast:person",
+    real: (d) => d.credits.length > 0,
+    missing: "no people credited on this episode",
+    fix: (id) => ({ label: "Credit people in Episode details", to: `/studio/episodes/${id}#credit-name` }),
+  },
+  {
+    label: "enclosure (MP3)",
+    real: (d) => !!d.audio,
+    missing: "no verified audio file",
+    fix: (id) => ({ label: "Upload it in Episode details", to: `/studio/episodes/${id}#audio-file` }),
+  },
   { label: "podcast:transcript", real: () => false, missing: "no transcript — Stage 07" },
   { label: "podcast:chapters", real: () => false, missing: "no chapters yet" },
   { label: "podcast:soundbite", real: () => false, missing: "no soundbites yet" },
@@ -217,6 +240,11 @@ export default function Publish({
                     <span aria-hidden>{ok ? "✓" : "–"}</span>
                     <span className={ok ? "" : "text-muted-foreground"}>{t.label}</span>
                     {!ok && <span className="text-[11.5px] text-muted-foreground">— {t.missing}</span>}
+                    {!ok && t.fix && (
+                      <Link to={t.fix(data.episode.id).to} className="text-[11.5px] text-foreground underline underline-offset-2">
+                        {t.fix(data.episode.id).label} →
+                      </Link>
+                    )}
                   </li>
                 );
               })}
