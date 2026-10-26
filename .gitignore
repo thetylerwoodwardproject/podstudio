@@ -12,3 +12,5 @@ data/*.db-*
 .vite
 build/
 deploy/certs/
+
+CLAUDE.md

@@ -144,9 +144,8 @@ A pnpm + Turborepo monorepo: `apps/web` (React Router 8 on Express, React 19), `
 audio utilities and the UI kit. Auth is Better Auth with one admin account. Public pages set no cookies
 and load no third-party scripts.
 
-Start with [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state of every screen, then
-[`CLAUDE.md`](CLAUDE.md) for the working rules. `docs/design/Podstudio v2.dc.html` is the visual
-reference; open it in a browser.
+Start with [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state of every screen.
+`docs/design/Podstudio v2.dc.html` is the visual reference; open it in a browser.
 
 ## Made by
 
