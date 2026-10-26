@@ -1,5 +1,6 @@
 // The local journal: captured chunks are written to IndexedDB *before* they count as
-// "saved locally", and kept until the server has verified the finished recording.
+// "saved locally", and kept until the server has verified that chunk (the bytes are then
+// dropped, leaving only the tiny meta row, so storage holds just the unverified backlog).
 // (IndexedDB rather than OPFS: it is available everywhere the recorder runs, and
 // per-chunk transactions are durable.) Write failures — including quota — surface
 // as JournalError so the screen can say so instead of silently losing audio.
@@ -97,6 +98,16 @@ export const journal = {
     const store = tx.objectStore("chunkMeta");
     const cur = (await get(store.get([recordingId, sequence]))) as ChunkMeta | undefined;
     if (cur) store.put({ ...cur, uploaded: true });
+    await done(tx);
+  },
+  /** The server has verified this chunk: drop its bytes (keep the meta row) so the journal only holds the backlog. */
+  async markUploadedAndDrop(recordingId: string, sequence: number) {
+    const db = await open();
+    const tx = db.transaction(["chunkMeta", "chunkData"], "readwrite");
+    const store = tx.objectStore("chunkMeta");
+    const cur = (await get(store.get([recordingId, sequence]))) as ChunkMeta | undefined;
+    if (cur) store.put({ ...cur, uploaded: true });
+    tx.objectStore("chunkData").delete([recordingId, sequence]);
     await done(tx);
   },
   async deleteRecording(id: string) {

@@ -324,6 +324,11 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
             </dl>
             {st.waiting && <p className="mt-2 text-[12.5px] text-host" role="status" data-testid="waiting">{st.waiting}</p>}
             {st.localError && <p className="mt-2 text-[12.5px] text-destructive" role="alert" data-testid="local-error">{st.localError}</p>}
+            {st.unsafeChunks > 0 && (
+              <p className="mt-2 rounded border border-destructive/60 bg-destructive/10 p-2 text-[12.5px] font-medium text-destructive" role="alert" data-testid="unsafe-audio">
+                {st.unsafeChunks * 2} seconds of audio exist only in this tab right now — they are not saved on this computer or the server yet. Keep this tab open{st.waiting ? " until the connection is back" : ""}.
+              </p>
+            )}
             <p className="mt-2 text-[11.5px] text-muted-foreground">Audio stays on this computer until the server has checked it, so a dropped connection or a closed tab doesn't lose it.</p>
           </section>
 

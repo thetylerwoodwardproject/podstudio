@@ -38,7 +38,7 @@ while (Date.now()-t0 < total) {
     const saved=parseInt(await p.innerText('[data-testid=saved]')), ver=parseInt(await p.innerText('[data-testid=verified]')); const timer=await p.innerText('[data-testid=timer]'); const m=await mem(); const st=await idb();
     maxBacklog=Math.max(maxBacklog,saved-ver); maxHeap=Math.max(maxHeap,m?.heap??0); maxStore=Math.max(maxStore,st);
     const warn=await p.locator('[data-testid=waiting]').count()?await p.locator('[data-testid=waiting]').innerText():""; const le=await p.locator('[data-testid=local-error]').count();
-    log(`t=${timer} saved=${saved} verified=${ver} backlog=${saved-ver} heap=${m?.heap}MB storage=${st}MB ${warn?"WAITING:"+warn:""} ${le?"LOCAL-ERROR":""} | ${dstats()}`);
+    log(`t=${timer} saved=${saved} verified=${ver} backlog=${saved-ver} heap=${m?.heap}MB storage=${st}MB ${warn?"WAITING:"+warn:""} ${le?"LOCAL-ERROR: "+(await p.locator('[data-testid=local-error]').innerText()):""} | ${dstats()}`);
     samples.push({el,saved,ver,heap:m?.heap});
   }
 }
@@ -49,6 +49,7 @@ log("finished; stop → verified WAV took",finishS.toFixed(1),"s");
 const ftxt=await p.innerText('[data-testid=finished]'); ok("finished complete (server verified)", ftxt.includes("Server verified")&&!(await p.locator('[data-testid=incomplete-note]').count()), ftxt.replace(/\n+/g," | ").slice(0,140));
 ok("page had no JS errors / no local journal errors", errs.length===0 && (await p.locator('[data-testid=local-error]').count())===0, JSON.stringify(errs));
 log("max backlog (saved - verified):",maxBacklog,"chunks | max JS heap:",maxHeap,"MB | max browser storage:",maxStore,"MB");
+ok("browser storage stayed small (journal drops verified chunks, <60 MB)", maxStore<60, maxStore+" MB");
 ok("uploads kept up (backlog stayed small)", maxBacklog<=3, String(maxBacklog));
 ok("JS heap stayed bounded (<150 MB)", maxHeap<150, maxHeap+" MB");
 const recId=db(`console.log(d.prepare("select id from recordings where episode_id='${epId}'").get().id)`);

@@ -35,6 +35,8 @@ export interface SessionState {
   /** Local journal write trouble (e.g. quota): audio is still being uploaded from memory but isn't safe on disk. */
   localError: string | null;
   waiting: string | null;
+  /** Chunks that exist only in this tab's memory (journal write failed and the server hasn't confirmed them yet). */
+  unsafeChunks: number;
   devices: InputDevice[];
   deviceId: string;
   deviceLabel: string;
@@ -51,7 +53,7 @@ export interface SessionState {
 }
 
 const initial: SessionState = {
-  phase: "idle", error: null, localError: null, waiting: null, devices: [], deviceId: "", deviceLabel: "", inputRate: 0, recordingId: null,
+  phase: "idle", error: null, localError: null, waiting: null, unsafeChunks: 0, devices: [], deviceId: "", deviceLabel: "", inputRate: 0, recordingId: null,
   elapsedS: 0, localChunks: 0, uploadedChunks: 0, retakes: [], finished: null, gap: null, recovered: [],
 };
 
@@ -116,8 +118,8 @@ export class SoloSession {
       onUploaded: async (seq) => {
         this.uploaded.add(seq);
         this.mem.delete(seq);
-        await journal.markUploaded(recordingId, seq).catch(() => {});
-        this.set({ uploadedChunks: this.uploaded.size });
+        await journal.markUploadedAndDrop(recordingId, seq).catch(() => {});
+        this.set({ uploadedChunks: this.uploaded.size, unsafeChunks: this.mem.size });
       },
       onFatal: (m) => this.set({ error: m, phase: "error" }),
       onWaiting: (w) => this.set({ waiting: w }),
@@ -190,7 +192,7 @@ export class SoloSession {
     } catch (err) {
       this.set({ localError: err instanceof JournalError ? err.message : String(err) });
     }
-    this.set({ recordingId: body.id, localChunks: 0, uploadedChunks: 0, retakes: [], elapsedS: 0, finished: null, gap: null, error: null, localError: null });
+    this.set({ recordingId: body.id, localChunks: 0, uploadedChunks: 0, retakes: [], elapsedS: 0, finished: null, gap: null, error: null, localError: null, unsafeChunks: 0 });
     this.makeUploader(body.id);
     this.engine.begin();
     this.heartbeat = setInterval(() => void this.beat(), 250); // bounds how precisely a lost tail can be measured
@@ -227,6 +229,7 @@ export class SoloSession {
       // Not safe on disk: say so, and hold it in memory so it can still be uploaded.
       this.set({ localError: err instanceof JournalError ? err.message : String(err) });
       this.mem.set(c.sequence, { meta, bytes: c.bytes });
+      this.set({ unsafeChunks: this.mem.size });
     }
     if (this.meta) {
       this.meta = { ...this.meta, committedSamples: Math.max(this.meta.committedSamples, c.firstSample + c.sampleCount), nextSequence: c.sequence + 1, progressSamples: Math.max(this.progress, c.firstSample + c.sampleCount) };
