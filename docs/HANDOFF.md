@@ -271,6 +271,10 @@ nav is where the db-import-in-route class of bug hides) and read the console;
 don't trust curl or a typecheck alone. Wait for the *specific new text* before
 reading the DOM. Clean up any test data from the live DB and say so.
 
+## Planned, not designed or built yet
+
+- **Teleprompter as a pop-up overlay (later stage; added 2026-10-25 at Tyler's request).** Let the teleprompter open as an overlay window on top of whatever screen is open, with the background dimmed, instead of only as a full-screen stage. Needs a design pass first (mockup, then build). Open questions for that pass: whether it floats over the recorder, the editor or both; size, position and dragging; scroll speed/font controls and keyboard shortcuts; whether it stays open while recording and how it behaves with the retake key (K); and whether a separate browser window (for a second monitor) is wanted as well. The script already exists as episode data (`saveScript`, solo recorder).
+
 ## Studio shell / sidebar (2026-10-25)
 Rebuilt after the mockup (`components/layout/studio-shell.tsx`): logo, show card (title + episode count, from `lib/shell.server.ts`), Episodes, Podcast hosting with its sub-nav (Feed, Analytics, Show tags, Podroll, Storage, Move podcast; Public page & embeds' three real pages are listed under it so Brand & theme and Public page links stay reachable), Server settings, and the user block (initials, name, role) with command-menu and sign-out buttons. The top header bar is gone (pages carry their own title). Show templates / FX presets / Writing style are shown **disabled** (no screens exist). Record, Editor, Clips and Publish to feed have no sidebar entry (as in the mockup): Publish is reached from the episode page, the rest from the ⌘K menu, which lists every screen. Also fixed: Escape now closes the ⌘K menu (it never did). `lib/screens.ts` `inSidebar` flags / `sidebarScreens()` are no longer used by the shell.
 
