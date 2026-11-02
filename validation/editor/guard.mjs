@@ -1,0 +1,16 @@
+import { launch, BASE, sleep, ok, failCount, db } from "./lib.mjs";
+import fs from "fs";
+const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
+const { b, ctx, p, errs } = await launch();
+const recId = db(`console.log(d.prepare("select id from recordings where episode_id=?").get("${epId}").id)`);
+await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]");
+await p.goto(BASE + "/studio/record/solo?episode=" + epId); await p.waitForSelector("[data-testid=take-delete]");
+await p.click("[data-testid=take-delete]");
+ok("Delete take asks first", (await p.locator("[data-testid=take-delete-confirm]").count()) === 1);
+await p.click("[data-testid=take-delete-yes]"); await sleep(1200);
+ok("refused with a reason while the project uses it", /edit project/.test(await p.innerText("[data-testid=take-delete-error]").catch(() => "")), await p.innerText("[data-testid=take-delete-error]").catch(() => "(none)"));
+ok("the take still exists", db(`console.log(d.prepare("select count(*) n from recordings where id=?").get("${recId}").n)`) === "1");
+const r = await ctx.request.delete(BASE + "/studio/recordings/" + recId);
+ok("DELETE route refuses too (409)", r.status() === 409);
+await p.screenshot({ path: "take-guard.png" });
+console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

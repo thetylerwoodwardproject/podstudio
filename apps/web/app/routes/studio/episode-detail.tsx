@@ -125,6 +125,13 @@ export default function EpisodeDetail({
             <span className="size-2 rounded-full bg-destructive" aria-hidden />
             Record
           </Link>
+          <Link
+            to={`/studio/editor?episode=${episode.id}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
+            data-testid="edit-link"
+          >
+            Edit
+          </Link>
           {episode.status === "published" && episode.visibility === "public" && (
             <ViewPublicPage path={`/episodes/${episode.publicId}/${episode.slug}`} label="View public episode page" />
           )}

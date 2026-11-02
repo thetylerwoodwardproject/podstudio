@@ -5,7 +5,7 @@ import { SCREENS } from "./lib/screens";
 // routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
-const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b", "07"]; // handled explicitly below, not generated
+const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b", "07", "08", "09", "12", "L1"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
@@ -31,12 +31,26 @@ export default [
     route("feed/artwork", "routes/studio/show-artwork.ts"),
     route("public/banner", "routes/studio/show-banner.ts"),
     route("record/solo", "routes/studio/record-solo.tsx", { id: "screen-07" }),
+    route("editor", "routes/studio/editor.tsx", { id: "screen-08" }),
+    route("editor/retakes", "routes/studio/editor-retakes.tsx", { id: "screen-09" }),
+    route("export", "routes/studio/export-redirect.tsx", { id: "screen-12" }),
+    route("library", "routes/studio/library.tsx", { id: "screen-L1" }),
+    route("projects/:episodeId", "routes/studio/project.ts"),
+    route("projects/:episodeId/start", "routes/studio/project-start.ts"),
+    route("projects/:episodeId/exports", "routes/studio/project-exports.ts"),
+    route("projects/:episodeId/imports", "routes/studio/project-imports.ts"),
+    route("library/items", "routes/studio/library-items.ts"),
+    route("library/items/:id", "routes/studio/library-item.ts"),
+    route("exports/:jobId", "routes/studio/export-item.ts"),
     route("recordings", "routes/studio/recordings.ts"),
     route("recordings/:id", "routes/studio/recording.ts"),
     route("recordings/:id/chunks/:seq", "routes/studio/recording-chunk.ts"),
     route("recordings/:id/annotations", "routes/studio/recording-annotations.ts"),
     route("recordings/:id/finalize", "routes/studio/recording-finalize.ts"),
     route("recordings/:id/audio", "routes/studio/recording-audio.ts"),
+    route("recordings/:id/peaks", "routes/studio/recording-peaks.ts"),
+    route("assets/:id/audio", "routes/studio/asset-audio.ts"),
+    route("assets/:id/peaks", "routes/studio/asset-peaks.ts"),
     route("people", "routes/studio/people.tsx", { id: "screen-33" }),
     route("people/:id", "routes/studio/person-detail.tsx", { id: "screen-33b" }),
     route("people/:id/avatar", "routes/studio/person-avatar.ts"),

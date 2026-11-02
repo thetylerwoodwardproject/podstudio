@@ -202,6 +202,9 @@ importers:
       '@fortawesome/react-fontawesome':
         specifier: ^0.2.6
         version: 0.2.6(@fortawesome/fontawesome-svg-core@6.7.2)(react@19.3.1)
+      '@podstudio/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
       '@podstudio/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -323,9 +326,21 @@ importers:
 
   apps/worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1152.0
+        version: 3.1152.0
+      '@aws-sdk/lib-storage':
+        specifier: ^3.1156.0
+        version: 3.1156.0(@aws-sdk/client-s3@3.1152.0)
+      '@podstudio/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
       '@podstudio/db':
         specifier: workspace:*
         version: link:../../packages/db
+      drizzle-orm:
+        specifier: ^0.44.6
+        version: 0.44.7(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)(kysely@0.29.7)
     devDependencies:
       '@types/node':
         specifier: ^22
@@ -333,6 +348,12 @@ importers:
       tsx:
         specifier: ^4.19.4
         version: 4.23.15
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/audio:
+    devDependencies:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

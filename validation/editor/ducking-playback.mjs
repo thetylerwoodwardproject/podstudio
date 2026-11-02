@@ -1,0 +1,10 @@
+import { launch, BASE, sleep, ok, failCount } from "./lib.mjs";
+import fs from "fs";
+const epId=fs.readFileSync(new URL("./epid.txt",import.meta.url),"utf8").trim();
+const {b,p,errs}=await launch();
+await p.goto(BASE+"/studio/editor?episode="+epId); await p.waitForSelector('[data-testid=canvas-host]'); await sleep(800);
+await p.click('[role=tab]:has-text("Ducking")'); await sleep(300);
+await p.click('[data-testid=play]'); await sleep(5000); const clk=await p.innerText('[data-testid=clock]'); await p.keyboard.press("Space");
+ok("playback with ducking active advances and raises no errors", !clk.startsWith("0:00.0") && errs.length===0, clk.replace(/\n/g," ")+" "+JSON.stringify(errs));
+await p.screenshot({path:"duck-panel.png"});
+console.log("FAILS",failCount()); await b.close();

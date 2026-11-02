@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
   Mic,
+  Music,
   Rss,
   Layers,
   SlidersHorizontal,
@@ -196,6 +197,14 @@ export function StudioShell({
           >
             <Mic className="size-4" />
             Episodes
+          </NavLink>
+
+          <NavLink
+            to="/studio/library"
+            className={({ isActive }) => cn(row, "text-muted-foreground hover:text-foreground", isActive && "bg-sidebar-accent font-semibold text-foreground shadow-[inset_3px_0_0_var(--studio-nav-bar,transparent)]")}
+          >
+            <Music className="size-4" />
+            Library
           </NavLink>
 
           <div className="relative">

@@ -48,6 +48,7 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
   const [toast, setToast] = useState<string | null>(null);
   const saver = useFetcher();
   const deleter = useFetcher();
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // ---- lifecycle -----------------------------------------------------------------
@@ -374,9 +375,20 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
                       </p>
                     )}
                     {(r.status === "complete" || r.status === "incomplete") && <audio controls preload="none" src={`/studio/recordings/${r.id}/audio`} className="mt-2 w-full" aria-label="Play this take" />}
-                    <button type="button" onClick={() => deleter.submit({ intent: "delete-recording", id: r.id }, { method: "post" })} className="mt-2 text-[12px] text-destructive underline underline-offset-2">
-                      Delete take
-                    </button>
+                    {confirmDelete === r.id ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]" data-testid="take-delete-confirm">
+                        <span>Delete this take for good? Its audio can't be recovered.</span>
+                        <Button size="sm" variant="destructive" className="h-7" onClick={() => { deleter.submit({ intent: "delete-recording", id: r.id }, { method: "post" }); setConfirmDelete(null); }} data-testid="take-delete-yes">Delete take</Button>
+                        <Button size="sm" variant="outline" className="h-7" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <Button variant="link" size="sm" onClick={() => setConfirmDelete(r.id)} className="mt-1 h-7 px-0 text-[12px] text-destructive" data-testid="take-delete">
+                        Delete take
+                      </Button>
+                    )}
+                    {(deleter.data as { id?: string; error?: string } | undefined)?.id === r.id && (deleter.data as { error?: string }).error && (
+                      <p className="mt-1 text-[12px] text-destructive" role="alert" data-testid="take-delete-error">{(deleter.data as { error: string }).error}</p>
+                    )}
                   </li>
                 ))}
               </ul>

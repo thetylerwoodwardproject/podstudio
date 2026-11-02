@@ -1,5 +1,52 @@
 # Changelog
 
+## 2026-11-02 — Editor round 2 (Tyler's requests during use; uncommitted, awaiting review)
+- Add-track popover with library items; track context menu + ⋯ popover: rename, colour (`Track.color`), mute/solo/lock, delete.
+- Range selection on tracks (drag / Shift+drag / Range tool R, multi-track), right-click actions incl. delete from one track only; Delete = leave gap, Shift+Delete = ripple (swapped).
+- Gapless loop of the selection (C). Crossfades by overlapping clips (derived fades, exact).
+- Track meters + master meter (dBFS ⇄ LUFS: M/S/I, TP, LRA) on a shared BS.1770 implementation.
+- Export always loudness-normalised: mono −19 LUFS / stereo −16 LUFS, ≤ −1 dBTP true-peak limiter, stereo option; verified with ffmpeg ebur128 (−19.0 / −16.0).
+- Bottom transport, decluttered header, collapsible inspector, shadcn primitives added (popover, context-menu, switch, toggle(-group), tabs, tooltip) and used for all new UI.
+- Public show page: socials removed from the hero (footer only).
+- Later the same day: take deletion guarded (Record screen asked nothing and skipped the in-use check — Tyler's project lost a take's audio); editor survives missing audio (banner + remove clips); per-track volume fader; wheel = tracks, Shift+wheel = sideways; **Simple editor (Hindenburg-style) with an Advanced switch**, library sidebar with drag-to-track, tinted named clips, ruler marks, transport master meter.
+- Tests: unit 233 (BS.1770 reference cases, limiter, normalisation, crossfades); browser scripts track-menus, range-loop, crossfade, meters, loud-export.
+
+## 2026-11-01 — Stage 04: core editor, retake cleanup, uploads, WAV export (awaiting review)
+- **Project document** (`packages/audio`, new): integer-sample clips, tracks (mute/solo/lock/height), annotations
+  anchored to source samples, split/trim/move/delete, ripple and gap cuts across linked tracks, original-to-edited
+  time map, validation of untrusted JSON, undo/redo. `projects` + `project_revisions` (migration 0012): each autosave
+  appends an immutable revision; a stale save gets 409 + the current revision and the editor offers
+  Load newer / Keep mine.
+- **Editor** (screen 08) at `/studio/editor?episode=`: virtualised canvas timeline, own bounded-memory Web Audio
+  player (10 s windows by HTTP Range) instead of waveform-playlist, peaks cached beside each recording
+  (2.6 MB for 2 h), inspector (gain, fades, track, marks), keyboard map without the S=split/solo clash.
+- **Retake cleanup** (screen 09): proposals from the 1 kHz tone + pauses, audition, nudge, one undoable apply.
+- **Upload audio**: original kept privately, worker decodes with ffmpeg (now in the worker image) to 48 kHz mono
+  24-bit, verified by read-back + SHA-256; placed on a track as one undoable edit. Drag and drop, "+ Add track".
+- **Export** (screen 12, Audio tab): `render_jobs` (migration 0013) + worker runner with atomic claims, renewed
+  leases, cancel, failure cleanup; shared render path with mute/solo, gain/fades, 44.1 kHz conversion, seeded
+  16-bit dither; read-back verified; download.
+- **Measured**: export vs the edit's definition −163 dBFS (24-bit), 2-hour/8-track project opens and paints in
+  0.4 s, edits 60–120 ms, export 57 s at ~312 MiB. Full list and the gaps in HANDOFF.md.
+- **Fixed on the way**: Garage's wrong whole-object CRC32 aborted SDK reads (disabled response-checksum
+  validation, integrity is our SHA-256); the save indicator stuck on "Unsaved" after undo+redo back to the saved
+  state; trim drags compared against the live preview instead of the drag start; episode deletion failed with a
+  foreign-key error when uploaded audio existed.
+- **Follow-up (same day, after first use):** waveform columns now anchored to the clip and snapped to whole pixels (no
+  swimming while dragging or trackpad-scrolling); canvas drawn as a 3-viewport tile in content space so scrolling is
+  native; drag updates coalesced per frame; per-track redraw; horizontal overscroll contained; retake cut now also
+  removes the tail of a phrase when K was pressed mid-sentence. Unit tests 201.
+- **Follow-up 2 (from a screenshot):** lanes/ruler run full width; styled sliders and scrollbars; DAW wheel behaviour
+  (wheel = sideways, Shift = vertical, Ctrl/⌘/pinch = zoom at the pointer); zoom-out stops at fit; playhead clamped
+  after shortening edits; one-line header.
+- **Follow-up 3 (Tyler's requests):** fades by dragging a clip's top corners; **ducking** (which tracks duck, what triggers —
+  all host+guest or picked tracks — amount/threshold/attack/release; same DSP in preview and export, export checked to
+  −155 dBFS against an independent reference); **Library** of reusable audio (page, worker conversion, add from the
+  editor, in-use delete protection; migration 0014). Track names rename in place. Unit tests 211.
+- Not done: CI/lint/`pnpm e2e` (scripts live in `validation/editor/`), preview-vs-export parity through Web Audio,
+  mockup layout parity (transport placement, in-timeline retake regions), PREBUILD budgets (none recorded).
+
+
 ## 2026-10-23 (end of day) — Security headers
 - `server.js` now sets `X-Content-Type-Options: nosniff`, `Referrer-Policy:
   strict-origin-when-cross-origin` and `X-Frame-Options: SAMEORIGIN` on every

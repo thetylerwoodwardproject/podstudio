@@ -43,11 +43,12 @@ export const SCREENS: ScreenDef[] = [
   { id: "07", label: "Solo prompter", path: "/studio/record/solo", area: "studio", section: "Record", inSidebar: false, real: true, note: "Stage 03: record in the browser (24-bit 48 kHz), journaled + verified chunk uploads, retake tone on K, recovery, playback; script is manual/steady scroll — voice following is Stage 13" },
 
   // Edit
-  { id: "08", label: "Editor", path: "/studio/editor", area: "studio", section: "Edit", inSidebar: true, real: false },
-  { id: "09", label: "Retake cleanup", path: "/studio/editor/retakes", area: "studio", section: "Edit", inSidebar: false, real: false },
+  { id: "08", label: "Editor", path: "/studio/editor", area: "studio", section: "Edit", inSidebar: true, real: true, note: "Stage 04: versioned project document, canvas timeline (2 h / 8 tracks), split/trim/move/ripple, gain/fades, undo, autosave revisions + conflict detection, audio upload (ffmpeg), WAV export in the worker. No FX/loudness/video/transcript yet" },
+  { id: "09", label: "Retake cleanup", path: "/studio/editor/retakes", area: "studio", section: "Edit", inSidebar: false, real: true, note: "Stage 04: a docked panel inside the editor (this route opens it); proposals from the tone + pauses, audition, nudge, apply as one undoable edit. No transcript refinement (Stage 07)" },
+  { id: "L1", label: "Library", path: "/studio/library", area: "studio", section: "Edit", inSidebar: false, real: true, note: "Stage 04 follow-up: the show's reusable audio (intros, outros, stingers, beds, SFX); upload, preview, rename, delete; added to episodes from the editor" },
   { id: "10", label: "Transcript", path: "/studio/editor/transcript", area: "studio", section: "Edit", inSidebar: false, real: false },
   { id: "11", label: "Episode details", path: "/studio/episodes/:id", area: "studio", section: "Edit", inSidebar: false, real: true },
-  { id: "12", label: "Export", path: "/studio/export", area: "studio", section: "Edit", inSidebar: false, real: false },
+  { id: "12", label: "Export", path: "/studio/export", area: "studio", section: "Edit", inSidebar: false, real: true, note: "Stage 04: Audio tab only — WAV 16/24-bit, 44.1/48 kHz, rendered by the worker from a saved revision, verified, downloadable. MP3, Video and Editor-project tabs are shown disabled" },
 
   // Publish & share
   { id: "13", label: "Clips", path: "/studio/clips", area: "studio", section: "Publish & share", inSidebar: true, real: false },

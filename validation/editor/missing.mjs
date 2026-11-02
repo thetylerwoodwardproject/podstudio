@@ -1,0 +1,14 @@
+import { launch, BASE, sleep, ok, failCount } from "./lib.mjs";
+const TYLER = "b9af96ec-d7f0-4926-8acc-cca501a6ce31";
+const { b, ctx, p, errs } = await launch();
+const before = (await (await ctx.request.get(BASE + "/studio/projects/" + TYLER)).json()).seq;
+await p.goto(BASE + "/studio/editor?episode=" + TYLER); await p.waitForSelector("[data-testid=editor-stage]"); await sleep(1500);
+ok("banner explains the missing take", (await p.locator("[data-testid=missing-audio-banner]").count()) === 1, (await p.locator("[data-testid=missing-audio-banner]").innerText().catch(() => "")).slice(0, 160));
+await p.screenshot({ path: "missing-banner.png" });
+await p.click("[data-testid=play]"); const clocks = []; for (let i = 0; i < 6; i++) { await sleep(300); clocks.push(await p.innerText("[data-testid=clock]")); } console.log("clock", clocks.join(" | "));
+const toast = await p.locator("[data-testid=toast]").innerText().catch(() => "");
+ok("playback runs (clock advances, no 404 stop)", !/404/.test(toast) && clocks[0].split("/")[0] !== clocks[5].split("/")[0], toast);
+await p.click("[data-testid=play]");
+const after = (await (await ctx.request.get(BASE + "/studio/projects/" + TYLER)).json()).seq;
+ok("Tyler's project untouched (same revision)", before === after, `${before} → ${after}`);
+console.log("errors", errs.filter((e) => !/404/.test(e))); console.log("FAILS", failCount()); await b.close();
