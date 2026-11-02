@@ -17,7 +17,7 @@ Plan revised 2026-10-17 with Tyler's answers. **No implementation or technical-v
 | [01](stages/STAGE-01.md) | Accounts, shows, episodes | not started |
 | [02](stages/STAGE-02.md) | Storage | not started |
 | [03](stages/STAGE-03.md) | Solo recording | not started |
-| [04](stages/STAGE-04.md) | Core editor & retake cleanup | **built, awaiting Tyler's review** (see 2026-11-01 note) — not a pass |
+| [04](stages/STAGE-04.md) | Core editor & retake cleanup | **built and merged to `main` (PR #1, 2026-11-02), formal sign-off pending** — not yet a pass; export loudness normalisation (a Stage 05 item) built early at Tyler's request |
 | [05](stages/STAGE-05.md) | Noise reduction, voice FX, loudness & MP3 | not started |
 | [06](stages/STAGE-06.md) | Existing-show import, feed publish & protected sharing | not started |
 | [Release 1](stages/RELEASE-01.md) | Solo-audio release review (after 06) | not started |
