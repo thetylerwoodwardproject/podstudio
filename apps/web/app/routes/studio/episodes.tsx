@@ -227,6 +227,12 @@ export default function EpisodesRoute({
                       >
                         Record
                       </Link>
+                      <Link
+                        to={`/studio/editor?episode=${ep.id}`}
+                        className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
+                      >
+                        Edit
+                      </Link>
                       <Form method="post">
                         <input type="hidden" name="id" value={ep.id} />
                         <button

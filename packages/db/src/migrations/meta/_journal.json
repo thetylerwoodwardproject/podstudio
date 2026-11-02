@@ -85,6 +85,27 @@
       "when": 1792956037878,
       "tag": "0011_lethal_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793575678027,
+      "tag": "0012_sharp_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793577872131,
+      "tag": "0013_common_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793586608032,
+      "tag": "0014_condemned_exodus",
+      "breakpoints": true
     }
   ]
 }

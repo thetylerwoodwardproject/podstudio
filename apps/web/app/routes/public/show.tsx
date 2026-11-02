@@ -8,7 +8,6 @@ import { faHeart } from "@fortawesome/free-solid-svg-icons/faHeart";
 import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
 import { faRss } from "@fortawesome/free-solid-svg-icons/faRss";
 import {
-  SocialLinks,
   formatClock,
   formatDate,
   formatDuration,
@@ -77,7 +76,7 @@ export function meta({ loaderData: d }: { loaderData?: Awaited<ReturnType<typeof
 }
 
 export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { show, links, hosts, recommended, latest, episodes, total, allTotal, q, sinceYear, page, pageCount, view } = loaderData;
+  const { show, hosts, recommended, latest, episodes, total, allTotal, q, sinceYear, page, pageCount, view } = loaderData;
   const player = usePlayer();
   const href = (e: { publicId: string; slug: string }) => `/${show.slug}/episodes/${e.publicId}/${e.slug}`;
   const eyebrow = [
@@ -157,7 +156,6 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
                 Website
               </a>
             )}
-            <SocialLinks links={links} labelled />
           </div>
         </div>
       </section>

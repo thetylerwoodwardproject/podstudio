@@ -1,0 +1,34 @@
+import { launch, BASE, sleep, ok, failCount, resetProject, clearImports } from "./lib.mjs";
+import fs from "fs";
+const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
+const { b, ctx, p, errs } = await launch();
+resetProject(epId); await clearImports(ctx, epId);
+await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
+await p.evaluate(() => localStorage.removeItem("podstudio.editor.meter"));
+ok("master meter shown, dBFS by default", (await p.getAttribute("[data-testid=master-meter]", "data-mode")) === "dbfs");
+ok("each track has a level meter", (await p.locator("[data-testid=track-host] [data-testid=track-meter]").count()) === 1);
+await p.click("[data-testid=play]"); await sleep(2500);
+const trackBar = await p.locator("[data-testid=track-host] [data-testid=track-meter] [data-slot=level-meter-bar]").evaluate((e) => getComputedStyle(e).transform + " " + e.getAttribute("style"));
+const dbfs = await p.innerText("[data-testid=dbfs-value]");
+ok("master dBFS readout moves while playing", /−?\d/.test(dbfs) && !dbfs.startsWith("−∞"), dbfs);
+await p.screenshot({ path: "meters-dbfs.png" });
+// click the meter body to switch
+await p.click("[data-testid=master-meter-body]"); await sleep(1500);
+ok("clicking the meter switches to LUFS", (await p.getAttribute("[data-testid=master-meter]", "data-mode")) === "lufs");
+ok("momentary loudness is live", /\d/.test(await p.innerText("[data-testid=lufs-momentary]")), await p.innerText("[data-testid=lufs-momentary]"));
+await p.screenshot({ path: "meters-lufs.png" });
+// let it play to the end, then compare integrated with the export's measurement of this mix (−21.3 LUFS)
+await p.waitForFunction(() => document.querySelector("[data-testid=play]").getAttribute("aria-label") === "Play", null, { timeout: 40000 });
+await sleep(400);
+const I = parseFloat((await p.innerText("[data-testid=lufs-integrated]")).replace("−", "-"));
+ok("integrated after the whole take ≈ the export's measurement of the mix (−21.3 LUFS ±1)", Math.abs(I + 21.3) <= 1, String(I));
+const TP = parseFloat((await p.innerText("[data-testid=lufs-tp]")).replace("−", "-"));
+ok("true peak reported", Number.isFinite(TP), String(TP));
+await p.click("[data-testid=loudness-reset]"); await sleep(200);
+ok("reset clears integrated", (await p.innerText("[data-testid=lufs-integrated]")).includes("∞"));
+await p.reload(); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(500);
+ok("meter mode remembered", (await p.getAttribute("[data-testid=master-meter]", "data-mode")) === "lufs");
+await p.evaluate(() => localStorage.removeItem("podstudio.editor.meter"));
+console.log("track bar", trackBar);
+resetProject(epId);
+console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

@@ -8,10 +8,12 @@ const D=require("better-sqlite3");const d=new D("/data/podstudio.db");
 const t=(n)=>d.prepare(`select count(*) n from ${n}`).get().n;
 console.log(JSON.stringify({show:d.prepare("select title,description,website,locked,podcast_tags,settings,theme from shows").get(),
  episodes:d.prepare("select id,title,status,visibility,season,number,explicit,publish_at from episodes order by id").all(),
- counts:{users:t("users"),sessions:t("sessions"),people:t("people"),episode_people:t("episode_people"),show_links:t("show_links"),podroll:t("podroll_items"),txt:t("show_txt_records"),storage:t("storage_targets")}}));
+ counts:{library_items:t("library_items"),project_revisions:t("project_revisions"),render_jobs:t("render_jobs"),recordings:t("recordings"),users:t("users"),sessions:t("sessions"),people:t("people"),episode_people:t("episode_people"),show_links:t("show_links"),podroll:t("podroll_items"),txt:t("show_txt_records"),storage:t("storage_targets")}}));
 JS
 }
 post() { curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "%{http_code} " -X POST -H "Origin: https://$H" --data "$2" "https://$H/studio/$1"; }
+# An episode that has an edit project, so the project/export probes would really write if the guard failed.
+EP=$(docker compose -f /home/tylerw/podstudio/deploy/docker-compose.yml exec -T web node -e 'const D=require("better-sqlite3");const d=new D("/data/podstudio.db");const r=d.prepare("select episode_id e from projects limit 1").get()||d.prepare("select id e from episodes limit 1").get();console.log(r?r.e:"none")' | tr -d '\r\n')
 BEFORE=$(snap)
 echo -n "POST statuses: "
 post podroll "intent=toggle-public&value=true"; post podroll "intent=add-item&title=Z&feedGuid=11111111-2222-3333-4444-555555555555"
@@ -24,6 +26,13 @@ post episodes "intent=create&title=UnauthProbe"
 post feed/lock-verify "intent=add-txt&value=hacked"
 post settings/server "intent=add-user&name=E&email=e@e.invalid&password=whatever123&role=admin"
 curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "signup:%{http_code} " -X POST -H "Origin: https://$H" -H "Content-Type: application/json" -d '{"name":"P","email":"signup-probe@example.invalid","password":"probe-pass-1234"}' "https://$H/api/auth/sign-up/email"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "project-save:%{http_code} " -X POST -H "Origin: https://$H" -H "Content-Type: application/json" -d '{"baseRevisionId":"x","document":{}}' "https://$H/studio/projects/$EP"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "export-create:%{http_code} " -X POST -H "Origin: https://$H" -H "Content-Type: application/json" -d '{"bitDepth":24,"sampleRate":48000}' "https://$H/studio/projects/$EP/exports"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "export-delete:%{http_code} " -X DELETE -H "Origin: https://$H" "https://$H/studio/exports/x"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "library-put:%{http_code} " -X PUT -H "Origin: https://$H" -H "X-Filename: x.wav" --data-binary "RIFFxxxx" "https://$H/studio/library/items"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "library-patch:%{http_code} " -X PATCH -H "Origin: https://$H" -H "Content-Type: application/json" -d '{"name":"hacked"}' "https://$H/studio/library/items/x"
+curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "library-delete:%{http_code} " -X DELETE -H "Origin: https://$H" "https://$H/studio/library/items/x"
+for g in "library/items" "assets/x/audio" "projects/$EP" "projects/$EP/exports" "exports/x" "recordings/x/peaks"; do curl --resolve $H:443:127.0.0.1 -k -s -o /dev/null -w "GET-$g:%{http_code} " "https://$H/studio/$g"; done
 post storage "intent=add-target&provider=minio&label=x&endpoint=http://x&bucket=b&accessKeyId=a&secretAccessKey=s"
 echo
 for p in storage settings/server episodes feed/tags podroll; do
@@ -39,6 +48,7 @@ d.prepare("delete from show_links where value like ?").run("%@a@b.c%").changes;
 d.prepare("delete from show_txt_records where value=?").run("hacked");
 d.prepare("delete from users where email in (?,?)").run("e@e.invalid","signup-probe@example.invalid");
 d.prepare("delete from storage_targets where label=?").run("x");
+d.prepare("delete from render_jobs where created_at > ? and status='queued'").run(Date.now()-600000);
 console.log("cleanup ran");
 JS
 }

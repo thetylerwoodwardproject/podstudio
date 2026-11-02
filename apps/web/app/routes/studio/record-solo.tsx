@@ -1,6 +1,7 @@
 import { Link, useRevalidator } from "react-router";
 import { useEffect } from "react";
-import { deleteRecording, getSoloContext, listEpisodesToRecord, saveScript } from "~/lib/recordings.server";
+import { getSoloContext, listEpisodesToRecord, saveScript } from "~/lib/recordings.server";
+import { deleteRecordingIfUnused } from "~/lib/project/project.server";
 import { SoloStage } from "~/components/recorder/solo-stage";
 import { StatusBadge } from "~/components/ui/status-badge";
 
@@ -19,7 +20,11 @@ export async function action({ request }: { request: Request }) {
   const form = await request.formData();
   const id = new URL(request.url).searchParams.get("episode") ?? "";
   if (form.get("intent") === "save-script") saveScript(id, String(form.get("script") ?? ""));
-  if (form.get("intent") === "delete-recording") await deleteRecording(String(form.get("id") ?? ""));
+  if (form.get("intent") === "delete-recording") {
+    const recId = String(form.get("id") ?? "");
+    const r = await deleteRecordingIfUnused(recId);
+    if (!r.ok) return { ok: false, id: recId, error: r.error };
+  }
   return { ok: true };
 }
 

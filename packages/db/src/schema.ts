@@ -11,6 +11,7 @@ import {
   sqliteTable,
   text,
   integer,
+  real,
   uniqueIndex,
   index,
   primaryKey,
@@ -455,4 +456,101 @@ export const recordingChunks = sqliteTable(
     verifiedAt: integer("verified_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.recordingId, t.sequence] })],
+);
+
+// Stage 04: the application-owned editing project (one per episode). The document is
+// the versioned JSON from apps/web/app/lib/project/document.ts; every save appends an
+// immutable revision whose `parent_id` must be the current one (conflict detection).
+export const projects = sqliteTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    episodeId: text("episode_id")
+      .notNull()
+      .references(() => episodes.id),
+    schemaVersion: integer("schema_version").notNull(),
+    currentRevisionId: text("current_revision_id"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("projects_episode_uq").on(t.episodeId)],
+);
+
+export const projectRevisions = sqliteTable(
+  "project_revisions",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id),
+    parentId: text("parent_id"),
+    seq: integer("seq").notNull(),
+    document: text("document", { mode: "json" }).notNull(),
+    // Source-to-edited segments at this revision, for transcripts/chapters/renders to remap against.
+    timeMap: text("time_map", { mode: "json" }).notNull(),
+    label: text("label"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("project_revisions_seq_uq").on(t.projectId, t.seq)],
+);
+
+// Stage 04: export (render) jobs. A narrow, durable queue for this one job kind — not Stage 00's
+// general job runner. The worker claims a job atomically, holds a lease it renews while it runs,
+// and a job whose lease lapsed (worker restarted) is picked up again. Each job renders one exact
+// project revision, so an export always says which edit it came from.
+export const renderJobStatus = ["queued", "running", "verified", "failed", "cancelled"] as const;
+export const renderJobs = sqliteTable(
+  "render_jobs",
+  {
+    id: text("id").primaryKey(),
+    episodeId: text("episode_id")
+      .notNull()
+      .references(() => episodes.id),
+    projectRevisionId: text("project_revision_id").notNull(),
+    revisionSeq: integer("revision_seq").notNull(),
+    kind: text("kind").notNull(), // "wav"
+    settings: text("settings", { mode: "json" }).notNull(), // { bitDepth: 16|24, sampleRate: 44100|48000 }
+    status: text("status", { enum: renderJobStatus }).notNull().default("queued"),
+    progress: real("progress").notNull().default(0),
+    assetId: text("asset_id"),
+    // { frames, peak, clipped, bytes, sha256 } once verified
+    summary: text("summary", { mode: "json" }),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseUntil: integer("lease_until"),
+    cancelRequested: integer("cancel_requested").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    startedAt: integer("started_at"),
+    finishedAt: integer("finished_at"),
+  },
+  (t) => [index("render_jobs_episode_idx").on(t.episodeId), index("render_jobs_status_idx").on(t.status)],
+);
+
+// Stage 04 follow-up: the show's library of commonly used audio (intros, outros, stingers, beds, sound
+// effects). Each item is an uploaded file converted to the project format; projects reference its
+// decoded asset like any other source, so an item can't be deleted while a project uses it.
+export const libraryItemStatus = ["queued", "running", "ready", "failed"] as const;
+export const libraryItems = sqliteTable(
+  "library_items",
+  {
+    id: text("id").primaryKey(),
+    showId: text("show_id")
+      .notNull()
+      .references(() => shows.id),
+    name: text("name").notNull(),
+    // which track an item is added to by default
+    kind: text("kind", { enum: ["music", "sfx"] }).notNull().default("music"),
+    status: text("status", { enum: libraryItemStatus }).notNull().default("queued"),
+    progress: real("progress").notNull().default(0),
+    filename: text("filename"),
+    originalAssetId: text("original_asset_id"),
+    assetId: text("asset_id"),
+    durationS: real("duration_s"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseUntil: integer("lease_until"),
+    cancelRequested: integer("cancel_requested").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    finishedAt: integer("finished_at"),
+  },
+  (t) => [index("library_items_show_idx").on(t.showId)],
 );

@@ -1,0 +1,26 @@
+import { launch, BASE, sleep, ok, failCount, resetProject, clearImports } from "./lib.mjs";
+import fs from "fs";
+const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
+const { b, ctx, p, errs } = await launch();
+resetProject(epId); await clearImports(ctx, epId);
+await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.advanced", "0"); localStorage.setItem("podstudio.editor.meter", "dbfs"); });
+await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
+const lvl = (sel) => p.$$eval(sel, (els) => els.map((e) => parseFloat(getComputedStyle(e.closest("[data-slot=level-meter-channel]") ?? e).getPropertyValue("--meter-level") || "0")));
+ok("Simple transport meter has L and R bars", (await p.locator("[data-testid=transport-left]").count()) === 1 && (await p.locator("[data-testid=transport-right]").count()) === 1);
+await p.click("[data-testid=play]");
+let seen = [];
+for (let i = 0; i < 8; i++) { await sleep(250); seen.push([...(await lvl("[data-testid=transport-left]")), ...(await lvl("[data-testid=transport-right]"))]); }
+await p.screenshot({ path: "lr-simple.png", clip: { x: 0, y: 830, width: 1440, height: 70 } });
+await p.click("[data-testid=play]");
+ok("both bars move while playing", seen.some(([l, r]) => l > 0.2 && r > 0.2), JSON.stringify(seen.map((x) => x.map((v) => v.toFixed(2)))));
+ok("a mono mix reads the same on L and R", seen.every(([l, r]) => Math.abs(l - r) < 0.02));
+await p.click("[data-testid=advanced-toggle]"); await sleep(300);
+ok("Advanced master column has L and R bars", (await p.locator("[data-testid=master-left]").count()) === 1 && (await p.locator("[data-testid=master-right]").count()) === 1);
+await p.keyboard.press("Home"); await p.click("[data-testid=play]"); await sleep(1500);
+await p.screenshot({ path: "lr-advanced.png", clip: { x: 990, y: 50, width: 140, height: 850 } });
+const adv = [...(await lvl("[data-testid=master-left]")), ...(await lvl("[data-testid=master-right]"))];
+await p.click("[data-testid=play]");
+ok("Advanced bars move too", adv[0] > 0.2 && adv[1] > 0.2, JSON.stringify(adv));
+await p.evaluate(() => localStorage.setItem("podstudio.editor.advanced", "0"));
+resetProject(epId);
+console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

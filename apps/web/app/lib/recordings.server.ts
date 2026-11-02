@@ -6,6 +6,7 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { db, assets, episodes, recordingChunks, recordings, shows, storageTargets } from "@podstudio/db";
 import { CAPTURE, wavHeader, type RetakeAnnotation } from "~/lib/capture-contract";
 import { clientFor, routedTarget } from "~/lib/media.server";
+import { peaksKeyFor } from "~/lib/project/peaks.server";
 import { analyseChunks } from "~/lib/recording-chunks";
 
 // Server-only. Solo recordings (Stage 03). The browser uploads fixed-size PCM chunks;
@@ -274,7 +275,7 @@ export async function deleteRecording(recId: string) {
   if (rec.finalAssetId) {
     const asset = db.select().from(assets).where(eq(assets.id, rec.finalAssetId)).get();
     if (asset) {
-      await deleteObjects(asset.storageTargetId, [asset.key]);
+      await deleteObjects(asset.storageTargetId, [asset.key, peaksKeyFor(asset.key)]);
       db.update(recordings).set({ finalAssetId: null }).where(eq(recordings.id, recId)).run();
       db.delete(assets).where(eq(assets.id, asset.id)).run();
     }

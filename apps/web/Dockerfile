@@ -8,6 +8,7 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/db/package.json packages/db/package.json
+COPY packages/audio/package.json packages/audio/package.json
 # better-sqlite3 needs a toolchain to build its native binding
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*

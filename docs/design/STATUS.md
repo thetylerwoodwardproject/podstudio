@@ -8,6 +8,8 @@ Plan revised 2026-10-17 with Tyler's answers. **No implementation or technical-v
 
 **2026-10-18, additional note:** three more real pieces landed (see CHANGELOG): real sign-in gating `/studio/*` (screen 01, Better Auth, single seeded admin — not Stage 01's full scope, no email flows), screen 11 (Episode details — edit/delete, real data), and screen 16 (Show tags — RSS/iTunes + a subset of Podcasting 2.0 tags). Still not a stage pass; PREBUILD stays **current**. The `users` table changed shape (now Better Auth's own, with a `role` field) — that migration baseline was reset rather than diffed, since only fixture data existed; the later `shows` column additions were a plain additive migration.
 
+**2026-11-01, additional note:** Stage 04 was built ahead of PREBUILD closing (Tyler asked to start the editor). The editor, retake cleanup, audio upload and WAV export exist and were verified in a real browser against the deployed build, with a 2-hour/8-track measurement; see HANDOFF.md → "Editor (Stage 04)" for what is proven and the checklist items that are **not** met (no CI/lint/e2e task, preview-vs-export parity not measured through Web Audio, mockup layout differences, no PREBUILD budgets to judge the measurements against, own timeline instead of waveform-playlist). Per the rules above this stops here for review; Stage 05 has not been started and PREBUILD stays **current** until you say otherwise.
+
 | Stage | Name | Status |
 |---|---|---|
 | [PREBUILD](stages/STAGE-PREBUILD.md) | Technical validation | **current** |
@@ -15,7 +17,7 @@ Plan revised 2026-10-17 with Tyler's answers. **No implementation or technical-v
 | [01](stages/STAGE-01.md) | Accounts, shows, episodes | not started |
 | [02](stages/STAGE-02.md) | Storage | not started |
 | [03](stages/STAGE-03.md) | Solo recording | not started |
-| [04](stages/STAGE-04.md) | Core editor & retake cleanup | not started |
+| [04](stages/STAGE-04.md) | Core editor & retake cleanup | **built, awaiting Tyler's review** (see 2026-11-01 note) — not a pass |
 | [05](stages/STAGE-05.md) | Noise reduction, voice FX, loudness & MP3 | not started |
 | [06](stages/STAGE-06.md) | Existing-show import, feed publish & protected sharing | not started |
 | [Release 1](stages/RELEASE-01.md) | Solo-audio release review (after 06) | not started |

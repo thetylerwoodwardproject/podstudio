@@ -31,6 +31,9 @@ export function clientFor(target: TargetRow) {
     region: target.region ?? "us-east-1",
     forcePathStyle: target.provider !== "aws",
     credentials: { accessKeyId: target.accessKeyId, secretAccessKey: target.secretAccessKey },
+    // Garage reports a wrong CRC32 for whole multipart objects, which makes the SDK abort full-object
+    // reads (downloads of big exports). Our own SHA-256 verification at write time covers integrity.
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 

@@ -6,6 +6,8 @@
 // publishes late, and a double run publishes nothing twice.
 import { sqlite } from "@podstudio/db";
 import { publishDueEpisodes } from "@podstudio/db/scheduler";
+import { runNextRenderJob } from "./render-jobs";
+import { runNextLibraryItem } from "./library-jobs";
 
 const TICK_MS = 15_000;
 const HEARTBEAT_EVERY = 4; // ticks
@@ -33,9 +35,25 @@ function tick() {
 tick();
 const timer = setInterval(tick, TICK_MS);
 
+// Export jobs: look for work every 2 s, one job at a time (a render is CPU- and memory-bound).
+let rendering = false;
+async function renderTick() {
+  if (rendering) return;
+  rendering = true;
+  try {
+    while ((await runNextRenderJob()) || (await runNextLibraryItem()));
+  } catch (err) {
+    console.error("[worker] render loop failed:", err);
+  } finally {
+    rendering = false;
+  }
+}
+const renderTimer = setInterval(() => void renderTick(), 2000);
+
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.on(sig, () => {
     clearInterval(timer);
+    clearInterval(renderTimer);
     sqlite.close();
     process.exit(0);
   });

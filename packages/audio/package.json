@@ -1,0 +1,21 @@
+{
+  "name": "@podstudio/audio",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "exports": {
+    "./document": "./src/document.ts",
+    "./plan": "./src/plan.ts",
+    "./history": "./src/history.ts",
+    "./render": "./src/render.ts",
+    "./resample": "./src/resample.ts",
+    "./duck": "./src/duck.ts",
+    "./loudness": "./src/loudness.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
