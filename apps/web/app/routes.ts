@@ -64,6 +64,7 @@ export default [
     route("analytics", "routes/studio/analytics.tsx", { id: "screen-31" }),
     route("public/brand", "routes/studio/brand.tsx", { id: "screen-29b" }),
     route("public/links", "routes/studio/public-links.tsx", { id: "screen-29" }),
+    route("social", "routes/studio/social-mockup.tsx", { id: "social-mockup" }),
     ...studioScreens.map((s) =>
       route(stripPrefix(s.path, "/studio/"), PLACEHOLDER, { id: `screen-${s.id}` }),
     ),

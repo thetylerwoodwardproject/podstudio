@@ -124,6 +124,27 @@ last 24 episodes preloaded (title, art, description, category, transcript path, 
 exceptions), safe-zone-aware placement, captions from real word timings, brand/custom highlight
 colors.
 
+## Why it's stronger inside Podstudio: it already has the data
+
+The TWP generator only sees what the site build hands it: title, description, category, cover
+and a transcript file. Podstudio owns the whole episode, so the social tools can use all of it
+with no copying or uploading:
+
+- **Edited transcript with word timings and speakers.** Quotes come from what's actually in the
+  final cut (not cut material), with exact timestamps, and the speaker is known.
+- **Chapters and soundbites.** Natural slide topics, clip candidates and "jump to" lines.
+- **People.** Guest names and their social handles from `people.socials`, so each platform's post
+  can tag the guest correctly (e.g. @handle on Bluesky, Threads and Mastodon).
+- **Show links, brand and artwork.** Real destination links (only platforms you actually set up),
+  the brand accent and the show/episode art are applied automatically.
+- **Publish schedule.** When an episode is scheduled, drafts and graphics can be ready (for
+  review) in time for release, with the real episode URL.
+- **Clips and renders.** Each finished clip already has its transcript span, so its caption
+  writes itself from what's said in it.
+- **Analytics (Stage 11).** OP3 listens around each post's time can show which posts actually
+  drove listens, and inform the voice over time (no third-party trackers).
+- **One voice per show.** Saved with the show, versioned, and used by every tool.
+
 ## Open question
 
 The generator and Podstudio will overlap once Stage 10c ships. Either Podstudio replaces it, or
