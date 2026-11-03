@@ -1,18 +1,18 @@
-// Pure colour/theme maths for screen 29b (Brand & theme) — no db access, safe
+// Pure color/theme math for screen 29b (Brand & theme) — no db access, safe
 // for both server and client. Implements the README's contrast rules:
 // - text on the accent is #111113 or #fff, whichever has more contrast;
 // - the link colour is darkened (light mode) / lightened (dark mode) step by
 //   step until it reaches 4.5:1 on the page background.
 export const BRAND_PRESETS = {
-  ink: { label: "Ink", hex: "#1b1a18" },
-  amber: { label: "Amber", hex: "#e8b04a" },
-  teal: { label: "Teal", hex: "#178a92" },
-  violet: { label: "Violet", hex: "#6b4fd0" },
-  coral: { label: "Coral", hex: "#d2452a" },
-  green: { label: "Green", hex: "#2f8a4c" },
-  blue: { label: "Blue", hex: "#2f6fe0" },
-  rose: { label: "Rose", hex: "#c2366b" },
+  black: { label: "Black", hex: "#000000" },
+  gold: { label: "Gold", hex: "#fabf47" },
+  cyan: { label: "Cyan", hex: "#00fff5" },
+  lime: { label: "Lime", hex: "#beff00" },
+  coral: { label: "Coral", hex: "#ff807f" },
+  lavender: { label: "Lavender", hex: "#c7bff6" },
 } as const;
+/** Presets from before 2026-11-02, so a show saved on one keeps its exact color (read as custom). */
+const LEGACY_PRESETS: Record<string, string> = { ink: "#1b1a18", amber: "#e8b04a", teal: "#178a92", violet: "#6b4fd0", green: "#2f8a4c", blue: "#2f6fe0", rose: "#c2366b" };
 export type BrandPresetId = keyof typeof BRAND_PRESETS;
 
 export const APPEARANCES = ["light", "dark", "auto"] as const;
@@ -35,7 +35,7 @@ export interface BrandTheme {
 }
 
 export const DEFAULT_BRAND_THEME: BrandTheme = {
-  accent: "amber",
+  accent: "gold",
   customHex: null,
   appearance: "auto",
   corners: "soft",
@@ -85,7 +85,7 @@ function mix(a: string, b: string, t: number) {
 }
 
 export function accentHex(theme: BrandTheme) {
-  if (theme.accent === "custom") return theme.customHex ?? BRAND_PRESETS.amber.hex;
+  if (theme.accent === "custom") return theme.customHex ?? BRAND_PRESETS.gold.hex;
   return BRAND_PRESETS[theme.accent].hex;
 }
 
@@ -106,16 +106,20 @@ export function tint(accent: string, mode: "light" | "dark") {
   return mix(mode === "light" ? PAPER : PAGE_DARK, accent, 0.12);
 }
 
-/** Studio: ink becomes bone, and any accent under 3:1 on #111113 is lightened. */
+/** Near-black accents (Black, the old Ink) can't be seen on a dark background: they show as bone there. */
+export const isNearBlack = (hex: string) => luminance(hex) < 0.02;
+
+/** Studio: black becomes bone, and any accent under 3:1 on #111113 is lightened. */
 export function studioAccent(accent: string) {
-  if (accent.toLowerCase() === BRAND_PRESETS.ink.hex) return BONE;
+  if (isNearBlack(accent)) return BONE;
   let color = accent;
   for (let i = 1; i <= 40 && contrast(color, STUDIO_DARK) < 3; i++) color = mix(accent, "#ffffff", i / 40);
   return color;
 }
 
 export function brandVars(theme: BrandTheme, mode: "light" | "dark") {
-  const accent = accentHex(theme);
+  const raw = accentHex(theme);
+  const accent = mode === "dark" && isNearBlack(raw) ? BONE : raw;
   const c = CORNERS[theme.corners];
   return {
     "--brand-accent": accent,
@@ -135,11 +139,22 @@ export function readBrandTheme(raw: unknown): BrandTheme {
     r.accent === "custom" || (typeof r.accent === "string" && r.accent in BRAND_PRESETS)
       ? (r.accent as BrandTheme["accent"])
       : d.accent;
-  if (accent === "custom" && !customHex) accent = d.accent;
+  let hex = customHex;
+  if (typeof r.accent === "string" && r.accent in LEGACY_PRESETS && !(r.accent in BRAND_PRESETS)) {
+    accent = "custom";
+    hex = LEGACY_PRESETS[r.accent]!;
+  }
+  if (accent === "custom" && !hex) accent = d.accent;
+  // a custom color that is one of the presets reads as that preset
+  const match = accent === "custom" && hex ? (Object.keys(BRAND_PRESETS) as BrandPresetId[]).find((id) => BRAND_PRESETS[id].hex === hex) : undefined;
+  if (match) {
+    accent = match;
+    hex = null;
+  }
   const sc = (r.scopes && typeof r.scopes === "object" ? r.scopes : {}) as Record<string, unknown>;
   return {
     accent,
-    customHex,
+    customHex: accent === "custom" ? hex : customHex,
     appearance: APPEARANCES.includes(r.appearance as Appearance) ? (r.appearance as Appearance) : d.appearance,
     corners: typeof r.corners === "string" && r.corners in CORNERS ? (r.corners as CornersId) : d.corners,
     scopes: {

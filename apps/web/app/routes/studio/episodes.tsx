@@ -1,11 +1,20 @@
 import { useMemo, useState } from "react";
-import { Form, Link, redirect, useNavigation } from "react-router";
+import { Form, Link, redirect, useNavigate, useNavigation, useSubmit } from "react-router";
+import { MoreHorizontal } from "lucide-react";
 import { listEpisodeRows, createEpisode, duplicateEpisode, deleteEpisode } from "~/lib/episodes.server";
 import { parseOptionalInt } from "~/lib/episode-fields";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { Page, PageHeader } from "~/components/layout/page";
 
 const PAGE_SIZE = 7;
 
@@ -73,9 +82,9 @@ export default function EpisodesRoute({
   const creating = navigation.state === "submitting";
   const [showNew, setShowNew] = useState(false);
   const [page, setPage] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const submit = useSubmit();
+  const navigate = useNavigate();
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = useMemo(
@@ -83,44 +92,33 @@ export default function EpisodesRoute({
     [rows, page],
   );
 
-  function toggleRow(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   if (!show) {
     return (
       <div className="p-8 text-sm text-muted-foreground">
-        No show seeded yet — run <code className="font-mono">pnpm db:seed</code>.
+        There's no show yet.
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-5 flex items-baseline justify-between">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            {show.title}
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Episodes</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            to="/studio/feed/tags"
-            className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
-          >
-            Edit show details
-          </Link>
-          <Button type="button" size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
-            New episode
-          </Button>
-        </div>
-      </div>
+    <Page width="wide">
+      <PageHeader
+        eyebrow={show.title}
+        title="Episodes"
+        actions={
+          <>
+            <Link
+              to="/studio/feed/tags"
+              className="px-2 text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Edit show details
+            </Link>
+            <Button type="button" size="sm" onClick={() => setShowNew((v) => !v)} aria-expanded={showNew}>
+              New episode
+            </Button>
+          </>
+        }
+      />
 
       {(showNew || actionData?.error) && (
         <Form method="post" className="mb-5 flex flex-wrap items-end gap-3 rounded-[14px] border border-border bg-card p-4">
@@ -147,37 +145,33 @@ export default function EpisodesRoute({
       <div className="overflow-hidden rounded-[14px] border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-[12.5px] text-muted-foreground">
-              <th className="w-10 px-4 py-2.5">
-                <input type="checkbox" aria-label="Select all episodes" disabled />
+            <tr className="border-b border-border text-left text-[12px] text-muted-foreground">
+              <th className="py-2.5 pl-4 pr-2 font-medium">Episode</th>
+              <th className="px-2 py-2.5 font-medium">Status</th>
+              <th className="hidden px-2 py-2.5 font-medium sm:table-cell">Length</th>
+              <th className="hidden px-2 py-2.5 font-medium md:table-cell">Edited</th>
+              <th className="w-12 px-2 py-2.5">
+                <span className="sr-only">Actions</span>
               </th>
-              <th className="px-2 py-2.5">Episode</th>
-              <th className="px-2 py-2.5">Status</th>
-              <th className="px-2 py-2.5 font-mono">Length</th>
-              <th className="px-2 py-2.5">Edited</th>
-              <th className="w-10 px-2 py-2.5" />
             </tr>
           </thead>
           <tbody>
             {pageRows.map((ep) => (
               <tr
                 key={ep.id}
-                className="border-b border-border last:border-b-0 hover:bg-accent/40"
+                className="cursor-pointer border-b border-border last:border-b-0 hover:bg-accent/40"
+                onClick={(e) => {
+                  // The whole row opens the episode; links and the menu keep their own clicks.
+                  if ((e.target as HTMLElement).closest("a,button,[role=menu]")) return;
+                  navigate(`/studio/episodes/${ep.id}`);
+                }}
               >
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select episode ${ep.number}`}
-                    checked={selected.has(ep.id)}
-                    onChange={() => toggleRow(ep.id)}
-                  />
-                </td>
-                <td className="px-2 py-3">
+                <td className="py-3 pl-4 pr-2">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary font-mono text-[12.5px] text-muted-foreground">
-                      {ep.number}
+                      {ep.number ?? "–"}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Link
                         to={`/studio/episodes/${ep.id}`}
                         className="font-medium text-foreground hover:underline"
@@ -193,78 +187,58 @@ export default function EpisodesRoute({
                 <td className="px-2 py-3">
                   <StatusBadge status={ep.status} />
                 </td>
-                <td className="px-2 py-3 font-mono text-[12.5px] text-muted-foreground">
+                <td className="hidden px-2 py-3 font-mono text-[12.5px] text-muted-foreground sm:table-cell">
                   {formatDuration(ep.durationS)}
                 </td>
-                <td className="px-2 py-3 text-[12.5px] text-muted-foreground">
+                <td className="hidden px-2 py-3 text-[12.5px] text-muted-foreground md:table-cell">
                   {formatRelative(ep.updatedAt)}
                 </td>
-                <td className="relative px-2 py-3 text-right">
-                  <button
-                    aria-label={`Actions for episode ${ep.number}`}
-                    className="rounded-md px-1.5 py-1 text-muted-foreground hover:bg-accent"
-                    onClick={() => setOpenMenu((m) => (m === ep.id ? null : ep.id))}
-                  >
-                    ⋯
-                  </button>
-                  {openMenu === ep.id && (
-                    <div
-                      className="absolute right-2 top-full z-10 w-36 rounded-lg border border-border bg-popover py-1 text-left shadow-lg"
-                      onMouseLeave={() => {
-                        setOpenMenu(null);
-                        setConfirmDelete(null);
-                      }}
-                    >
-                      <Link
-                        to={`/studio/episodes/${ep.id}`}
-                        className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
+                <td className="px-2 py-3 text-right">
+                  <DropdownMenu onOpenChange={(o) => !o && setConfirmDelete(null)}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`Actions for episode ${ep.number ?? ep.title}`}
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                       >
-                        Open details
-                      </Link>
-                      <Link
-                        to={`/studio/record/solo?episode=${ep.id}`}
-                        className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
-                      >
-                        Record
-                      </Link>
-                      <Link
-                        to={`/studio/editor?episode=${ep.id}`}
-                        className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
-                      >
-                        Edit
-                      </Link>
-                      <Form method="post">
-                        <input type="hidden" name="id" value={ep.id} />
-                        <button
-                          name="intent"
-                          value="duplicate"
-                          className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-accent"
-                        >
-                          Duplicate
-                        </button>
-                      </Form>
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem asChild>
+                        <Link to={`/studio/episodes/${ep.id}`}>Open details</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to={`/studio/record/solo?episode=${ep.id}`}>Record</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to={`/studio/editor?episode=${ep.id}`}>Edit</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => submit({ intent: "duplicate", id: ep.id }, { method: "post" })}>
+                        Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       {confirmDelete === ep.id ? (
-                        <Form method="post">
-                          <input type="hidden" name="id" value={ep.id} />
-                          <button
-                            name="intent"
-                            value="delete"
-                            className="block w-full px-3 py-1.5 text-left text-[13px] font-medium text-destructive hover:bg-accent"
-                          >
-                            Confirm delete
-                          </button>
-                        </Form>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDelete(ep.id)}
-                          className="block w-full px-3 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
+                        <DropdownMenuItem
+                          variant="destructive"
+                          className="font-medium"
+                          onSelect={() => submit({ intent: "delete", id: ep.id }, { method: "post" })}
                         >
-                          Delete
-                        </button>
+                          Confirm delete
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            setConfirmDelete(ep.id);
+                          }}
+                        >
+                          Delete…
+                        </DropdownMenuItem>
                       )}
-                    </div>
-                  )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </td>
               </tr>
             ))}
@@ -276,6 +250,7 @@ export default function EpisodesRoute({
         <span>
           {rows.length} episode{rows.length === 1 ? "" : "s"}
         </span>
+        {pageCount > 1 && (
         <div className="flex items-center gap-2">
           <button
             disabled={page === 0}
@@ -295,7 +270,8 @@ export default function EpisodesRoute({
             Next
           </button>
         </div>
+        )}
       </div>
-    </div>
+    </Page>
   );
 }

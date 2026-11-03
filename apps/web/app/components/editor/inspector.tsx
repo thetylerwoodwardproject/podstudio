@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { faAnglesLeft, faAnglesRight, faBookmark, faSliders, faVolumeLow, faWandMagicSparkles } from "@fortawesome/free-solid-svg-icons";
+import { useEffect, useState } from "react";
+import { faAnglesLeft, faAnglesRight, faBookmark, faGaugeHigh, faRotateLeft, faRecordVinyl, faSliders } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { annotationPositions, GAIN_DB, type Clip, type ProjectDoc } from "~/lib/project/document";
 import { cn } from "~/lib/utils";
@@ -8,8 +8,15 @@ import { Input } from "~/components/ui/input";
 import { Range } from "~/components/ui/range";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { clockText } from "./draw";
-import { DuckingPanel } from "./ducking-panel";
+import { LibraryList } from "./library-sidebar";
+import type { LibraryItem } from "./library-panel";
+import { Link } from "react-router";
 import { TrackFader } from "./track-fader";
+import { TrackPan } from "./track-pan";
+import type { LoudnessReadout } from "./meters";
+import type { EditorPlayer } from "~/lib/project/player";
+import { PODCAST_LOUDNESS } from "@podstudio/audio/loudness";
+import { LcdDisplay, LcdDisplayLabel, LcdDisplayRow, LcdDisplaySeparator, LcdDisplayValue } from "~/components/ui/lcd-display";
 import type { Selection } from "./timeline";
 
 interface Props {
@@ -20,27 +27,35 @@ interface Props {
   rate: number;
   onSeek: (t: number) => void;
   onLevels: (patch: { gainDb?: number; fadeIn?: number; fadeOut?: number }) => void;
-  onTrack: (id: string, patch: { name?: string; height?: number; color?: string | null; gainDb?: number }) => void;
+  onTrack: (id: string, patch: { name?: string; height?: number; color?: string | null; gainDb?: number; pan?: number }) => void;
   onAddChapter: (label: string) => void;
   onRemoveAnnotation: (id: string) => void;
-  onDuck: (op: (d: ProjectDoc) => import("~/lib/project/document").EditResult, group?: string) => void;
+  onAddLibrary: (item: LibraryItem) => void;
   trackHeightRange: { min: number; max: number };
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  /** Ask the inspector to show a tab (e.g. a track's FX button); `n` changes on every request. */
+  openTab?: { tab: Tab; n: number };
+  player: React.RefObject<EditorPlayer | null>;
+  playing: boolean;
+  loudness: { readout: LoudnessReadout; onReset: () => void; layout: "mono" | "stereo" };
 }
 
-type Tab = "clip" | "marks" | "duck";
-const TAB_ICON = { clip: faSliders, marks: faBookmark, duck: faVolumeLow } as const;
+export type Tab = "library" | "clip" | "marks" | "loud";
+const TABS = ["library", "clip", "marks", "loud"] as const;
+const TAB_ICON = { library: faRecordVinyl, clip: faSliders, marks: faBookmark, loud: faGaugeHigh } as const;
 
 export function Inspector(p: Props) {
-  const [tab, setTab] = useState<Tab>("clip");
+  const [tab, setTab] = useState<Tab>("library");
+  useEffect(() => {
+    if (p.openTab) setTab(p.openTab.tab);
+  }, [p.openTab]);
   const [chapter, setChapter] = useState("");
   const track = p.doc.tracks.find((t) => t.id === (p.clip?.trackId ?? p.sel.trackId));
   const marks = annotationPositions(p.doc);
   const hidden = p.doc.annotations.length - marks.length;
-  const duckCount = p.doc.ducking?.length ?? 0;
-  const tabLabel = (t: Tab) => (t === "clip" ? "Clip" : t === "marks" ? "Marks" : "Ducking");
-  const tabCount = (t: Tab) => (t === "marks" ? p.doc.annotations.length : t === "duck" ? duckCount : 0);
+  const tabLabel = (t: Tab) => ({ library: "Library", clip: "Clip", marks: "Marks", loud: "LUFS" })[t];
+  const tabCount = (t: Tab) => (t === "marks" ? p.doc.annotations.length : 0);
 
   if (p.collapsed) {
     return (
@@ -49,7 +64,7 @@ export function Inspector(p: Props) {
           <FontAwesomeIcon icon={faAnglesLeft} />
         </Button>
         <div className="mb-1 h-px w-6 bg-border" />
-        {(["clip", "marks", "duck"] as const).map((t) => (
+        {TABS.map((t) => (
           <Button
             key={t}
             variant="ghost"
@@ -67,9 +82,6 @@ export function Inspector(p: Props) {
             {tabCount(t) > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-secondary px-1 text-center font-mono text-[9.5px] leading-4 text-foreground">{tabCount(t)}</span>}
           </Button>
         ))}
-        <span title="Noise reduction, EQ and compression arrive in Stage 05" className="flex size-8 cursor-not-allowed items-center justify-center text-[13px] text-muted-foreground/40">
-          <FontAwesomeIcon icon={faWandMagicSparkles} />
-        </span>
       </aside>
     );
   }
@@ -79,13 +91,12 @@ export function Inspector(p: Props) {
       <div className="flex shrink-0 items-center gap-1 border-b border-border p-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="min-w-0 flex-1">
           <TabsList className="w-full">
-            {(["clip", "marks", "duck"] as const).map((t) => (
-              <TabsTrigger key={t} value={t} className="text-[12.5px]">
+            {TABS.map((t) => (
+              <TabsTrigger key={t} value={t} className="px-1 text-[12px]" data-testid={`tab-${t}`}>
                 {tabLabel(t)}
-                {tabCount(t) > 0 || t === "marks" ? <span className="text-muted-foreground">({tabCount(t)})</span> : null}
+                {tabCount(t) > 0 ? <span className="text-muted-foreground">{tabCount(t)}</span> : null}
               </TabsTrigger>
             ))}
-            <TabsTrigger value="fx" disabled title="Noise reduction, EQ and compression arrive in Stage 05" className="text-[12.5px]">FX</TabsTrigger>
           </TabsList>
         </Tabs>
         <Button variant="ghost" size="icon" onClick={() => p.onCollapsedChange(true)} aria-label="Hide side panel" title="Hide side panel (I)" data-testid="inspector-collapse" className="size-8 shrink-0 text-[12px] text-muted-foreground">
@@ -105,7 +116,8 @@ export function Inspector(p: Props) {
                 <div className="mb-3">
                   <span className="mb-1.5 block text-muted-foreground">Volume</span>
                   <TrackFader gainDb={track.gainDb ?? 0} onChange={(g) => p.onTrack(track.id, { gainDb: g })} testid="inspector-track-fader" />
-                  <p className="mt-1 text-[11.5px] text-muted-foreground">The whole track, after clip gain and fades. Noise cleanup, EQ and compression will go before this fader (Stage 05).</p>
+                  <TrackPan pan={track.pan ?? 0} onChange={(v) => p.onTrack(track.id, { pan: v })} testid="inspector-track-pan" className="mt-2" />
+                  <p className="mt-1 text-[11.5px] text-muted-foreground">The whole track, after clip gain, fades and the track FX.</p>
                 </div>
                 <label className="block">
                   <span className="mb-1 flex justify-between text-muted-foreground"><span>Height</span><span className="font-mono">{track.height}px</span></span>
@@ -136,7 +148,16 @@ export function Inspector(p: Props) {
             )}
           </div>
         )}
-        {tab === "duck" && <DuckingPanel doc={p.doc} onEdit={p.onDuck} />}
+        {tab === "library" && (
+          <div className="-m-3 flex h-[calc(100%+1.5rem)] min-h-0 flex-col">
+            <div className="flex items-center justify-between px-3 pt-2 text-[11.5px] text-muted-foreground">
+              <span>Drag onto a track, or + to add at the playhead.</span>
+              <Link to="/studio/library" className="underline hover:text-foreground">Manage</Link>
+            </div>
+            <LibraryList onAdd={p.onAddLibrary} />
+          </div>
+        )}
+        {tab === "loud" && <LoudnessTab {...p.loudness} />}
         {tab === "marks" && (
           <div className="flex flex-col gap-4">
             <form
@@ -186,5 +207,48 @@ function Fade({ label, samples, rate, max, onChange, testid }: { label: string; 
         data-testid={testid}
       />
     </label>
+  );
+}
+
+const fmtL = (v: number) => (Number.isFinite(v) ? v.toFixed(1).replace("-", "−") : "−∞");
+
+/** The Loudness tab: the master's BS.1770 readings on an audiocn LCD, against the delivery target. */
+function LoudnessTab({ readout, onReset, layout }: { readout: LoudnessReadout; onReset: () => void; layout: "mono" | "stereo" }) {
+  const target = layout === "mono" ? PODCAST_LOUDNESS.mono : PODCAST_LOUDNESS.stereo;
+  const off = Number.isFinite(readout.integrated) ? readout.integrated - target : null;
+  return (
+    <div className="flex flex-col gap-3" data-testid="loudness-tab">
+      <LcdDisplay>
+        <LcdDisplayRow>
+          <LcdDisplayLabel>Integrated</LcdDisplayLabel>
+          <LcdDisplayValue data-testid="lcd-integrated">{fmtL(readout.integrated)} LUFS</LcdDisplayValue>
+        </LcdDisplayRow>
+        <LcdDisplaySeparator />
+        <LcdDisplayRow>
+          <LcdDisplayLabel>Short-term</LcdDisplayLabel>
+          <LcdDisplayValue>{fmtL(readout.shortTerm)}</LcdDisplayValue>
+        </LcdDisplayRow>
+        <LcdDisplayRow>
+          <LcdDisplayLabel>Momentary</LcdDisplayLabel>
+          <LcdDisplayValue>{fmtL(readout.momentary)}</LcdDisplayValue>
+        </LcdDisplayRow>
+        <LcdDisplaySeparator />
+        <LcdDisplayRow>
+          <LcdDisplayLabel>True peak</LcdDisplayLabel>
+          <LcdDisplayValue>{fmtL(readout.truePeak)} dBTP</LcdDisplayValue>
+        </LcdDisplayRow>
+        <LcdDisplayRow>
+          <LcdDisplayLabel>Range</LcdDisplayLabel>
+          <LcdDisplayValue>{fmtL(readout.lra)} LU</LcdDisplayValue>
+        </LcdDisplayRow>
+      </LcdDisplay>
+      <p className="text-[12px] text-muted-foreground">
+        Target <b className="text-foreground">{target} LUFS</b> ({layout}, from the MP3 preset), true peak ≤ −1 dBTP.{" "}
+        {off === null ? "Play the episode to measure it." : Math.abs(off) <= 1 ? "The mix is already about right." : `The mix is ${Math.abs(off).toFixed(1)} LU ${off > 0 ? "louder" : "quieter"} than the target — the export corrects this automatically.`}
+      </p>
+      <Button variant="outline" size="sm" onClick={onReset} className="self-start" data-testid="lcd-reset">
+        <FontAwesomeIcon icon={faRotateLeft} /> Reset integrated
+      </Button>
+    </div>
   );
 }

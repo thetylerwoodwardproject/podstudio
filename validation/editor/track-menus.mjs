@@ -117,7 +117,7 @@ ok("shortcuts popover opens", (await p.locator('[role=dialog][aria-label="Keyboa
 await p.keyboard.press("Escape");
 
 // ---------- ducking styling still functional
-await p.click('[role=tab]:has-text("Ducking")');
+await p.click('[data-testid=tab-duck]');
 await p.click("[data-testid=add-duck-rule]"); await saved();
 await p.waitForSelector("[data-testid=duck-envelope]");
 const pathBefore = await p.locator("[data-testid=duck-envelope] path").nth(1).getAttribute("d");

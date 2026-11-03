@@ -14,6 +14,9 @@ import { hasFeedMediaTarget } from "~/lib/media.server";
 import { PODCAST_CATEGORIES, cleanCategory } from "~/lib/podcast-categories";
 import { cleanForStorage, toHtml } from "~/lib/rich-text.server";
 import { RichTextField } from "~/components/rich-text-field";
+import { FormSelect } from "~/components/ui/form-select";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 16 (Show tags). Per README: "RSS 2.0/iTunes fields plus Podcasting 2.0
 // tags... GUID is never editable or removable through a toggle." Scoped down from
@@ -84,19 +87,12 @@ function SelectField({
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <select
+      <FormSelect
         id={id}
         name={id}
         defaultValue={defaultValue ?? ""}
-        className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      >
-        <option value="">Not set</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
+        options={[{ value: "", label: "Not set" }, ...options.map((o) => ({ value: o, label: o }))]}
+      />
     </div>
   );
 }
@@ -104,38 +100,31 @@ function SelectField({
 function CategoryPicker({ primary, sub }: { primary?: string; sub?: string }) {
   const [cat, setCat] = useState(primary && Object.hasOwn(PODCAST_CATEGORIES, primary) ? primary : "");
   const subs = cat ? PODCAST_CATEGORIES[cat] ?? [] : [];
-  const select =
-    "rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
   return (
     <div className="grid grid-cols-2 gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="category">Category</Label>
-        <select id="category" name="category" value={cat} onChange={(e) => setCat(e.target.value)} className={select}>
-          <option value="">Not set</option>
-          {Object.keys(PODCAST_CATEGORIES).map((c) => (
-            <option key={c} value={c} className="bg-popover">
-              {c}
-            </option>
-          ))}
-        </select>
+        <FormSelect
+          id="category"
+          name="category"
+          value={cat}
+          onValueChange={setCat}
+          options={[{ value: "", label: "Not set" }, ...Object.keys(PODCAST_CATEGORIES).map((c) => ({ value: c, label: c }))]}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="subcategory">Subcategory</Label>
-        <select
+        <FormSelect
           key={cat}
           id="subcategory"
           name="subcategory"
           defaultValue={cat === primary ? sub ?? "" : ""}
           disabled={subs.length === 0}
-          className={select}
-        >
-          <option value="">{subs.length === 0 ? "None for this category" : "Not set"}</option>
-          {subs.map((s) => (
-            <option key={s} value={s} className="bg-popover">
-              {s}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: subs.length === 0 ? "None for this category" : "Not set" },
+            ...subs.map((s) => ({ value: s, label: s })),
+          ]}
+        />
       </div>
     </div>
   );
@@ -211,16 +200,8 @@ export default function ShowTags({
   const tags = (show.podcastTags as PodcastTags | null) ?? {};
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            Podcast hosting
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Show tags</h1>
-        </div>
-        <ViewPublicPage />
-      </div>
+    <Page>
+      <PageHeader eyebrow="Podcast hosting" title="Show tags" description="Your show's artwork, description and the tags podcast apps read from the feed." actions={<ViewPublicPage />} />
 
       <ShowArtwork artwork={artwork} storageReady={storageReady} />
 
@@ -260,7 +241,7 @@ export default function ShowTags({
           <CategoryPicker primary={tags.category} sub={tags.subcategory} />
 
           <label className="flex items-center gap-2 text-sm">
-            <input id="explicit" type="checkbox" name="explicit" defaultChecked={!!show.explicit} />
+            <Checkbox id="explicit" name="explicit" defaultChecked={!!show.explicit} />
             Explicit content
           </label>
         </section>
@@ -391,13 +372,16 @@ export default function ShowTags({
 
       <Separator className="my-6" />
       <p className="text-[12.5px] text-muted-foreground">
-        podroll isn't built yet — it arrives in Stage 11. TXT records and feed
-        locking are in{" "}
+        Recommended shows are on the{" "}
+        <Link to="/studio/podroll" className="underline hover:text-foreground">
+          Podroll
+        </Link>{" "}
+        page. TXT records and feed locking are in{" "}
         <Link to="/studio/feed/lock-verify" className="underline hover:text-foreground">
           Lock &amp; verify
         </Link>
         .
       </p>
-    </div>
+    </Page>
   );
 }

@@ -21,6 +21,9 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Page, PageHeader } from "~/components/layout/page";
+import { FormSelect } from "~/components/ui/form-select";
+import { Checkbox } from "~/components/ui/checkbox";
 
 // This file deliberately imports nothing from @podstudio/db or drizzle-orm
 // (all db access lives in episodes.server.ts) — see storage.tsx's comment
@@ -100,44 +103,44 @@ export default function EpisodeDetail({
   const saving = navigation.state === "submitting";
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5 flex items-baseline justify-between">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            Episode {episode.number}
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{episode.title}</h1>
-          {(
+    <Page>
+      <PageHeader
+        eyebrow={<Link to="/studio/episodes" className="hover:text-foreground">Episodes{episode.number != null ? ` · Episode ${episode.number}` : ""}</Link>}
+        title={episode.title}
+        below={
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBadge status={episode.status} />
             <Link
               to={`/studio/publish?episode=${episode.id}`}
-              className="text-[12.5px] text-muted-foreground underline hover:text-foreground"
+              className="text-[12.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
-              {episode.status === "published" ? "Manage publishing / unpublish" : "Publish to feed"}
+              {episode.status === "published" ? "Manage publishing" : "Publish to feed"}
             </Link>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            to={`/studio/record/solo?episode=${episode.id}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
-            data-testid="record-link"
-          >
-            <span className="size-2 rounded-full bg-destructive" aria-hidden />
-            Record
-          </Link>
-          <Link
-            to={`/studio/editor?episode=${episode.id}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
-            data-testid="edit-link"
-          >
-            Edit
-          </Link>
-          {episode.status === "published" && episode.visibility === "public" && (
-            <ViewPublicPage path={`/episodes/${episode.publicId}/${episode.slug}`} label="View public episode page" />
-          )}
-          <StatusBadge status={episode.status} />
-        </div>
-      </div>
+          </div>
+        }
+        actions={
+          <>
+            <Link
+              to={`/studio/record/solo?episode=${episode.id}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
+              data-testid="record-link"
+            >
+              <span className="size-2 rounded-full bg-destructive" aria-hidden />
+              Record
+            </Link>
+            <Link
+              to={`/studio/editor?episode=${episode.id}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
+              data-testid="edit-link"
+            >
+              Edit
+            </Link>
+            {episode.status === "published" && episode.visibility === "public" && (
+              <ViewPublicPage path={`/episodes/${episode.publicId}/${episode.slug}`} label="View public page" />
+            )}
+          </>
+        }
+      />
 
       <Form method="post" className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
         <div className="flex flex-col gap-1.5">
@@ -170,7 +173,7 @@ export default function EpisodeDetail({
             <Input id="number" name="number" inputMode="numeric" defaultValue={episode.number ?? ""} />
           </div>
           <label className="flex items-center gap-2 pb-2 text-sm">
-            <input type="checkbox" name="explicit" defaultChecked={!!episode.explicit} />
+            <Checkbox name="explicit" defaultChecked={!!episode.explicit} />
             Explicit
           </label>
         </div>
@@ -178,31 +181,25 @@ export default function EpisodeDetail({
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="status">Status</Label>
-            <select
+            <FormSelect
               id="status"
               name="status"
               defaultValue={episode.status}
-              className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              {EPISODE_STATUS.map((s) => (
-                <option key={s} value={s}>
-                  {s[0].toUpperCase() + s.slice(1)}
-                </option>
-              ))}
-            </select>
+              options={EPISODE_STATUS.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="visibility">Visibility</Label>
-            <select
+            <FormSelect
               id="visibility"
               name="visibility"
               defaultValue={episode.visibility}
-              className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="private">Private</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="public">Public</option>
-            </select>
+              options={[
+                { value: "private", label: "Private" },
+                { value: "unlisted", label: "Unlisted" },
+                { value: "public", label: "Public" },
+              ]}
+            />
           </div>
         </div>
 
@@ -254,15 +251,15 @@ export default function EpisodeDetail({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="credit-role">Role</Label>
-            <select
+            <FormSelect
               id="credit-role"
               name="role"
               defaultValue="guest"
-              className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="host">Host</option>
-              <option value="guest">Guest</option>
-            </select>
+              options={[
+                { value: "host", label: "Host" },
+                { value: "guest", label: "Guest" },
+              ]}
+            />
           </div>
           <Button type="submit" variant="outline">
             Add
@@ -315,6 +312,6 @@ export default function EpisodeDetail({
           </Button>
         )}
       </Form>
-    </div>
+    </Page>
   );
 }

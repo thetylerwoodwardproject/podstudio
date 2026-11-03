@@ -15,7 +15,7 @@ const tone = (secs: number, hz: number, amp: number, on: [number, number][]) => 
 };
 // host speaks 2–4 s and 6–8 s (220 Hz); music is a steady 440 Hz bed
 const SRC: Record<string, Float32Array> = { host: tone(10, 220, 0.3, [[2, 4], [6, 8]]), music: tone(10, 440, 0.2, [[0, 10]]), guest: tone(10, 330, 0.3, [[4.5, 5.5]]) };
-const read = async (id: string, from: number, count: number) => SRC[id]!.slice(from, from + count);
+const read = async (id: string, from: number, count: number) => [SRC[id]!.slice(from, from + count)];
 
 function build(opts: { guest?: boolean } = {}) {
   let d = createProject({ sampleRate: R, source: { id: "host", assetId: "h", label: "host", totalSamples: 10 * R } });

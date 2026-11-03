@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { getFeedOverview } from "~/lib/feed.server";
 import { POD20_TOTAL } from "~/lib/feed-check";
 import { cn } from "~/lib/utils";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 15 (Podcast hosting / Feed overview), laid out after the mockup: RSS
 // URL card with Copy, a Podcast 1.0 and a Podcasting 2.0 card, the episodes in
@@ -80,30 +81,29 @@ export default function FeedOverview({ loaderData }: { loaderData: Awaited<Retur
   const ok1 = check.errors.length === 0;
 
   return (
-    <div className="mx-auto max-w-6xl p-6 md:p-8">
-      <div className="mb-6 flex flex-wrap items-end gap-x-6 gap-y-3">
-        <div className="min-w-[280px] flex-1">
-          <h1 className="text-[32px] font-bold leading-tight tracking-[-0.025em]">Podcast hosting</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your RSS feed is served from this server. Media files live in your own bucket.
-          </p>
-        </div>
-        <div className="flex gap-4 text-[12.5px] text-muted-foreground">
-          <Link to="/studio/feed/tags" className="hover:text-foreground hover:underline">
-            Show tags
-          </Link>
-          <Link to="/studio/feed/lock-verify" className="hover:text-foreground hover:underline">
-            Lock &amp; verify
-          </Link>
-          <Link to="/studio/storage" className="hover:text-foreground hover:underline">
-            Storage
-          </Link>
-          {/* Plain <a>: the feed is an XML resource route, not a client-navigable page. */}
-          <a href={`/${show.slug}/feed`} className="hover:text-foreground hover:underline">
-            View feed XML
-          </a>
-        </div>
-      </div>
+    <Page width="wide">
+      <PageHeader
+        eyebrow="Podcast hosting"
+        title="Feed"
+        description="Your RSS feed is served from this server, and its audio from your own storage."
+        actions={
+          <div className="flex flex-wrap gap-4 text-[12.5px] text-muted-foreground">
+            <Link to="/studio/feed/tags" className="hover:text-foreground hover:underline">
+              Show tags
+            </Link>
+            <Link to="/studio/feed/lock-verify" className="hover:text-foreground hover:underline">
+              Lock &amp; verify
+            </Link>
+            <Link to="/studio/storage" className="hover:text-foreground hover:underline">
+              Storage
+            </Link>
+            {/* Plain <a>: the feed is an XML resource route, not a client-navigable page. */}
+            <a href={`/${show.slug}/feed`} className="hover:text-foreground hover:underline">
+              View feed XML
+            </a>
+          </div>
+        }
+      />
 
       <div className="grid gap-3 lg:grid-cols-[2.2fr_1fr_1fr]">
         <section className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-[18px]">
@@ -254,6 +254,6 @@ export default function FeedOverview({ loaderData }: { loaderData: Awaited<Retur
           </p>
         </section>
       </div>
-    </div>
+    </Page>
   );
 }

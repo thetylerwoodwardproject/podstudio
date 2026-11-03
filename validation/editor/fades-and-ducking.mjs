@@ -24,7 +24,7 @@ await p.keyboard.press("Control+Shift+z"); await sleep(300); await p.keyboard.pr
 // ---------- add a music track with a file, then ducking
 await p.click('[data-testid=upload-menu]'); const [fc]=await Promise.all([p.waitForEvent("filechooser"), p.click('[data-testid=upload-new-music]')]); await fc.setFiles(M+"music.flac");
 await p.waitForFunction(()=>/music/.test(document.querySelector('[data-testid=toast]')?.textContent||""),null,{timeout:90000}); await sleep(500); await saved();
-await p.click('[role=tab]:has-text("Ducking")'); ok("Ducking tab starts empty", await p.locator('[data-testid=ducking-empty]').count()===1);
+await p.click('[data-testid=tab-duck]'); ok("Ducking tab starts empty", await p.locator('[data-testid=ducking-empty]').count()===1);
 await p.click('[data-testid=add-duck-rule]'); await sleep(300); await saved();
 const sum=await p.innerText('[data-testid=duck-summary]'); ok("a new rule ducks music under host + guest by default", /−12 dB under host \+ guest/.test(sum), sum);
 d=await proj(); const music=d.doc.tracks.find(t=>t.kind==="music"), host=d.doc.tracks.find(t=>t.kind==="host");
@@ -39,14 +39,16 @@ ok("amount slider updates the readout", (await p.innerText('[data-testid=duck-am
 await saved(); d=await proj(); ok("rule saved with −18 dB, speech triggers", d.doc.ducking[0].amountDb===-18 && d.doc.ducking[0].triggers==="speech");
 await p.screenshot({path:"duck-ui.png"});
 // ---------- export and compare to an independent reference computed here
-await p.click('[data-testid=open-export]'); await p.click('[data-testid=start-export]'); await p.waitForSelector('[data-testid=export-job][data-status=verified]',{timeout:90000});
+await p.click('[data-testid=open-export]'); await p.click('[data-testid=fmt-wav]'); await p.click('[data-testid=ch-mono]'); await p.click('[data-testid=start-export]'); await p.waitForSelector('[data-testid=export-job][data-status=verified]',{timeout:90000});
 const jobs=(await (await ctx.request.get(BASE+`/studio/projects/${epId}/exports`)).json()).exports; const dl=new Uint8Array(await (await ctx.request.get(BASE+"/studio/exports/"+jobs[0].id)).body());
 const dec=(bytes,off,n)=>{const o=new Float32Array(n);for(let i=0,q=off;i<n;i++,q+=3){let v=bytes[q]|(bytes[q+1]<<8)|(bytes[q+2]<<16); if(v&0x800000)v|=~0xffffff; o[i]=v/8388608}return o};
 const hostClip=d.doc.clips.find(c=>c.trackId===host.id), musicClip=d.doc.clips.find(c=>c.trackId===music.id);
 const hostSrc=d.doc.sources.find(s=>s.id===hostClip.sourceId), musicSrc=d.doc.sources.find(s=>s.id===musicClip.sourceId);
 const wav=async(a)=>new Uint8Array(await (await ctx.request.get(BASE+`/studio/assets/${a}/audio`)).body());
 const hw=await wav(hostSrc.assetId), mw=await wav(musicSrc.assetId);
-const H=dec(hw,44,(hw.length-44)/3), Mu=dec(mw,44,(mw.length-44)/3);
+// sources may be stereo now (imports keep stereo): read the channel count from the WAV header and fold to mono as the mono export does ((L+R)/2)
+const decAny=(w)=>{const ch=new DataView(w.buffer).getUint16(22,true); const all=dec(w,44,(w.length-44)/3); if(ch===1) return all; const n=all.length/ch, m=new Float32Array(n); for(let i=0;i<n;i++) m[i]=(all[2*i]+all[2*i+1])/2; return m;};
+const H=decAny(hw), Mu=decAny(mw);
 const len=Math.max(hostClip.start+hostClip.length, musicClip.start+musicClip.length); const hostT=new Float32Array(len), musT=new Float32Array(len);
 const gainAt=(c,t)=>{let g=10**(c.gainDb/20); if(c.fadeIn>0&&t<c.start+c.fadeIn)g*=(t-c.start)/c.fadeIn; const os=c.start+c.length-c.fadeOut; if(c.fadeOut>0&&t>os)g*=(c.start+c.length-t)/c.fadeOut; return g};
 for(let t=hostClip.start;t<hostClip.start+hostClip.length;t++) hostT[t]=H[hostClip.srcStart+t-hostClip.start]*gainAt(hostClip,t);

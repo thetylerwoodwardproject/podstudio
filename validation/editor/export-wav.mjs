@@ -19,7 +19,7 @@ const rms=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=(a[i]-b[i])**2;return 10
 const goertzel=(w,fr)=>{const c=2*Math.cos(2*Math.PI*fr/R);let s1=0,s2=0;for(const x of w){const s=x+c*s1-s2;s2=s1;s1=s}return 2*Math.sqrt(Math.max(0,s1*s1+s2*s2-c*s1*s2))/w.length};
 
 await p.goto(BASE+"/studio/editor?episode="+epId); await p.waitForSelector('[data-testid=canvas-host]'); await sleep(500);
-await p.click('[data-testid=open-export]'); await p.waitForSelector('[data-testid=export-dialog]');
+await p.click('[data-testid=open-export]'); await p.waitForSelector('[data-testid=export-dialog]'); await p.click('[data-testid=fmt-wav]'); await p.click('[data-testid=ch-mono]');
 // ---- 24-bit 48 kHz
 await p.click('[data-testid=bd-24]'); await p.click('[data-testid=sr-48]'); await p.click('[data-testid=start-export]');
 await p.waitForSelector('[data-testid=export-job][data-status=verified]',{timeout:60000});

@@ -8,7 +8,7 @@ interface ServerImport {
   status: "queued" | "running" | "verified" | "failed" | "cancelled";
   progress: number;
   settings: { filename?: string; place?: { trackId?: string; newTrack?: TrackKind } };
-  summary: { samples: number; label: string; durationS: number } | null;
+  summary: { samples: number; channels?: 1 | 2; label: string; durationS: number } | null;
   error: string | null;
   assetId: string | null;
   cancelRequested: number;
@@ -81,7 +81,7 @@ export function useImports(opts: {
       tried.current.add(j.id);
       const hint = j.settings.place ?? {};
       const trackId = hint.trackId && doc.tracks.some((t) => t.id === hint.trackId) ? hint.trackId : undefined;
-      const source = { id: crypto.randomUUID(), assetId: j.assetId, label: j.summary.label, totalSamples: j.summary.samples };
+      const source = { id: crypto.randomUUID(), assetId: j.assetId, label: j.summary.label, totalSamples: j.summary.samples, ...(j.summary.channels === 2 ? { channels: 2 as const } : {}) };
       const want = optsRef.current.getPlayhead();
       const at = trackId ? freeSpot(doc, trackId, want, source.totalSamples) : Math.round(want);
       const r = addSourceClip(doc, trackId ? { source, trackId, at } : { source, newTrack: { kind: hint.newTrack ?? "music" }, at });

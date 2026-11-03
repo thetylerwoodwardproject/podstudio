@@ -10,15 +10,17 @@ Plan revised 2026-10-17 with Tyler's answers. **No implementation or technical-v
 
 **2026-11-01, additional note:** Stage 04 was built ahead of PREBUILD closing (Tyler asked to start the editor). The editor, retake cleanup, audio upload and WAV export exist and were verified in a real browser against the deployed build, with a 2-hour/8-track measurement; see HANDOFF.md → "Editor (Stage 04)" for what is proven and the checklist items that are **not** met (no CI/lint/e2e task, preview-vs-export parity not measured through Web Audio, mockup layout differences, no PREBUILD budgets to judge the measurements against, own timeline instead of waveform-playlist). Per the rules above this stops here for review; Stage 05 has not been started and PREBUILD stays **current** until you say otherwise.
 
+**2026-11-02:** Tyler formally **passed Stage 04**, said **yes to stereo** music/SFX, and started **Stage 05**. PREBUILD's proofs remain open; its DSP decision (shared deterministic TypeScript DSP incl. a spectral noise reducer, same code in browser and worker) is made as part of Stage 05 and recorded there.
+
 | Stage | Name | Status |
 |---|---|---|
-| [PREBUILD](stages/STAGE-PREBUILD.md) | Technical validation | **current** |
+| [PREBUILD](stages/STAGE-PREBUILD.md) | Technical validation | **open** — proofs not run; Tyler chose to keep building stages (04 passed, 05 current). The DSP/noise-reduction choice is recorded in Stage 05's notes |
 | [00](stages/STAGE-00.md) | Foundation | not started |
 | [01](stages/STAGE-01.md) | Accounts, shows, episodes | not started |
 | [02](stages/STAGE-02.md) | Storage | not started |
 | [03](stages/STAGE-03.md) | Solo recording | not started |
-| [04](stages/STAGE-04.md) | Core editor & retake cleanup | **built and merged to `main` (PR #1, 2026-11-02), formal sign-off pending** — not yet a pass; export loudness normalisation (a Stage 05 item) built early at Tyler's request |
-| [05](stages/STAGE-05.md) | Noise reduction, voice FX, loudness & MP3 | not started |
+| [04](stages/STAGE-04.md) | Core editor & retake cleanup | **passed — Tyler, 2026-11-02** (merged in PR #1; accepted with the gaps listed in HANDOFF: no lint/e2e/CI task, own timeline instead of waveform-playlist) |
+| [05](stages/STAGE-05.md) | Noise reduction, voice FX, loudness & MP3 | **built 2026-11-02 and reworked through Tyler's review the same day; awaiting his review — uncommitted** — not a pass; parity −300 dBFS, MP3 −16.0/−19.0 LUFS verified; open: ear checks, commit/PR, lint/e2e/CI, stale browser scripts (HANDOFF → "Stereo + Stage 05 → Start here tomorrow") |
 | [06](stages/STAGE-06.md) | Existing-show import, feed publish & protected sharing | not started |
 | [Release 1](stages/RELEASE-01.md) | Solo-audio release review (after 06) | not started |
 | [07](stages/STAGE-07.md) | Transcripts & AI help | not started |

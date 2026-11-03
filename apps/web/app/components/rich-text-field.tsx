@@ -3,6 +3,22 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { cn } from "~/lib/utils";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faBold,
+  faEraser,
+  faImage,
+  faItalic,
+  faLink,
+  faListOl,
+  faListUl,
+  faMinus,
+  faQuoteLeft,
+  faRotateLeft,
+  faRotateRight,
+  faStrikethrough,
+  faUnderline,
+} from "@fortawesome/free-solid-svg-icons";
 
 // WYSIWYG field for descriptions and bios. The visual editor (TipTap) covers the
 // common formatting; the "HTML" tab edits the markup directly for anything beyond
@@ -41,7 +57,7 @@ function Btn({
       onMouseDown={(e) => e.preventDefault() /* keep the editor selection */}
       onClick={on}
       className={cn(
-        "h-8 min-w-8 rounded-md px-2 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40",
+        "h-7 min-w-7 rounded-md px-1.5 text-[12.5px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40",
         active && "bg-accent text-foreground",
       )}
     >
@@ -112,33 +128,33 @@ export function RichTextField({ name, id = name, defaultValue, label, minHeight 
             <Btn label="Subheading" active={e.isActive("heading", { level: 3 })} on={() => e.chain().focus().toggleHeading({ level: 3 }).run()}>
               H3
             </Btn>
-            <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+            <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
             <Btn label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}>
-              <b>B</b>
+              <FontAwesomeIcon icon={faBold} />
             </Btn>
             <Btn label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}>
-              <i>I</i>
+              <FontAwesomeIcon icon={faItalic} />
             </Btn>
             <Btn label="Underline" active={e.isActive("underline")} on={() => e.chain().focus().toggleUnderline().run()}>
-              <u>U</u>
+              <FontAwesomeIcon icon={faUnderline} />
             </Btn>
             <Btn label="Strikethrough" active={e.isActive("strike")} on={() => e.chain().focus().toggleStrike().run()}>
-              <s>S</s>
+              <FontAwesomeIcon icon={faStrikethrough} />
             </Btn>
-            <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+            <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
             <Btn label="Bulleted list" active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}>
-              •&nbsp;List
+              <FontAwesomeIcon icon={faListUl} />
             </Btn>
             <Btn label="Numbered list" active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}>
-              1.&nbsp;List
+              <FontAwesomeIcon icon={faListOl} />
             </Btn>
             <Btn label="Quote" active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}>
-              “ ”
+              <FontAwesomeIcon icon={faQuoteLeft} />
             </Btn>
             <Btn label="Divider" on={() => e.chain().focus().setHorizontalRule().run()}>
-              ―
+              <FontAwesomeIcon icon={faMinus} />
             </Btn>
-            <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+            <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
             <Btn
               label="Link"
               active={e.isActive("link")}
@@ -147,20 +163,20 @@ export function RichTextField({ name, id = name, defaultValue, label, minHeight 
                 setPrompt("link");
               }}
             >
-              Link
+              <FontAwesomeIcon icon={faLink} />
             </Btn>
             <Btn label="Image" on={() => { setUrl(""); setPrompt("image"); }}>
-              Image
+              <FontAwesomeIcon icon={faImage} />
             </Btn>
-            <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+            <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
             <Btn label="Undo" disabled={!e.can().undo()} on={() => e.chain().focus().undo().run()}>
-              ↶
+              <FontAwesomeIcon icon={faRotateLeft} />
             </Btn>
             <Btn label="Redo" disabled={!e.can().redo()} on={() => e.chain().focus().redo().run()}>
-              ↷
+              <FontAwesomeIcon icon={faRotateRight} />
             </Btn>
             <Btn label="Clear formatting" on={() => e.chain().focus().unsetAllMarks().clearNodes().run()}>
-              Tx
+              <FontAwesomeIcon icon={faEraser} />
             </Btn>
           </>
         ) : (
@@ -231,8 +247,8 @@ export function RichTextField({ name, id = name, defaultValue, label, minHeight 
         </p>
       )}
       <p className="border-t border-input px-3 py-1.5 text-[11.5px] text-muted-foreground">
-        Public pages allow headings, lists, quotes, tables, images (https), code and embeds from YouTube, Vimeo and Spotify. Scripts,
-        styles and forms are always removed.
+        Headings, lists, quotes, tables, images, code and YouTube, Vimeo or Spotify embeds all work. Scripts, styles and forms
+        are removed.
       </p>
     </div>
   );

@@ -1,11 +1,19 @@
 import { Readable } from "node:stream";
 import { findPublicAudio, openAudio } from "~/lib/media.server";
 import { parseRange } from "~/lib/http-range";
+import { episodeWaveform } from "~/lib/episode-waveform.server";
 
 // `/{show}/media/{public-id}/{anything}.mp3` — the feed <enclosure> target and
+// (`…/waveform.json` is the player's waveform)
 // the public player's source. Public, no cookies. HEAD is routed here by React
 // Router with the body dropped.
-export async function loader({ params, request }: { params: { showSlug?: string; publicId?: string }; request: Request }) {
+export async function loader({ params, request }: { params: { showSlug?: string; publicId?: string; file?: string }; request: Request }) {
+  // `…/waveform.json`: the public player's waveform (peaks of the published MP3, computed once, cached)
+  if (params.file === "waveform.json") {
+    const wave = await episodeWaveform(params.showSlug ?? "", params.publicId ?? "").catch(() => null);
+    if (!wave) return new Response("Not found", { status: 404 });
+    return new Response(JSON.stringify(wave), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400", "Access-Control-Allow-Origin": "*" } });
+  }
   const audio = findPublicAudio(params.showSlug ?? "", params.publicId ?? "");
   if (!audio || audio.bytes == null) return new Response("Not found", { status: 404 });
 

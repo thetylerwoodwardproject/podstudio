@@ -4,7 +4,13 @@
 // and cuts play gaplessly. The plan (`planPieces`) is shared with the future worker render.
 import { pcm24ToFloat } from "~/lib/capture-contract";
 import type { ProjectDoc } from "./document";
-import { triggerTrackIds, withCrossfades, type Clip } from "./document";
+import { panGains, triggerTrackIds, withCrossfades, type Clip, type Track } from "./document";
+import { FX_LATENCY, fxActive } from "@podstudio/audio/fx";
+import workletUrl from "./audio-worklet.ts?worker&url";
+
+/** Where the preview's AudioWorklet module is served (also used by the browser parity test). */
+export const AUDIO_WORKLET_URL = workletUrl;
+if (typeof window !== "undefined") (window as unknown as { __podstudioWorklet?: string }).__podstudioWorklet = workletUrl;
 import { duckGains, newDuckState } from "@podstudio/audio/duck";
 import { mixTrackBlocks, triggerSignal } from "@podstudio/audio/render";
 import { WINDOW_SAMPLES, gainBreakpoints, planPieces, type Piece } from "./plan";
@@ -21,6 +27,31 @@ const SEAM_S = 0.004;
 export interface PlayerSource {
   assetId: string;
   totalSamples: number;
+  /** 1 (mono) or 2 (stereo, interleaved in the WAV). */
+  channels?: 1 | 2;
+}
+
+/** What the master meter worklet reports, about every 4096 samples. */
+export interface MeterReport {
+  peak: [number, number];
+  rms: [number, number];
+  stereo: { m: number; s: number; i?: number; lra?: number; tp: number };
+  mono: { m: number; s: number; i?: number; lra?: number; tp: number };
+}
+
+interface Bus {
+  /** Where the track's pieces arrive (summed, up-mixed to stereo). */
+  input: GainNode;
+  /** The track's FX chain (AudioWorklet running packages/audio/src/fx.ts). */
+  fx: AudioWorkletNode;
+  fxSig: string;
+  gr: number;
+  /** The track's fader. */
+  fader: GainNode;
+  panL: GainNode;
+  panR: GainNode;
+  analyserL: AnalyserNode;
+  analyserR: AnalyserNode;
 }
 
 export class EditorPlayer {
@@ -40,18 +71,22 @@ export class EditorPlayer {
   /** Loop region (timeline samples). Playback that reaches `to` jumps back to `from`, gaplessly. */
   private loop: { from: number; to: number } | null = null;
   /** Metering: a bus (gain → analyser) per track into a master bus, which a tap reads sample-accurately. */
-  private buses = new Map<string, { gain: GainNode; analyser: AnalyserNode }>();
+  /** @internal exposed for diagnostics */
+  buses = new Map<string, Bus>();
   private master: GainNode | null = null;
-  private tap: ScriptProcessorNode | null = null;
+  private meterNode: AudioWorkletNode | null = null;
+  private moduleReady: Promise<void> | null = null;
   private meterBuf: Float32Array<ArrayBuffer> | null = null;
   /** Every block of the master mix while playing (mono, at the project rate). */
-  /** Every block of the master mix while playing: left and right (a mono mix plays equally on both). */
-  onMasterAudio: ((left: Float32Array, right: Float32Array) => void) | null = null;
+  /** Master levels and loudness from the meter worklet, while playing. */
+  onMeter: ((r: MeterReport) => void) | null = null;
   /** Clips with crossfade-widened fades, for the current doc (built lazily). */
   private xf: Map<string, Clip> | null = null;
 
   constructor(doc: ProjectDoc, private sources: Record<string, PlayerSource>) {
     this.doc = doc;
+    // a read-only handle for diagnosing the live audio graph from the browser console / tests
+    if (typeof window !== "undefined") (window as unknown as { __podstudioPlayer?: EditorPlayer }).__podstudioPlayer = this;
   }
 
   setSources(sources: Record<string, PlayerSource>) {
@@ -157,72 +192,153 @@ export class EditorPlayer {
     void this.ctx?.suspend();
   }
 
-  /** Sample peak and RMS of what a track is playing right now (linear, 0 when silent or not playing). */
-  trackLevel(trackId: string): { peak: number; rms: number } {
-    const b = this.buses.get(trackId);
-    if (!b || !this.playing) return { peak: 0, rms: 0 };
-    const n = b.analyser.fftSize;
-    if (!this.meterBuf || this.meterBuf.length !== n) this.meterBuf = new Float32Array(n);
-    b.analyser.getFloatTimeDomainData(this.meterBuf);
-    let peak = 0;
-    let sum = 0;
-    for (let i = 0; i < n; i++) {
-      const v = this.meterBuf[i]!;
-      const a = Math.abs(v);
-      if (a > peak) peak = a;
-      sum += v * v;
-    }
-    return { peak, rms: Math.sqrt(sum / n) };
+  /** Start integrated loudness / LRA / true peak again. */
+  resetLoudness() {
+    this.meterNode?.port.postMessage({ type: "reset" });
   }
 
-  /** Track faders live on the bus gains, so moving one is instant (no re-plan). */
+  /**
+   * A track's current spectrum (after its FX, fader and pan; left side) as `bands`
+   * log-spaced bands from 20 Hz to 20 kHz, each 0..1 over −90…−10 dBFS. False when not playing.
+   */
+  trackSpectrum(trackId: string, bands: Float32Array): boolean {
+    const b = this.buses.get(trackId);
+    if (!b || !this.playing || !this.ctx) return false;
+    const a = b.analyserL;
+    const bins = new Float32Array(a.frequencyBinCount);
+    a.getFloatFrequencyData(bins);
+    const nyq = this.ctx.sampleRate / 2;
+    const n = bands.length;
+    for (let i = 0; i < n; i++) {
+      const f0 = 20 * Math.pow(1000, i / n);
+      const f1 = 20 * Math.pow(1000, (i + 1) / n);
+      const k0 = Math.max(1, Math.floor((f0 / nyq) * bins.length));
+      const k1 = Math.max(k0 + 1, Math.ceil((f1 / nyq) * bins.length));
+      let mx = -200;
+      for (let k = k0; k < k1 && k < bins.length; k++) if (bins[k]! > mx) mx = bins[k]!;
+      bands[i] = Math.max(0, Math.min(1, (mx + 90) / 80));
+    }
+    return true;
+  }
+
+  /** The track compressor's gain reduction (dB, ≤ 0) over the last ~50 ms. */
+  trackGainReduction(trackId: string): number {
+    return this.playing ? (this.buses.get(trackId)?.gr ?? 0) : 0;
+  }
+
+  /** Peak and RMS of what a track is playing right now, left and right (linear; 0 when silent or stopped). */
+  trackLevel(trackId: string): { peak: number; rms: number; peakR: number; rmsR: number } {
+    const b = this.buses.get(trackId);
+    if (!b || !this.playing) return { peak: 0, rms: 0, peakR: 0, rmsR: 0 };
+    const read = (a: AnalyserNode) => {
+      const n = a.fftSize;
+      if (!this.meterBuf || this.meterBuf.length !== n) this.meterBuf = new Float32Array(n);
+      a.getFloatTimeDomainData(this.meterBuf);
+      let peak = 0;
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        const v = this.meterBuf[i]!;
+        const x = Math.abs(v);
+        if (x > peak) peak = x;
+        sum += v * v;
+      }
+      return { peak, rms: Math.sqrt(sum / n) };
+    };
+    const l = read(b.analyserL);
+    const r = read(b.analyserR);
+    return { peak: l.peak, rms: l.rms, peakR: r.peak, rmsR: r.rms };
+  }
+
+  /** Faders and pans live on the bus, so moving one is instant (no re-plan). Same balance law as the render. */
   private applyTrackGains() {
     if (!this.ctx) return;
+    const now = this.ctx.currentTime;
     for (const [id, b] of this.buses) {
       const t = this.doc.tracks.find((x) => x.id === id);
-      const g = t?.gainDb ? Math.pow(10, t.gainDb / 20) : 1;
-      b.gain.gain.setTargetAtTime(g, this.ctx.currentTime, 0.01);
+      b.fader.gain.setTargetAtTime(t?.gainDb ? Math.pow(10, t.gainDb / 20) : 1, now, 0.01);
+      const [pl, pr] = panGains(t?.pan);
+      b.panL.gain.setTargetAtTime(pl, now, 0.01);
+      b.panR.gain.setTargetAtTime(pr, now, 0.01);
+      this.sendFx(b, t?.fx);
     }
+  }
+
+  private sendFx(b: Bus, fx: Track["fx"]) {
+    const active = fxActive(fx) ? fx : null;
+    const sig = JSON.stringify(active);
+    if (sig === b.fxSig) return;
+    b.fxSig = sig;
+    b.fx.port.postMessage({ type: "fx", fx: active });
   }
 
   private bus(trackId: string): AudioNode {
     const ctx = this.ctx!;
     if (!this.master) {
       this.master = ctx.createGain();
-      this.master.connect(ctx.destination);
-      // the tap must reach the destination to run; it outputs silence
-      // stereo master: mono track buses are up-mixed to both sides, so L/R meter what the speakers get
+      // stereo master: L/R meter what the speakers get
       this.master.channelCount = 2;
       this.master.channelCountMode = "explicit";
       this.master.channelInterpretation = "speakers";
-      this.tap = ctx.createScriptProcessor(4096, 2, 2);
+      this.master.connect(ctx.destination);
+      // BS.1770 meter worklet on the master; it must reach the destination to run (its output is silent)
+      this.meterNode = new AudioWorkletNode(ctx, "podstudio-meter", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: "explicit", channelInterpretation: "speakers" });
       const mute = ctx.createGain();
       mute.gain.value = 0;
-      this.master.connect(this.tap);
-      this.tap.connect(mute);
+      this.master.connect(this.meterNode);
+      this.meterNode.connect(mute);
       mute.connect(ctx.destination);
-      this.tap.onaudioprocess = (e) => {
-        if (this.playing) this.onMasterAudio?.(e.inputBuffer.getChannelData(0), e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : e.inputBuffer.getChannelData(0));
+      this.meterNode.port.onmessage = (e: MessageEvent) => {
+        if (e.data?.type === "levels" && this.playing) this.onMeter?.(e.data as MeterReport);
       };
     }
     let b = this.buses.get(trackId);
     if (!b) {
-      const gain = ctx.createGain();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      gain.connect(analyser);
-      gain.connect(this.master);
+      // input (mono pieces up-mixed to both sides) → fader → split → pan gains → merge → master, with L/R analysers
+      const input = ctx.createGain();
+      input.channelCount = 2;
+      input.channelCountMode = "explicit";
+      input.channelInterpretation = "speakers";
+      const fader = ctx.createGain();
+      fader.channelCount = 2;
+      fader.channelCountMode = "explicit";
+      const split = ctx.createChannelSplitter(2);
+      const panL = ctx.createGain();
+      const panR = ctx.createGain();
+      const merge = ctx.createChannelMerger(2);
+      const analyserL = ctx.createAnalyser();
+      const analyserR = ctx.createAnalyser();
+      analyserL.fftSize = analyserR.fftSize = 2048;
+      const tfx = this.doc.tracks.find((x) => x.id === trackId)?.fx;
+      const fx = new AudioWorkletNode(ctx, "podstudio-fx", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: "explicit", channelInterpretation: "speakers", processorOptions: { fx: fxActive(tfx) ? tfx : null } });
+      input.connect(fx);
+      fx.connect(fader);
+      fader.connect(split);
+      split.connect(panL, 0);
+      split.connect(panR, 1);
+      panL.connect(merge, 0, 0);
+      panR.connect(merge, 0, 1);
+      panL.connect(analyserL);
+      panR.connect(analyserR);
+      merge.connect(this.master);
       const t = this.doc.tracks.find((x) => x.id === trackId);
-      gain.gain.value = t?.gainDb ? Math.pow(10, t.gainDb / 20) : 1;
-      b = { gain, analyser };
+      fader.gain.value = t?.gainDb ? Math.pow(10, t.gainDb / 20) : 1;
+      const [pl, pr] = panGains(t?.pan);
+      panL.gain.value = pl;
+      panR.gain.value = pr;
+      const bus: Bus = { input, fx, fxSig: "", gr: 0, fader, panL, panR, analyserL, analyserR };
+      fx.port.onmessage = (e: MessageEvent) => {
+        if (e.data?.type === "gr") bus.gr = e.data.db;
+      };
+      this.sendFx(bus, t?.fx);
+      b = bus;
       this.buses.set(trackId, b);
     }
-    return b.gain;
+    return b.input;
   }
 
   dispose() {
     this.pause();
-    if (this.tap) this.tap.onaudioprocess = null;
+    if (this.meterNode) this.meterNode.port.onmessage = null;
     this.buses.clear();
     this.windows.clear();
     void this.ctx?.close();
@@ -247,6 +363,8 @@ export class EditorPlayer {
     const gen = ++this.gen;
     this.stopNodes();
     this.ctx ??= new AudioContext({ sampleRate: this.doc.sampleRate });
+    await (this.moduleReady ??= this.ctx.audioWorklet.addModule(workletUrl));
+    if (gen !== this.gen) return;
     if (this.ctx.state !== "running") await this.ctx.resume();
     this.t0 = Math.max(0, from);
     // Give the first windows a moment to arrive before the clock starts.
@@ -277,11 +395,25 @@ export class EditorPlayer {
     const p = (async () => {
       if (!src || first >= src.totalSamples) return null;
       const count = Math.min(WINDOW_SAMPLES, src.totalSamples - first);
-      const res = await fetch(`/studio/assets/${src.assetId}/audio`, { headers: { Range: `bytes=${WAV_HEADER + first * 3}-${WAV_HEADER + (first + count) * 3 - 1}` } });
+      const ch = src.channels === 2 ? 2 : 1;
+      const fb = 3 * ch; // bytes per frame
+      const res = await fetch(`/studio/assets/${src.assetId}/audio`, { headers: { Range: `bytes=${WAV_HEADER + first * fb}-${WAV_HEADER + (first + count) * fb - 1}` } });
       if (res.status !== 206 && res.status !== 200) throw new Error(`audio ${res.status}`);
       const pcm = pcm24ToFloat(new Uint8Array(await res.arrayBuffer()));
-      const buf = this.ctx!.createBuffer(1, pcm.length, this.doc.sampleRate);
-      buf.copyToChannel(pcm as Float32Array<ArrayBuffer>, 0);
+      const frames = Math.floor(pcm.length / ch);
+      const buf = this.ctx!.createBuffer(ch, frames, this.doc.sampleRate);
+      if (ch === 1) buf.copyToChannel(pcm as Float32Array<ArrayBuffer>, 0);
+      else {
+        // de-interleave L/R
+        const l = new Float32Array(frames);
+        const r = new Float32Array(frames);
+        for (let i = 0; i < frames; i++) {
+          l[i] = pcm[2 * i]!;
+          r[i] = pcm[2 * i + 1]!;
+        }
+        buf.copyToChannel(l, 0);
+        buf.copyToChannel(r, 1);
+      }
       return buf;
     })();
     p.catch(() => this.windows.delete(k));
@@ -326,6 +458,8 @@ export class EditorPlayer {
   private async scheduleSegment(gen: number, from: number, to: number, shift: number, seam: { in: boolean; out: boolean }) {
     const ctx = this.ctx!;
     const rate = this.doc.sampleRate;
+    // every track runs through an FX worklet with FX_LATENCY of delay: start everything that much early
+    const c0 = this.c0 - FX_LATENCY / rate;
     const pieces = planPieces(this.doc, from, to);
     // ducking: the same trigger measurement and gain smoothing the export uses, on the audio
     // already loaded for the pieces; a short run-up lets the follower settle after a seek
@@ -336,7 +470,10 @@ export class EditorPlayer {
       const origin = Math.max(0, from - pre);
       const len = to - origin;
       const ids = new Set(triggerTrackIds(this.doc, rule));
-      const windowOf = async (sourceId: string, win: number) => (await this.load(sourceId, win))?.getChannelData(0) ?? new Float32Array(WINDOW_SAMPLES);
+      const windowOf = async (sourceId: string, win: number) => {
+        const b = await this.load(sourceId, win);
+        return b ? Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c)) : [new Float32Array(WINDOW_SAMPLES)];
+      };
       const tracks = await mixTrackBlocks(this.doc, origin, len, windowOf, ids);
       duckCurves.set(rule.id, { origin, gains: duckGains(triggerSignal(this.doc, rule, tracks, len), rule, rate, newDuckState()) });
     }
@@ -347,7 +484,7 @@ export class EditorPlayer {
         if (!buf || gen !== this.gen) return;
         const clip = (this.xf ??= withCrossfades(this.doc)).get(p.clipId);
         if (!clip) return;
-        const nominal = this.c0 + (p.start + shift - this.t0) / rate;
+        const nominal = c0 + (p.start + shift - this.t0) / rate;
         let when = nominal;
         let offset = (p.srcStart % WINDOW_SAMPLES) / rate;
         let dur = p.length / rate;
@@ -364,7 +501,7 @@ export class EditorPlayer {
         const gain = ctx.createGain();
         const bp = gainBreakpoints(clip, p);
         gain.gain.setValueAtTime(bp[0]![1], when);
-        for (const [t, g] of bp.slice(1)) gain.gain.linearRampToValueAtTime(g, this.c0 + (t + shift - this.t0) / rate);
+        for (const [t, g] of bp.slice(1)) gain.gain.linearRampToValueAtTime(g, c0 + (t + shift - this.t0) / rate);
         // one more gain stage per ducking rule that turns this track down (rules multiply)
         let tail: AudioNode = src.connect(gain);
         const extra: GainNode[] = [];

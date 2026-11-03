@@ -33,9 +33,16 @@ app.use((req, res, next) => {
   if (!EMBED_PATH.test(req.path)) res.setHeader("X-Frame-Options", "SAMEORIGIN");
   next();
 });
+// Hashed build assets are public and static. They're served to any origin so the embed player
+// works inside sandboxed iframes too (origin "null", e.g. the Embeds screen's preview or a CMS that
+// sandboxes embeds): its module scripts and fonts are CORS requests.
 app.use(
   "/assets",
-  express.static(path.join("build/client", "assets"), { immutable: true, maxAge: "1y" }),
+  express.static(path.join("build/client", "assets"), {
+    immutable: true,
+    maxAge: "1y",
+    setHeaders: (res) => res.setHeader("Access-Control-Allow-Origin", "*"),
+  }),
 );
 app.use(express.static("build/client", { maxAge: "1h" }));
 app.use(express.static("public", { maxAge: "1h" }));

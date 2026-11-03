@@ -7,6 +7,8 @@ import { Label } from "~/components/ui/label";
 import { ShowArtwork } from "~/components/show-artwork";
 import { RichTextField } from "~/components/rich-text-field";
 import { ViewPublicPage } from "~/components/view-public";
+import { FormSelect } from "~/components/ui/form-select";
+import { Page, PageHeader } from "~/components/layout/page";
 
 export async function loader({ params }: { params: { id?: string } }) {
   const d = getPersonAdmin(params.id ?? "");
@@ -36,24 +38,20 @@ export default function PersonDetail({
   const { person, avatar, storageReady, credits, onPublicSite, publicPath } = loaderData;
   const nav = useNavigation();
   const [confirm, setConfirm] = useState(false);
-  const select =
-    "h-9 rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link to="/studio/people" className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground">
-            ← Hosts &amp; guests
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">{person.name}</h1>
-        </div>
-        {onPublicSite ? (
-          <ViewPublicPage path={publicPath} label="View public profile" />
-        ) : (
-          <span className="text-[12.5px] text-muted-foreground">Not on the public site until credited on a published episode</span>
-        )}
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow={<Link to="/studio/people" className="hover:text-foreground">Hosts &amp; guests</Link>}
+        title={person.name}
+        actions={
+          onPublicSite ? (
+            <ViewPublicPage path={publicPath} label="View public profile" />
+          ) : (
+            <span className="text-[12.5px] text-muted-foreground">Shown publicly once credited on a published episode</span>
+          )
+        }
+      />
 
       <ShowArtwork
         artwork={avatar ? { url: avatar.url, width: null, height: null, bytes: avatar.bytes, contentType: avatar.contentType } : null}
@@ -74,10 +72,15 @@ export default function PersonDetail({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="role">Role</Label>
-            <select id="role" name="role" defaultValue={person.role === "host" ? "host" : "guest"} className={select}>
-              <option value="host" className="bg-popover">Host</option>
-              <option value="guest" className="bg-popover">Guest</option>
-            </select>
+            <FormSelect
+              id="role"
+              name="role"
+              defaultValue={person.role === "host" ? "host" : "guest"}
+              options={[
+                { value: "host", label: "Host" },
+                { value: "guest", label: "Guest" },
+              ]}
+            />
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -134,6 +137,6 @@ export default function PersonDetail({
           )}
         </Form>
       </section>
-    </div>
+    </Page>
   );
 }

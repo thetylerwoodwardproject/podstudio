@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { faCircleNotch, faPause, faPlay, faTrashCan, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { AudioPlayer, AudioPlayerPlay, AudioPlayerSeek, AudioPlayerTime } from "~/components/ui/audio-player";
+import { playIcon } from "~/components/ui/play-icon";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
+import { FormSelect } from "~/components/ui/form-select";
+import { Page, PageHeader } from "~/components/layout/page";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 
 // Library: the show's commonly used audio (intros, outros, stingers, beds, sound effects). Upload
 // once, then add it to any episode from the editor's Library button.
@@ -28,8 +33,6 @@ export default function LibraryPage() {
   const [kind, setKind] = useState<"music" | "sfx">("music");
   const [uploads, setUploads] = useState<{ key: string; name: string; pct: number; error?: string }[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [playing, setPlaying] = useState<string | null>(null);
-  const audio = useRef<HTMLAudioElement | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -50,7 +53,6 @@ export default function LibraryPage() {
     const t = window.setInterval(() => void refresh(), 1500);
     return () => window.clearInterval(t);
   }, [busy, refresh]);
-  useEffect(() => () => audio.current?.pause(), []);
 
   const upload = (files: File[]) => {
     for (const file of files) {
@@ -93,28 +95,9 @@ export default function LibraryPage() {
     if (!j.ok) setMessage(j.error ?? "Couldn't delete that.");
     await refresh();
   };
-  const toggle = (i: Item) => {
-    if (!i.assetId) return;
-    if (playing === i.id) {
-      audio.current?.pause();
-      setPlaying(null);
-      return;
-    }
-    audio.current?.pause();
-    const a = new Audio(`/studio/assets/${i.assetId}/audio`);
-    a.onended = () => setPlaying(null);
-    a.onerror = () => {
-      setPlaying(null);
-      setMessage("Couldn't play that preview.");
-    };
-    audio.current = a;
-    setPlaying(i.id);
-    void a.play().catch(() => setPlaying(null));
-  };
 
   return (
     <div
-      className="mx-auto max-w-4xl p-6"
       onDragOver={(e) => e.dataTransfer.types.includes("Files") && (e.preventDefault(), setDragging(true))}
       onDragLeave={(e) => !e.relatedTarget && setDragging(false)}
       onDrop={(e) => {
@@ -124,22 +107,32 @@ export default function LibraryPage() {
         upload([...e.dataTransfer.files]);
       }}
     >
-      <div className="mb-5 flex items-end gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Edit</div>
-          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Intros, outros, stingers, beds and sound effects you use again and again. Upload once, then add them to any episode from the editor.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg bg-secondary p-0.5 text-[12.5px] font-medium" role="group" aria-label="Add as">
-            {(["music", "sfx"] as const).map((k) => (
-              <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} data-testid={`lib-kind-${k}`} className={cn("rounded-md px-3 py-1.5", kind === k ? "bg-background" : "text-muted-foreground hover:text-foreground")}>{k === "sfx" ? "Sound effect" : "Music"}</button>
-            ))}
-          </div>
-          <Button onClick={() => input.current?.click()} data-testid="lib-upload"><FontAwesomeIcon icon={faUpload} /> Upload audio</Button>
-          <input ref={input} type="file" multiple accept={ACCEPT} className="hidden" data-testid="lib-input" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; upload(f); }} />
-        </div>
-      </div>
+      <Page width="wide">
+      <PageHeader
+        title="Library"
+        description="Intros, outros, stingers, beds and sound effects you use again and again. Upload once, then add them to any episode from the editor."
+        actions={
+          <>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={kind}
+              onValueChange={(v) => v && setKind(v as "music" | "sfx")}
+              aria-label="Add as"
+            >
+              <ToggleGroupItem value="music" data-testid="lib-kind-music" className="px-3 text-[12.5px]">
+                Music
+              </ToggleGroupItem>
+              <ToggleGroupItem value="sfx" data-testid="lib-kind-sfx" className="px-3 text-[12.5px]">
+                Sound effect
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Button onClick={() => input.current?.click()} data-testid="lib-upload"><FontAwesomeIcon icon={faUpload} /> Upload audio</Button>
+            <input ref={input} type="file" multiple accept={ACCEPT} className="hidden" data-testid="lib-input" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; upload(f); }} />
+          </>
+        }
+      />
 
       {dragging && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/70 text-lg font-medium"><div className="rounded-xl border-2 border-dashed border-ring px-8 py-6">Drop audio to add it to the library</div></div>}
       {message && <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px]" role="alert" data-testid="lib-message">{message}</p>}
@@ -160,22 +153,38 @@ export default function LibraryPage() {
         <p className="text-muted-foreground">Loading…</p>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-[13px] text-muted-foreground" data-testid="lib-empty">
-          Nothing here yet. Upload your intro, outro or a favourite sound effect — or drop files anywhere on this page.
+          Nothing here yet. Upload your intro, outro or a favorite sound effect — or drop files anywhere on this page.
         </div>
       ) : (
         <ul className="flex flex-col gap-2" data-testid="lib-list">
           {items.map((i) => (
-            <li key={i.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5" data-testid="lib-item" data-status={i.status}>
-              <button type="button" disabled={i.status !== "ready"} onClick={() => toggle(i)} aria-label={playing === i.id ? `Stop ${i.name}` : `Play ${i.name}`} data-testid="lib-play" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border text-[13px] hover:bg-accent disabled:opacity-40">
-                {i.status === "ready" ? <FontAwesomeIcon icon={playing === i.id ? faPause : faPlay} /> : i.status === "failed" ? "!" : <FontAwesomeIcon icon={faCircleNotch} spin />}
-              </button>
+            <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-card px-3 py-2.5" data-testid="lib-item" data-status={i.status}>
+              {i.status === "ready" && i.assetId ? (
+                <AudioPlayer src={`/studio/assets/${i.assetId}/audio`} preload="none" className="flex w-full shrink-0 items-center gap-2 sm:w-60" aria-label={`Preview ${i.name}`} data-testid="lib-player">
+                  <AudioPlayerPlay data-testid="lib-play">{playIcon}</AudioPlayerPlay>
+                  <AudioPlayerSeek className="min-w-0 flex-1" />
+                  <AudioPlayerTime className="shrink-0 text-[11px]" />
+                </AudioPlayer>
+              ) : (
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border text-[13px] text-muted-foreground" data-testid="lib-play" aria-label={i.status === "failed" ? "Failed" : "Converting"}>
+                  {i.status === "failed" ? "!" : <FontAwesomeIcon icon={faCircleNotch} spin />}
+                </span>
+              )}
               <NameField value={i.name} onSave={(n) => patch(i.id, { name: n })} />
-              <select value={i.kind} onChange={(e) => void patch(i.id, { kind: e.target.value })} aria-label="Default track" data-testid="lib-kind" className="h-8 rounded-md border border-border bg-background px-2 text-[12.5px]">
-                <option value="music">Music</option>
-                <option value="sfx">Sound effect</option>
-              </select>
+              <FormSelect
+                size="sm"
+                value={i.kind}
+                onValueChange={(v) => void patch(i.id, { kind: v })}
+                aria-label="Default track"
+                data-testid="lib-kind"
+                className="w-[140px] text-[12.5px]"
+                options={[
+                  { value: "music", label: "Music" },
+                  { value: "sfx", label: "Sound effect" },
+                ]}
+              />
               <span className="w-12 text-right font-mono text-[12.5px] text-muted-foreground">{clock(i.durationS)}</span>
-              <span className="w-28 text-right text-[12px] text-muted-foreground" data-testid="lib-status">
+              <span className="text-right text-[12px] text-muted-foreground sm:w-28" data-testid="lib-status">
                 {i.status === "ready" ? (i.usedIn > 0 ? `Used in ${i.usedIn} episode${i.usedIn === 1 ? "" : "s"}` : "Ready") : i.status === "failed" ? <span className="text-destructive" title={i.error ?? ""}>Failed</span> : i.status === "queued" ? "Queued" : "Converting…"}
               </span>
               <button type="button" onClick={() => void remove(i)} disabled={i.cancelRequested === 1} aria-label={`Delete ${i.name}`} title={i.status === "running" ? "Cancel" : "Delete"} data-testid="lib-delete" className="flex size-8 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-40">
@@ -186,6 +195,7 @@ export default function LibraryPage() {
           ))}
         </ul>
       )}
+      </Page>
     </div>
   );
 }
@@ -213,7 +223,7 @@ function NameField({ value, onSave }: { value: string; onSave: (n: string) => vo
           e.currentTarget.blur();
         }
       }}
-      className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-[14px] font-medium hover:border-border focus:border-ring focus:outline-none"
+      className="min-w-[140px] flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-[14px] font-medium hover:border-border focus:border-ring focus:outline-none"
     />
   );
 }

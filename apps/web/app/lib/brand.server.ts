@@ -18,7 +18,7 @@ export function saveBrandTheme(
 
   if (input.accent === "custom") {
     if (typeof input.customHex !== "string" || !normalizeHex(input.customHex)) {
-      return { ok: false, error: "Enter a valid hex colour, like #c47f12." };
+      return { ok: false, error: "Enter a valid hex color, like #c47f12." };
     }
   }
   // readBrandTheme re-validates every field against its allow-list.

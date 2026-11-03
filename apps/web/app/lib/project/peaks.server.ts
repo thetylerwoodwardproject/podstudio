@@ -40,7 +40,7 @@ async function build(assetId: string): Promise<Uint8Array | null> {
       // not cached yet
     }
     const obj = await client.send(new GetObjectCommand({ Bucket: target.bucket, Key: asset.key, Range: `bytes=${WAV_HEADER}-` }));
-    const builder = new PeakBuilder();
+    const builder = new PeakBuilder(asset.channels === 2 ? 2 : 1);
     for await (const chunk of obj.Body as Readable) builder.push(chunk as Uint8Array);
     const file = builder.finish();
     await client.send(new PutObjectCommand({ Bucket: target.bucket, Key: cacheKey(asset.key), Body: file, ContentType: "application/octet-stream" }));

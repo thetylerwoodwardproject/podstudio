@@ -8,6 +8,9 @@
 // samples, its `start` is the timeline position — both at that rate. Only sources recorded
 // at the project rate are accepted until the import stage brings a resampling pipeline.
 
+import { normalizeFx, type TrackFx } from "./fx";
+import { isDeliveryPreset, type DeliveryPreset } from "./delivery";
+
 export const PROJECT_SCHEMA_VERSION = 1;
 
 export type TrackKind = "host" | "guest" | "music" | "sfx";
@@ -22,7 +25,10 @@ export interface Source {
   /** `recordings.id` when the source is a Podstudio recording (its annotations anchor here). */
   recordingId?: string;
   label: string;
+  /** Frames (samples per channel). */
   totalSamples: number;
+  /** 1 (mono, default) or 2 (stereo, interleaved L/R in the WAV). */
+  channels?: 1 | 2;
 }
 
 export interface Track {
@@ -37,12 +43,27 @@ export interface Track {
   color?: string;
   /** Track volume (the fader), dB. Absent = 0 dB. Applied after clip gain/fades; FX will sit before it. */
   gainDb?: number;
+  /**
+   * Pan, −1 (left) … 0 (centre) … +1 (right). Absent = 0. A balance law: the centre is 0 dB on both
+   * sides (so a centred mono track mixes exactly like a mono mix), panning turns the far side down.
+   */
+  pan?: number;
+  /** Track FX (noise reduction, filters, EQ, compressor) — see fx.ts. Absent = none. */
+  fx?: TrackFx;
 }
+
+/** Left/right gains for a pan position (balance law). */
+export const panGains = (pan: number | undefined): [number, number] => {
+  const p = Math.max(-1, Math.min(1, pan ?? 0));
+  return [Math.min(1, 1 - p), Math.min(1, 1 + p)];
+};
+export const sourceChannels = (s: Pick<Source, "channels">): 1 | 2 => (s.channels === 2 ? 2 : 1);
 
 export const TRACK_GAIN_DB = { min: -60, max: 12 } as const;
 
 /** Colour presets offered in the editor; any `#rrggbb` is accepted. */
-export const TRACK_COLOR_PRESETS = ["#e8b04a", "#6fc3c9", "#b49ae6", "#81b29a", "#5b8def", "#f28fad", "#c9d36a", "#f4a259", "#d4a373", "#9aa5b1"] as const;
+/** Track color choices (Tyler's base palette, 2026-11-02). Black is drawn as bone on the dark timeline. */
+export const TRACK_COLOR_PRESETS = ["#000000", "#fabf47", "#00fff5", "#beff00", "#ff807f", "#c7bff6"] as const;
 const isHex = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 
 export interface Clip {
@@ -104,6 +125,8 @@ export interface ProjectDoc {
   annotations: Annotation[];
   /** Absent in projects made before ducking existed. */
   ducking?: DuckRule[];
+  /** This episode's delivery preset; absent = the show's default. */
+  delivery?: { preset: DeliveryPreset };
 }
 
 export type EditError = { ok: false; error: string };
@@ -449,7 +472,7 @@ export function addTrack(doc: ProjectDoc, kind: TrackKind, name?: string): Proje
   return { ...doc, tracks: [...doc.tracks, { id: newId(), name: name?.trim() || (n > 1 ? `${label} ${n}` : label), kind, muted: false, solo: false, locked: false, height: TRACK_HEIGHT.default }] };
 }
 
-export function updateTrack(doc: ProjectDoc, trackId: string, patch: Partial<Pick<Track, "name" | "muted" | "solo" | "locked" | "height" | "gainDb">> & { color?: string | null }): EditResult {
+export function updateTrack(doc: ProjectDoc, trackId: string, patch: Partial<Pick<Track, "name" | "muted" | "solo" | "locked" | "height" | "gainDb" | "pan">> & { color?: string | null; fx?: TrackFx | null }): EditResult {
   const t = track(doc, trackId);
   if (!t) return fail("No such track.");
   const next = { ...t };
@@ -468,9 +491,21 @@ export function updateTrack(doc: ProjectDoc, trackId: string, patch: Partial<Pic
     if (g === 0) delete next.gainDb;
     else next.gainDb = g;
   }
+  if (patch.pan !== undefined) {
+    if (typeof patch.pan !== "number" || !Number.isFinite(patch.pan)) return fail("Bad pan.");
+    const pn = Math.round(Math.max(-1, Math.min(1, patch.pan)) * 100) / 100;
+    if (pn === 0) delete next.pan;
+    else next.pan = pn;
+  }
+  if (patch.fx === null) delete next.fx;
+  else if (patch.fx !== undefined) {
+    const f = normalizeFx(patch.fx);
+    if (!f) return fail("Bad FX settings.");
+    next.fx = f;
+  }
   if (patch.color === null) delete next.color;
   else if (patch.color !== undefined) {
-    if (!isHex(patch.color)) return fail("A track colour is #rrggbb.");
+    if (!isHex(patch.color)) return fail("A track color is #rrggbb.");
     next.color = patch.color.toLowerCase();
   }
   return ok({ ...doc, tracks: doc.tracks.map((x) => (x.id === t.id ? next : x)) });
@@ -634,16 +669,20 @@ export function parseProject(raw: unknown): { ok: true; doc: ProjectDoc } | Edit
   for (const s of r.sources as Record<string, unknown>[]) {
     if (!s || !isStr(s.id) || !isStr(s.assetId) || !isStr(s.label, 200) || !isInt(s.totalSamples) || s.totalSamples <= 0) return fail("Bad source.");
     if (s.recordingId !== undefined && !isStr(s.recordingId)) return fail("Bad source.");
-    sources.push({ id: s.id, assetId: s.assetId, ...(s.recordingId ? { recordingId: s.recordingId as string } : {}), label: s.label, totalSamples: s.totalSamples });
+    if (s.channels !== undefined && s.channels !== 1 && s.channels !== 2) return fail("Bad source.");
+    sources.push({ id: s.id, assetId: s.assetId, ...(s.recordingId ? { recordingId: s.recordingId as string } : {}), label: s.label, totalSamples: s.totalSamples, ...(s.channels === 2 ? { channels: 2 as const } : {}) });
   }
   const tracks: Track[] = [];
   for (const t of r.tracks as Record<string, unknown>[]) {
     if (!t || !isStr(t.id) || !isStr(t.name, 60) || !TRACK_KINDS.includes(t.kind as TrackKind)) return fail("Bad track.");
     if (typeof t.muted !== "boolean" || typeof t.solo !== "boolean" || typeof t.locked !== "boolean") return fail("Bad track.");
     if (typeof t.height !== "number" || !Number.isFinite(t.height)) return fail("Bad track.");
-    if (t.color !== undefined && !isHex(t.color)) return fail("Bad track colour.");
+    if (t.color !== undefined && !isHex(t.color)) return fail("Bad track color.");
+    const fx = t.fx === undefined ? undefined : normalizeFx(t.fx);
+    if (fx === null) return fail("Bad FX settings.");
+    if (t.pan !== undefined && (typeof t.pan !== "number" || !Number.isFinite(t.pan) || t.pan < -1 || t.pan > 1)) return fail("Bad pan.");
     if (t.gainDb !== undefined && (typeof t.gainDb !== "number" || !Number.isFinite(t.gainDb) || t.gainDb < TRACK_GAIN_DB.min || t.gainDb > TRACK_GAIN_DB.max)) return fail("Bad track volume.");
-    tracks.push({ id: t.id, name: t.name, kind: t.kind as TrackKind, muted: t.muted, solo: t.solo, locked: t.locked, height: Math.round(Math.min(TRACK_HEIGHT.max, Math.max(TRACK_HEIGHT.min, t.height))), ...(t.color ? { color: (t.color as string).toLowerCase() } : {}), ...(typeof t.gainDb === "number" && t.gainDb !== 0 ? { gainDb: t.gainDb } : {}) });
+    tracks.push({ id: t.id, name: t.name, kind: t.kind as TrackKind, muted: t.muted, solo: t.solo, locked: t.locked, height: Math.round(Math.min(TRACK_HEIGHT.max, Math.max(TRACK_HEIGHT.min, t.height))), ...(t.color ? { color: (t.color as string).toLowerCase() } : {}), ...(typeof t.gainDb === "number" && t.gainDb !== 0 ? { gainDb: t.gainDb } : {}), ...(typeof t.pan === "number" && t.pan !== 0 ? { pan: t.pan } : {}), ...(fx ? { fx } : {}) });
   }
   const clips: Clip[] = [];
   for (const c of r.clips as Record<string, unknown>[]) {
@@ -685,5 +724,11 @@ export function parseProject(raw: unknown): { ok: true; doc: ProjectDoc } | Edit
     const bad = layoutProblem(cs);
     if (bad) return fail(`"${t.name}": ${bad}`);
   }
-  return { ok: true, doc: { schemaVersion: PROJECT_SCHEMA_VERSION, sampleRate: r.sampleRate, sources, tracks, clips, annotations, ...(ducking ? { ducking } : {}) } };
+  let delivery: ProjectDoc["delivery"];
+  if (r.delivery !== undefined) {
+    const d = r.delivery as Record<string, unknown> | null;
+    if (!d || !isDeliveryPreset(d.preset)) return fail("Bad delivery preset.");
+    delivery = { preset: d.preset };
+  }
+  return { ok: true, doc: { schemaVersion: PROJECT_SCHEMA_VERSION, sampleRate: r.sampleRate, sources, tracks, clips, annotations, ...(ducking ? { ducking } : {}), ...(delivery ? { delivery } : {}) } };
 }

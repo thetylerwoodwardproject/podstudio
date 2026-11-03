@@ -7,6 +7,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { FormSelect } from "~/components/ui/form-select";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 14 (Publish to feed) at `/studio/publish?episode=<id>`. Per README:
 // release now/schedule, Podcasting 2.0 item tags, upload progress, item XML
@@ -82,10 +84,10 @@ const TAGS: TagRow[] = [
     missing: "no verified audio file",
     fix: (id) => ({ label: "Upload it in Episode details", to: `/studio/episodes/${id}#audio-file` }),
   },
-  { label: "podcast:transcript", real: () => false, missing: "no transcript — Stage 07" },
+  { label: "podcast:transcript", real: () => false, missing: "no transcript yet" },
   { label: "podcast:chapters", real: () => false, missing: "no chapters yet" },
   { label: "podcast:soundbite", real: () => false, missing: "no soundbites yet" },
-  { label: "podcast:alternateEnclosure (video)", real: () => false, missing: "no video renditions — Stage 10a" },
+  { label: "podcast:alternateEnclosure (video)", real: () => false, missing: "no video version yet" },
   { label: "podcast:value", real: () => false, missing: "value-for-value isn't wired into items yet" },
 ];
 
@@ -103,31 +105,24 @@ export default function Publish({
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Publish &amp; share</div>
-        <h1 className="text-2xl font-semibold tracking-tight">Publish to feed</h1>
-      </div>
+    <Page>
+      <PageHeader eyebrow="Episodes" title="Publish to feed" description="Release an episode now or schedule it. Published episodes appear in your RSS feed and on your public page." />
 
       <section className="flex flex-col gap-2 rounded-[14px] border border-border bg-card p-5">
         <Label htmlFor="episode">Episode</Label>
         {choices.length === 0 ? (
           <p className="text-[12.5px] text-muted-foreground">No unpublished episodes.</p>
         ) : (
-          <select
+          <FormSelect
             id="episode"
             value={params.get("episode") ?? ""}
-            onChange={(e) => setParams(e.target.value ? { episode: e.target.value } : {})}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          >
-            <option value="">Choose an episode…</option>
-            {choices.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.number != null ? `Ep. ${c.number} — ` : ""}
-                {c.title} ({c.status})
-              </option>
-            ))}
-          </select>
+            onValueChange={(v) => setParams(v ? { episode: v } : {})}
+            placeholder="Choose an episode…"
+            options={choices.map((c) => ({
+              value: c.id,
+              label: `${c.number != null ? `Ep. ${c.number} — ` : ""}${c.title} (${c.status})`,
+            }))}
+          />
         )}
       </section>
 
@@ -283,6 +278,6 @@ export default function Publish({
           </section>
         </>
       )}
-    </div>
+    </Page>
   );
 }

@@ -1,19 +1,23 @@
 import { Link } from "react-router";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPause } from "@fortawesome/free-solid-svg-icons/faPause";
-import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
 import { faXmark } from "@fortawesome/free-solid-svg-icons/faXmark";
 import { formatClock } from "./public-layout";
 import { usePlayer } from "./player-context";
+import { SITE_RATES, useSiteController } from "./site-controller";
+import { AudioPlayer as AcPlayer, AudioPlayerPlay, AudioPlayerRate, AudioPlayerSkipBack, AudioPlayerSkipForward, AudioPlayerTime } from "~/components/ui/audio-player";
+import { PlayerVolume, PlayerWaveform, SkipIcon } from "~/components/ui/player-icons";
+import { useEpisodeWaveform } from "./use-episode-waveform";
+import { playIcon } from "~/components/ui/play-icon";
 
 // The bar pinned to the bottom of every public page once something is playing.
 // It steps aside while the current track's own inline player is on screen.
 export function StickyPlayer() {
   const p = usePlayer();
   const t = p.current;
+  const controller = useSiteController(null);
+  const wave = useEpisodeWaveform(p.current?.src);
   if (!t) return null;
   const total = p.duration > 0 ? p.duration : (t.durationS ?? 0);
-  const pct = total ? Math.min(100, (p.time / total) * 100) : 0;
   return (
     <div className="pub-sticky" data-hidden={p.inlineVisible} role="region" aria-label="Now playing" data-testid="sticky-player">
       <div className="pub-sticky-in">
@@ -22,41 +26,17 @@ export function StickyPlayer() {
           <Link to={t.href}>{t.title}</Link>
           <small>{[t.show, t.number != null ? `Ep. ${t.number}` : null].filter(Boolean).join(" · ")}</small>
         </div>
-        <button type="button" className="pp-btn" aria-label="Back 15 seconds" onClick={() => p.skip(-15)}>
-          −15
-        </button>
-        <button
-          type="button"
-          className="pp-play small"
-          onClick={p.toggle}
-          aria-label={p.playing ? `Pause ${t.title}` : `Play ${t.title}`}
-        >
-          <FontAwesomeIcon icon={p.playing ? faPause : faPlay} style={p.playing ? undefined : { marginLeft: 2 }} />
-        </button>
-        <button type="button" className="pp-btn" aria-label="Forward 30 seconds" onClick={() => p.skip(30)}>
-          +30
-        </button>
-        <div className="scrub">
-          <input
-            className="pp-range"
-            type="range"
-            min={0}
-            max={1000}
-            step={1}
-            value={total ? Math.round((p.time / total) * 1000) : 0}
-            style={{ ["--p" as string]: `${pct}%` }}
-            aria-label="Seek"
-            aria-valuetext={`${formatClock(p.time)} of ${formatClock(total)}`}
-            onChange={(e) => total && p.seekTo((Number(e.target.value) / 1000) * total)}
-          />
-        </div>
-        <span className="pp-time pub-mono tm">
-          {formatClock(p.time)} / {formatClock(total)}
-        </span>
-        <button type="button" className="pp-btn" aria-label="Playback speed" onClick={p.cycleRate}>
-          {p.rate}×
-        </button>
-        <button type="button" className="pp-btn x" aria-label="Close player" onClick={p.close}>
+        {/* compact: play · waveform (audiocn Waveform as the seek bar) · remaining · speed (+ skips and volume when there's room) */}
+        <AcPlayer player={controller} className="pub-ac sticky-ac min-w-0 flex-1 flex-nowrap gap-2" aria-label="Now playing controls">
+          <AudioPlayerSkipBack seconds={15} className="sticky-extra" aria-label="Back 15 seconds"><SkipIcon dir="back" seconds={15} /></AudioPlayerSkipBack>
+          <AudioPlayerPlay aria-label={p.playing ? `Pause ${t.title}` : `Play ${t.title}`}>{playIcon}</AudioPlayerPlay>
+          <AudioPlayerSkipForward seconds={30} className="sticky-extra" aria-label="Forward 30 seconds"><SkipIcon dir="forward" seconds={30} /></AudioPlayerSkipForward>
+          <PlayerWaveform peaks={wave.peaks} loading={wave.loading} duration={total} barWidth={2} barGap={1} format={(sec) => formatClock(sec)} className="h-9 min-w-20 flex-1" />
+          <AudioPlayerTime type="remaining" format={(sec) => `−${formatClock(sec)}`} />
+          <AudioPlayerRate rates={SITE_RATES} aria-label="Playback speed" />
+          <PlayerVolume className="sticky-extra" slider={false} />
+        </AcPlayer>
+        <button type="button" className="sticky-close" aria-label="Close player" onClick={p.close}>
           <FontAwesomeIcon icon={faXmark} />
         </button>
       </div>

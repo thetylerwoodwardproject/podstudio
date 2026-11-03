@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, data, useNavigation } from "react-router";
+import { Form, data, useNavigation, useSubmit } from "react-router";
 import { Link } from "react-router";
 import {
   getDomainInfo,
@@ -16,6 +16,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
+import { FormSelect } from "~/components/ui/form-select";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 18 (Server settings). Per README: "Sidebar + Form: domain (Caddy
 // auto-TLS status Badge), storage, AI keys (Whisper and LLM endpoints),
@@ -65,24 +67,17 @@ function RoleSelect({
   role: Role;
   disabled: boolean;
 }) {
+  const submit = useSubmit();
   return (
-    <Form method="post">
-      <input type="hidden" name="intent" value="update-role" />
-      <input type="hidden" name="id" value={userId} />
-      <select
-        name="role"
-        value={role}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        disabled={disabled}
-        className="rounded-md border border-input bg-transparent px-2 py-1 text-[12.5px] text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      >
-        {ROLES.map((r) => (
-          <option key={r} value={r}>
-            {r[0].toUpperCase() + r.slice(1)}
-          </option>
-        ))}
-      </select>
-    </Form>
+    <FormSelect
+      size="sm"
+      value={role}
+      disabled={disabled}
+      aria-label="Role"
+      className="w-[104px] text-[12.5px]"
+      onValueChange={(v) => submit({ intent: "update-role", id: userId, role: v }, { method: "post" })}
+      options={ROLES.map((r) => ({ value: r, label: r[0].toUpperCase() + r.slice(1) }))}
+    />
   );
 }
 
@@ -184,47 +179,8 @@ export default function ServerSettings({
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Server</div>
-        <h1 className="text-2xl font-semibold tracking-tight">Server settings</h1>
-      </div>
-
-      <section className="flex flex-col gap-2 rounded-[14px] border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold text-muted-foreground">Domain</h2>
-        <div className="flex items-center justify-between text-[13px]">
-          <span className="text-muted-foreground">Hostname</span>
-          <span className="font-mono text-[12.5px]">{domain.hostname}</span>
-        </div>
-        <p className="text-[12.5px] text-muted-foreground">
-          Caddy internal CA — LAN-only, not public ACME. No live connectivity
-          check is performed here; a LAN-only reachability check can't stand
-          in for a real public-TLS/connectivity status.
-        </p>
-      </section>
-
-      <section className="mt-6 rounded-[14px] border border-border bg-card p-5">
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Storage</h2>
-        <p className="text-[12.5px] text-muted-foreground">
-          Managed on its own screen —{" "}
-          <Link to="/studio/storage" className="underline hover:text-foreground">
-            Storage
-          </Link>
-          .
-        </p>
-      </section>
-
-      <section className="mt-6 rounded-[14px] border border-border bg-card p-5">
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">AI keys &amp; LiveKit</h2>
-        <p className="text-[12.5px] text-muted-foreground">
-          Not configured — these arrive with their own stages (AI endpoints
-          and LiveKit's URL/keys both need real server-reachable
-          infrastructure, not just this form). Nothing fabricated here in
-          the meantime.
-        </p>
-      </section>
-
-      <Separator className="my-6" />
+    <Page>
+      <PageHeader eyebrow="Server" title="Server settings" description="Your account, who else can sign in, and how this server is set up." />
 
       <section className="flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Your account</h2>
@@ -257,9 +213,7 @@ export default function ServerSettings({
         </Form>
       </section>
 
-      <Separator className="my-6" />
-
-      <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
+      <section className="mt-5 flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Users</h2>
         {!isAdmin && (
           <p className="text-[12.5px] text-muted-foreground">Only admins can add, change or remove users.</p>
@@ -361,18 +315,12 @@ export default function ServerSettings({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="role">Role</Label>
-              <select
+              <FormSelect
                 id="role"
                 name="role"
                 defaultValue="editor"
-                className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r[0].toUpperCase() + r.slice(1)}
-                  </option>
-                ))}
-              </select>
+                options={ROLES.map((r) => ({ value: r, label: r[0].toUpperCase() + r.slice(1) }))}
+              />
             </div>
           </div>
 
@@ -396,6 +344,23 @@ export default function ServerSettings({
         </Form>
         )}
       </section>
-    </div>
+      <section className="mt-5 flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold text-muted-foreground">This server</h2>
+        <dl className="grid gap-x-6 gap-y-2.5 text-[13px] sm:grid-cols-[160px_1fr]">
+          <dt className="text-muted-foreground">Address</dt>
+          <dd className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{domain.hostname}</dd>
+          <dt className="text-muted-foreground">Certificate</dt>
+          <dd>Private (Caddy's own certificate authority), for this home network only</dd>
+          <dt className="text-muted-foreground">Storage</dt>
+          <dd>
+            <Link to="/studio/storage" className="underline underline-offset-2 hover:text-foreground">
+              Manage storage
+            </Link>
+          </dd>
+          <dt className="text-muted-foreground">AI &amp; remote guests</dt>
+          <dd className="text-muted-foreground">Not set up yet. Transcription and remote recording come in a later release.</dd>
+        </dl>
+      </section>
+    </Page>
   );
 }

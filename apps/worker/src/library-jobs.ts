@@ -31,7 +31,7 @@ export async function runNextLibraryItem(): Promise<boolean> {
   } catch (err) {
     const asked = db.select({ c: libraryItems.cancelRequested }).from(libraryItems).where(eq(libraryItems.id, item.id)).get()?.c;
     if (err instanceof Cancelled || asked) {
-      db.update(libraryItems).set({ status: "failed", error: "Cancelled.", finishedAt: Date.now(), leaseUntil: null }).where(eq(libraryItems.id, item.id)).run();
+      db.update(libraryItems).set({ status: "failed", error: "Canceled.", finishedAt: Date.now(), leaseUntil: null }).where(eq(libraryItems.id, item.id)).run();
     } else {
       console.error(`[worker] library item ${item.id} failed:`, err);
       fail(err instanceof Error ? err.message : "Conversion failed");

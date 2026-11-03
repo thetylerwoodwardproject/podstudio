@@ -8,11 +8,11 @@ export async function action({ request, params }: { request: Request; params: { 
   return Response.json(r, { status: r.ok ? 200 : r.status, headers: { "Cache-Control": "no-store" } });
 }
 
-// GET /studio/exports/:jobId — download the verified WAV (login required via the /studio middleware).
+// GET /studio/exports/:jobId — download the verified WAV or MP3 (login required via the /studio middleware).
 export async function loader({ params }: { params: { jobId?: string } }) {
   const f = await openExport(params.jobId ?? "");
   if (!f) return new Response("Not found", { status: 404 });
   return new Response(Readable.toWeb(f.body) as ReadableStream, {
-    headers: { "Content-Type": "audio/wav", "Content-Length": String(f.bytes), "Content-Disposition": `attachment; filename="${f.filename.replace(/[^\w.\-]/g, "_")}"`, "Cache-Control": "private, no-store" },
+    headers: { "Content-Type": f.contentType, "Content-Length": String(f.bytes), "Content-Disposition": `attachment; filename="${f.filename.replace(/[^\w.\-]/g, "_")}"`, "Cache-Control": "private, no-store" },
   });
 }

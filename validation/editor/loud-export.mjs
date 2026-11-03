@@ -5,7 +5,7 @@ const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").tri
 const { b, ctx, p, errs } = await launch();
 resetProject(epId); await clearImports(ctx, epId);
 await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
-await p.click("[data-testid=open-export]"); await p.waitForSelector("[data-testid=export-dialog]");
+await p.click("[data-testid=open-export]"); await p.waitForSelector("[data-testid=export-dialog]"); await p.click("[data-testid=fmt-wav]");
 ok("mono target shown", (await p.innerText("[data-testid=export-target]")).includes("−19 LUFS") || (await p.innerText("[data-testid=export-target]")).includes("-19 LUFS"), await p.innerText("[data-testid=export-target]"));
 const runOne = async (stereo) => {
   if (stereo) await p.click("[data-testid=ch-stereo]"); else await p.click("[data-testid=ch-mono]");

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { redirect, type MiddlewareFunction } from "react-router";
 import { auth } from "~/lib/auth.server";
 import { StudioShell } from "~/components/layout/studio-shell";
@@ -46,9 +47,23 @@ export default function StudioLayout({
   };
 }) {
   const { user, brand, show, role } = loaderData;
+  // The studio is dark. audiocn components (LCD, knobs…) pick their dark style from a `.dark` ancestor,
+  // and popovers render in a portal at the end of <body>, outside the wrapper below — so the class AND
+  // the show accent go on <html> while a studio page is open (public pages keep their own theme).
+  // Without this, popovers (the FX strip) drew switches in the default bone color, not the accent.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("dark");
+    const vars: Record<string, string> = brand ? { "--primary": brand.accent, "--primary-foreground": brand.onAccent, "--ring": brand.accent, "--studio-nav-bar": brand.accent } : {};
+    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+    return () => {
+      root.classList.remove("dark");
+      for (const k of Object.keys(vars)) root.style.removeProperty(k);
+    };
+  }, [brand?.accent, brand?.onAccent]);
   if (!brand) return <StudioShell user={user} show={show} role={role} />;
   // `display: contents` keeps the shell's grid layout while letting the CSS
-  // variables inherit to everything inside.
+  // variables inherit to everything inside (and gives the first server render the accent).
   return (
     <div
       data-studio-brand

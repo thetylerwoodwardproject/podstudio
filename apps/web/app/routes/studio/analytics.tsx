@@ -1,6 +1,8 @@
 import { Form, useNavigation, useSearchParams } from "react-router";
 import { getAnalyticsContext, setShowOnPublicPage } from "~/lib/analytics.server";
 import { Button } from "~/components/ui/button";
+import { Page, PageHeader } from "~/components/layout/page";
+import { Switch } from "~/components/ui/switch";
 
 // Screen 31 (Analytics, admin). Per README: range control (30 days daily /
 // 90 days weekly / 12 months monthly); KPIs; downloads chart; top apps;
@@ -60,42 +62,39 @@ export default function Analytics({ loaderData }: { loaderData: Awaited<ReturnTy
 
   if (!ctx) {
     return (
-      <div className="mx-auto max-w-3xl p-6">
+      <Page width="wide">
         <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
         <p className="mt-4 text-[13px] text-muted-foreground">No show seeded yet.</p>
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            Analytics &amp; discovery
+    <Page width="wide">
+      <PageHeader
+        eyebrow="Podcast hosting"
+        title="Analytics"
+        actions={
+          <div role="group" aria-label="Range" className="flex gap-1">
+            {RANGES.map((r) => (
+              <Button
+                key={r.id}
+                type="button"
+                size="sm"
+                variant={r.id === range.id ? "outline" : "ghost"}
+                aria-pressed={r.id === range.id}
+                onClick={() => setParams({ range: r.id }, { replace: true, preventScrollReset: true })}
+              >
+                {r.label}
+              </Button>
+            ))}
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
-        </div>
-        <div role="group" aria-label="Range" className="flex gap-1">
-          {RANGES.map((r) => (
-            <Button
-              key={r.id}
-              type="button"
-              size="sm"
-              variant={r.id === range.id ? "outline" : "ghost"}
-              aria-pressed={r.id === range.id}
-              onClick={() => setParams({ range: r.id }, { replace: true, preventScrollReset: true })}
-            >
-              {r.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       <Unavailable>
-        Download statistics aren't available yet — they come from OP3, which isn't connected (it needs
-        an OP3 token and the feed served through OP3's prefix; Stage 11). Nothing below is estimated or
-        sample data.
+        Download numbers will appear here once OP3, the open podcast analytics service, is connected.
+        Until then nothing is shown rather than an estimate.
       </Unavailable>
 
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -165,22 +164,26 @@ export default function Analytics({ loaderData }: { loaderData: Awaited<ReturnTy
       </section>
 
       <section className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-border bg-card p-5">
-        <Form method="post" className="flex items-center gap-2 text-[13px]">
+        <Form method="post" className="flex items-center gap-3 text-[13px]">
           <input type="hidden" name="intent" value="toggle-public-overview" />
           <input type="hidden" name="value" value={(!ctx.showOnPublicPage).toString()} />
-          <Button type="submit" variant="outline" size="sm" disabled={submitting} role="switch" aria-checked={ctx.showOnPublicPage}>
-            {ctx.showOnPublicPage ? "On" : "Off"}
-          </Button>
-          <span>Show overview on public page</span>
-          <span className="text-[11.5px] text-muted-foreground">
-            (saved; the public show page isn't built yet to use it)
-          </span>
+          <Switch
+            id="public-overview"
+            checked={ctx.showOnPublicPage}
+            disabled={submitting}
+            onClick={(e) => e.currentTarget.form?.requestSubmit()}
+            aria-label="Show overview on public page"
+          />
+          <label htmlFor="public-overview" className="flex flex-col">
+            <span>Show overview on public page</span>
+            <span className="text-[11.5px] text-muted-foreground">Takes effect once there are numbers to show.</span>
+          </label>
         </Form>
         <div className="text-right text-[12px] text-muted-foreground">
           <div>OP3: Not connected</div>
           <div>Podcast Index: Not connected</div>
         </div>
       </section>
-    </div>
+    </Page>
   );
 }

@@ -5,6 +5,8 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { ViewPublicPage } from "~/components/view-public";
 import { initials } from "~/components/public/public-layout";
+import { FormSelect } from "~/components/ui/form-select";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Hosts & guests: the public profiles (headshot, bio, website). People are created
 // automatically when credited on an episode; this screen is where they get a face
@@ -61,18 +63,8 @@ export default function People({
   );
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Public page &amp; embeds</div>
-          <h1 className="text-2xl font-semibold tracking-tight">Hosts &amp; guests</h1>
-          <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">
-            Hosts always appear on your public page. A guest appears only once they're credited on a published, public
-            episode — never because of a draft.
-          </p>
-        </div>
-        <ViewPublicPage />
-      </div>
+    <Page>
+      <PageHeader eyebrow="Public page &amp; embeds" title="Hosts &amp; guests" description="Hosts always appear on your public page. A guest appears once they're credited on a published, public episode, never because of a draft." actions={<ViewPublicPage />} />
 
       {people.length === 0 && (
         <p className="mb-4 text-[13px] text-muted-foreground">
@@ -99,20 +91,22 @@ export default function People({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="new-role">Role</Label>
-          <select
+          <FormSelect
             id="new-role"
             name="role"
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          >
-            <option value="host" className="bg-popover">Host</option>
-            <option value="guest" className="bg-popover">Guest</option>
-          </select>
+            defaultValue="host"
+            className="w-[110px]"
+            options={[
+              { value: "host", label: "Host" },
+              { value: "guest", label: "Guest" },
+            ]}
+          />
         </div>
         <Button type="submit" disabled={nav.state === "submitting"}>
           Add
         </Button>
         {actionData?.error && <p className="w-full text-[13px] text-destructive">{actionData.error}</p>}
       </Form>
-    </div>
+    </Page>
   );
 }

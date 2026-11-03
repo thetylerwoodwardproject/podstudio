@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanForStorage, htmlToText, sanitizeFeedHtml, sanitizeRichHtml, toHtml } from "./rich-text.server";
+import { cleanForStorage, htmlToSnippet, htmlToText, sanitizeFeedHtml, sanitizeRichHtml, toHtml } from "./rich-text.server";
 
 describe("toHtml", () => {
   it("turns plain notes into paragraphs, lists and links", () => {
@@ -55,5 +55,19 @@ describe("feed + text", () => {
     expect(cleanForStorage("<p> <br> </p>")).toBeNull();
     expect(cleanForStorage("<p>x</p>")).toBe("<p>x</p>");
     expect(cleanForStorage('<img src="https://a.test/i.png">')).toContain("<img");
+  });
+});
+
+describe("htmlToSnippet", () => {
+  it("keeps only the lead paragraphs before chapters/lists", () => {
+    const html = "<p>The portal changed <strong>everything</strong>.</p><p>Dana explains.</p><h2>Chapters</h2><ul><li>0:00 Cold open</li></ul>";
+    expect(htmlToSnippet(html)).toBe("The portal changed everything. Dana explains.");
+  });
+  it("falls back to all text when notes start with a list", () => {
+    expect(htmlToSnippet("<ul><li>One</li><li>Two</li></ul>")).toBe("One Two");
+  });
+  it("handles plain-text legacy notes and empty input", () => {
+    expect(htmlToSnippet("Just a line")).toBe("Just a line");
+    expect(htmlToSnippet(null)).toBe("");
   });
 });

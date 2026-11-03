@@ -1,10 +1,10 @@
-import { launch, BASE, sleep, ok, failCount, resetProject } from "./lib.mjs";
+import { launch, BASE, sleep, ok, failCount, resetProject, clearImports } from "./lib.mjs";
 import fs from "fs";
 const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
 const { b, ctx, p, errs } = await launch();
 const proj = async () => await (await ctx.request.get(BASE + "/studio/projects/" + epId)).json();
 const saved = async () => { await sleep(400); await p.waitForFunction(() => /^Saved/.test(document.querySelector("[data-testid=save-status]").textContent), null, { timeout: 15000 }); };
-resetProject(epId);
+resetProject(epId); await clearImports(ctx, epId);
 await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
 ok("header has a volume fader at 0 dB", (await p.innerText("[data-testid=track-host] [data-testid=track-fader-value]")).startsWith("0.0"));
 await p.click("[data-testid=meter-mode-lufs]");
@@ -13,7 +13,7 @@ await p.click("[data-testid=meter-mode-lufs]");
 const momentaryAt = async () => { await p.keyboard.press("Home"); await p.click("[data-testid=loudness-reset]"); await p.click("[data-testid=play]"); await p.waitForFunction(() => { const t = document.querySelector("[data-testid=clock] span").textContent; const [m, s] = t.split(":"); return +m * 60 + +s >= 5; }, null, { timeout: 20000 }); await p.click("[data-testid=play]"); await sleep(400); return parseFloat((await p.innerText("[data-testid=lufs-integrated]")).replace("−", "-")); };
 const a = await momentaryAt();
 // keyboard on the header fader: 24 × ArrowDown = −12 dB
-await p.locator("[data-testid=track-host] [data-testid=track-fader] [role=slider]").focus();
+await p.locator("[data-testid=track-host] [data-testid=track-fader] input[type=range]").focus();
 for (let i = 0; i < 24; i++) await p.keyboard.press("ArrowDown");
 await saved();
 ok("fader reads −12.0 dB", (await p.innerText("[data-testid=track-host] [data-testid=track-fader-value]")).startsWith("−12.0"));

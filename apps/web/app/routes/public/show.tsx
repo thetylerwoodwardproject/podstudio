@@ -1,11 +1,9 @@
 import { Link, data } from "react-router";
 import { getPublicShowPage } from "~/lib/public.server";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPause } from "@fortawesome/free-solid-svg-icons/faPause";
 import { faArrowRight } from "@fortawesome/free-solid-svg-icons/faArrowRight";
 import { faGlobe } from "@fortawesome/free-solid-svg-icons/faGlobe";
 import { faHeart } from "@fortawesome/free-solid-svg-icons/faHeart";
-import { faPlay } from "@fortawesome/free-solid-svg-icons/faPlay";
 import { faRss } from "@fortawesome/free-solid-svg-icons/faRss";
 import {
   formatClock,
@@ -13,7 +11,8 @@ import {
   formatDuration,
   initials,
 } from "~/components/public/public-layout";
-import { AudioPlayer } from "~/components/public/audio-player";
+import { AudioPlayer, SitePlayButton } from "~/components/public/audio-player";
+import { TrackList, TrackListItem, TrackListItemActions, TrackListItemContent, TrackListItemDescription, TrackListItemDuration, TrackListItemIndex, TrackListItemTitle } from "~/components/ui/track-list";
 import { usePlayer } from "~/components/public/player-context";
 import { episodeTrack } from "~/components/public/track";
 import { CopyRss } from "~/components/public/small";
@@ -164,20 +163,20 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
         <section className="pub-section" aria-labelledby="latest">
           <div className="pub-section-head">
             <h2 id="latest">Latest episode</h2>
-            <span className="pub-muted" style={{ fontSize: 14 }}>
-              {[formatDate(latest.date), formatDuration(latest.durationS), latest.guests.length ? `with ${latest.guests.join(", ")}` : null]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
           </div>
           <div className="pub-card">
             <div className="pub-latest">
               {latest.artworkUrl ? <img className="pub-art" src={thumbUrl(latest.artworkUrl)!} alt="" width={112} height={112} /> : <div className="pub-art" aria-hidden />}
               <div style={{ minWidth: 0 }}>
-                <div className="pub-eyebrow">{latest.number != null ? `Ep. ${latest.number}` : show.title}</div>
+                <div className="pub-eyebrow">
+                  {[latest.number != null ? `Ep. ${latest.number}` : null, formatDate(latest.date), formatDuration(latest.durationS)]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
                 <h3>
                   <Link to={href(latest)}>{latest.title}</Link>
                 </h3>
+                {latest.guests.length > 0 && <div className="pub-muted" style={{ fontSize: 14, marginTop: 2 }}>with {latest.guests.join(", ")}</div>}
                 {latest.description && <p className="pub-clamp">{latest.description}</p>}
               </div>
             </div>
@@ -190,7 +189,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
             )}
             <div style={{ marginTop: 16 }}>
               <Link className="pub-btn pub-btn-ghost" to={href(latest)}>
-                Open episode <FontAwesomeIcon icon={faArrowRight} style={{ width: 12 }} />
+                Show notes <FontAwesomeIcon icon={faArrowRight} style={{ width: 12 }} />
               </Link>
             </div>
           </div>
@@ -250,7 +249,6 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
             {episodes.map((e) => {
               const t = episodeTrack(show, e);
               const mine = !!t && player.current?.id === t.id;
-              const playing = mine && player.playing;
               const art = thumbUrl(e.artworkUrl);
               return (
                 <article key={e.publicId} className="pub-gc" aria-current={mine}>
@@ -263,16 +261,7 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
                         </>
                       ) : null}
                     </Link>
-                    {t && (
-                      <button
-                        type="button"
-                        className="go"
-                        onClick={() => player.play(t, { queue })}
-                        aria-label={`${playing ? "Pause" : "Play"} ${e.title}`}
-                      >
-                        <FontAwesomeIcon icon={playing ? faPause : faPlay} style={playing ? undefined : { marginLeft: 2 }} />
-                      </button>
-                    )}
+                    {t && <SitePlayButton track={t} queue={queue} className="go" title={e.title} />}
                   </div>
                   <Link to={href(e)} className="ti">
                     {e.title}
@@ -286,31 +275,21 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
             })}
           </div>
         ) : (
-          <div className="pub-list">
+          <TrackList className="pub-ac pub-tracklist" aria-label="Episodes" data-testid="episode-list">
             {episodes.map((e) => {
               const t = episodeTrack(show, e);
               const mine = !!t && player.current?.id === t.id;
               const playing = mine && player.playing;
               return (
-                <article key={e.publicId} className="pub-ep" aria-current={mine}>
-                  <button
-                    type="button"
-                    className="go"
-                    disabled={!t}
-                    onClick={() => t && player.play(t, { queue })}
-                    aria-label={t ? `${playing ? "Pause" : "Play"} ${e.title}` : `${e.title} (audio not available)`}
-                  >
-                    <FontAwesomeIcon icon={playing ? faPause : faPlay} style={playing ? undefined : { marginLeft: 2 }} />
-                  </button>
-                  <div style={{ minWidth: 0 }}>
-                    <Link to={href(e)} className="ti">
-                      {e.title}
-                    </Link>
-                    {e.description && <p className="sn">{e.description}</p>}
+                <TrackListItem key={e.publicId} active={mine} playing={playing} disabled={!t} onSelect={() => t && player.play(t, { queue })} aria-label={t ? `${playing ? "Pause" : "Play"} ${e.title}` : `${e.title} (audio not available)`} className="items-start py-3">
+                  <TrackListItemIndex className="mt-1">{e.number ?? ""}</TrackListItemIndex>
+                  <TrackListItemContent>
+                    <TrackListItemTitle>
+                      <Link to={href(e)} className="ti">{e.title}</Link>
+                    </TrackListItemTitle>
+                    {e.description && <TrackListItemDescription className="sn">{e.description}</TrackListItemDescription>}
                     <div className="mt pub-mono">
                       <span>{formatDate(e.date)}</span>
-                      {e.number != null && <span>Ep. {e.number}</span>}
-                      {e.durationS ? <span>{formatClock(e.durationS)}</span> : null}
                       <span className="g">
                         {e.guestPeople.length
                           ? e.guestPeople.map((g, i) => (
@@ -325,11 +304,17 @@ export default function PublicShow({ loaderData }: { loaderData: Awaited<ReturnT
                       </span>
                       {e.hasVideo ? <span className="pub-badge">Video</span> : null}
                     </div>
-                  </div>
-                </article>
+                  </TrackListItemContent>
+                  {e.durationS ? <TrackListItemDuration className="mt-1">{formatClock(e.durationS)}</TrackListItemDuration> : null}
+                  {t && (
+                    <TrackListItemActions>
+                      <SitePlayButton track={t} queue={queue} className="go" title={e.title} />
+                    </TrackListItemActions>
+                  )}
+                </TrackListItem>
               );
             })}
-          </div>
+          </TrackList>
         )}
         {pageCount > 1 && (
           <nav aria-label="Pagination" className="pub-pager">

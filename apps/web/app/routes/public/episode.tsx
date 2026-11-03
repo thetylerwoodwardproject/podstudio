@@ -187,7 +187,7 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
               </section>
             )}
             {(newer || upNext[0]) && (
-              <nav className="pub-pn" aria-label="Neighbouring episodes">
+              <nav className="pub-pn" aria-label="Newer and older episodes">
                 {newer ? (
                   <Link to={next(newer)}>
                     <small>← Newer episode</small>
