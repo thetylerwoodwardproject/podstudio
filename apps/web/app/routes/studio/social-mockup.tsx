@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBluesky,
@@ -23,10 +23,21 @@ import {
   faCheck,
   faPlay,
   faPause,
+  faImage,
+  faMusic,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { listEpisodeRows } from "~/lib/episodes.server";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
-import { accentHex, BRAND_PRESETS, normalizeHex, onAccent, readBrandTheme } from "~/lib/brand-theme";
+import { getSocialBrandInfo } from "~/lib/social.server";
+import { getEpisodeArtAdmin } from "~/lib/episode-art.server";
+import { accentHex, BRAND_PRESETS, normalizeHex, readBrandTheme } from "~/lib/brand-theme";
+import { draw as drawPost, fontSpecs, formats, setBrand } from "~/lib/social-render/render";
+import { autoLayout, darkens, layoutLabels, type Layout } from "~/lib/social-render/layout";
+import { drawReel, REEL_H, REEL_W } from "~/lib/social-render/video";
+import { drawSlide, SLIDE_H, SLIDE_W, type Slide } from "~/lib/social-render/carousel";
+import { artFormats, drawArtwork } from "~/lib/social-render/artwork";
+import { analyse, BAR_COUNT, decodeAudio, FPS } from "~/lib/social-render/audio";
 import { Page, PageHeader } from "~/components/layout/page";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -45,20 +56,30 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "~/comp
 import { cn } from "~/lib/utils";
 
 // MOCKUP of the social tools planned for Stage 07 (post copy) and Stage 10c
-// (graphics, carousel, clip captions). Nothing calls an AI provider or a
-// platform: drafts are sample text assembled from the episode and the
-// Customize settings, and Rewrite cycles canned variants. Settings are kept in
-// this browser only (the real build saves them with the show).
-// Design notes: docs/notes/social-generator.md.
+// (graphics, carousel, reels). Graphics, carousel slides and reels are drawn by
+// the TWP social generator's own canvas renderer (lib/social-render), so they
+// match tylerwoodward.me/social-generator exactly. Post text is sample text built
+// from the episode and the Customize settings; nothing calls an AI provider or a
+// platform. Settings are kept in this browser only (the real build saves them
+// with the show). Design notes: docs/notes/social-generator.md.
 export async function loader({ request }: { request: Request }) {
   const { show, rows } = listEpisodeRows();
   const art = getShowArtwork();
+  const info = getSocialBrandInfo();
+  let domain = new URL(request.url).host;
+  try {
+    if (info.website) domain = new URL(info.website).host.replace(/^www\./, "");
+  } catch {
+    /* keep the request host */
+  }
   return {
     showTitle: show?.title ?? "Your show",
-    domain: new URL(request.url).host,
+    host: info.host ?? show?.title ?? "",
+    domain,
     brandAccent: accentHex(readBrandTheme(show?.theme)),
     artUrl: art ? `/${art.slug}/artwork/${artworkFile(art)}` : null,
-    episodes: rows.slice(0, 24).map((r) => ({ id: r.id, number: r.number, title: r.title, guest: r.guest })),
+    // Oldest first gets ordinal 0, so each episode keeps its place in the layout rotation.
+    episodes: rows.slice(0, 24).map((r, i) => ({ id: r.id, number: r.number, title: r.title, guest: r.guest, ordinal: rows.length - 1 - i, art: getEpisodeArtAdmin(r.id)?.url ?? null })),
   };
 }
 
@@ -67,10 +88,8 @@ type Ep = Awaited<ReturnType<typeof loader>>["episodes"][number];
 // ---------------------------------------------------------------- settings
 
 type PlatformId = "bluesky" | "threads" | "mastodon" | "x" | "facebook" | "instagram" | "linkedin" | "youtube";
-const LAYOUTS = ["Split", "Full bleed", "Framed", "Corner", "Band"] as const;
-type LayoutName = (typeof LAYOUTS)[number];
-const CAPTION_STYLES = ["Bold pop", "Clean", "Boxed", "Karaoke", "Word bubble", "Minimal"] as const;
-type CaptionStyle = (typeof CAPTION_STYLES)[number];
+const LAYOUT_NAMES = Object.keys(layoutLabels); // Split, Full bleed, Framed, Corner, Band, None
+type Wordmark = "Stacked" | "Domain";
 
 interface Settings {
   posts: {
@@ -82,27 +101,19 @@ interface Settings {
     link: boolean;
     cta: "listen" | "out-now" | "none";
   };
-  look: {
-    template: "headline" | "quote";
-    layout: "auto" | LayoutName;
-    accent: string; // "brand" or a hex
-    darken: number; // 0–90
-    waveform: boolean;
-    wordmark: boolean;
-    episodeNumber: boolean;
-  };
-  carousel: { slides: number; numbers: boolean; quotes: boolean };
-  clips: { layout: "auto" | LayoutName | "None"; darken: number; wordmark: "stacked" | "domain"; progress: boolean; safeZones: boolean; captions: "off" | CaptionStyle };
+  look: { template: "headline" | "quote"; layout: string; accent: string; darken: number; wordmark: Wordmark; waveform: boolean };
+  carousel: { slides: number; numbers: boolean; quotes: boolean; swipe: boolean };
+  clips: { layout: string; darken: number; wordmark: Wordmark; progress: boolean; safeZones: boolean };
 }
 
 const DEFAULTS: Settings = {
   posts: { platforms: ["bluesky", "threads", "mastodon", "facebook", "instagram", "youtube"], length: "standard", hashtags: 2, emoji: false, tagGuests: true, link: true, cta: "listen" },
-  look: { template: "headline", layout: "auto", accent: "brand", darken: 55, waveform: true, wordmark: true, episodeNumber: true },
-  carousel: { slides: 6, numbers: true, quotes: true },
-  clips: { layout: "auto", darken: 55, wordmark: "stacked", progress: true, safeZones: false, captions: "off" },
+  look: { template: "headline", layout: "auto", accent: "brand", darken: 60, wordmark: "Stacked", waveform: true },
+  carousel: { slides: 6, numbers: true, quotes: true, swipe: true },
+  clips: { layout: "auto", darken: 60, wordmark: "Stacked", progress: true, safeZones: false },
 };
 
-const STORE = "podstudio.social.settings.v2";
+const STORE = "podstudio.social.settings.v3";
 
 function useSettings() {
   const [s, setS] = useState<Settings>(DEFAULTS);
@@ -211,35 +222,88 @@ No hype words (game-changer, dive in, unpack), no clickbait, no rhetorical-quest
 
 Never invent facts, quotes, numbers or guests. Quotes are word for word from the transcript.`;
 
-const BARS = [0.35, 0.6, 0.45, 0.8, 0.55, 0.95, 0.7, 0.4, 0.65, 0.85, 0.5, 0.3, 0.6, 0.9, 0.75, 0.45, 0.55, 0.8, 0.6, 0.35, 0.5, 0.7, 0.4, 0.25];
-
 // ---------------------------------------------------------------- page
+
+interface Audio {
+  name: string;
+  buf: AudioBuffer;
+  bars: Float32Array;
+}
 
 interface Ctx {
   ep: Ep | undefined;
   showTitle: string;
-  artUrl: string | null;
+  host: string;
   domain: string;
+  artUrl: string | null;
   accent: string;
   brandAccent: string;
   s: Settings;
   set: <K extends keyof Settings>(k: K, patch: Partial<Settings[K]>) => void;
   reset: (k: keyof Settings) => void;
   flash: (m: string) => void;
+  /** The show's art (or an upload), loaded and ready to draw; null until then. */
+  image: HTMLImageElement | null;
+  upload: string | null;
+  setUpload: (url: string | null) => void;
+  fonts: boolean;
+  audio: Audio | null;
+  setAudio: (a: Audio | null) => void;
+  /** Points the ported renderer at this show before each draw. */
+  brand: () => void;
+}
+
+// "The Tyler Woodward Project" -> TYLER / WOODWARD / PROJECT, like the TWP wordmark.
+function stackWords(title: string) {
+  const words = title.replace(/^the\s+/i, "").toUpperCase().split(/\s+/).filter(Boolean);
+  if (words.length <= 3) return words.length ? words : ["PODCAST"];
+  const lines: string[] = [];
+  const per = Math.ceil(words.length / 3);
+  for (let i = 0; i < words.length; i += per) lines.push(words.slice(i, i + per).join(" "));
+  return lines;
+}
+
+function useImage(url: string | null) {
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    setImg(null);
+    if (!url) return;
+    const i = new Image();
+    i.onload = () => setImg(i);
+    i.src = url;
+  }, [url]);
+  return img;
+}
+
+function useFonts() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    Promise.all(fontSpecs.map((f) => document.fonts.load(f)))
+      .catch(() => {})
+      .then(() => setReady(true));
+  }, []);
+  return ready;
 }
 
 export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { showTitle, episodes, artUrl, brandAccent, domain } = loaderData;
+  const { showTitle, host, domain, episodes, artUrl, brandAccent } = loaderData;
   const [epId, setEpId] = useState(episodes[0]?.id ?? "");
   const ep = episodes.find((e) => e.id === epId);
   const { s, set, reset } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
+  const [upload, setUpload] = useState<string | null>(null);
+  const [audio, setAudio] = useState<Audio | null>(null);
+  const art = ep?.art ?? artUrl;
+  const image = useImage(upload ?? art);
+  const fonts = useFonts();
   const flash = (m: string) => {
     setToast(m);
     setTimeout(() => setToast(null), 1600);
   };
   const accent = s.look.accent === "brand" ? brandAccent : (normalizeHex(s.look.accent) ?? brandAccent);
-  const ctx: Ctx = { ep, showTitle, artUrl, domain, accent, s, set, reset, flash, brandAccent };
+  const stacked = useMemo(() => stackWords(showTitle), [showTitle]);
+  const brand = () => setBrand({ stacked, domain, signal: accent, speaker: ep?.guest ?? host });
+  const ctx: Ctx = { ep, showTitle, host, domain, artUrl: art, accent, s, set, reset, flash, brandAccent, image, upload, setUpload, fonts, audio, setAudio, brand };
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -247,7 +311,7 @@ export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<
         <PageHeader
           eyebrow="Publish & share"
           title="Social"
-          description="Posts, graphics and clip captions for every platform, written from your episode. Review, tweak and copy; nothing posts on its own."
+          description="Posts, graphics, carousels and reels for every platform, made from your episode. Review, tweak and copy; nothing posts on its own."
           actions={
             <>
               <FormSelect
@@ -278,7 +342,7 @@ export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<
               <TabsTrigger value="posts">Posts</TabsTrigger>
               <TabsTrigger value="graphics">Graphics</TabsTrigger>
               <TabsTrigger value="carousel">Carousel</TabsTrigger>
-              <TabsTrigger value="clips">Clips</TabsTrigger>
+              <TabsTrigger value="clips">Reels</TabsTrigger>
             </TabsList>
             <TabsContent value="posts">
               <PostsTab {...ctx} />
@@ -403,27 +467,6 @@ function AccentPicker({ value, brand, onChange }: { value: string; brand: string
     </div>
   );
 }
-
-function Art({ url, className }: { url: string | null; className?: string }) {
-  const [ok, setOk] = useState(true);
-  return (
-    <div className={cn("relative overflow-hidden bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900", className)}>
-      {ok && url && <img src={url} alt="" draggable={false} className="absolute inset-0 size-full object-cover" onError={() => setOk(false)} />}
-    </div>
-  );
-}
-
-function Bars({ accent, className }: { accent: string; className?: string }) {
-  return (
-    <div className={cn("flex items-end gap-[0.5cqw]", className)} aria-hidden>
-      {BARS.map((h, i) => (
-        <span key={i} className="w-[0.7cqw] rounded-full" style={{ height: `${h * 100}%`, background: accent }} />
-      ))}
-    </div>
-  );
-}
-
-// Every image is square-cornered: platforms crop to their own frame and none accept rounded edges.
 
 // ---------------------------------------------------------------- posts
 
@@ -621,137 +664,26 @@ function PostsTab({ ep, s, set, reset, flash }: Ctx) {
   );
 }
 
-// ---------------------------------------------------------------- graphics
+// ---------------------------------------------------------------- canvas plumbing
 
-function LookPanel({ s, set, reset, brandAccent, ep }: Ctx) {
-  const l = s.look;
-  const auto = LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length];
-  return (
-    <Panel title="Customize" onReset={() => reset("look")}>
-      <Field label="Template">
-        <Segmented
-          label="Template"
-          value={l.template}
-          onChange={(template) => set("look", { template })}
-          options={[
-            { value: "headline", label: "Headline" },
-            { value: "quote", label: "Quote" },
-          ]}
-        />
-      </Field>
-      <Field label="Layout">
-        <FormSelect
-          aria-label="Layout"
-          value={l.layout}
-          onValueChange={(v) => set("look", { layout: v as Settings["look"]["layout"] })}
-          options={[{ value: "auto", label: `Rotate per episode (${auto})` }, ...LAYOUTS.map((x) => ({ value: x, label: x }))]}
-        />
-      </Field>
-      <Field label="Accent">
-        <AccentPicker value={l.accent} brand={brandAccent} onChange={(accent) => set("look", { accent })} />
-      </Field>
-      <Field label="Darken art" hint={`${l.darken}%`}>
-        <Slider min={0} max={90} step={5} value={[l.darken]} onValueChange={([v]) => set("look", { darken: v })} aria-label="Darken art" />
-      </Field>
-      <Separator />
-      <Field inline label="Waveform">
-        <Switch checked={l.waveform} onCheckedChange={(waveform) => set("look", { waveform })} aria-label="Waveform" />
-      </Field>
-      <Field inline label="Show name">
-        <Switch checked={l.wordmark} onCheckedChange={(wordmark) => set("look", { wordmark })} aria-label="Show name" />
-      </Field>
-      <Field inline label="Episode number">
-        <Switch checked={l.episodeNumber} onCheckedChange={(episodeNumber) => set("look", { episodeNumber })} aria-label="Episode number" />
-      </Field>
-    </Panel>
-  );
+const layoutOf = (choice: string, ep: Ep | undefined): Layout => (choice === "auto" ? autoLayout(ep?.ordinal ?? 0) : (layoutLabels[choice] ?? "split"));
+const autoName = (ep: Ep | undefined) => LAYOUT_NAMES.find((k) => layoutLabels[k] === autoLayout(ep?.ordinal ?? 0)) ?? "Split";
+const defaultMeta = (ep: Ep | undefined) => [ep?.number != null ? `Ep ${ep.number}` : null, ep?.guest ? `with ${ep.guest}` : null].filter(Boolean).join(" · ") || "New episode";
+
+/** A canvas the ported renderer paints at full export size; CSS scales it down. */
+function CanvasView({ w, h, paint, deps, label, className }: { w: number; h: number; paint: (c: HTMLCanvasElement) => void; deps: unknown[]; label: string; className?: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (ref.current) paint(ref.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return <canvas ref={ref} width={w} height={h} role="img" aria-label={label} className={cn("block", className)} />;
 }
 
-const QUOTE = "If you can't explain where the audio goes, you don't really know where it goes.";
-
-function Design({ ctx, ratio }: { ctx: Ctx; ratio: number }) {
-  const { ep, s, accent, artUrl, showTitle } = ctx;
-  const l = s.look;
-  const layout: LayoutName = l.layout === "auto" ? LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length] : l.layout;
-  const tall = ratio < 1;
-  const title = ep?.title ?? "Episode title";
-  const meta = [l.episodeNumber && ep?.number != null ? `Episode ${ep.number}` : null, ep?.guest ? `with ${ep.guest}` : null].filter(Boolean).join(" · ");
-  const dim = l.darken / 100;
-  const quote = l.template === "quote";
-
-  const type = (
-    <div className="flex flex-col gap-[1.6cqw]">
-      {meta && <span className="font-mono text-[max(8px,2.2cqw)] uppercase tracking-[0.14em] text-white/70">{meta}</span>}
-      {quote ? (
-        <span className="font-semibold leading-[1.15] text-white [overflow-wrap:anywhere]" style={{ fontSize: tall ? "6.2cqw" : "4.2cqw" }}>
-          <span style={{ color: accent }}>“</span>
-          {QUOTE}
-          <span style={{ color: accent }}>”</span>
-        </span>
-      ) : (
-        <span className="font-extrabold leading-[1.02] tracking-[-0.02em] text-white [overflow-wrap:anywhere]" style={{ fontSize: tall ? "8cqw" : "5.4cqw" }}>
-          {title}
-        </span>
-      )}
-      {(l.wordmark || l.waveform) && (
-        <div className="mt-[1.2cqw] flex items-end justify-between gap-[3cqw]">
-          {l.wordmark ? <span className="min-w-0 truncate font-mono text-[max(8px,2.1cqw)] font-semibold uppercase tracking-[0.14em] text-white/85">{showTitle}</span> : <span />}
-          {l.waveform && <Bars accent={accent} className="h-[4.5cqw] shrink-0 max-w-[30%] overflow-hidden" />}
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="@container relative size-full overflow-hidden bg-[#111113]">
-      {layout === "Split" && (
-        <div className={cn("flex size-full", tall ? "flex-col" : "flex-row-reverse")}>
-          <Art url={artUrl} className={tall ? "h-[54%] w-full shrink-0" : "h-full w-[42%] shrink-0"} />
-          <div className="flex min-w-0 flex-1 flex-col justify-center p-[6cqw]">{type}</div>
-        </div>
-      )}
-      {layout === "Full bleed" && (
-        <>
-          <Art url={artUrl} className="absolute inset-0" />
-          <div className="absolute inset-0" style={{ background: `linear-gradient(to top, rgba(17,17,19,${0.35 + dim * 0.6}) 30%, rgba(17,17,19,${dim * 0.5}))` }} />
-          <div className="absolute inset-x-0 bottom-0 p-[6cqw]">{type}</div>
-        </>
-      )}
-      {layout === "Framed" && (
-        <div className={cn("flex size-full gap-[4cqw] p-[5cqw]", tall ? "flex-col" : "flex-row")}>
-          <Art url={artUrl} className={cn("shrink-0", tall ? "w-full flex-1" : "aspect-square h-full")} />
-          <div className="flex min-w-0 flex-1 flex-col justify-end">{type}</div>
-        </div>
-      )}
-      {layout === "Corner" && (
-        <>
-          <Art url={artUrl} className={cn("absolute right-[5cqw] top-[5cqw] aspect-square", tall ? "w-[42%]" : "w-[26%]")} />
-          <span className="absolute left-[6cqw] top-[6cqw] h-[1cqw] w-[10cqw]" style={{ background: accent }} />
-          <div className="absolute inset-x-0 bottom-0 p-[6cqw]">{type}</div>
-        </>
-      )}
-      {layout === "Band" && (
-        <div className="flex size-full flex-col">
-          <div className="relative flex flex-1 flex-col justify-end p-[6cqw]">{type}</div>
-          <div className="relative h-[34%]">
-            <Art url={artUrl} className="absolute inset-0" />
-            <div className="absolute inset-0" style={{ background: `rgba(17,17,19,${dim * 0.6})` }} />
-            <div className="absolute inset-x-0 top-0 h-[0.8cqw]" style={{ background: accent }} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Tile({ name, size, ratio, children }: { name: string; size: string; ratio: number; children: ReactNode }) {
+function Tile({ name, size, children }: { name: string; size: string; children: ReactNode }) {
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <div className="flex h-[300px] items-center justify-center bg-secondary/40 p-5">
-        <div className={cn("max-h-full max-w-full shadow-xl", ratio <= 1 ? "h-full" : "w-full")} style={{ aspectRatio: ratio }}>
-          {children}
-        </div>
-      </div>
+      <div className="flex h-[300px] items-center justify-center bg-secondary/40 p-5 [&_canvas]:h-auto [&_canvas]:max-h-full [&_canvas]:w-auto [&_canvas]:max-w-full [&_canvas]:shadow-xl">{children}</div>
       <div className="flex items-center justify-between border-t px-4 py-2.5">
         <div>
           <div className="text-[13px] font-medium">{name}</div>
@@ -772,47 +704,141 @@ function Tile({ name, size, ratio, children }: { name: string; size: string; rat
   );
 }
 
-function GraphicsTab(ctx: Ctx) {
-  const { ep, accent, artUrl, s } = ctx;
-  const title = ep?.title ?? "Episode title";
+function ImageSource({ upload, setUpload, artUrl }: Pick<Ctx, "upload" | "setUpload" | "artUrl">) {
   return (
-    <Workspace panel={<LookPanel {...ctx} />}>
+    <div className="flex items-center gap-3">
+      {upload ?? artUrl ? <img src={upload ?? artUrl ?? ""} alt="" className="size-11 shrink-0 object-cover ring-1 ring-border" /> : <div className="size-11 shrink-0 bg-secondary" />}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex gap-1.5">
+          <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-[12px]">
+            <label className="cursor-pointer">
+              <FontAwesomeIcon icon={faImage} />
+              Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setUpload(URL.createObjectURL(f));
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </Button>
+          {upload && (
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-[12px]" onClick={() => setUpload(null)}>
+              Use show art
+            </Button>
+          )}
+        </div>
+        <span className="truncate text-[11.5px] text-muted-foreground">{upload ? "Your image" : "Episode art (or the show art)"}</span>
+      </div>
+    </div>
+  );
+}
+
+function LayoutField({ value, ep, onChange }: { value: string; ep: Ep | undefined; onChange: (v: string) => void }) {
+  return (
+    <Field label="Layout">
+      <FormSelect aria-label="Layout" value={value} onValueChange={onChange} options={[{ value: "auto", label: `Rotate per episode (${autoName(ep)})` }, ...LAYOUT_NAMES.map((x) => ({ value: x, label: x }))]} />
+    </Field>
+  );
+}
+
+// ---------------------------------------------------------------- graphics
+
+const SAMPLE_QUOTE = "If you can't explain where the audio goes, you don't really know where it goes.";
+
+function GraphicsTab(ctx: Ctx) {
+  const { ep, s, set, reset, brandAccent, image, fonts, accent, brand } = ctx;
+  const l = s.look;
+  const [headline, setHeadline] = useState(ep?.title ?? "");
+  const [meta, setMeta] = useState(defaultMeta(ep));
+  const [quote, setQuote] = useState(SAMPLE_QUOTE);
+  const layout = layoutOf(l.layout, ep);
+  const scene = { template: l.template, headline, meta, quote, wordmark: l.wordmark, waveform: l.waveform, layout, image, dim: l.darken / 100 };
+  const deps = [fonts, image, accent, JSON.stringify({ ...scene, image: !!image })];
+
+  const panel = (
+    <Panel title="Customize" onReset={() => reset("look")}>
+      <Field label="Template">
+        <Segmented
+          label="Template"
+          value={l.template}
+          onChange={(template) => set("look", { template })}
+          options={[
+            { value: "headline", label: "Headline" },
+            { value: "quote", label: "Quote" },
+          ]}
+        />
+      </Field>
+      <LayoutField value={l.layout} ep={ep} onChange={(v) => set("look", { layout: v })} />
+      {layout !== "none" && (
+        <Field label="Image">
+          <ImageSource {...ctx} />
+        </Field>
+      )}
+      {darkens(layout) && (
+        <Field label="Darken" hint={`${l.darken}%`}>
+          <Slider min={0} max={90} step={5} value={[l.darken]} onValueChange={([v]) => set("look", { darken: v })} aria-label="Darken" />
+        </Field>
+      )}
+      <Field label="Wordmark">
+        <Segmented label="Wordmark" value={l.wordmark} onChange={(wordmark) => set("look", { wordmark })} options={[{ value: "Stacked", label: "Stacked" }, { value: "Domain", label: "Domain" }]} />
+      </Field>
+      <Field inline label="Waveform">
+        <Switch checked={l.waveform} onCheckedChange={(waveform) => set("look", { waveform })} aria-label="Waveform" />
+      </Field>
+      <Field label="Accent" hint="Waveform and reel bars">
+        <AccentPicker value={l.accent} brand={brandAccent} onChange={(a) => set("look", { accent: a })} />
+      </Field>
+      <Separator />
+      <Field label="Headline">
+        <Textarea aria-label="Headline" rows={2} value={headline} onChange={(e) => setHeadline(e.target.value)} className="min-h-0 resize-none text-[13px]" />
+      </Field>
+      <Field label="Meta line">
+        <Input aria-label="Meta line" value={meta} onChange={(e) => setMeta(e.target.value)} className="h-8 font-mono text-[12.5px]" />
+      </Field>
+      {l.template === "quote" && (
+        <Field label="Quote" hint="Word for word from the transcript">
+          <Textarea aria-label="Quote" rows={3} value={quote} onChange={(e) => setQuote(e.target.value)} className="min-h-0 resize-none text-[13px]" />
+        </Field>
+      )}
+    </Panel>
+  );
+
+  return (
+    <Workspace panel={panel}>
       <div className="grid gap-4 md:grid-cols-2">
-        <Tile name="Instagram post" size="1080 × 1350" ratio={1080 / 1350}>
-          <Design ctx={ctx} ratio={1080 / 1350} />
-        </Tile>
-        <Tile name="Story" size="1080 × 1920" ratio={1080 / 1920}>
-          <Design ctx={ctx} ratio={1080 / 1920} />
-        </Tile>
-        <Tile name="X" size="1600 × 900" ratio={16 / 9}>
-          <Design ctx={ctx} ratio={16 / 9} />
-        </Tile>
-        <Tile name="Facebook and link previews" size="1200 × 630" ratio={1200 / 630}>
-          <Design ctx={ctx} ratio={1200 / 630} />
-        </Tile>
-        <Tile name="Episode cover" size="3000 × 3000" ratio={1}>
-          <div className="@container relative size-full overflow-hidden">
-            <Art url={artUrl} className="absolute inset-0" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#111113]/95 via-[#111113]/20 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-[2cqw] p-[7cqw]">
-              {ep?.number != null && s.look.episodeNumber && (
-                <span className="w-fit px-[2cqw] py-[0.8cqw] font-mono text-[3.2cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
-                  EP {ep.number}
-                </span>
-              )}
-              <span className="text-[8cqw] font-extrabold leading-[1.02] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{title}</span>
-            </div>
-          </div>
-        </Tile>
-        <Tile name="YouTube thumbnail" size="1280 × 720" ratio={16 / 9}>
-          <div className="@container relative size-full overflow-hidden bg-[#111113]">
-            <Art url={artUrl} className="absolute inset-y-0 right-0 w-[52%]" />
-            <div className="absolute inset-y-0 left-0 flex w-[62%] flex-col justify-center gap-[2.4cqw] bg-gradient-to-r from-[#111113] from-70% to-transparent p-[5cqw]">
-              <span className="text-[7.4cqw] font-black uppercase leading-[0.95] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{title}</span>
-              <span className="h-[1.2cqw] w-[16cqw]" style={{ background: accent }} />
-            </div>
-          </div>
-        </Tile>
+        {formats.map((f) => (
+          <Tile key={f.id} name={f.name} size={`${f.w} × ${f.h}`}>
+            <CanvasView
+              w={f.w}
+              h={f.h}
+              label={`${f.name} preview`}
+              deps={deps}
+              paint={(c) => {
+                brand();
+                drawPost(c, f, scene);
+              }}
+            />
+          </Tile>
+        ))}
+        {artFormats.map((f) => (
+          <Tile key={f.id} name={f.name} size={`${f.w} × ${f.h}`}>
+            <CanvasView
+              w={f.w}
+              h={f.h}
+              label={`${f.name} preview`}
+              deps={deps}
+              paint={(c) => {
+                brand();
+                drawArtwork(c, f, { title: headline, kicker: ep?.number != null ? `Ep ${ep.number}` : "", wordmark: l.wordmark, waveform: l.waveform, backdrop: layout === "none" ? null : image, dim: l.darken / 100 });
+              }}
+            />
+          </Tile>
+        ))}
       </div>
     </Workspace>
   );
@@ -820,29 +846,33 @@ function GraphicsTab(ctx: Ctx) {
 
 // ---------------------------------------------------------------- carousel
 
-type SlideDef = { type: "cover" | "text" | "quote" | "cta"; heading: string; body: string; at?: string };
-
-const SLIDE_POOL: SlideDef[] = [
+const SLIDE_POOL: Omit<Slide, "id">[] = [
   { type: "text", heading: "Start with the signal path", body: "Most problems show up long before the transmitter. Trace it from the mic forward." },
-  { type: "quote", heading: "", body: "If you can't explain where the audio goes, you don't really know where it goes.", at: "41:12" },
+  { type: "quote", heading: "", body: "If you can't explain where the audio goes, you don't really know where it goes." },
   { type: "text", heading: "Write it down", body: "Every change, every setting. Future you is the one who fixes it at 2 a.m." },
   { type: "text", heading: "Test like a listener", body: "Car radio, cheap earbuds, a phone speaker. That's the real mix." },
-  { type: "quote", heading: "", body: "Everybody blames the transmitter. It's almost never the transmitter.", at: "04:31" },
+  { type: "quote", heading: "", body: "Everybody blames the transmitter. It's almost never the transmitter." },
   { type: "text", heading: "Keep one spare", body: "The part you don't have on the shelf is the part that fails." },
 ];
 
 function CarouselTab(ctx: Ctx) {
-  const { ep, s, set, reset, accent, showTitle, artUrl, flash } = ctx;
+  const { ep, s, set, reset, image, fonts, accent, brand, flash } = ctx;
   const c = s.carousel;
+  const l = s.look;
   const title = ep?.title ?? "Episode title";
   const middle = SLIDE_POOL.filter((x) => c.quotes || x.type !== "quote").slice(0, Math.max(1, c.slides - 2));
-  const slides: SlideDef[] = [{ type: "cover", heading: title, body: "" }, ...middle, { type: "cta", heading: "Listen to the full episode", body: "Wherever you get podcasts" }];
-  const total = slides.length;
+  const slides: Slide[] = [
+    { id: 0, type: "cover", heading: title, body: defaultMeta(ep) },
+    ...middle.map((x, i) => ({ ...x, id: i + 1 })),
+    { id: 99, type: "cta", heading: "Listen to the full episode", body: "Wherever you get podcasts." },
+  ];
+  const opts = { wordmark: l.wordmark, waveform: l.waveform, numbers: c.numbers, swipe: c.swipe, art: image, layout: layoutOf(l.layout, ep), dim: l.darken / 100 };
+  const deps = [fonts, image, accent, JSON.stringify({ ...opts, art: !!image }), title, slides.length];
   const caption = `${title}${ep?.guest ? ` with ${ep.guest}` : ""}.\n\nThe short version is in the slides. The long version is the episode.\n\nFull episode: link in bio.\n\n#podcast #radio #broadcasting`;
 
   const panel = (
     <Panel title="Customize" onReset={() => reset("carousel")}>
-      <Field label="Slides" hint={`${total} total`}>
+      <Field label="Slides" hint={`${slides.length} total`}>
         <Slider min={3} max={8} step={1} value={[c.slides]} onValueChange={([v]) => set("carousel", { slides: v })} aria-label="Slides" />
       </Field>
       <Field inline label="Quote slides" hint="Word for word from the transcript">
@@ -851,10 +881,11 @@ function CarouselTab(ctx: Ctx) {
       <Field inline label="Slide numbers">
         <Switch checked={c.numbers} onCheckedChange={(numbers) => set("carousel", { numbers })} aria-label="Slide numbers" />
       </Field>
-      <Separator />
-      <Field label="Accent" hint="Shared with Graphics">
-        <AccentPicker value={s.look.accent} brand={ctx.brandAccent} onChange={(a) => set("look", { accent: a })} />
+      <Field inline label="Swipe cue" hint="On the cover">
+        <Switch checked={c.swipe} onCheckedChange={(swipe) => set("carousel", { swipe })} aria-label="Swipe cue" />
       </Field>
+      <Separator />
+      <p className="text-[11.5px] leading-snug text-muted-foreground">The cover's layout, image, wordmark and waveform follow the Graphics tab.</p>
     </Panel>
   );
 
@@ -863,55 +894,19 @@ function CarouselTab(ctx: Ctx) {
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {slides.map((sl, i) => (
-            <figure key={i} className="flex flex-col gap-1.5">
-              <div className="@container relative aspect-[1080/1350] overflow-hidden bg-[#111113] shadow-md ring-1 ring-border">
-                {sl.type === "cover" && (
-                  <>
-                    <Art url={artUrl} className="absolute inset-x-0 top-0 h-[58%]" />
-                    <div className="absolute inset-x-0 bottom-0 flex h-[42%] flex-col justify-center gap-[2cqw] p-[7cqw]">
-                      {ep?.number != null && <span className="font-mono text-[4cqw] uppercase tracking-[0.14em] text-white/65">Episode {ep.number}</span>}
-                      <span className="text-[9cqw] font-extrabold leading-[1.02] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{sl.heading}</span>
-                    </div>
-                  </>
-                )}
-                {sl.type === "text" && (
-                  <div className="flex size-full flex-col justify-center gap-[4cqw] p-[9cqw]">
-                    <span className="h-[1.4cqw] w-[14cqw]" style={{ background: accent }} />
-                    <span className="text-[9cqw] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">{sl.heading}</span>
-                    <span className="text-[5.4cqw] leading-[1.4] text-white/70">{sl.body}</span>
-                  </div>
-                )}
-                {sl.type === "quote" && (
-                  <div className="flex size-full flex-col justify-center gap-[3cqw] p-[9cqw]">
-                    <span className="font-serif text-[26cqw] leading-[0.6]" style={{ color: accent }}>
-                      “
-                    </span>
-                    <span className="text-[7.6cqw] font-semibold leading-[1.2] text-white">{sl.body}</span>
-                    <span className="font-mono text-[3.8cqw] uppercase tracking-[0.12em] text-white/55">{ep?.guest ?? "Host"}</span>
-                  </div>
-                )}
-                {sl.type === "cta" && (
-                  <div className="flex size-full flex-col items-center justify-center gap-[5cqw] p-[9cqw] text-center">
-                    <Art url={artUrl} className="aspect-square w-[46%] shadow-2xl" />
-                    <span className="text-[8cqw] font-extrabold leading-[1.05] text-white">{sl.heading}</span>
-                    <span className="px-[5cqw] py-[2cqw] text-[4.6cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
-                      {sl.body}
-                    </span>
-                  </div>
-                )}
-                <div className="absolute inset-x-[7cqw] bottom-[5cqw] flex items-center justify-between">
-                  {sl.type !== "cover" ? <span className="font-mono text-[3.4cqw] font-semibold uppercase tracking-[0.14em] text-white/45">{showTitle}</span> : <span />}
-                  {c.numbers && (
-                    <span className="font-mono text-[3.4cqw] text-white/45">
-                      {i + 1}/{total}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <figcaption className="flex items-center justify-between px-0.5 text-[11.5px] text-muted-foreground">
-                <span>{sl.type === "cta" ? "Listen" : sl.type === "cover" ? "Cover" : sl.type === "quote" ? "Quote" : "Point"}</span>
-                {sl.at && <span className="font-mono">{sl.at}</span>}
-              </figcaption>
+            <figure key={`${sl.id}-${i}`} className="flex flex-col gap-1.5">
+              <CanvasView
+                w={SLIDE_W}
+                h={SLIDE_H}
+                label={`Slide ${i + 1}`}
+                deps={[...deps, i]}
+                className="h-auto w-full shadow-md ring-1 ring-border"
+                paint={(cv) => {
+                  brand();
+                  drawSlide(cv, sl, i, slides.length, opts);
+                }}
+              />
+              <figcaption className="px-0.5 text-[11.5px] text-muted-foreground">{sl.type === "cta" ? "Listen" : sl.type === "cover" ? "Cover" : sl.type === "quote" ? "Quote" : "Point"}</figcaption>
             </figure>
           ))}
         </div>
@@ -949,164 +944,89 @@ function CarouselTab(ctx: Ctx) {
   );
 }
 
-// ---------------------------------------------------------------- clips
-// The reel follows the TWP social generator's Video tab: near-black ground, the
-// same imagery layouts, type kept inside the platforms' safe zones (17% top,
-// 27% bottom), mono meta line with a running timer, a large headline, 24 wide
-// bars in the accent, a thin progress line and the show wordmark. Bars here are
-// a canned animation; the real ones come from the clip's audio, computed once
-// per frame so preview and render match.
+// ---------------------------------------------------------------- reels
 
 const CLIPS = [
   { start: "04:12", end: "05:03", secs: 51, hook: "Nobody checks this first", quote: "Everybody blames the transmitter. It's almost never the transmitter." },
   { start: "18:40", end: "19:52", secs: 72, hook: "The 2 a.m. fix", quote: "I had one note in the log, and that note saved the whole night." },
   { start: "31:05", end: "31:58", secs: 53, hook: "What I'd do now", quote: "Test it the way your listeners actually hear it, not the way you do." },
 ];
-
-const REEL_LAYOUTS = [...LAYOUTS, "None"] as const;
-type ReelLayout = (typeof REEL_LAYOUTS)[number];
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+// The reel's safe zones (video.ts: 17 and 27 percent of the width), as shares of its height.
+const SAFE_TOP = (17 * (REEL_W / 100)) / REEL_H;
+const SAFE_BOTTOM = (27 * (REEL_W / 100)) / REEL_H;
 
-// Plausible band levels for time t: low bands move more, every band keeps some life.
-function bandLevels(t: number, seed: number) {
-  return Array.from({ length: 24 }, (_, i) => {
-    const tilt = 1 - i / 34;
+// Stand-in band levels when no audio file is loaded: low bands move more.
+function cannedBars(t: number, seed: number) {
+  return Float32Array.from({ length: BAR_COUNT }, (_, i) => {
     const a = Math.abs(Math.sin(t * (5.3 + (i % 5) * 0.7) + i * 0.9 + seed));
     const b = Math.abs(Math.sin(t * 2.1 + i * 1.7 + seed * 2));
-    return Math.max(0.08, Math.min(1, (0.25 + 0.75 * a * b) * tilt + 0.06));
+    return Math.min(1, 0.06 + 0.94 * (0.2 + 0.8 * a * b) * (1 - i / 40));
   });
 }
 
-function CaptionLine({ style, words, accent }: { style: CaptionStyle; words: string[]; accent: string }) {
-  const active = Math.min(2, words.length - 1);
-  return (
-    <span
-      className={cn("flex flex-wrap justify-center gap-x-[1.6cqw] text-center leading-[1.15]", style === "Bold pop" && "font-black uppercase", style === "Minimal" ? "font-medium" : "font-bold")}
-      style={{ fontSize: style === "Minimal" ? "5.4cqw" : "6.6cqw" }}
-    >
-      {style === "Boxed" ? (
-        <span className="bg-black/80 px-[2.5cqw] py-[1cqw] text-white">
-          {words.map((w, i) => (
-            <span key={i} style={i === active ? { color: accent } : undefined}>
-              {w}{" "}
-            </span>
-          ))}
-        </span>
-      ) : (
-        words.map((w, i) => {
-          const on = i === active;
-          if (style === "Word bubble" && on)
-            return (
-              <span key={i} className="px-[1.5cqw]" style={{ background: accent, color: onAccent(accent) }}>
-                {w}
-              </span>
-            );
-          const color = on && style !== "Clean" && style !== "Minimal" ? accent : style === "Karaoke" && i > active ? "rgba(255,255,255,.45)" : "#fff";
-          return (
-            <span key={i} style={{ color, transform: on && style === "Bold pop" ? "scale(1.12)" : undefined, display: "inline-block" }}>
-              {w}
-            </span>
-          );
-        })
-      )}
-    </span>
-  );
-}
-
-function Reel({ ctx, clip, index, t, headline, meta }: { ctx: Ctx; clip: (typeof CLIPS)[number]; index: number; t: number; headline: string; meta: string }) {
-  const { s, accent, artUrl, showTitle, domain, ep } = ctx;
-  const c = s.clips;
-  const layout: ReelLayout = c.layout === "auto" ? LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length] : c.layout;
-  const dim = c.darken / 100;
-  const bars = bandLevels(t, index * 1.9);
-  const words = clip.quote.replace(/[.,]/g, "").split(" ");
-  const wi = Math.floor((t / clip.secs) * words.length * 3) % Math.max(1, words.length - 3);
-  // Where the type column starts: below the imagery for the layouts that take the top.
-  const typeTop = { Split: "43%", "Full bleed": "17%", Framed: "62%", Corner: "17%", Band: "47%", None: "17%" }[layout];
-
-  return (
-    <div className="@container relative aspect-[9/16] w-full overflow-hidden bg-[#0e0e0e] font-sans text-[#f5f5f2]">
-      {layout === "Split" && <Art url={artUrl} className="absolute inset-x-0 top-0 h-[40%]" />}
-      {layout === "Full bleed" && (
-        <>
-          <Art url={artUrl} className="absolute inset-0" />
-          <div className="absolute inset-0" style={{ background: `rgba(14,14,14,${dim})` }} />
-        </>
-      )}
-      {layout === "Framed" && <Art url={artUrl} className="absolute left-[8%] top-[9%] aspect-square w-[84%]" />}
-      {layout === "Corner" && <Art url={artUrl} className="absolute right-[8%] top-[17%] aspect-square w-[30%]" />}
-      {layout === "Band" && (
-        <div className="absolute inset-x-0 top-[17%] h-[27%]">
-          <Art url={artUrl} className="absolute inset-0" />
-          <div className="absolute inset-0" style={{ background: `rgba(14,14,14,${dim * 0.6})` }} />
-        </div>
-      )}
-
-      <div className="absolute inset-x-[8%] bottom-[27%] flex flex-col" style={{ top: typeTop }}>
-        <div className={cn("flex items-baseline justify-between gap-[3cqw] font-mono text-[3.4cqw] text-[#8a8a86]", layout === "Corner" && "pr-[36%]")}>
-          <span className="min-w-0 truncate">{meta}</span>
-          {c.progress && layout !== "Corner" && (
-            <span className="shrink-0 tabular-nums">
-              {clock(t)} / {clock(clip.secs)}
-            </span>
-          )}
-        </div>
-        <span className={cn("mt-[3cqw] font-medium leading-[1.08] tracking-[-0.025em] [overflow-wrap:anywhere]", layout === "Corner" && "pr-[36%]")} style={{ fontSize: layout === "Framed" || layout === "Band" ? "6.4cqw" : "8.4cqw" }}>
-          {headline}
-        </span>
-        <div className="flex min-h-[12cqw] flex-1 items-center">
-          <div className="flex h-[18cqw] max-h-full w-full items-center gap-[0.6cqw]">
-            {bars.map((h, i) => (
-              <span key={i} className="flex-1 rounded-full" style={{ height: `max(${100 / 24}cqw, ${h * 100}%)`, background: accent }} />
-            ))}
-          </div>
-        </div>
-        {c.captions !== "off" && (
-          <div className="mb-[3cqw]">
-            <CaptionLine style={c.captions} words={words.slice(wi, wi + 3)} accent={accent} />
-          </div>
-        )}
-        {c.progress && (
-          <div className="mb-[4cqw] h-[0.5cqw] w-full bg-[#262626]">
-            <div className="h-full bg-[#f5f5f2]" style={{ width: `${(t / clip.secs) * 100}%` }} />
-          </div>
-        )}
-        <div className="font-mono text-[3.4cqw] font-semibold uppercase leading-[1.15] tracking-[0.14em]">
-          {c.wordmark === "domain" ? domain : <span className="block max-w-[60%]">{showTitle}</span>}
-        </div>
-      </div>
-
-      {c.safeZones && (
-        <>
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-[17%] border-b border-dashed border-[#ff807f]/80 bg-[#ff807f]/10" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[27%] border-t border-dashed border-[#ff807f]/80 bg-[#ff807f]/10" />
-        </>
-      )}
-    </div>
-  );
-}
-
 function ClipCard({ ctx, clip, index }: { ctx: Ctx; clip: (typeof CLIPS)[number]; index: number }) {
-  const { ep, flash } = ctx;
+  const { ep, s, image, fonts, accent, brand, audio, flash } = ctx;
+  const c = s.clips;
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
   const [headline, setHeadline] = useState(clip.hook);
-  const [meta, setMeta] = useState("");
-  const metaLine = meta || [ep?.number != null ? `Ep. ${ep.number}` : null, ep?.title].filter(Boolean).join(" · ");
+  const [meta, setMeta] = useState([ep?.number != null ? `Ep ${ep.number}` : null, ep?.title].filter(Boolean).join(" · "));
+  const length = audio ? Math.min(clip.secs, audio.buf.duration) : clip.secs;
+  const player = useRef<{ ac: AudioContext; src: AudioBufferSourceNode } | null>(null);
 
+  const stop = () => {
+    player.current?.src.stop();
+    void player.current?.ac.close();
+    player.current = null;
+  };
+  useEffect(() => stop, []);
   useEffect(() => {
-    if (!playing) return;
+    if (!playing) {
+      stop();
+      return;
+    }
     let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-      setT((cur) => (cur + dt >= clip.secs ? 0 : cur + dt));
+    if (audio) {
+      const ac = new AudioContext();
+      const src = ac.createBufferSource();
+      src.buffer = audio.buf;
+      src.connect(ac.destination);
+      const offset = t >= length - 0.05 ? 0 : t;
+      src.start(0, offset, length - offset);
+      const startedAt = ac.currentTime - offset;
+      player.current = { ac, src };
+      const tick = () => {
+        const now = ac.currentTime - startedAt;
+        if (now >= length) {
+          setT(0);
+          setPlaying(false);
+          return;
+        }
+        setT(now);
+        raf = requestAnimationFrame(tick);
+      };
       raf = requestAnimationFrame(tick);
+    } else {
+      let last = performance.now();
+      const tick = (now: number) => {
+        const dt = (now - last) / 1000;
+        last = now;
+        setT((cur) => (cur + dt >= length ? 0 : cur + dt));
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      stop();
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, clip.secs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, audio]);
+
+  const frame = Math.floor(t * FPS);
+  const bars = audio && (frame + 1) * BAR_COUNT <= audio.bars.length ? audio.bars.subarray(frame * BAR_COUNT, (frame + 1) * BAR_COUNT) : playing || t > 0 ? cannedBars(t, index * 1.9) : [];
+  const reel = { headline, meta, wordmark: c.wordmark, bars, progress: c.progress, t, length, background: image, layout: layoutOf(c.layout, ep), dim: c.darken / 100 };
 
   const targets: { id: string; name: string; icon: IconDefinition; caption: string }[] = [
     { id: "tiktok", name: "TikTok", icon: faTiktok, caption: `${clip.hook}.\n\n#radio #broadcastengineer #podcast` },
@@ -1118,15 +1038,33 @@ function ClipCard({ ctx, clip, index }: { ctx: Ctx; clip: (typeof CLIPS)[number]
     <Card className="py-4">
       <CardContent className="grid gap-5 px-4 md:grid-cols-[240px_minmax(0,1fr)]">
         <div className="mx-auto flex w-[240px] flex-col gap-2">
-          <div className="shadow-lg ring-1 ring-border">
-            <Reel ctx={ctx} clip={clip} index={index} t={t} headline={headline} meta={metaLine} />
+          <div className="relative shadow-lg ring-1 ring-border">
+            <CanvasView
+              w={REEL_W}
+              h={REEL_H}
+              label={`Reel preview, clip ${index + 1}`}
+              className="h-auto w-full"
+              deps={[fonts, image, accent, t, headline, meta, JSON.stringify({ ...c }), ep?.id, !!audio]}
+              paint={(cv) => {
+                brand();
+                drawReel(cv, reel);
+              }}
+            />
+            {c.safeZones && (
+              <>
+                <div className="pointer-events-none absolute inset-x-0 top-0 border-b border-dashed border-[#ff807f] bg-[#ff807f]/15" style={{ height: `${SAFE_TOP * 100}%` }} />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-dashed border-[#ff807f] bg-[#ff807f]/15" style={{ height: `${SAFE_BOTTOM * 100}%` }} />
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button size="icon" variant="outline" className="size-8 shrink-0" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause preview" : "Play preview"}>
               <FontAwesomeIcon icon={playing ? faPause : faPlay} className="text-[11px]" />
             </Button>
-            <Slider min={0} max={clip.secs} step={0.1} value={[t]} onValueChange={([v]) => setT(v)} aria-label="Position" />
-            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">{clock(t)}</span>
+            <Slider min={0} max={length} step={0.1} value={[t]} onValueChange={([v]) => setT(v)} disabled={playing} aria-label="Position" />
+            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+              {clock(t)} / {clock(length)}
+            </span>
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-3">
@@ -1139,12 +1077,16 @@ function ClipCard({ ctx, clip, index }: { ctx: Ctx; clip: (typeof CLIPS)[number]
           <p className="text-[13px] italic leading-relaxed text-muted-foreground">“{clip.quote}”</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`hl-${index}`} className="text-[12px]">Headline</Label>
+              <Label htmlFor={`hl-${index}`} className="text-[12px]">
+                Headline
+              </Label>
               <Input id={`hl-${index}`} value={headline} onChange={(e) => setHeadline(e.target.value)} className="h-8 text-[13px]" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`meta-${index}`} className="text-[12px]">Meta line</Label>
-              <Input id={`meta-${index}`} value={meta} placeholder={metaLine} onChange={(e) => setMeta(e.target.value)} className="h-8 font-mono text-[12.5px]" />
+              <Label htmlFor={`meta-${index}`} className="text-[12px]">
+                Meta line
+              </Label>
+              <Input id={`meta-${index}`} value={meta} onChange={(e) => setMeta(e.target.value)} className="h-8 font-mono text-[12.5px]" />
             </div>
           </div>
           <Separator className="my-1" />
@@ -1173,7 +1115,7 @@ function ClipCard({ ctx, clip, index }: { ctx: Ctx; clip: (typeof CLIPS)[number]
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Clip rendering arrives with Stage 10c</TooltipContent>
+              <TooltipContent>Reel rendering arrives with Stage 10c</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -1183,51 +1125,74 @@ function ClipCard({ ctx, clip, index }: { ctx: Ctx; clip: (typeof CLIPS)[number]
 }
 
 function ClipsTab(ctx: Ctx) {
-  const { ep, s, set, reset } = ctx;
+  const { ep, s, set, reset, brandAccent, audio, setAudio, flash } = ctx;
   const c = s.clips;
-  const auto = LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length];
+  const layout = layoutOf(c.layout, ep);
+  const [busy, setBusy] = useState(false);
+
   const panel = (
     <Panel title="Customize" onReset={() => reset("clips")}>
-      <Field label="Layout">
-        <FormSelect
-          aria-label="Reel layout"
-          value={c.layout}
-          onValueChange={(v) => set("clips", { layout: v as Settings["clips"]["layout"] })}
-          options={[{ value: "auto", label: `Rotate per episode (${auto})` }, ...REEL_LAYOUTS.map((x) => ({ value: x, label: x }))]}
-        />
-      </Field>
-      <Field label="Darken art" hint={`${c.darken}%`}>
-        <Slider min={0} max={90} step={5} value={[c.darken]} onValueChange={([v]) => set("clips", { darken: v })} aria-label="Darken reel art" />
-      </Field>
+      <LayoutField value={c.layout} ep={ep} onChange={(v) => set("clips", { layout: v })} />
+      {layout !== "none" && (
+        <Field label="Background">
+          <ImageSource {...ctx} />
+        </Field>
+      )}
+      {darkens(layout) && (
+        <Field label="Darken" hint={`${c.darken}%`}>
+          <Slider min={0} max={90} step={5} value={[c.darken]} onValueChange={([v]) => set("clips", { darken: v })} aria-label="Darken reel" />
+        </Field>
+      )}
       <Field label="Wordmark">
-        <Segmented
-          label="Wordmark"
-          value={c.wordmark}
-          onChange={(wordmark) => set("clips", { wordmark })}
-          options={[
-            { value: "stacked", label: "Stacked" },
-            { value: "domain", label: "Domain" },
-          ]}
-        />
+        <Segmented label="Wordmark" value={c.wordmark} onChange={(wordmark) => set("clips", { wordmark })} options={[{ value: "Stacked", label: "Stacked" }, { value: "Domain", label: "Domain" }]} />
       </Field>
-      <Field label="Bars" hint="Shared with Graphics">
-        <AccentPicker value={s.look.accent} brand={ctx.brandAccent} onChange={(a) => set("look", { accent: a })} />
-      </Field>
-      <Separator />
       <Field inline label="Progress bar and timer">
         <Switch checked={c.progress} onCheckedChange={(progress) => set("clips", { progress })} aria-label="Progress bar and timer" />
       </Field>
-      <Field inline label="Show safe zones" hint="Where TikTok, Reels and Shorts put their buttons">
-        <Switch checked={c.safeZones} onCheckedChange={(safeZones) => set("clips", { safeZones })} aria-label="Show safe zones" />
+      <Field label="Bars" hint="Shared with Graphics">
+        <AccentPicker value={s.look.accent} brand={brandAccent} onChange={(a) => set("look", { accent: a })} />
       </Field>
       <Separator />
-      <Field label="Captions" hint="From the edited transcript">
-        <FormSelect
-          aria-label="Captions"
-          value={c.captions}
-          onValueChange={(v) => set("clips", { captions: v as Settings["clips"]["captions"] })}
-          options={[{ value: "off", label: "Off" }, ...CAPTION_STYLES.map((x) => ({ value: x, label: x }))]}
-        />
+      <Field label="Preview audio" hint={audio ? undefined : "Bars follow a stand-in until you add one"}>
+        {audio ? (
+          <div className="flex items-center gap-2 rounded-md border px-2.5 py-1.5">
+            <FontAwesomeIcon icon={faMusic} className="text-[12px] text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-[12.5px]">{audio.name}</span>
+            <span className="font-mono text-[11px] text-muted-foreground">{clock(audio.buf.duration)}</span>
+            <Button size="icon" variant="ghost" className="size-6" aria-label="Remove audio" onClick={() => setAudio(null)}>
+              <FontAwesomeIcon icon={faXmark} className="text-[11px]" />
+            </Button>
+          </div>
+        ) : (
+          <Button asChild size="sm" variant="outline" className="w-full">
+            <label className={cn("cursor-pointer", busy && "pointer-events-none opacity-60")}>
+              <FontAwesomeIcon icon={faMusic} />
+              {busy ? "Reading audio…" : "Add an audio file"}
+              <input
+                type="file"
+                accept="audio/*"
+                className="sr-only"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  setBusy(true);
+                  try {
+                    const buf = await decodeAudio(f);
+                    setAudio({ name: f.name, buf, bars: analyse(buf) });
+                  } catch {
+                    flash("That file couldn't be read as audio");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
+            </label>
+          </Button>
+        )}
+      </Field>
+      <Field inline label="Show safe zones" hint="Where TikTok, Reels and Shorts put their buttons">
+        <Switch checked={c.safeZones} onCheckedChange={(safeZones) => set("clips", { safeZones })} aria-label="Show safe zones" />
       </Field>
     </Panel>
   );
