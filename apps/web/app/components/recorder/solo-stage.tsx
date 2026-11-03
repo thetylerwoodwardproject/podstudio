@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useFetcher } from "react-router";
-import { LevelMeter } from "@/components/ui/level-meter";
+import { MicSetup } from "./mic-setup";
+import { LocalTime } from "~/components/local-time";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { CAPTURE, RETAKE_TONE } from "~/lib/capture-contract";
 import { SoloSession, type Recovered } from "~/lib/recorder/session";
 import { LiveWaveform } from "./waveform";
+import { AudioPlayer, AudioPlayerPlay, AudioPlayerSeek, AudioPlayerTime } from "~/components/ui/audio-player";
+import { playIcon } from "~/components/ui/play-icon";
 
 // Screen 07 (Solo prompter), Stage 03 scope: a plain scrolling script (manual or
 // steady), input picker + live meter, recording with retake (K), the honest
@@ -283,35 +286,19 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
         <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto p-4">
           <section>
             <h2 className="mb-2 text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Microphone</h2>
-            {st.phase === "idle" || (st.phase === "error" && st.devices.length === 0) ? (
-              <Button variant="outline" size="sm" onClick={() => void session.openMic()} data-testid="enable-mic">
-                Enable microphone
-              </Button>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <select
-                  aria-label="Input device"
-                  value={st.deviceId}
-                  disabled={recording || st.phase === "finishing"}
-                  onChange={(e) => void session.openMic(e.target.value || undefined)}
-                  className="h-9 rounded-md border border-input bg-transparent px-2 text-[13px] outline-none"
-                  data-testid="device"
-                >
-                  {st.deviceId === "" && <option value="">{st.deviceLabel || "Default microphone"}</option>}
-                  {st.devices.map((d) => (
-                    <option key={d.deviceId} value={d.deviceId} className="bg-popover">
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-                <div data-testid="meter">
-                  <LevelMeter source={session.meter} size="lg" variant="segmented" minDb={-60} maxDb={0} />
-                </div>
-                <p className="text-[11.5px] text-muted-foreground">
-                  Capturing {CAPTURE.sampleRate / 1000} kHz mono, {CAPTURE.bitDepth}-bit WAV{st.inputRate && st.inputRate !== CAPTURE.sampleRate ? ` · device runs at ${st.inputRate / 1000} kHz and is resampled` : ""}. Echo cancelling, noise suppression and auto-gain are off.
-                </p>
-              </div>
-            )}
+            <MicSetup
+              devices={st.devices}
+              deviceId={st.deviceId}
+              deviceLabel={st.deviceLabel}
+              meter={session.meter}
+              ready={!(st.phase === "idle" || (st.phase === "error" && st.devices.length === 0))}
+              disabled={recording || st.phase === "finishing"}
+              onEnable={() => void session.openMic()}
+              onDevice={(id) => void session.openMic(id)}
+            />
+            <p className="mt-2 text-[11.5px] text-muted-foreground">
+              Capturing {CAPTURE.sampleRate / 1000} kHz mono, {CAPTURE.bitDepth}-bit WAV{st.inputRate && st.inputRate !== CAPTURE.sampleRate ? ` · device runs at ${st.inputRate / 1000} kHz and is resampled` : ""}. Echo canceling, noise suppression and auto-gain are off.
+            </p>
             {!storageReady && <p className="mt-2 text-[12.5px] text-destructive">No private storage target is routed for recordings — set one up in Storage.</p>}
           </section>
 
@@ -360,7 +347,7 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
                 {recordings.map((r) => (
                   <li key={r.id} className="rounded-lg border border-border p-2.5 text-[12.5px]">
                     <div className="flex items-center justify-between gap-2">
-                      <span>{new Date(r.startedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span>
+                      <LocalTime ms={r.startedAt} />
                       <span className={cn("rounded-full px-2 py-0.5 text-[11px]", r.status === "complete" ? "bg-ok/15 text-ok" : r.status === "incomplete" ? "bg-host/15 text-host" : "bg-muted text-muted-foreground")}>
                         {r.status === "complete" ? "Verified" : r.status === "incomplete" ? "Incomplete" : r.status}
                       </span>
@@ -374,7 +361,7 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
                         {r.report.missingSamples ? `${(r.report.missingSamples / CAPTURE.sampleRate).toFixed(1)} s didn't upload. ` : ""}
                       </p>
                     )}
-                    {(r.status === "complete" || r.status === "incomplete") && <audio controls preload="none" src={`/studio/recordings/${r.id}/audio`} className="mt-2 w-full" aria-label="Play this take" />}
+                    {(r.status === "complete" || r.status === "incomplete") && <TakePlayer src={`/studio/recordings/${r.id}/audio`} />}
                     {confirmDelete === r.id ? (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]" data-testid="take-delete-confirm">
                         <span>Delete this take for good? Its audio can't be recovered.</span>
@@ -420,7 +407,7 @@ function RecoveredRow({ r, onResume, onDiscard }: { r: Recovered; onResume: (all
   return (
     <div className="flex flex-wrap items-center gap-3 text-[13px]">
       <div className="min-w-[260px] flex-1">
-        <b>Found an interrupted recording</b> from {new Date(r.meta.startedAtMs).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}: {clock(r.localSamples / CAPTURE.sampleRate)} saved on this computer ({r.chunks} chunk{r.chunks === 1 ? "" : "s"}, {r.uploaded} already verified by the server).
+        <b>Found an interrupted recording</b> from <LocalTime ms={r.meta.startedAtMs} />: {clock(r.localSamples / CAPTURE.sampleRate)} saved on this computer ({r.chunks} chunk{r.chunks === 1 ? "" : "s"}, {r.uploaded} already verified by the server).
         {r.lostTailSamples > 0 && <> About <b>{(r.lostTailSamples / CAPTURE.sampleRate).toFixed(1)} s</b> at the end was never saved — capture can't continue after the tab stopped.</>}
       </div>
       <Button size="sm" onClick={() => onResume(false)} data-testid="recover">
@@ -452,8 +439,19 @@ function Finished({ f }: { f: NonNullable<ReturnType<SoloSession["getState"]>["f
           The audio before that is intact; nothing was stitched across the gap.
         </p>
       )}
-      <audio controls src={`/studio/recordings/${f.recordingId}/audio`} className="mt-5 w-full" aria-label="Play the recording" data-testid="playback" />
+      <TakePlayer src={`/studio/recordings/${f.recordingId}/audio`} className="mt-5" />
       <p className="mt-4 text-[13px] text-muted-foreground">Press Record again for another take, or go back to the episode.</p>
     </div>
+  );
+}
+
+/** A take's playback: the audiocn AudioPlayer (play, seek, time). */
+function TakePlayer({ src, className }: { src: string; className?: string }) {
+  return (
+    <AudioPlayer src={src} preload="none" className={cn("mt-2 flex w-full items-center gap-2", className)} aria-label="Play this take" data-testid="take-player">
+      <AudioPlayerPlay>{playIcon}</AudioPlayerPlay>
+      <AudioPlayerSeek className="min-w-0 flex-1" />
+      <AudioPlayerTime className="shrink-0 text-[11px]" /> <span className="text-[11px] text-muted-foreground">/</span> <AudioPlayerTime type="duration" className="shrink-0 text-[11px]" />
+    </AudioPlayer>
   );
 }

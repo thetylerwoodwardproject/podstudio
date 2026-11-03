@@ -20,7 +20,7 @@ import { Cancelled, LEASE_MS, clientFor, readBack } from "./storage";
 const RATE = 48_000;
 const MAX_SECONDS = 8 * 3600;
 
-function run(cmd: string, args: string[], opts: { onTick?: () => void; maxErr?: number } = {}): Promise<{ stdout: Buffer; stderr: string }> {
+export function run(cmd: string, args: string[], opts: { onTick?: () => void; maxErr?: number } = {}): Promise<{ stdout: Buffer; stderr: string }> {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
     const out: Buffer[] = [];
@@ -61,14 +61,16 @@ export interface DecodeInput {
 
 export interface Decoded {
   assetId: string;
+  /** Frames (samples per channel). */
   samples: number;
+  channels: 1 | 2;
   label: string;
   codec?: string;
   sourceRate: number | null;
   sourceChannels: number | null;
 }
 
-/** Original file → verified 48 kHz mono 24-bit WAV asset. Removes anything it wrote if it fails. */
+/** Original file → verified 48 kHz 24-bit WAV asset (mono, or stereo when the file is). Removes anything it wrote if it fails. */
 export async function decodeUpload(input: DecodeInput): Promise<Decoded> {
   const { beat } = input;
   const original = db.select().from(assets).where(and(eq(assets.id, input.originalAssetId), eq(assets.status, "verified"))).get();
@@ -103,18 +105,19 @@ export async function decodeUpload(input: DecodeInput): Promise<Decoded> {
     if (Number.isFinite(dur) && dur < 0.05) throw new Error("That audio is empty.");
     beat(0.15);
 
-    // 3. decode → 48 kHz mono 24-bit little-endian PCM
+    // 3. decode → 48 kHz 24-bit little-endian PCM; stereo files stay stereo (wider layouts are folded to 2), mono stays mono
+    const ch: 1 | 2 = (audio.channels ?? 1) >= 2 ? 2 : 1;
     const raw = join(dir, "pcm.raw");
-    await run("ffmpeg", ["-v", "error", "-nostdin", "-i", src, "-map", "0:a:0", "-vn", "-ac", "1", "-ar", String(RATE), "-f", "s24le", "-acodec", "pcm_s24le", raw], { onTick: () => beat(0.4) });
+    await run("ffmpeg", ["-v", "error", "-nostdin", "-i", src, "-map", "0:a:0", "-vn", "-ac", String(ch), "-ar", String(RATE), "-f", "s24le", "-acodec", "pcm_s24le", raw], { onTick: () => beat(0.4) });
     const bytes = (await stat(raw)).size;
-    if (bytes === 0 || bytes % 3 !== 0) throw new Error("Decoding produced no audio.");
-    const samples = bytes / 3;
+    if (bytes === 0 || bytes % (3 * ch) !== 0) throw new Error("Decoding produced no audio.");
+    const samples = bytes / (3 * ch); // frames
     if (Number.isFinite(dur) && Math.abs(samples / RATE - dur) > Math.max(2, dur * 0.02)) throw new Error(`Decoded length (${(samples / RATE).toFixed(1)} s) doesn't match the file (${dur.toFixed(1)} s).`);
     beat(0.7);
 
     // 4. WAV = our 44-byte header + the PCM, stored then read back and hashed
     const sent = createHash("sha256");
-    const header = wavHeaderBytes(samples, RATE, 24);
+    const header = wavHeaderBytes(samples, RATE, 24, ch);
     sent.update(header);
     const stream = Readable.from(
       (async function* () {
@@ -130,16 +133,16 @@ export async function decodeUpload(input: DecodeInput): Promise<Decoded> {
     const total = 44 + bytes;
     const { sha256, first } = await readBack(outClient, outT.bucket, key, total);
     if (sha256 !== sent.digest("hex")) throw new Error("The stored audio doesn't match what was decoded (SHA-256 differs).");
-    if (first.toString("ascii", 0, 4) !== "RIFF" || first.readUInt32LE(24) !== RATE || first.readUInt16LE(34) !== 24 || first.readUInt32LE(40) !== bytes) throw new Error("The stored WAV header is wrong.");
+    if (first.toString("ascii", 0, 4) !== "RIFF" || first.readUInt32LE(24) !== RATE || first.readUInt16LE(22) !== ch || first.readUInt16LE(34) !== 24 || first.readUInt32LE(40) !== bytes) throw new Error("The stored WAV header is wrong.");
 
     const now = Date.now();
     const assetId = crypto.randomUUID();
     const label = input.filename.replace(/\.[^.]+$/, "").slice(0, 120) || "Imported audio";
     db.insert(assets)
-      .values({ id: assetId, showId: input.showId, episodeId: input.episodeId, kind: "raw_audio", access: "private", storageTargetId: outT.id, key, filename: `${label}.wav`, contentType: "audio/wav", bytes: total, sha256, durationS: Math.round(samples / RATE), sampleRate: RATE, channels: 1, status: "verified", meta: { bitDepth: 24, samples, importedFrom: { filename: input.filename, originalAssetId: original.id, codec: audio.codec_name, sampleRate: Number(audio.sample_rate) || null, channels: audio.channels ?? null, container: probe.format?.format_name } }, createdAt: now, verifiedAt: now })
+      .values({ id: assetId, showId: input.showId, episodeId: input.episodeId, kind: "raw_audio", access: "private", storageTargetId: outT.id, key, filename: `${label}.wav`, contentType: "audio/wav", bytes: total, sha256, durationS: Math.round(samples / RATE), sampleRate: RATE, channels: ch, status: "verified", meta: { bitDepth: 24, samples, importedFrom: { filename: input.filename, originalAssetId: original.id, codec: audio.codec_name, sampleRate: Number(audio.sample_rate) || null, channels: audio.channels ?? null, container: probe.format?.format_name } }, createdAt: now, verifiedAt: now })
       .run();
     uploaded = false;
-    return { assetId, samples, label, codec: audio.codec_name, sourceRate: Number(audio.sample_rate) || null, sourceChannels: audio.channels ?? null };
+    return { assetId, samples, channels: ch, label, codec: audio.codec_name, sourceRate: Number(audio.sample_rate) || null, sourceChannels: audio.channels ?? null };
   } catch (e) {
     if (uploaded) await outClient.send(new DeleteObjectCommand({ Bucket: outT.bucket, Key: key })).catch(() => {});
     throw e;
@@ -163,7 +166,7 @@ export async function importJob(job: typeof renderJobs.$inferSelect): Promise<vo
   };
   const d = await decodeUpload({ originalAssetId: settings.originalAssetId, filename: settings.filename ?? "Imported audio", showId: epRow.showId, episodeId: job.episodeId, outKey: `imports/${job.episodeId}/${job.id}.wav`, beat });
   const now = Date.now();
-  db.update(renderJobs).set({ status: "verified", progress: 1, assetId: d.assetId, summary: { samples: d.samples, durationS: d.samples / RATE, label: d.label, codec: d.codec, sourceRate: d.sourceRate, sourceChannels: d.sourceChannels }, finishedAt: now, leaseUntil: null, error: null }).where(eq(renderJobs.id, job.id)).run();
+  db.update(renderJobs).set({ status: "verified", progress: 1, assetId: d.assetId, summary: { samples: d.samples, channels: d.channels, durationS: d.samples / RATE, label: d.label, codec: d.codec, sourceRate: d.sourceRate, sourceChannels: d.sourceChannels }, finishedAt: now, leaseUntil: null, error: null }).where(eq(renderJobs.id, job.id)).run();
 }
 
 /** A library item's upload job. */

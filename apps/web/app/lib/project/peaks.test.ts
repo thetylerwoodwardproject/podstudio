@@ -40,3 +40,31 @@ describe("peaks", () => {
     expect(lo).toBeLessThan(-0.45);
   });
 });
+
+describe("stereo peaks", () => {
+  it("keeps left and right separately and round-trips through the cache format", async () => {
+    const { PeakBuilder, parsePeaks, rangePeak, PEAK_SPP } = await import("./peaks");
+    const frames = PEAK_SPP * 3;
+    const bytes = new Uint8Array(frames * 6);
+    const put = (o: number, f: number) => {
+      const v = Math.round(f * 0x7fffff) & 0xffffff;
+      bytes[o] = v & 0xff;
+      bytes[o + 1] = (v >> 8) & 0xff;
+      bytes[o + 2] = (v >> 16) & 0xff;
+    };
+    for (let i = 0; i < frames; i++) {
+      put(i * 6, i < PEAK_SPP ? 0.5 : 0); // left: loud only in block 0
+      put(i * 6 + 3, i >= 2 * PEAK_SPP ? -0.8 : 0); // right: loud only in block 2
+    }
+    const b = new PeakBuilder(2);
+    b.push(bytes.subarray(0, 1001));
+    b.push(bytes.subarray(1001));
+    const p = parsePeaks(b.finish())!;
+    expect(p.data2).toBeDefined();
+    expect(rangePeak(p, 0, PEAK_SPP, 0)[1]).toBeCloseTo(0.5, 1);
+    expect(rangePeak(p, 0, PEAK_SPP, 1)).toEqual([0, 0]);
+    expect(rangePeak(p, 2 * PEAK_SPP, 3 * PEAK_SPP, 1)[0]).toBeCloseTo(-0.8, 1);
+    expect(rangePeak(p, 2 * PEAK_SPP, 3 * PEAK_SPP, 0)).toEqual([0, 0]);
+    expect(b.samples).toBe(frames);
+  });
+});

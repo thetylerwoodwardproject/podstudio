@@ -12,6 +12,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
+import { Page, PageHeader } from "~/components/layout/page";
+import { Switch } from "~/components/ui/switch";
 
 // Screen 32 (Podroll, admin). Per README: search Podcast Index, Add/Added
 // toggles; a sortable, removable list with a verified-GUID check; a live
@@ -71,26 +73,18 @@ export default function Podroll({
 
   if (!podroll) {
     return (
-      <div className="mx-auto max-w-2xl p-6">
+      <Page>
         <h1 className="text-2xl font-semibold tracking-tight">Podroll</h1>
         <p className="mt-4 text-[13px] text-muted-foreground">No show seeded yet.</p>
-      </div>
+      </Page>
     );
   }
   const { items, showOnPublicPage } = podroll;
   const xml = podrollXml(items);
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            Analytics &amp; discovery
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Podroll</h1>
-        </div>
-        <ViewPublicPage />
-      </div>
+    <Page>
+      <PageHeader eyebrow="Podcast hosting" title="Podroll" description="Shows you recommend. Podcast apps that support Podcasting 2.0 list them with your show." actions={<ViewPublicPage />} />
 
       <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Recommended shows</h2>
@@ -143,8 +137,8 @@ export default function Podroll({
         <Form method="post" className="flex flex-col gap-3">
           <input type="hidden" name="intent" value="add-item" />
           <p className="text-[12.5px] text-muted-foreground">
-            Podcast Index search isn't connected (it needs an API key — Stage 11), so add a show by hand.
-            Its <code className="font-mono">podcast:guid</code> is required.
+            Add a show by hand. You'll need its <code className="font-mono">podcast:guid</code>, which is in
+            the show's RSS feed. (Searching Podcast Index for shows will come later.)
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
@@ -184,20 +178,27 @@ export default function Podroll({
           <p className="text-[12.5px] text-muted-foreground">Nothing to write to the feed yet.</p>
         )}
         <p className="text-[11.5px] text-muted-foreground">
-          Order here is the feed order and the public-page order. The feed itself isn't generated yet.
+          The order here is the order in your feed and on your public page.
         </p>
       </section>
 
       <section className="mt-5 rounded-[14px] border border-border bg-card p-5">
-        <Form method="post" className="flex items-center gap-2 text-[13px]">
+        <Form method="post" className="flex items-center gap-3 text-[13px]">
           <input type="hidden" name="intent" value="toggle-public" />
           <input type="hidden" name="value" value={(!showOnPublicPage).toString()} />
-          <Button type="submit" variant="outline" size="sm" disabled={submitting} role="switch" aria-checked={showOnPublicPage}>
-            {showOnPublicPage ? "On" : "Off"}
-          </Button>
-          <span>Show on public page ("Shows we recommend")</span>
+          <Switch
+            id="podroll-public"
+            checked={showOnPublicPage}
+            disabled={submitting}
+            onClick={(e) => e.currentTarget.form?.requestSubmit()}
+            aria-label="Show on public page"
+          />
+          <label htmlFor="podroll-public" className="flex flex-col">
+            <span>Show on public page</span>
+            <span className="text-[11.5px] text-muted-foreground">As "Shows we recommend" near the bottom of your show page.</span>
+          </label>
         </Form>
       </section>
-    </div>
+    </Page>
   );
 }

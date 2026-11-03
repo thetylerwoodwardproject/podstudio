@@ -1,3 +1,4 @@
+import { LocalTime } from "~/components/local-time";
 import { Link, useRevalidator } from "react-router";
 import { desc, eq } from "drizzle-orm";
 import { db, episodes, shows } from "@podstudio/db";
@@ -5,6 +6,7 @@ import { EditorStage } from "~/components/editor/editor-stage";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { listEditableRecordings, loadProject, missingSources } from "~/lib/project/project.server";
+import { showDeliveryPreset } from "~/lib/project/exports.server";
 
 // Screen 08 (Editor) — Stage 04. `?episode=<id>` opens that episode's edit project (created
 // from a finished recording the first time); without it, pick an episode.
@@ -19,14 +21,14 @@ export async function loader({ request }: { request: Request }) {
   const show = db.select({ title: shows.title }).from(shows).where(eq(shows.id, ep.showId)).get();
   const episode = { id: ep.id, title: ep.title, number: ep.number, showTitle: show?.title ?? "" };
   const project = loadProject(id);
-  if (project) return { kind: "edit" as const, openCleanup: url.searchParams.get("cleanup") === "1", openExport: url.searchParams.get("export") === "1", episode, project: { revisionId: project.revisionId, seq: project.seq, doc: project.doc, missing: missingSources(project.doc) } };
+  if (project) return { kind: "edit" as const, openCleanup: url.searchParams.get("cleanup") === "1", openExport: url.searchParams.get("export") === "1", episode, project: { revisionId: project.revisionId, seq: project.seq, doc: project.doc, missing: missingSources(project.doc) }, showPreset: showDeliveryPreset() };
   return { kind: "start" as const, episode, recordings: listEditableRecordings(id) };
 }
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 export default function Editor({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  if (loaderData.kind === "edit") return <EditorStage key={loaderData.episode.id} openCleanup={loaderData.openCleanup} openExport={loaderData.openExport} episode={loaderData.episode} project={loaderData.project} />;
+  if (loaderData.kind === "edit") return <EditorStage key={loaderData.episode.id} showPreset={loaderData.showPreset} openCleanup={loaderData.openCleanup} openExport={loaderData.openExport} episode={loaderData.episode} project={loaderData.project} />;
   if (loaderData.kind === "start") return <Start {...loaderData} />;
   return (
     <div className="mx-auto max-w-2xl p-6">
@@ -53,7 +55,7 @@ export default function Editor({ loaderData }: { loaderData: Awaited<ReturnType<
 function Start({ episode, recordings }: { episode: { id: string; title: string }; recordings: ReturnType<typeof listEditableRecordings> }) {
   const { revalidate } = useRevalidator();
   const start = (recordingId: string) => {
-    void fetch(`/studio/projects/${episode.id}/start`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordingId }) })
+    void fetch(`/studio/projects/${episode.id}/start`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordingId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) })
       .then((r) => r.json())
       .then((b) => (b.ok ? revalidate() : alert(b.error ?? "Couldn't start the project.")));
   };
@@ -74,7 +76,7 @@ function Start({ episode, recordings }: { episode: { id: string; title: string }
           {recordings.map((r) => (
             <li key={r.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
               <div className="flex-1">
-                <div className="text-sm font-medium" suppressHydrationWarning>{new Date(r.startedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</div>
+                <div className="text-sm font-medium"><LocalTime ms={r.startedAt} /></div>
                 <div className="font-mono text-[12px] text-muted-foreground">{clock((r.totalSamples ?? 0) / r.sampleRate)} · {r.status}</div>
               </div>
               <Button onClick={() => start(r.id)} data-testid="start-editing">Start editing</Button>

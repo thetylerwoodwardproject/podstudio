@@ -12,7 +12,9 @@ import { db, shows, episodes } from "@podstudio/db";
 export const EMBED_SOURCES = ["episode", "latest", "all"] as const;
 export const EMBED_PLAYERS = ["audio", "video"] as const;
 export const EMBED_THEMES = ["dark", "light", "auto"] as const;
-export const EMBED_ACCENTS = ["amber", "teal", "ink"] as const;
+export const EMBED_ACCENTS = ["black", "gold", "cyan", "lime", "coral", "lavender"] as const;
+/** Accents from before 2026-11-02, mapped onto the new palette when a saved config is read. */
+const LEGACY_ACCENTS: Record<string, EmbedAccent> = { amber: "gold", teal: "cyan", ink: "black" };
 
 export type EmbedSource = (typeof EMBED_SOURCES)[number];
 export type EmbedPlayer = (typeof EMBED_PLAYERS)[number];
@@ -36,7 +38,7 @@ export const DEFAULT_EMBED_CONFIG: EmbedConfig = {
   episodePublicId: null,
   player: "audio",
   theme: "dark",
-  accent: "amber",
+  accent: "gold",
   chapters: true,
   transcript: true,
   follow: true,
@@ -54,7 +56,7 @@ function readConfig(raw: unknown): EmbedConfig {
     episodePublicId: typeof r.episodePublicId === "string" ? r.episodePublicId : null,
     player: oneOf(EMBED_PLAYERS, r.player, d.player),
     theme: oneOf(EMBED_THEMES, r.theme, d.theme),
-    accent: oneOf(EMBED_ACCENTS, r.accent, d.accent),
+    accent: oneOf(EMBED_ACCENTS, typeof r.accent === "string" && r.accent in LEGACY_ACCENTS ? LEGACY_ACCENTS[r.accent] : r.accent, d.accent),
     chapters: typeof r.chapters === "boolean" ? r.chapters : d.chapters,
     transcript: typeof r.transcript === "boolean" ? r.transcript : d.transcript,
     follow: typeof r.follow === "boolean" ? r.follow : d.follow,

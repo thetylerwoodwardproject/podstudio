@@ -49,8 +49,18 @@ function insertRevision(projectId: string, parentId: string | null, seq: number,
   return { id, now };
 }
 
+/** "Nov 2, 2026, 4:29 PM" in the editor's own time zone (the server runs in UTC); UTC if the zone is unknown. */
+function recordedAt(ms: number, timeZone?: string) {
+  const o = { dateStyle: "medium", timeStyle: "short" } as const;
+  try {
+    return new Date(ms).toLocaleString("en-US", { ...o, timeZone: timeZone || "UTC" });
+  } catch {
+    return `${new Date(ms).toLocaleString("en-US", { ...o, timeZone: "UTC" })} UTC`;
+  }
+}
+
 /** Start the episode's project from a finished recording. Returns the existing project if there is one. */
-export function startProject(episodeId: string, recordingId: string): { ok: true; project: LoadedProject } | Fail {
+export function startProject(episodeId: string, recordingId: string, timeZone?: string): { ok: true; project: LoadedProject } | Fail {
   const existing = loadProject(episodeId);
   if (existing) return { ok: true, project: existing };
   const ep = db.select({ id: episodes.id }).from(episodes).where(eq(episodes.id, episodeId)).get();
@@ -62,7 +72,7 @@ export function startProject(episodeId: string, recordingId: string): { ok: true
   const retakes = ((rec.annotations as RetakeAnnotation[] | null) ?? []).filter((a) => a?.type === "retake" && Number.isInteger(a.sample)).map((a) => a.sample);
   const doc = createProject({
     sampleRate: rec.sampleRate,
-    source: { id: crypto.randomUUID(), assetId: asset.id, recordingId: rec.id, label: `Recording ${new Date(rec.startedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`, totalSamples: rec.totalSamples, retakes },
+    source: { id: crypto.randomUUID(), assetId: asset.id, recordingId: rec.id, label: `Recording ${recordedAt(rec.startedAt, timeZone)}`, totalSamples: rec.totalSamples, retakes },
   });
   const projectId = crypto.randomUUID();
   try {
@@ -88,6 +98,7 @@ function checkSources(episodeId: string, doc: ProjectDoc): string | null {
     const samples = (a.meta as { samples?: number } | null)?.samples;
     if (typeof samples !== "number" || s.totalSamples !== samples) return `Source "${s.label}" has the wrong length.`;
     if (a.sampleRate !== doc.sampleRate) return `Source "${s.label}" isn't at the project sample rate.`;
+    if ((s.channels === 2 ? 2 : 1) !== (a.channels === 2 ? 2 : 1)) return `Source "${s.label}" has the wrong channel count.`;
   }
   return null;
 }

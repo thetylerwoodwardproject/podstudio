@@ -61,7 +61,7 @@ export function RetakePanel({ doc, onApply, onClose, onFocusRange }: Props) {
         }
         if (live) setLoad({ kind: "ready", rows });
       } catch (e) {
-        if (live) setLoad({ kind: "error", message: e instanceof Error ? e.message : "Couldn't analyse the audio" });
+        if (live) setLoad({ kind: "error", message: e instanceof Error ? e.message : "Couldn't analyze the audio" });
       }
     })();
     return () => {
@@ -155,7 +155,7 @@ export function RetakePanel({ doc, onApply, onClose, onFocusRange }: Props) {
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {load.kind === "loading" && <p className="p-4 text-[13px] text-muted-foreground" data-testid="retake-loading">Listening for the pauses around each retake…</p>}
-        {load.kind === "error" && <p className="p-4 text-[13px] text-destructive">Couldn't analyse the audio: {load.message}</p>}
+        {load.kind === "error" && <p className="p-4 text-[13px] text-destructive">Couldn't analyze the audio: {load.message}</p>}
         {load.kind === "ready" && rows.length === 0 && <p className="p-4 text-[13px] text-muted-foreground" data-testid="retake-empty">No retake marks in this project. Press K while recording to mark one.</p>}
         {rows.length > 0 && (
           <table className="w-full text-[13px]" data-testid="retake-table">

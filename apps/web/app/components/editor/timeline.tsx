@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { faEllipsis, faLock, faLockOpen, faPalette, faPen, faRepeat, faScissors, faTrashCan, faUpload, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faEllipsis, faLock, faPalette, faPen, faRepeat, faScissors, faTrashCan, faUpload, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { annotationPositions, clipEnd, withCrossfades, moveClip, projectLength, setClipLevels, trimClip, TRACK_HEIGHT, type ProjectDoc, type TrackKind } from "~/lib/project/document";
 import type { Peaks } from "~/lib/project/peaks";
@@ -12,8 +12,11 @@ import { LIBRARY_DRAG_TYPE } from "./library-sidebar";
 import type { FrameEmitter } from "~/lib/audio/frame-source";
 import type { MeterFrame } from "~/lib/audio/types";
 import { Button } from "~/components/ui/button";
-import { Toggle } from "~/components/ui/toggle";
+import { ChannelToggle, MuteToggle, SoloToggle } from "~/components/ui/channel-toggle";
 import { TrackFader } from "./track-fader";
+import { TrackPan } from "./track-pan";
+import { fxActive } from "@podstudio/audio/fx";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "~/components/ui/context-menu";
 
 export interface Selection {
@@ -34,7 +37,7 @@ interface Props {
   onCommit: (d: ProjectDoc, label: string) => void;
   onSeek: (sample: number) => void;
   onError: (msg: string) => void;
-  onTrackUpdate: (trackId: string, patch: { name?: string; muted?: boolean; solo?: boolean; locked?: boolean; height?: number; color?: string | null; gainDb?: number }) => void;
+  onTrackUpdate: (trackId: string, patch: { name?: string; muted?: boolean; solo?: boolean; locked?: boolean; height?: number; color?: string | null; gainDb?: number; pan?: number }) => void;
   onDeleteTrack: (trackId: string) => void;
   playheadRef: React.RefObject<HTMLDivElement | null>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -51,7 +54,9 @@ interface Props {
   /** Level meter source for a track. */
   trackMeter: (trackId: string) => FrameEmitter<MeterFrame>;
   /** Advanced layout: lock button, per-track meters, the separate marks lane. Simple shows marks on the ruler. */
-  advanced: boolean;
+  /** Advanced: open the inspector's FX tab for a track. */
+  /** Simple: the FX panel to show in a popover from the track's FX button. */
+  fxPanel: (track: ProjectDoc["tracks"][number]) => React.ReactNode;
   /** A library item dragged from the sidebar and dropped on a track. */
   onDropLibrary: (item: LibraryItem, trackId: string, at: number) => void;
 }
@@ -73,7 +78,6 @@ export type MenuAction =
 const HEADER_W = 208;
 const EDGE_PX = 7;
 const RULER_H = 28;
-const ANNO_H = 26;
 
 export function Timeline(p: Props) {
   const { doc, spp } = p;
@@ -141,8 +145,6 @@ export function Timeline(p: Props) {
   }, [p.scrollRef]);
 
   const anySolo = doc.tracks.some((t) => t.solo);
-  const annos = annotationPositions(doc);
-  const rate = doc.sampleRate;
 
   return (
     <div ref={p.scrollRef} className="relative min-h-0 flex-1 overflow-auto overscroll-x-contain" data-testid="timeline-scroll">
@@ -152,28 +154,6 @@ export function Timeline(p: Props) {
           <div style={{ width: HEADER_W }} className="sticky left-0 z-40 shrink-0 border-b border-r border-border bg-background" />
           <Ruler {...p} view={view} contentPx={contentPx} />
         </div>
-        {p.advanced && <div className="flex border-b border-border">
-          <div style={{ width: HEADER_W, height: ANNO_H }} className="sticky left-0 z-20 flex shrink-0 items-center border-r border-border bg-background px-3 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Retakes & chapters</div>
-          <div className="relative min-w-0 flex-1" style={{ minWidth: contentPx, height: ANNO_H }}>
-            {annos.map((a) => {
-              const x = a.at / spp;
-              if (x < view.tileLeft - 80 || x > view.tileLeft + view.tileWidth + 80) return null;
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  title={`${a.label} · ${clockText(a.at / rate, 1)}`}
-                  onClick={() => p.onSeek(a.at)}
-                  style={{ left: x }}
-                  data-testid={`anno-${a.kind}`}
-                  className={cn("absolute top-1 flex h-[18px] -translate-x-1/2 items-center rounded-sm px-1.5 text-[10.5px] font-medium leading-none", a.kind === "retake" ? "bg-destructive/20 text-destructive" : "bg-music/25 text-music")}
-                >
-                  {a.kind === "retake" ? "R" : "▸"} <span className="ml-1 max-w-24 truncate">{a.kind === "chapter" ? a.label : a.label.replace("Retake ", "")}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>}
 
         {doc.tracks.map((t) => (
           <TrackRow key={t.id} {...p} track={t} view={view} contentPx={contentPx} dim={p.dimMuted && (anySolo ? !t.solo : t.muted)} />
@@ -234,8 +214,7 @@ function Ruler(p: Props & { view: View; contentPx: number }) {
           {clockText(s, step >= 1 ? 0 : Math.abs(step * 10 - Math.round(step * 10)) < 1e-9 ? 1 : 2)}
         </div>
       ))}
-      {!p.advanced &&
-        annotationPositions(doc).map((a) => {
+      {annotationPositions(doc).map((a) => {
           const x = a.at / spp;
           if (x < view.tileLeft - 80 || x > view.tileLeft + view.tileWidth + 80) return null;
           return (
@@ -295,6 +274,9 @@ function TrackRow(p: Props & { track: ProjectDoc["tracks"][number]; view: View; 
   labelsRef.current = labels;
   const [menuOpen, setMenuOpen] = useState(false);
   const [libDrop, setLibDrop] = useState(false);
+  // lit when anything changes this track's sound: its FX chain or ducking under the voices
+  const fxOn = fxActive(track.fx) || !!doc.ducking?.some((r) => r.enabled && r.targets.includes(track.id));
+  const [fxOpen, setFxOpen] = useState(false);
   const [askDelete, setAskDelete] = useState(false);
   const [renameSignal, setRenameSignal] = useState(0);
   // what the right-click on the waveform area landed on
@@ -306,6 +288,8 @@ function TrackRow(p: Props & { track: ProjectDoc["tracks"][number]; view: View; 
   const own = useMemo(() => doc.clips.filter((c) => c.trackId === track.id), [doc.clips, track.id]);
   // fades as they play: widened to cover crossfades with an overlapping neighbour
   const clips = useMemo(() => [...withCrossfades({ ...doc, clips: own }).values()], [own]); // eslint-disable-line react-hooks/exhaustive-deps
+  // stereo meter when the track holds a stereo source or isn't centred
+  const stereoTrack = useMemo(() => (track.pan ?? 0) !== 0 || clips.some((c) => doc.sources.find((x) => x.id === c.sourceId)?.channels === 2), [track.pan, clips, doc.sources]);
   const sig = useMemo(() => clips.map((c) => `${c.id}:${c.sourceId}:${c.start}:${c.srcStart}:${c.length}:${c.fadeIn}:${c.fadeOut}`).join("|"), [clips]);
   const stableClips = useRef(clips);
   const lastSig = useRef(sig);
@@ -487,10 +471,16 @@ function TrackRow(p: Props & { track: ProjectDoc["tracks"][number]; view: View; 
             <div className="flex items-center gap-1">
               <span className="size-2.5 shrink-0 rounded-full" style={{ background: trackColor(track) }} />
               <TrackName name={track.name} renameSignal={renameSignal} onSelect={() => p.setSel({ ...p.sel, trackId: track.id })} onRename={(n) => p.onTrackUpdate(track.id, { name: n })} />
-              {p.advanced && <Toggle size="sm" pressed={track.locked} onPressedChange={(v) => p.onTrackUpdate(track.id, { locked: v })} aria-label={track.locked ? "Unlock track" : "Lock track"} title={track.locked ? "Unlock track (L)" : "Lock track (L)"} className="size-6 min-w-6 p-0 text-[11px] text-muted-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground">
-                <FontAwesomeIcon icon={track.locked ? faLock : faLockOpen} />
-              </Toggle>}
-              {!p.advanced && track.locked && <FontAwesomeIcon icon={faLock} className="text-[10px] text-muted-foreground" title="Locked (right-click to unlock)" />}
+              {track.locked && <FontAwesomeIcon icon={faLock} className="text-[10px] text-muted-foreground" title="Locked (right-click to unlock)" />}
+              <Popover open={fxOpen} onOpenChange={setFxOpen}>
+                <PopoverTrigger asChild>
+                  <FxButton active={fxOn} open={fxOpen} />
+                </PopoverTrigger>
+                {/* Hindenburg-style FX: effect list + the selected effect, the same in Simple and Advanced */}
+                <PopoverContent align="start" side="bottom" sideOffset={6} collisionPadding={8} className="max-h-[var(--radix-popover-content-available-height)] w-[min(900px,calc(100vw-16px))] overflow-y-auto p-5" data-testid="fx-popover" onClick={(e) => e.stopPropagation()}>
+                  {p.fxPanel(track)}
+                </PopoverContent>
+              </Popover>
               <TrackOptions
                 track={track}
                 clipCount={clips.length}
@@ -506,27 +496,25 @@ function TrackRow(p: Props & { track: ProjectDoc["tracks"][number]; view: View; 
                   p.onDeleteTrack(track.id);
                 }}
               >
-                <Button variant="ghost" size="icon" aria-label={`${track.name} options`} title="Colour, delete…" data-testid="track-menu-button" onClick={(e) => e.stopPropagation()} className="size-6 text-[12px] text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground">
+                <Button variant="ghost" size="icon" aria-label={`${track.name} options`} title="Color, delete…" data-testid="track-menu-button" onClick={(e) => e.stopPropagation()} className="size-6 text-[12px] text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground">
                   <FontAwesomeIcon icon={faEllipsis} />
                 </Button>
               </TrackOptions>
             </div>
             <div className="flex items-center gap-1.5">
-              <Toggle variant="outline" size="sm" pressed={track.muted} onPressedChange={(v) => p.onTrackUpdate(track.id, { muted: v })} title="Mute (M)" aria-label="Mute" className="h-6 w-7 min-w-7 px-0 text-[11px] font-semibold text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-foreground data-[state=on]:text-background">
+              <MuteToggle size="sm" variant="outline" pressed={track.muted} onPressedChange={(v) => p.onTrackUpdate(track.id, { muted: v })} title="Mute (M)" aria-label="Mute" className="h-6 w-7 min-w-7 px-0 text-[11px]">
                 M
-              </Toggle>
-              <Toggle variant="outline" size="sm" pressed={track.solo} onPressedChange={(v) => p.onTrackUpdate(track.id, { solo: v })} title="Solo (S)" aria-label="Solo" className="h-6 w-7 min-w-7 px-0 text-[11px] font-semibold text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              </MuteToggle>
+              <SoloToggle size="sm" variant="outline" pressed={track.solo} onPressedChange={(v) => p.onTrackUpdate(track.id, { solo: v })} title="Solo (S)" aria-label="Solo" className="h-6 w-7 min-w-7 px-0 text-[11px]">
                 S
-              </Toggle>
-              {p.advanced ? (
-                <div className="ml-1 flex min-w-0 flex-1 items-center" title="Track level (dBFS)">
-                  <TrackMeter source={p.trackMeter(track.id)} dim={p.dim} />
-                </div>
-              ) : (
-                <TrackFader gainDb={track.gainDb ?? 0} onChange={(g) => p.onTrackUpdate(track.id, { gainDb: g })} className="ml-1 min-w-0 flex-1" />
-              )}
+              </SoloToggle>
+              <TrackFader gainDb={track.gainDb ?? 0} onChange={(g) => p.onTrackUpdate(track.id, { gainDb: g })} className="ml-1 min-w-0 flex-1" />
             </div>
-            {p.advanced && track.height >= 90 && <TrackFader gainDb={track.gainDb ?? 0} onChange={(g) => p.onTrackUpdate(track.id, { gainDb: g })} />}
+            {track.height >= 90 && <TrackPan pan={track.pan ?? 0} onChange={(v) => p.onTrackUpdate(track.id, { pan: v })} />}
+            {/* the track's level (audiocn LevelMeter): L/R when stereo or panned */}
+            <div className="mt-auto flex min-w-0 items-center" title="Track level (dBFS)">
+              <TrackMeter source={p.trackMeter(track.id)} dim={p.dim} stereo={stereoTrack} />
+            </div>
             <ResizeGrip height={track.height} onChange={(h) => p.onTrackUpdate(track.id, { height: h })} />
           </div>
         </ContextMenuTrigger>
@@ -542,7 +530,7 @@ function TrackRow(p: Props & { track: ProjectDoc["tracks"][number]; view: View; 
           <ContextMenuLabel className="truncate">{track.name} · {KIND_LABEL[track.kind]}</ContextMenuLabel>
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setTimeout(() => setRenameSignal((n) => n + 1), 0)}><FontAwesomeIcon icon={faPen} className="w-4 text-muted-foreground" /> Rename</ContextMenuItem>
-          <ContextMenuItem onSelect={() => openOptions(false)} data-testid="ctx-track-colour"><FontAwesomeIcon icon={faPalette} className="w-4 text-muted-foreground" /> Colour…</ContextMenuItem>
+          <ContextMenuItem onSelect={() => openOptions(false)} data-testid="ctx-track-colour"><FontAwesomeIcon icon={faPalette} className="w-4 text-muted-foreground" /> Color…</ContextMenuItem>
           {!track.locked && clips.length === 0 && <ContextMenuItem onSelect={() => p.onUploadTo(track.id)}><FontAwesomeIcon icon={faUpload} className="w-4 text-muted-foreground" /> Upload audio here</ContextMenuItem>}
           <ContextMenuSeparator />
           <ContextMenuCheckboxItem checked={track.muted} onCheckedChange={(v) => p.onTrackUpdate(track.id, { muted: !!v })}>Mute<ContextMenuShortcut>M</ContextMenuShortcut></ContextMenuCheckboxItem>
@@ -776,5 +764,34 @@ function TrackName({ name, onSelect, onRename, renameSignal }: { name: string; o
       }}
       className="min-w-0 flex-1 rounded border border-ring bg-background px-1 py-0.5 text-[13px] font-medium outline-none"
     />
+  );
+}
+
+/** The track header's FX toggle: lit when the track has FX doing something. */
+/**
+ * The track's FX button: an audiocn ChannelToggle like M and S beside it, in the show accent —
+ * filled when FX are changing the sound (the same accent as the FX panel's switches), outlined
+ * while its panel is open, gray otherwise.
+ */
+function FxButton({ active, open, onClick, ...props }: { active: boolean; open?: boolean } & Omit<React.ComponentProps<"button">, "type">) {
+  return (
+    <ChannelToggle
+      tone="accent"
+      variant="outline"
+      size="sm"
+      pressed={active}
+      title={active ? "FX on — click to edit" : "Add FX (noise reduction, EQ, compressor)"}
+      aria-label="FX"
+      data-testid="track-fx-button"
+      data-open={open ? "" : undefined}
+      {...(props as object)}
+      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
+        onClick?.(e);
+      }}
+      className={cn("h-6 min-w-8 px-1.5 text-[10.5px]", open && !active && "border-primary text-primary hover:text-primary")}
+    >
+      FX
+    </ChannelToggle>
   );
 }

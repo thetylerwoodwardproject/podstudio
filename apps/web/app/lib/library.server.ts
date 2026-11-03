@@ -19,7 +19,7 @@ export function listLibrary() {
     .where(eq(libraryItems.showId, show.id))
     .orderBy(asc(libraryItems.name))
     .all()
-    .map((i) => ({ ...i, usedIn: i.assetId ? episodesUsing(i.assetId).length : 0 }));
+    .map((i) => ({ ...i, channels: i.assetId ? assetChannels(i.assetId) : 1, usedIn: i.assetId ? episodesUsing(i.assetId).length : 0 }));
 }
 
 export async function createLibraryItem(input: { filename: string; name: string | null; kind: unknown; contentLength: number | null; body: ReadableStream<Uint8Array> | null }): Promise<{ ok: true; id: string } | Fail> {
@@ -52,6 +52,11 @@ export function updateLibraryItem(id: string, patch: { name?: unknown; kind?: un
 }
 
 /** Episodes whose current project uses this decoded asset. */
+/** 1 or 2: how many channels a decoded library asset has. */
+function assetChannels(assetId: string): 1 | 2 {
+  return db.select({ c: assets.channels }).from(assets).where(eq(assets.id, assetId)).get()?.c === 2 ? 2 : 1;
+}
+
 export function episodesUsing(assetId: string): string[] {
   const out: string[] = [];
   for (const p of db.select().from(projects).all()) {

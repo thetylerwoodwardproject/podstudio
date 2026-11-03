@@ -24,6 +24,11 @@ interface PlayerApi {
   time: number;
   duration: number;
   rate: number;
+  /** 0..1, and mute; applied to the shared element (session only, nothing stored). */
+  volume: number;
+  muted: boolean;
+  setVolume: (v: number) => void;
+  setMuted: (m: boolean) => void;
   message: string;
   /** Start (or toggle, if already current) a track; `queue` is what plays after it, in order. */
   play: (track: Track, opts?: { queue?: Track[]; at?: number }) => void;
@@ -31,6 +36,8 @@ interface PlayerApi {
   seekTo: (seconds: number) => void;
   skip: (delta: number) => void;
   cycleRate: () => void;
+  /** The shared media element (for audiocn's player controller). */
+  element: () => HTMLAudioElement | null;
   close: () => void;
   /** Inline players report visibility so the sticky bar can step aside. */
   setInlineVisible: (id: string, visible: boolean) => void;
@@ -57,6 +64,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [rate, setRate] = useState(0);
   const rateRef = useRef(0);
   const [message, setMessage] = useState("");
+  const [volume, setVolumeState] = useState(1);
+  const [muted, setMutedState] = useState(false);
   const [visible, setVisible] = useState<Set<string>>(new Set());
 
   const load = useCallback((track: Track, at: number | null) => {
@@ -153,6 +162,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       time,
       duration,
       rate: RATES[rate]!,
+      volume,
+      muted,
+      setVolume: (v) => {
+        const c = Math.max(0, Math.min(1, v));
+        setVolumeState(c);
+        if (audio.current) audio.current.volume = c;
+      },
+      setMuted: (m) => {
+        setMutedState(m);
+        if (audio.current) audio.current.muted = m;
+      },
       message,
       play,
       toggle: () => {
@@ -168,6 +188,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const a = audio.current;
         if (a) a.currentTime = Math.max(0, Math.min(a.duration || 1e9, a.currentTime + d));
       },
+      element: () => audio.current,
       cycleRate: () => {
         const n = (rateRef.current + 1) % RATES.length;
         rateRef.current = n;
@@ -190,7 +211,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setInlineVisible,
       inlineVisible: !!current && visible.has(current.id),
     }),
-    [current, playing, time, duration, rate, message, play, visible, setInlineVisible],
+    [current, playing, time, duration, rate, volume, muted, message, play, visible, setInlineVisible],
   );
 
   return (

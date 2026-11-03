@@ -10,7 +10,9 @@
     "./render": "./src/render.ts",
     "./resample": "./src/resample.ts",
     "./duck": "./src/duck.ts",
-    "./loudness": "./src/loudness.ts"
+    "./loudness": "./src/loudness.ts",
+    "./fx": "./src/fx.ts",
+    "./delivery": "./src/delivery.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

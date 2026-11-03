@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-11-02 — **Stage 04 editor merged to `main` (PR #1)** after a day of Tyler's live feedback: Simple (Hindenburg-style) editor with an Advanced switch, library sidebar with drag-to-track, track colours/delete/volume, range selection + right-click cuts, loop, crossfades, track + L/R master meters with LUFS, and **every export loudness-normalised (−19 LUFS mono / −16 stereo, ≤ −1 dBTP)**; take deletion made safe. See "Editor (Stage 04)". Formal stage sign-off and the stereo decision are pending.
+**Last updated:** 2026-11-03 — **page polish done (studio + public pages, editor untouched), deployed.** Still true from 11-02: Stage 05 awaits Tyler's review and everything is **uncommitted** (Stage 05 + today's polish on one working tree). Start at "Stereo + Stage 05 → Start here tomorrow"; today's changes are in "Page polish (2026-11-03)".
 player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
 applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
@@ -55,7 +55,7 @@ Of the mockup's 36 screens (`docs/design/Podstudio v2.dc.html`):
 | 32 Podroll | Half real, at `/studio/podroll` (sidebar) — new `podroll_items` table (migration 0005). Manual add (title + required UUID `podcast:guid`, optional feed URL/note; rejects bad GUID, own GUID, duplicates case-insensitively), reorder (up/down), remove, `<podcast:podroll>` XML preview with escaping (`lib/podroll-xml.ts`, shared with the future feed generator), "Show on public page" switch (`shows.settings.podroll.showOnPublicPage`) feeding 25. Podcast Index search and the verified-GUID check need an API key (Stage 11) — every item is shown "Unverified" |
 | 29b Brand & theme | Half real, at `/studio/public/brand` (linked from Embed players and Public page links, not in the sidebar) — accent (8 mockup presets or validated custom hex), public-site appearance, corners (Sharp 3/4 · Soft 8/12 · Round 20/18 px), and Public site / Embed players / Studio scopes, all persisted to `shows.theme`. The README's contrast rules are implemented in `app/lib/brand-theme.ts` (on-accent #111113 or #fff by contrast; link colour stepped until 4.5:1; studio ink→bone and <3:1 lightening) and shown in a live light/dark preview with the measured ratios. Consumers: the public pages (when the Public-site scope is on, else stock paper theme) and, **when the Studio scope is on (off by default), the studio chrome** — primary buttons, focus ring and an inset active-nav bar take the accent via CSS variables set in `routes/studio/_layout.tsx` (ink → bone, low-contrast accents lightened). The Embed-players scope has no consumer until screen 28 exists |
 | 29 Public page links | Half real, at `/studio/public/links` — social links (add/toggle-visible/remove/reorder) are real on a new `show_links` table; platform picker enforces one-per-platform; handles get normalized to full profile URLs on save (Discord/LinkedIn require a full URL — their handle format can't be guessed). Real Font Awesome 6 brand icons per platform. Website is read-only, linking to Show tags (16) instead of duplicating that field. No drag-and-drop (plain up/down buttons instead), no live preview (needs the public page, screen 25, not built) |
-| 08 Editor | **Real (Stage 04, merged)**, full-screen at `/studio/editor?episode=<id>` (chooser without it; Episode details and the Episodes row menu have **Edit**). Simple layout by default (Hindenburg-style) + Advanced switch; multitrack canvas timeline, split/trim/move/ripple, range cuts per track, crossfades, gain/fades/track volume, colours, loop, track + L/R master meters (dBFS/LUFS), ducking, library sidebar, retake + chapter marks, undo/redo, autosave revisions with conflict detection, audio upload, export. FX, video, shots, branding and the transcript lane are **not built**. Mono only. See "Editor (Stage 04)" |
+| 08 Editor | **Real (Stage 04, merged)**, full-screen at `/studio/editor?episode=<id>` (chooser without it; Episode details and the Episodes row menu have **Edit**). One Hindenburg-style layout (the Advanced switch was removed 2026-11-02); multitrack canvas timeline, split/trim/move/ripple, range cuts per track, crossfades, gain/fades/track volume, colours, loop, track + L/R master meters (dBFS/LUFS), ducking, library sidebar, retake + chapter marks, undo/redo, autosave revisions with conflict detection, audio upload, export. Track FX, stereo and MP3 came in Stage 05 (see "Stereo + Stage 05"); video, shots, branding and the transcript lane are **not built**. |
 | 09 Retake cleanup | **Real (Stage 04)** as a docked panel inside the editor (`/studio/editor/retakes?episode=` opens it). Proposes one cut per retake mark from the tone + pauses in the audio, audition (join / removed part), ±0.1 s nudge, checkbox per cut, "Apply N cuts" = one undoable edit across all tracks. No transcript refinement (Stage 07) |
 | 12 Export | **Half real (Stage 04)**: a dialog over the editor (`/studio/export?episode=` opens it). Audio tab only: WAV 16/24-bit × 44.1/48 kHz, mono or stereo (dual-mono), **loudness-normalised to −19 LUFS mono / −16 LUFS stereo, ≤ −1 dBTP**, rendered by the **worker** from an exact saved revision, read back + SHA-256 verified, downloadable, cancellable; shows the delivered LUFS/dBTP/LRA. MP3 (Stage 05), Video (10a) and Editor-project (10d) tabs are disabled |
 | Library (new, not in the mockup) | **Real**, at `/studio/library` (sidebar, under Episodes): the show's reusable audio. Upload (button or drop, as Music or Sound effect), inline rename, default-track kind, preview, delete (refused while any episode uses it). Added to episodes from the editor's **Library** button. See "Fades, ducking, library" |
@@ -231,7 +231,7 @@ scope/architecture/data model), `CLAUDE.md` (working rules).
 
 **First thing next session:** `docker compose -f deploy/docker-compose.yml ps` — `caddy`, `web`, `worker` should all be `Up` (Caddy was repaired 2026-10-23; see Known issues).
 
-**Next:** Tyler's answers on **stereo** and on **passing Stage 04** (both under "Editor (Stage 04)" → Decisions), then — only on his go — Stage 05 (noise reduction, voice FX, MP3; loudness normalisation is already built) or closing PREBUILD formally. The screens that don't need new infrastructure are done. What's left is
+**Next:** Tyler's review of **Stage 05** ("Stereo + Stage 05" → ear checks and the open items), then — only on his go — Stage 06 (existing-show import, feed publish, protected sharing). The screens that don't need new infrastructure are done. What's left is
 blocked, not forgotten:
 
 - **13 Clips, 13b Short video style, 10 Transcript, 06 Record with a guest, 03/04/05 remote/guest, 19–24 mobile** all need capture,
@@ -248,7 +248,7 @@ blocked, not forgotten:
   (local MinIO or an external provider), which is Tyler's call.
 
 **Decisions recorded for Tyler:**
-0. **Stage 04 sign-off + stereo** — merged to `main` but not formally passed; stereo music/SFX offered (see Editor section → Decisions). Also: own timeline instead of waveform-playlist, hatched retake regions, PREBUILD performance budgets.
+0. **Stage 05 review** (see "Stereo + Stage 05" → checks by ear). Still open from Stage 04: hatched retake regions, PREBUILD performance budgets, lint/e2e/CI.
 1. ~~S3-compatible storage target~~ — decided: local S3 on this box, Garage (2026-10-25).
    Stage 02 (uploads → enclosures, Publish-now, playback) is now unblocked.
 2. **Email delivery provider** — unblocks 16b's real unlock flow, 18's invites,
@@ -333,11 +333,13 @@ A 30:00 take with a fake microphone in headless Chromium (script `long.mjs`, kep
 ### Solo recording: 2-hour run (2026-10-25/26)
 Fake microphone, headless Chromium, `validation/recording/run-long.sh 120` (detached). **First run failed one check:** at ~1:58 the browser's local journal showed a save error with storage at 977 MB (the journal kept every chunk until the whole take was finalized). The audio was unaffected (server file verified, no gaps) but the last ~2 minutes had no local backup. **Fix:** once the server verifies a chunk its bytes are dropped from the journal (only the meta row stays), and a red banner says how many seconds of audio exist only in the tab if a local save ever fails while uploads are stalled; the test now also fails if browser storage exceeds 60 MB. **Rerun, all checks passed:** 2:00:00.66 recorded, finalized complete with no report; 988.9 MB 48 kHz mono 24-bit WAV; 3599 chunk boundaries with no discontinuity; no silent hole (longest quiet run 200 ms); all 3 retake tones within 50 ms of their annotations; max upload backlog 1 chunk; JS heap 12-16 MB flat; browser storage max 2 MB (was 977 MB); web container 115-150 MiB during the run; stop to verified WAV 39.6 s; no JS or local-journal errors. Still not done: real audio hardware, Firefox/Safari, OPFS journal, pause/resume.
 
-## Editor (Stage 04) — merged to `main` 2026-11-02 (PR #1); formal stage sign-off still pending
+## Editor (Stage 04) — passed 2026-11-02 (Tyler; merged in PR #1)
 
-**State.** Everything below is committed (`c295488`, merged as `69cc289`, PR https://github.com/thetylerwoodwardproject/podstudio/pull/1) and deployed (`scripts/rebuild.sh` web + worker). Tyler has been using it daily and asked for the merge ("That looks fantastic"), but STATUS.md still lists Stage 04 as **built, awaiting review** — he hasn't explicitly passed the stage, and the PREBUILD proofs are still outstanding. Built and verified in headless Chromium against the live Docker build, with scripts in `validation/editor/`; things nobody has *listened to* are called out below.
+**State.** Everything below is committed (`c295488`, merged as `69cc289`, PR https://github.com/thetylerwoodwardproject/podstudio/pull/1) and deployed (`scripts/rebuild.sh` web + worker). Tyler has been using it daily and asked for the merge ("That looks fantastic"), and **passed it** the same day. The PREBUILD proofs are still outstanding. Built and verified in headless Chromium against the live Docker build, with scripts in `validation/editor/`; things nobody has *listened to* are called out below.
 
 ### What Tyler sees
+
+> **Superseded 2026-11-02:** the Simple/Advanced split below no longer exists — it's one editor now. See "Stereo + Stage 05 → Editor". Kept for history.
 
 **Simple (default)** — modelled on Hindenburg Pro (Tyler: "a clean interface that I LOVE"; standing preference: simple by default, extras behind Advanced):
 - One 52 px toolbar of small icon+label buttons: Undo · Redo | Split · Delete · Ripple | Import · Library · Retakes, the Edit / Transcript / Publish tabs, the **Advanced** switch, save status, Export.
@@ -377,7 +379,7 @@ Fake microphone, headless Chromium, `validation/recording/run-long.sh 120` (deta
 
 ### Not done / caveats
 
-- **Mono only.** Every source is decoded to mono, tracks are mono, a stereo export is dual-mono. The master bus and meter are already L/R, so the UI is ready. Real stereo (stereo music/SFX sources, pan, stereo peaks/meters/render) is **Tyler's decision** — offered, ~1 day, doubles storage for imported stereo files; proposal is voice mono, music/SFX stereo.
+- ~~Mono only~~ — stereo built afterwards (see "Stereo + Stage 05").
 - **No `pnpm lint` or `pnpm e2e`** exist (CLAUDE.md requires both for every PR); no CI on GitHub. The browser scripts are the stand-in.
 - Not verified by ear: loop seam, crossfades, ducking feel, limiter on real programme. Preview↔export parity is by shared code + clock checks, never by capturing the browser's output.
 - `export-wav.mjs` was updated for normalisation but not re-run (needs its specific tone take). 2-hour export time with normalisation not re-measured.
@@ -396,9 +398,100 @@ Fake microphone, headless Chromium, `validation/recording/run-long.sh 120` (deta
 5. **Retake cleanup** on a real take with K marks.
 
 ### Decisions awaiting Tyler
-- **Stereo** (above) — yes/no.
-- **Pass Stage 04?** Then Stage 05 (noise reduction, voice FX, MP3; loudness is already done) — only on his go.
+- ~~Stereo~~ — yes (built; see "Stereo + Stage 05"). ~~Pass Stage 04~~ — passed 2026-11-02.
 - Crossfade curve (linear now; equal-power option?), per-show loudness target, whether hatched retake regions are needed, PREBUILD performance budgets (none recorded), adding real `lint`/`e2e`/CI.
+
+## Page polish (2026-11-03)
+Tyler: "polish up the pages we have now, don't touch editor." Editor and its components were not changed.
+- **Layout:** every studio page renders inside `Page`/`PageHeader` (`components/layout/page.tsx`). New pages should use them: `width="form"` (max-w-3xl) for settings-style pages, `"wide"` (max-w-6xl) for tables/dashboards; eyebrow = sidebar section.
+- **Phones:** below 768 px the sidebar becomes a top bar + drawer (shadcn Sheet; one `<main>`, CSS-only switch). Studio pages fit at 390 px with no sideways scroll (the recorder and editor were not checked on phones).
+- **Controls:** no native `<select>`/checkbox/radio left in studio pages. `FormSelect` (`components/ui/form-select.tsx`) wraps shadcn Select and submits through a hidden input, so `""` options ("Not set") work; `ChoiceCards` (`components/ui/choice-cards.tsx`) is the radio-card row. Added shadcn `checkbox`, `radio-group`, `sheet`.
+- **Copy:** user-facing text no longer mentions stages/screens/STATUS.md. Convention: describe what's missing in listener/host terms ("comes in a later release").
+- **Public:** show-note lists have markers again; snippets come from `htmlToSnippet` (`lib/rich-text.server.ts`: lead paragraphs only — the feed's `itunes:summary` still uses the full `htmlToText`); embed text-accent uses `--emb-link` (accent stepped to 4.5:1). Light theme of the public site and embed was checked this time.
+- **Test data:** a throwaway episode (created/deleted) and Brand/podroll/analytics toggles during the form test; the `shows` row was backed up and restored exactly (theme still `custom #beff00`).
+- Not done: the recorder page wasn't restyled; Episodes has no bulk actions (the checkbox column was removed because it did nothing).
+
+ (noise reduction, voice FX, loudness, MP3) + Tyler's review rounds — built 2026-11-02, awaiting review
+
+Tyler passed Stage 04, said yes to stereo, and started Stage 05. Stage 05 was built, then reworked through a long afternoon of Tyler's feedback (FX layout, accent consistency, audiocn everywhere, one editor instead of Simple/Advanced, presets, ducking in FX, palette, public player redesign). Everything below is **deployed and browser-verified, but uncommitted** (≈116 changed paths on `main`'s working tree; no branch or PR yet). Unit tests **261** pass; typecheck clean; browser scripts in `validation/editor/` and `validation/stage05/` (README there lists which are current and which are stale).
+
+### Start here tomorrow
+1. Ask Tyler whether to **commit → PR → merge** this batch (he authorized that only for Stage 04). Branch first; don't commit on `main`.
+2. Tyler's by-ear checks (below) are still outstanding; Stage 05 isn't passed until he says so. Don't start Stage 06 without his go.
+3. Open threads from today: ChannelStrip for editor track headers (from his audiocn list, not done); stale validation scripts need rewriting (list in `validation/stage05/README.md`); Soundboard block noted for future hotkeys (not Release 1).
+4. Rebuild with `scripts/rebuild.sh` **in the background**, and when waiting for it, watch the log for `free space on` — don't `pgrep -f rebuild.sh` (the waiting loop matches itself and never exits).
+
+### Audio engine
+**Stereo.** Imports keep stereo files stereo (≤ 2 ch; wider is folded down; recordings stay mono): `Source.channels` (1|2), interleaved 24-bit WAV, `assets.channels`, stereo peaks (`PSK2`: L and R kept separately, drawn as two halves of the clip). `Track.pan` (−1…+1, **balance law**: centre = 0 dB both sides, so centred mono mixes exactly as before; panning turns the far side down). The mix is stereo internally: per track clips → ducking → **FX** → fader → pan → sum. Mono export = (L+R)/2 (identical to before for mono material); stereo export = real L/R with true 2-channel loudness measurement. Player: stereo source windows; per-track bus input → FX worklet → fader → pan → L/R analysers → stereo master. Track meters go L/R when a track is stereo or panned. Verified: a stereo bed exported 10.5 dB louder on the left exactly as the source, −16.0 LUFS by ffmpeg (`editor/stereo.mjs`); render vs an independent stereo/pan reference < −100 dBFS.
+
+**Track FX — `packages/audio/src/fx.ts` (this is PREBUILD's DSP decision, recorded in the file header).** Order NR → HPF (20–300 Hz) → LPF (4–20 kHz) → EQ (low shelf 60–400 Hz, mid bell 300 Hz–6 kHz Q 1, high shelf 4–16 kHz, ±12 dB) → compressor. FX_VERSION 1, stored per track as `Track.fx`, validated by `normalizeFx` (clamps, never wraps). **One deterministic TypeScript implementation** runs in the export (worker) and in the preview (an **AudioWorklet** that bundles the same module: `apps/web/app/lib/project/audio-worklet.ts`). Constant latency FX_LATENCY = 1024 samples on every track (NR's STFT; a plain delay when NR is off): the render drops it, the preview schedules audio that much early. Every stage is sample-accurate, so the output doesn't depend on block size.
+- *Noise reduction:* STFT N 1024 / hop 256, √Hann overlap-add; per-bin power smoothing 0.9; minimum-statistics noise floor (seeded from the first frame, rises 3 dB/s) × bias 6; power subtraction β 3; gain floor = amount × 20 dB; slow-fall gain smoothing + 3-bin averaging against musical noise. On a reference signal (white noise + gated harmonic "voice"): **noise between phrases −12.6 dB, phrases −0.6 dB** at 80%. Handles stationary noise (hiss, hum, fans, room tone), not clicks or transients. An ML model (RNNoise) was rejected because it can't be shared bit-exactly between browser and worker. **Not judged by ear yet.**
+- *Filters:* RBJ biquads, 12 dB/oct Butterworth (−3 dB at the corner, tested). *Compressor:* stereo-linked peak detector 5/120 ms, 6 dB soft knee; amount a → threshold −10 − 20a dBFS, ratio 1.5 + 4.5a, make-up ½·|thr|·(1 − 1/ratio); gain reduction reported to the UI.
+- **Parity (Stage 05 "Done when"):** the deployed worklet run in Chromium (OfflineAudioContext) vs the Node FxChain on the same fixture: 287,488 / 288,000 samples bit-identical, max |diff| 9×10⁻¹⁹, residual **−300 dBFS** (requirement −60). Render with FX vs an independent per-track reference < −100 dBFS; a project whose FX are all neutral renders byte-for-byte as before.
+- *Preview caveat:* NR is adaptive, so starting playback mid-episode gives it a fresh noise estimate while the export has the whole episode behind it; the first second or so after a seek can differ slightly (parity is measured from the start).
+
+**MP3 delivery.** `packages/audio/src/delivery.ts`: presets **64 kbps mono (speech) · 96 stereo (speech) · 128 stereo (speech + music, default) · 192 stereo (music-heavy)**, 44.1 kHz CBR, libmp3lame. Show default in `shows.settings.delivery.preset`; per-episode choice in the project document (`delivery.preset`). Worker `renderMp3`: render the normalised mix to a temp WAV → encode → **decode the MP3 and measure it** → if it's more than 0.2 LU off or over −1 dBTP, render again with the target nudged / more limiter headroom (≤ 3 attempts) → upload, read back, SHA-256, asset `export_mp3`. Export panel: MP3 (default) / WAV, preset picker, "Use for this episode", "Make the show default", one line of explanation ("Exports your saved edit, exactly as you hear it." — Tyler asked to drop the technical paragraph), and per export: LUFS · dBTP · size plus plain-language **warnings** (silent, too short, very quiet, heavy limiting, missed target). The detailed numbers (pre-encode readings, limiter use, SHA-256, LRA) are still stored in the job summary, just not shown. Verified with ffmpeg on downloads: **128 stereo −16.0 LUFS, 64 mono −19.0 LUFS, true peak −1.7 dBTP**, codec/rate/channels/bitrate correct (`stage05/fx-ui.mjs`). Before the correction loop, encoding alone cost ≈ 0.45 LU.
+
+**Meters.** All meters are audiocn's **LevelMeter in its stock look** (solid bars, default zones: green, amber from −20 dBFS, red from −9 dBFS; peak hold; dB scale; dB readout; clip light). LUFS mode uses the same parts on a −42…−6 LUFS range with the delivery target marked. The master meter is an **AudioWorklet** (`podstudio-meter`, BS.1770 on the audio thread). It measures both the stereo mix and its mono fold-down and shows whichever the delivery preset uses (−16 stereo / −19 mono).
+
+### Editor (one interface — the Advanced switch is gone)
+Tyler: "we can do most things from the main interface now". Track headers: name, **FX**, ⋯, M/S (audiocn ChannelToggles), volume fader, pan (tracks ≥ 90 px) and an audiocn track meter. The ruler carries retake/chapter marks; the Range tool is always in the toolbar; the transport has the master meter (dBFS ⇄ LUFS, click to switch). Right panel, tabbed: **Library** (default; drag onto a track or + to add at the playhead) · **Clip** (track name/volume/pan/height, clip gain and fades) · **Marks** (chapters) · **LUFS** (loudness LCD); collapses to a rail (I). Removed: Advanced toggle, master-meter column, Library dialog, inspector FX and Duck tabs, header lock button (lock is on right-click; a locked track shows a lock icon). Editor clips are drawn with **audiocn Waveform's bar renderer** (`drawRoundedBar`, mirror, 2 px bar + 1 px gap) inside our own virtualized canvas — the `<Waveform>` component is single-clip and can't hold 2-hour/8-track sessions or sit under fades/crossfades. Bars are on a grid anchored to each clip (no swimming; `draw.test.ts`).
+
+**FX popover (Hindenburg-style, Tyler's reference).** The FX button opens one popover (900 × ~390 px, padded): left, the chain — Noise reduction · High-pass · Low-pass · EQ · Compressor · **Ducking** · Volume — each with its own switch and an accent dot when active; right, **only the selected effect's controls** with large audiocn **Knobs** (4 rem for single controls and EQ gain). EQ/filters show the curve over the live **Spectrum**; the compressor has a gain-reduction **LcdDisplay**. Reopens on the last effect used. Top: On/Bypass, A/B, Flat, Presets, status line. Undo: one step per control.
+- **Accent consistency:** the studio sets the show accent (`--primary`) and `.dark` on `<html>`, because popovers render in a portal outside the studio wrapper (that's why the panel's switches were bone while the inspector's were lime). FX button: filled when FX or ducking change the sound, outlined while open, gray otherwise.
+- **Built-in podcast presets** (`components/editor/fx-builtins.ts`), above the show's saved presets: Podcast voice · Deeper voice · Brighter voice · Broadcast voice · Noisy room · Remote guest (Zoom / phone) · Gentle cleanup · Music under voice. From common practice (high-pass 80–100 Hz, small cut at 200–400 Hz, +1–2 dB presence at 3–5 kHz, ~3:1–4:1 compression ≈ 35–55 % on our one-knob compressor); sources were tutorials (Audient, Ruah Creative House, Async, Podcastle, Cleanvoice) — starting points, tune by ear.
+- **Ducking per track, in FX:** the switch turns that track down under host + guest (or picked tracks), with knobs for amount, threshold, dip speed, recovery and the envelope drawing. Still `doc.ducking` rules (≤ 8) underneath: on = reuse this track's rule or add one targeting only it; off = disable (or take this track out of an older shared rule).
+
+**Export dialog** (Tyler: "we don't need all this"): one line ("Exports your saved edit, exactly as you hear it."); per export only LUFS · dBTP · size and plain-language warnings. Pre-encode readings, limiter use, SHA-256 and LRA are still stored in the job summary, just not shown.
+
+### Recorder
+- **Live waveform** = audiocn LiveWaveform, `bars` variant: newest on the right, scrolling left, red retake tallies overlaid, no edge fade. (The `mirror` variant mirrors the history out of the center — Tyler caught it in a screen recording; `validation/stage05/recorder-live-waveform.mjs` now checks direction.)
+- **Mic setup sidebar** after audiocn's mic-setup block: AudioDeviceSelect, LevelMeter + DbReadout + clip light, and "Check my level" (3 s → good / too quiet / too loud / no signal; warnings amber, red stays for recording). Drives the recorder's own capture (the block opens its own stream and adds gain; the recorder captures raw input). Block file and its Phosphor dependency removed (Font Awesome only); the device select was adapted from Base UI's Select to this project's Radix Select.
+- Take times and new clip names use the viewer's time zone (server runs in UTC; clip names used to be 6 h off). `components/local-time.tsx` renders after hydration (also fixed a hydration warning).
+
+### Public pages and embed
+- **Player redesigned around audiocn's Waveform**, laid out like Buzzsprout's episode player (Tyler's reference): big round play button beside the episode's mirrored waveform (click/drag to seek, hover shows the time, played part in the accent), then −15 / +30 / speed on the left and "elapsed | length" on the right; no box, no volume slider. **Sticky bar:** compact — play, 36 px waveform, remaining, speed (+ skips and mute on wider screens; on phones the controls get their own row). Falls back to audiocn's slider without a waveform. The site-wide player gained real volume/mute (session only, nothing stored).
+- **Waveform data:** `GET /{show}/media/{public-id}/waveform.json` (public episodes only, 404 otherwise): the published MP3 streamed through ffmpeg once (mono 8 kHz, 50 ms blocks, never held whole) → 1,000 bars scaled to the loudest (`lib/waveform-peaks.ts`) → cached as `<mp3 key>.wave1.json` beside it. **The web image now includes ffmpeg** (≈100 MB).
+- **Show page list view** → audiocn **TrackList** (playing bars, current row, duration, play action); grid tiles' play buttons → audiocn **AudioPlayerPlay** on the site-wide player.
+- **Embed** (`/{show}/embed/*`) is now a React route (`routes/embed.tsx`, `components/embed/embed-player.tsx`) with the same player layout under its artwork/title header, and audiocn **TrackList** for the whole-show playlist. Same options (player/theme/accent/follow), Media Session, "Audio isn't available", and the same messages to embed.js. It loads the site's own JS/CSS bundle (CSP `script-src 'self' 'unsafe-inline'`, nothing from other origins, no cookies) — heavier than the old ~10 KB inline page. Starting heights 196 px audio / 400 px video (it resizes itself). **Sandboxed iframes:** `/assets/*` is served with `Access-Control-Allow-Origin: *` (public, hashed, static) and the embed page leaves out ScrollRestoration (sessionStorage is forbidden there) — found because the Embeds screen's own preview iframe didn't hydrate.
+- Icons for audiocn player parts are Font Awesome (`components/ui/player-icons.tsx`: rotate arrows with 15/30, speaker following the level).
+
+### Base palette (Tyler): #000000 · #FABF47 · #00FFF5 · #BEFF00 · #FF807F · #C7BFF6
+Black, Gold, Cyan, Lime, Coral, Lavender (+ Custom) for Brand & theme accents (`BRAND_PRESETS`, default Gold), track colors (`TRACK_COLOR_PRESETS`) and embed accents (`?accent=…`, default Gold). Black shows as bone (#ecebe6) on dark backgrounds (studio, dark public pages, dark embeds, timeline); stored value stays #000000. Old data keeps working: old presets read as Custom with their exact color; a custom hex equal to a preset reads as that preset (Tyler's #BEFF00 → Lime); saved embed configs map amber→gold, teal→cyan, ink→black; pasted URLs with accent=amber/teal/ink still render. Speaker defaults (host amber, guest teal, music violet) unchanged.
+
+### audiocn as the audio UI kit
+Tyler: "needs to become a central part of this project … all audio components must pull from audiocn". In use: level-meter, knob, fader, pan-control, channel-toggle, spectrum, lcd-display, live-waveform, audio-player, track-list, volume-control, waveform, audio-device-select (+ db-readout, clip-indicator, db-scale). Added with `npx shadcn@3.5.0 add @audiocn/<name>`; pipe `yes n |` so it never overwrites existing files, and **restore `app/app.css` afterwards** (the CLI appends a duplicate `@layer base`). Small local edits to registry files are marked "Podstudio:" (ChannelToggle `accent` tone; Waveform exports `drawRoundedBar`/`WAVEFORM_BAR`; device select on Radix). Not done from his list: **ChannelStrip** (track headers). **Soundboard** is for the future hotkeys feature.
+
+### US English
+Tyler: "we are in the United States … it's color". UI text and docs are US English now (color, center, favorite, analyze, canceled). Stored values were not renamed (job status `"cancelled"`, summary `normalise`).
+
+### Bugs found and fixed today (in this round's own code)
+- Public play button rendered **disabled** (adapter said "idle"); visitors couldn't start an episode.
+- After touching an audiocn fader, **every editor shortcut, Ctrl+Z included, was ignored** until clicking elsewhere.
+- FX panel switches were bone, not the accent (portal outside the studio wrapper); FX button stayed gray when FX were on (shadcn outline's dark styles won).
+- FX undo merged all FX changes on a track into one step; the fader's double-click-to-0 dB was lost; React #440 in the meter.
+- MP3s sat 0.45 LU under target before the post-encode loop.
+- Recorder live waveform grew out of the center (wrong audiocn variant).
+- Embed didn't hydrate in sandboxed iframes; embed volume overflowed at 640 px.
+- Clip names in UTC; a hydration warning from server-rendered local times.
+- **Incident:** a rebuild under a `timeout` was killed mid-recreate and the studio was down a few minutes (recovered with `docker rm` + `docker compose up -d --no-build`). Rebuilds always run in the background now.
+
+### Stage 05 checklist — not met / open
+- `lint`, `e2e` and CI don't exist (same as Stage 04).
+- Screens not pixel-compared with the mockup at 1440×900 (and the design has moved on from the mockup per Tyler's direction).
+- Nobody has **listened**: noise reduction, compressor, EQ, presets, MP3 at 64 kbps. Tuning may be needed.
+- Noise reduction handles stationary noise only.
+- `shows.settings.fxPresets` aren't wired into "show templates" (screen 02).
+- 2-hour MP3 export timing with FX not re-measured.
+- Ten older browser scripts drive the removed Advanced switch / master column / Duck tab and need rewriting (listed in `validation/stage05/README.md`).
+
+### Checks for Tyler (by ear / by hand)
+1. A voice track: FX → try **Podcast voice**, then **Noisy room**; switch effects on/off in the list and A/B. **Listen** — especially noise reduction at 50–80 %.
+2. A music track under a voice: FX → **Ducking** on; play across a voice phrase.
+3. Export **MP3 128 stereo** and **64 mono**; play them.
+4. Public show page: play the latest episode from the waveform; skip, change speed; scroll down and use the sticky bar; try it on your phone.
+5. Record a short take: the waveform should scroll in from the right; press K; in the sidebar pick the mic and "Check my level".
+6. Brand & theme: try the six accents; check a track's color menu.
 
 ## Docker disk cleanup (2026-10-25)
 Every rebuild leaves ~1 GB of build cache and superseded layers; after a long build session this had grown to ~100 GB (disk 85% full; cleaned back to 38%). **`scripts/rebuild.sh [web|worker]`** now rebuilds *and* runs **`scripts/docker-cleanup.sh`**, which keeps the most recent 8 GB of build cache and removes dangling images — never containers, volumes or tagged/in-use images (`KEEP_GB=` overrides). The same script runs **weekly from the user crontab** (Sundays 04:15, log: `~/.local/state/podstudio/docker-cleanup.log`; `crontab -l` to see or remove it). Plain `docker compose up --build` still works but skips the tidy-up. If space gets tight again: `docker system df` shows where it is. Never run `docker system prune --volumes` here (it would delete the Podstudio data volumes).

@@ -9,7 +9,7 @@ await p.click('[data-testid=add-track]'); await p.click('[data-testid=add-track-
 const geo=await p.evaluate(()=>{const sc=document.querySelector('[data-testid=timeline-scroll]').getBoundingClientRect();const rows=[...document.querySelectorAll('[data-track-id]')].filter(e=>e.getAttribute('data-testid')!=='track-name'&&e.getAttribute('data-testid')!=='track-resize').map(e=>e.getBoundingClientRect());const ruler=document.querySelector('[data-testid=ruler]').getBoundingClientRect();return {scRight:sc.right,rowsRight:rows.map(r=>Math.round(r.right)),rulerRight:Math.round(ruler.right)}});
 ok("track lanes and ruler reach the right edge of the timeline", geo.rowsRight.every(r=>r>=geo.scRight-12) && geo.rulerRight>=geo.scRight-12, JSON.stringify(geo));
 // 2. sliders styled
-const sl=await p.evaluate(()=>{const r=document.querySelector('input[type=range]');const cs=getComputedStyle(r);return {cls:r.className,appearance:cs.appearance||cs.webkitAppearance,fill:r.style.getPropertyValue('--fill')}});
+const sl=await p.evaluate(()=>{const r=document.querySelector('input[type=range].ps-range');const cs=getComputedStyle(r);return {cls:r.className,appearance:cs.appearance||cs.webkitAppearance,fill:r.style.getPropertyValue('--fill')}});
 ok("sliders use the styled range (appearance none, fill var set)", /ps-range/.test(sl.cls)&&sl.appearance==="none"&&sl.fill.endsWith("%"), JSON.stringify(sl));
 // 3. wheel (2026-11-02, Tyler): wheel = tracks up/down, Shift+wheel = timeline sideways
 for (let i=0;i<6;i++){ await p.click('[data-testid=add-track]'); await p.click('[data-testid=add-track-sfx]'); await sleep(150); }

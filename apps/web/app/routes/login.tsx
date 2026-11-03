@@ -46,14 +46,20 @@ export default function Login() {
 
   return (
     <div className="grid min-h-screen grid-cols-1 bg-background text-foreground md:grid-cols-2">
-      <div className="hidden items-center justify-center bg-deep md:flex">
+      <div className="hidden flex-col items-center justify-center gap-6 bg-deep md:flex">
         <AnimatedWaveform />
+        <p className="text-[13px] tracking-wide text-muted-foreground">Record, edit and publish your podcast, from home.</p>
       </div>
 
       <div className="flex items-center justify-center p-6">
-        <Card className="w-full max-w-[560px] border-border bg-card">
+        <Card className="w-full max-w-[420px] border-border bg-card">
           <CardHeader>
-            <CardTitle className="text-2xl">Podstudio</CardTitle>
+            <CardTitle className="flex items-center gap-2.5 text-2xl">
+              <span className="flex size-[20px] items-center justify-center rounded-full border-2 border-destructive" aria-hidden>
+                <span className="size-1.5 rounded-full bg-destructive" />
+              </span>
+              Podstudio
+            </CardTitle>
             <CardDescription>Sign in to your studio.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -91,7 +97,7 @@ export default function Login() {
             </form>
             <Separator className="my-6" />
             <p className="text-center text-[12.5px] text-muted-foreground">
-              Single-admin studio — invites and SSO arrive in later stages.
+              No account? Ask the studio admin to add you.
             </p>
           </CardContent>
         </Card>

@@ -5,12 +5,16 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useMatches,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  // The embed player runs inside other sites' iframes, sometimes sandboxed without same-origin
+  // access, where ScrollRestoration's sessionStorage read throws. It's one card: no scrolling to restore.
+  const embed = useMatches().some((m) => (m.handle as { embed?: boolean } | undefined)?.embed);
   return (
     <html lang="en">
       <head>
@@ -21,7 +25,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
-        <ScrollRestoration />
+        {!embed && <ScrollRestoration />}
         <Scripts />
       </body>
     </html>

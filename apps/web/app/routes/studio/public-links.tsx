@@ -19,6 +19,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
+import { FormSelect } from "~/components/ui/form-select";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 29 (Public page links). Per README: "website (also written to the
 // feed's <link>), plus a sortable list of social links... 'Add link' opens
@@ -168,19 +170,8 @@ export default function PublicLinks({
     : availablePlatforms[0];
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            Public page &amp; embeds
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Public page links</h1>
-          <Link to="/studio/public/brand" className="text-[12.5px] text-muted-foreground underline hover:text-foreground">
-            Brand &amp; theme
-          </Link>
-        </div>
-        <ViewPublicPage />
-      </div>
+    <Page>
+      <PageHeader eyebrow="Public page &amp; embeds" title="Public page links" description="Where listeners can follow you: podcast apps and social profiles, shown on your public page." actions={<ViewPublicPage />} />
 
       <section className="flex flex-col gap-2 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Website</h2>
@@ -321,19 +312,13 @@ export default function PublicLinks({
                     icon={PLATFORM_ICONS[effectivePlatform]}
                     className="h-4 w-4 shrink-0 text-muted-foreground"
                   />
-                  <select
+                  <FormSelect
                     id="platform"
                     name="platform"
                     value={effectivePlatform}
-                    onChange={(e) => setPlatform(e.target.value as Platform)}
-                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  >
-                    {availablePlatforms.map((p) => (
-                      <option key={p} value={p}>
-                        {PLATFORM_LABELS[p]}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={(v) => setPlatform(v as Platform)}
+                    options={availablePlatforms.map((p) => ({ value: p, label: PLATFORM_LABELS[p] }))}
+                  />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -353,6 +338,6 @@ export default function PublicLinks({
           </Form>
         )}
       </section>
-    </div>
+    </Page>
   );
 }

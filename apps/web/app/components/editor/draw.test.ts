@@ -3,7 +3,7 @@ import type { Clip, Track } from "~/lib/project/document";
 import { PEAK_SPP, rangePeak, type Peaks } from "~/lib/project/peaks";
 import { drawTrack } from "./draw";
 
-// A canvas stand-in that records the waveform column rectangles (the ones drawn in the track colour).
+// A canvas stand-in that records the waveform bars (the ones drawn in the track color).
 function fakeCtx() {
   const cols: { x: number; y: number; h: number }[] = [];
   const ctx: any = {
@@ -22,8 +22,10 @@ function fakeCtx() {
     closePath() {},
     save() {},
     restore() {},
-    fillRect(x: number, y: number, w: number, h: number) {
-      if (ctx.fillStyle === "WAVE" && w === 1) cols.push({ x, y, h });
+    fillRect() {},
+    // clips draw audiocn's waveform bars (rounded rects) in the track colour
+    roundRect(x: number, y: number, _w: number, h: number) {
+      if (ctx.fillStyle === "WAVE") cols.push({ x, y, h });
     },
   };
   return { ctx: ctx as CanvasRenderingContext2D, cols };
@@ -65,12 +67,14 @@ describe("waveform drawing is anchored to the clip", () => {
       for (const [j, shape] of a) if (j + 0 >= 0 && b.has(j)) expect(b.get(j)).toBe(shape);
     }
   });
-  it("covers the whole clip width: no gaps or doubled columns", () => {
+  it("covers the whole clip width on audiocn's bar grid (2 px bar + 1 px gap): no gaps or doubled bars", () => {
     const spp = 150;
     const cols = render(10 * spp, 0, spp);
-    const xs = cols.map((c) => c.x);
+    const xs = cols.map((c) => c.x).sort((a, b) => a - b);
+    expect(xs.length).toBeGreaterThan(300);
     expect(new Set(xs).size).toBe(xs.length);
-    expect(Math.max(...xs) - Math.min(...xs) + 1).toBe(xs.length);
+    for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBe(3);
+    expect(xs[0]).toBe(10);
   });
   it("(why the old drawing swam) buckets cut from the viewport origin change shape at fractional offsets", () => {
     // the previous algorithm: bucket boundaries = originSample + px*spp, relative to a fractional clip start

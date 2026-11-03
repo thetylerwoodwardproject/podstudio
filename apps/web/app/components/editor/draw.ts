@@ -1,3 +1,4 @@
+import { drawRoundedBar, WAVEFORM_BAR } from "~/components/ui/waveform";
 import { clipEnd, type Clip, type ProjectDoc, type Track } from "~/lib/project/document";
 import { rangePeak, type Peaks } from "~/lib/project/peaks";
 
@@ -9,7 +10,9 @@ export const TRACK_COLORS: Record<Track["kind"], string> = {
 };
 
 /** A track's colour as a CSS value: its custom colour, or the variable for its kind. */
-export const trackColor = (t: Pick<Track, "kind" | "color">) => t.color ?? `var(${TRACK_COLORS[t.kind]})`;
+/** Black would vanish on the dark timeline, so it's drawn in bone (the stored color stays #000000). */
+const visible = (hex: string) => (/^#0{6}$/i.test(hex) ? "#ecebe6" : hex);
+export const trackColor = (t: Pick<Track, "kind" | "color">) => (t.color ? visible(t.color) : `var(${TRACK_COLORS[t.kind]})`);
 
 export interface DrawArgs {
   ctx: CanvasRenderingContext2D;
@@ -41,7 +44,7 @@ export function drawTrack(a: DrawArgs) {
   // starts at the clip's own first pixel — so moving a clip just shifts identical columns instead
   // of re-slicing the audio differently at every sub-pixel offset (that made the lines swim).
   const px = (t: number) => Math.round(t / spp) - originPx;
-  const color = a.track.color ?? a.css(TRACK_COLORS[a.track.kind]);
+  const color = a.track.color ? visible(a.track.color) : a.css(TRACK_COLORS[a.track.kind]);
   const lh = labelHeight(height);
   // the waveform lives below the name strip
   const mid = lh + (height - lh) / 2;
@@ -85,15 +88,30 @@ export function drawTrack(a: DrawArgs) {
     const p = a.peaks[c.sourceId];
     ctx.fillStyle = color;
     if (p) {
-      for (let col = cx0; col < cx1; col++) {
-        const j = col - x0;
-        const s0 = c.srcStart + j * spp;
-        const s1 = Math.min(c.srcStart + c.length, s0 + spp);
-        if (s1 <= s0) continue;
-        const [lo, hi] = rangePeak(p, s0, s1);
-        const y0 = Math.round(mid - hi * half);
-        const y1 = Math.round(mid - lo * half);
-        ctx.fillRect(col, y0, 1, Math.max(1, y1 - y0));
+      // a stereo source draws L in the top half and R in the bottom half
+      const lanes: [0 | 1, number, number][] = p.data2 ? [[0, lh + (height - lh) / 4, (height - lh) / 4 - 2], [1, lh + ((height - lh) * 3) / 4, (height - lh) / 4 - 2]] : [[0, mid, half]];
+      // audiocn's Waveform bars (mirror variant, rounded, 2 px bar + 1 px gap), on a grid that
+      // starts at the clip's own first pixel so moving a clip just shifts identical bars
+      const pitch = WAVEFORM_BAR.width + WAVEFORM_BAR.gap;
+      for (const [ch, m, h] of lanes) {
+        const k0 = Math.max(0, Math.floor((cx0 - x0) / pitch));
+        for (let k = k0; ; k++) {
+          const col = x0 + k * pitch;
+          if (col >= cx1) break;
+          const s0 = c.srcStart + k * pitch * spp;
+          const s1 = Math.min(c.srcStart + c.length, s0 + pitch * spp);
+          if (s1 <= s0) break;
+          const [lo, hi] = rangePeak(p, s0, s1, ch);
+          const level = Math.min(1, Math.max(Math.abs(lo), Math.abs(hi)));
+          const bh = Math.max(2, Math.round(level * h * 2));
+          drawRoundedBar(ctx, col, Math.round(m - bh / 2), Math.min(WAVEFORM_BAR.width, cx1 - col), bh, WAVEFORM_BAR.radius);
+        }
+      }
+      if (p.data2) {
+        const keep = ctx.globalAlpha;
+        ctx.globalAlpha = keep * 0.25;
+        ctx.fillRect(cx0, Math.round(lh + (height - lh) / 2), cx1 - cx0, 1);
+        ctx.globalAlpha = keep;
       }
     } else {
       ctx.fillRect(cx0, Math.round(mid), cx1 - cx0, 1);

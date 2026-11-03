@@ -3,13 +3,15 @@ import { Link } from "react-router";
 import { faCheck, faMagnifyingGlass, faPause, faPlay, faPlus, faTrashCan, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button } from "~/components/ui/button";
+import { AudioPlayer, AudioPlayerPlay } from "~/components/ui/audio-player";
+import { playIcon } from "~/components/ui/play-icon";
 import { Input } from "~/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Separator } from "~/components/ui/separator";
 import { TRACK_COLOR_PRESETS, type Track, type TrackKind } from "~/lib/project/document";
 import { cn } from "~/lib/utils";
 import { TRACK_COLORS } from "./draw";
-import { clock, useLibraryItems, useLibraryPreview, type LibraryItem } from "./library-panel";
+import { clock, useLibraryItems, type LibraryItem } from "./library-panel";
 
 export const KIND_LABEL: Record<TrackKind, string> = { host: "Host", guest: "Guest", music: "Music", sfx: "SFX" };
 const KIND_HINT: Record<TrackKind, string> = { host: "Your mic", guest: "A guest's mic", music: "Beds, intros, outros", sfx: "Stingers, effects" };
@@ -35,7 +37,6 @@ export function AddTrackMenu({ onAdd, onAddFromLibrary, onUploadNew }: { onAdd: 
 
 function AddTrackBody({ close, onAdd, onAddFromLibrary, onUploadNew }: { close: () => void; onAdd: (kind: TrackKind) => void; onAddFromLibrary: (item: LibraryItem) => void; onUploadNew: (kind: TrackKind) => void }) {
   const items = useLibraryItems();
-  const { playing, toggle } = useLibraryPreview();
   const [q, setQ] = useState("");
   const ready = useMemo(() => (items ?? []).filter((i) => i.status === "ready" && i.assetId), [items]);
   const shown = ready.filter((i) => i.name.toLowerCase().includes(q.trim().toLowerCase()));
@@ -83,9 +84,9 @@ function AddTrackBody({ close, onAdd, onAddFromLibrary, onUploadNew }: { close: 
         {ready.length > 0 && shown.length === 0 && <li className="px-2 py-2 text-[12.5px] text-muted-foreground">No matches.</li>}
         {shown.map((i) => (
           <li key={i.id} className="group flex items-center gap-0.5 rounded-sm px-1 hover:bg-accent" data-testid="add-track-library-item">
-            <Button variant="ghost" size="icon" onClick={() => toggle(i)} aria-label={playing === i.id ? `Stop ${i.name}` : `Preview ${i.name}`} title={playing === i.id ? "Stop" : "Preview"} className="size-7 shrink-0 rounded-full text-[10px] text-muted-foreground hover:bg-background">
-              <FontAwesomeIcon icon={playing === i.id ? faPause : faPlay} />
-            </Button>
+            <AudioPlayer src={`/studio/assets/${i.assetId}/audio`} preload="none" shortcuts={false} className="contents" aria-label={`Preview ${i.name}`}>
+                      <AudioPlayerPlay className="size-7 shrink-0 rounded-full text-muted-foreground hover:bg-background hover:text-foreground [&_svg]:size-3" data-testid="library-preview">{playIcon}</AudioPlayerPlay>
+                    </AudioPlayer>
             <button
               type="button"
               title="Add on a new track at the playhead"
@@ -165,19 +166,19 @@ export function TrackOptions({
     >
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent align="start" collisionPadding={8} className="w-[252px] p-3" data-testid="track-menu" aria-label={`${track.name} options`} onClick={(e) => e.stopPropagation()}>
-        <SectionTitle>Colour</SectionTitle>
-        <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="Track colour">
+        <SectionTitle>Color</SectionTitle>
+        <div className="grid grid-cols-7 gap-1.5" role="radiogroup" aria-label="Track color">
           {TRACK_COLOR_PRESETS.map((c) => (
-            <Swatch key={c} label={c} color={c} selected={current === c} onClick={() => onColor(c)} testid={`track-color-${c.slice(1)}`} />
+            <Swatch key={c} label={COLOR_NAMES[c] ?? c} color={c} selected={current === c} onClick={() => onColor(c)} testid={`track-color-${c.slice(1)}`} />
           ))}
-          <label title="Custom colour" className={cn("relative flex size-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-input text-[11px] text-muted-foreground hover:border-ring hover:text-foreground", custom && "border-solid ring-2 ring-foreground ring-offset-2 ring-offset-popover")} style={custom ? { background: current! } : undefined}>
+          <label title="Custom color" className={cn("relative flex size-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-input text-[11px] text-muted-foreground hover:border-ring hover:text-foreground", custom && "border-solid ring-2 ring-foreground ring-offset-2 ring-offset-popover")} style={custom ? { background: current! } : undefined}>
             <FontAwesomeIcon icon={custom ? faCheck : faPlus} className={cn(custom && "text-[#111113]")} />
-            <input type="color" aria-label="Custom colour" data-testid="track-color-custom" value={current ?? "#888888"} onChange={(e) => onColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+            <input type="color" aria-label="Custom color" data-testid="track-color-custom" value={current ?? "#888888"} onChange={(e) => onColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
           </label>
         </div>
         <Button variant={current === null ? "secondary" : "ghost"} size="sm" role="radio" aria-checked={current === null} onClick={() => onColor(null)} data-testid="track-color-default" className="mt-2.5 w-full justify-start font-normal">
           <span className="size-3.5 shrink-0 rounded-full" style={{ background: `var(${TRACK_COLORS[track.kind]})` }} />
-          <span className="flex-1 text-left">Default {KIND_LABEL[track.kind].toLowerCase()} colour</span>
+          <span className="flex-1 text-left">Default {KIND_LABEL[track.kind].toLowerCase()} color</span>
           {current === null && <FontAwesomeIcon icon={faCheck} className="text-[11px]" />}
         </Button>
         <Separator className="my-3" />
@@ -209,10 +210,12 @@ export function TrackOptions({
   );
 }
 
+const COLOR_NAMES: Record<string, string> = { "#000000": "Black (shows as bone on the dark timeline)", "#fabf47": "Gold", "#00fff5": "Cyan", "#beff00": "Lime", "#ff807f": "Coral", "#c7bff6": "Lavender" };
+
 function Swatch({ label, color, selected, onClick, testid }: { label: string; color: string; selected: boolean; onClick: () => void; testid: string }) {
   return (
-    <button type="button" role="radio" aria-checked={selected} aria-label={label} title={label} onClick={onClick} data-testid={testid} className={cn("relative flex size-7 items-center justify-center rounded-full outline-none ring-offset-2 ring-offset-popover transition-shadow hover:ring-2 hover:ring-border focus-visible:ring-2 focus-visible:ring-ring", selected && "ring-2 ring-foreground hover:ring-foreground")} style={{ background: color }}>
-      {selected && <FontAwesomeIcon icon={faCheck} className="text-[11px] text-[#111113]" />}
+    <button type="button" role="radio" aria-checked={selected} aria-label={label} title={label} onClick={onClick} data-testid={testid} className={cn("relative flex size-7 items-center justify-center rounded-full outline-none ring-offset-2 ring-offset-popover transition-shadow hover:ring-2 hover:ring-border focus-visible:ring-2 focus-visible:ring-ring", color === "#000000" && "shadow-[inset_0_0_0_1px_var(--border)]", selected && "ring-2 ring-foreground hover:ring-foreground")} style={{ background: color }}>
+      {selected && <FontAwesomeIcon icon={faCheck} className={cn("text-[11px]", color === "#000000" ? "text-white" : "text-[#111113]")} />}
     </button>
   );
 }

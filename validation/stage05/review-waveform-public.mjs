@@ -1,0 +1,26 @@
+// editor waveform (audiocn bars), public episode list (audiocn TrackList), grid play buttons, local times
+import { launch, BASE, sleep, ok, failCount, db } from "./lib.mjs";
+import fs from "fs";
+const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
+const { b, ctx, p, errs } = await launch();
+await p.setViewportSize({ width: 1280, height: 800 });
+await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(1200);
+const label = await p.evaluate(() => document.body.innerText.match(/Recording [A-Z][a-z]{2} \d+, \d{4}, [\d:]+ [AP]M/)?.[0] ?? "");
+await p.screenshot({ path: "r6b-editor.png" });
+await p.keyboard.press("Control+=").catch(() => {});
+const slug = db(`console.log(d.prepare("select slug from shows limit 1").get().slug)`);
+await p.goto(`${BASE}/${slug}?view=list#episodes`); await sleep(1200);
+const rows = await p.locator("[data-testid=episode-list] [data-slot=track-list-item]").count();
+ok("public list view: audiocn TrackList rows", rows >= 1, String(rows));
+const row = p.locator("[data-testid=episode-list] [data-slot=track-list-item]:not([aria-disabled])").first();
+await row.locator("[data-slot=audio-player-play]").click(); await sleep(2500);
+ok("public list: row play starts the site player (sticky bar)", (await p.locator("[data-testid=sticky-player]").count()) === 1);
+ok("public list: playing row is marked current", (await row.getAttribute("aria-current")) === "true");
+await p.screenshot({ path: "r6b-public-list.png", fullPage: false });
+await p.locator("[data-testid=sticky-player] [data-slot=audio-player-play]").click();
+await p.goto(`${BASE}/${slug}#episodes`); await sleep(1200);
+const g = await p.locator(".pub-gc [data-slot=audio-player-play]").count();
+ok("public grid: tiles use the audiocn play button", g >= 1, String(g));
+await p.locator(".pub-gc").first().scrollIntoViewIfNeeded(); await p.screenshot({ path: "r6b-public-grid.png" });
+console.log("clip label:", label);
+console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

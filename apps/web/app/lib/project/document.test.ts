@@ -372,3 +372,30 @@ describe("track volume", () => {
     expect(parseProject({ ...d, tracks: [{ ...d.tracks[0], gainDb: 99 }] }).ok).toBe(false);
   });
 });
+
+describe("pan and stereo sources", () => {
+  it("balance pan law: centre is 0 dB both sides, panning turns the far side down", async () => {
+    const { panGains } = await import("./document");
+    expect(panGains(0)).toEqual([1, 1]);
+    expect(panGains(undefined)).toEqual([1, 1]);
+    expect(panGains(-1)).toEqual([1, 0]);
+    expect(panGains(1)).toEqual([0, 1]);
+    expect(panGains(0.5)).toEqual([0.5, 1]);
+    expect(panGains(-7)).toEqual([1, 0]);
+  });
+  it("pan clamps, rounds to 0.01, drops centre; parse keeps pan and stereo sources, rejects junk", () => {
+    let d = base();
+    const t = d.tracks[0]!.id;
+    expect(must(updateTrack(d, t, { pan: -3 })).tracks[0]!.pan).toBe(-1);
+    d = must(updateTrack(d, t, { pan: 0.333 }));
+    expect(d.tracks[0]!.pan).toBe(0.33);
+    expect("pan" in must(updateTrack(d, t, { pan: 0 })).tracks[0]!).toBe(false);
+    d = { ...d, sources: [...d.sources, { id: "st", assetId: "a2", label: "bed", totalSamples: RATE, channels: 2 }] };
+    const back = must(parseProject(JSON.parse(JSON.stringify(d))));
+    expect(back.tracks[0]!.pan).toBe(0.33);
+    expect(back.sources.find((s) => s.id === "st")!.channels).toBe(2);
+    expect(back.sources[0]!.channels).toBeUndefined();
+    expect(parseProject({ ...d, sources: [{ ...d.sources[0], channels: 6 }] }).ok).toBe(false);
+    expect(parseProject({ ...d, tracks: [{ ...d.tracks[0], pan: 2 }] }).ok).toBe(false);
+  });
+});

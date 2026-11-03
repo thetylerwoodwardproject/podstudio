@@ -22,6 +22,9 @@ COPY . .
 RUN pnpm --filter @podstudio/web run build
 
 FROM node:24-slim AS runtime
+# ffmpeg decodes a published MP3 once to draw the public player's waveform (cached afterwards)
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /repo
 COPY --from=build /repo /repo

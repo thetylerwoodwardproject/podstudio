@@ -28,7 +28,7 @@ function spiky(seconds: number) {
   return x;
 }
 const SRC: Record<string, Float32Array> = { s1: makeSource("s1", 30, 220), s2: makeSource("s2", 30, 330), s3: spiky(30) };
-const read = async (id: string, from: number, count: number) => SRC[id]!.slice(from, from + count);
+const read = async (id: string, from: number, count: number) => [SRC[id]!.slice(from, from + count)];
 
 async function render(doc: ProjectDoc, bitDepth: 16 | 24, sampleRate: 44100 | 48000, extra: { channels?: 1 | 2; loudness?: { targetLufs: number; truePeakDb: number } } = {}) {
   const chunks: Uint8Array[] = [];
@@ -274,3 +274,151 @@ describe("track volume (fader)", () => {
     expect(rmsDb(got, reference(flat))).toBeGreaterThan(-40);
   });
 });
+
+describe("stereo", () => {
+  // a stereo source whose channels differ (220 Hz left, 330 Hz right), interleaving done by the reader
+  const SL = makeSource("stL", 10, 220);
+  const SR = makeSource("stRight", 10, 330);
+  const readSt = async (id: string, from: number, count: number) => (id === "st" ? [SL.slice(from, from + count), SR.slice(from, from + count)] : [SRC[id]!.slice(from, from + count)]);
+  async function renderSt(doc: ProjectDoc, channels: 1 | 2) {
+    const chunks: Uint8Array[] = [];
+    const it = renderWav({ doc, bitDepth: 24, sampleRate: 48000, read: readSt, channels });
+    for (;;) {
+      const n = await it.next();
+      if (n.done) break;
+      chunks.push(n.value);
+    }
+    const bytes = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+    const pcm = decode(new Uint8Array(bytes), 24);
+    return channels === 1 ? [pcm] : [pcm.filter((_, i) => i % 2 === 0), pcm.filter((_, i) => i % 2 === 1)];
+  }
+  /** Independent definition: per clip, source channel (mono feeds both) × clip gain × fader × balance pan, summed. */
+  function refSt(doc: ProjectDoc): [Float32Array, Float32Array] {
+    let len = 0;
+    for (const c of doc.clips) len = Math.max(len, c.start + c.length);
+    const L = new Float32Array(len);
+    const R = new Float32Array(len);
+    for (const c of doc.clips) {
+      const src = doc.sources.find((s) => s.id === c.sourceId)!;
+      const tr = doc.tracks.find((t) => t.id === c.trackId)!;
+      const g = tr.gainDb ? Math.pow(10, tr.gainDb / 20) : 1;
+      const p = tr.pan ?? 0;
+      const pl = Math.min(1, 1 - p);
+      const pr = Math.min(1, 1 + p);
+      for (let t = c.start; t < c.start + c.length; t++) {
+        const k = c.srcStart + (t - c.start);
+        const l = src.channels === 2 ? SL[k]! : SRC[src.id]![k]!;
+        const r = src.channels === 2 ? SR[k]! : SRC[src.id]![k]!;
+        const cg = clipGainAt(c, t) * g;
+        L[t] += l * cg * pl;
+        R[t] += r * cg * pr;
+      }
+    }
+    return [L, R];
+  }
+  const stereoDoc = () => {
+    let d = createProject({ sampleRate: R, source: { id: "s1", assetId: "a", label: "host", totalSamples: 30 * R } });
+    d = { ...d, clips: d.clips.map((c) => ({ ...c, length: 8 * R })) };
+    d = addTrack(d, "music");
+    const music = d.tracks[1]!.id;
+    d = { ...d, sources: [...d.sources, { id: "st", assetId: "b", label: "bed", totalSamples: 10 * R, channels: 2 }], clips: [...d.clips, { id: "m", trackId: music, sourceId: "st", srcStart: 0, length: 6 * R, start: R, gainDb: -6, fadeIn: R / 2, fadeOut: R }] };
+    d = must(updateTrack(d, music, { pan: -0.4, gainDb: -3 }));
+    d = must(updateTrack(d, d.tracks[0]!.id, { pan: 0.25 }));
+    return d;
+  };
+
+  it("stereo export matches the definition on both channels (stereo source, mono source, both panned)", async () => {
+    const d = stereoDoc();
+    const [gl, gr] = await renderSt(d, 2);
+    const [wl, wr] = refSt(d);
+    expect(gl!.length).toBe(wl.length);
+    expect(rmsDb(gl!, wl)).toBeLessThan(-100);
+    expect(rmsDb(gr!, wr)).toBeLessThan(-100);
+    expect(rmsDb(gl!, gr!)).toBeGreaterThan(-40); // the channels really differ
+  });
+
+  it("mono export of the same project is exactly (L + R) / 2", async () => {
+    const d = stereoDoc();
+    const [m] = await renderSt(d, 1);
+    const [wl, wr] = refSt(d);
+    const want = wl.map((v, i) => (v + wr[i]!) / 2);
+    expect(rmsDb(m!, want)).toBeLessThan(-100);
+  });
+
+  it("a centred mono project renders exactly as before: mono export = the source mix, stereo export = the same on both sides", async () => {
+    const d = twoTrackDoc();
+    const [m] = await renderSt(d, 1);
+    expect(rmsDb(m!, reference(d))).toBeLessThan(-100);
+    const [l, r] = await renderSt(d, 2);
+    expect(rmsDb(l!, reference(d))).toBeLessThan(-100);
+    expect(rmsDb(r!, reference(d))).toBeLessThan(-100);
+  });
+
+  it("stereo loudness normalisation is measured on the real two channels (−16 LUFS)", async () => {
+    const d = stereoDoc();
+    const chunks: Uint8Array[] = [];
+    const it = renderWav({ doc: d, bitDepth: 24, sampleRate: 48000, read: readSt, channels: 2, loudness: { targetLufs: -16, truePeakDb: -1 } });
+    let summary: RenderSummary | undefined;
+    for (;;) {
+      const n = await it.next();
+      if (n.done) {
+        summary = n.value;
+        break;
+      }
+      chunks.push(n.value);
+    }
+    const pcm = decode(new Uint8Array(Buffer.concat(chunks.map((c) => Buffer.from(c)))), 24);
+    const m = new LoudnessMeter(48000, 2);
+    m.push([pcm.filter((_, i) => i % 2 === 0), pcm.filter((_, i) => i % 2 === 1)]);
+    expect(Math.abs(m.integrated() + 16)).toBeLessThan(0.3);
+    expect(summary!.normalise!.reached).toBe(true);
+  });
+});
+
+describe("track FX in the render", () => {
+  it("FX run per track after ducking and before the fader; latency is removed; matches FxChain applied to each track", async () => {
+    const { FxChain, FX_LATENCY, defaultFx } = await import("@podstudio/audio/fx");
+    let d = twoTrackDoc();
+    const host = d.tracks[0]!.id;
+    const fx = defaultFx();
+    fx.nr.on = true;
+    fx.nr.amount = 0.7;
+    fx.hpf.on = true;
+    fx.hpf.freq = 150;
+    fx.eq.mid = { gainDb: 5, freq: 1800 };
+    fx.comp.on = true;
+    fx.comp.amount = 0.5;
+    d = must(updateTrack(d, host, { fx, gainDb: -2 }));
+    const got = decode((await render(d, 24, 48000)).bytes, 24);
+    // reference: each track's pre-fader signal through its own chain (the guest's chain is neutral = delay), then fader, summed
+    const perTrack = (trackId: string) => reference({ ...d, tracks: d.tracks.map((t) => ({ ...t, gainDb: 0, fx: undefined, solo: t.id === trackId })) });
+    const len = got.length;
+    const want = new Float32Array(len);
+    for (const t of d.tracks) {
+      const x = perTrack(t.id);
+      const chain = new FxChain(48000, 1, t.fx);
+      const padded = new Float32Array(len + FX_LATENCY);
+      padded.set(x);
+      const y = chain.process([padded])[0]!.subarray(FX_LATENCY, FX_LATENCY + len);
+      const g = t.gainDb ? Math.pow(10, t.gainDb / 20) : 1;
+      for (let i = 0; i < len; i++) want[i] += y[i]! * g;
+    }
+    expect(got.length).toBe(projectLengthOf(d));
+    expect(rmsDb(got, want)).toBeLessThan(-100);
+    // and the FX really changed the sound
+    expect(rmsDb(got, reference({ ...d, tracks: d.tracks.map((t) => ({ ...t, fx: undefined })) }))).toBeGreaterThan(-40);
+  });
+
+  it("a project with no active FX renders byte-for-byte as before", async () => {
+    const d = twoTrackDoc();
+    const { defaultFx } = await import("@podstudio/audio/fx");
+    const neutral = must(updateTrack(d, d.tracks[0]!.id, { fx: defaultFx() }));
+    const a = await render(d, 24, 48000);
+    const b = await render(neutral, 24, 48000);
+    expect(Buffer.from(a.bytes).equals(Buffer.from(b.bytes))).toBe(true);
+  });
+});
+
+function projectLengthOf(d: ProjectDoc) {
+  return Math.max(...d.clips.map((c) => c.start + c.length));
+}

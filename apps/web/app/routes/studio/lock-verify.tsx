@@ -7,6 +7,8 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
+import { Page, PageHeader } from "~/components/layout/page";
+import { FormSelect } from "~/components/ui/form-select";
 
 // Screen 16b (Lock & verify). Per README: feed lock is consent-gated to
 // unlock (6-digit code to the verified owner email) — that whole flow is
@@ -102,21 +104,12 @@ export default function LockVerify({
   const [preset, setPreset] = useState<string>("applepodcastsverify");
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5 flex items-baseline justify-between">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            {show.title}
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Lock &amp; verify</h1>
-        </div>
-        <Link
-          to="/studio/feed/tags"
-          className="text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
-        >
-          Back to show tags
-        </Link>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Podcast hosting"
+        title="Lock &amp; verify"
+        description="Lock your feed against unwanted imports, and add the verification codes directories ask for."
+      />
 
       <section className="flex flex-col gap-3 rounded-[14px] border border-border bg-card p-5">
         <h2 className="text-sm font-semibold text-muted-foreground">Feed lock</h2>
@@ -138,7 +131,7 @@ export default function LockVerify({
           </span>
 
           {show.locked ? (
-            <Button type="button" variant="outline" size="sm" disabled title="Unlocking needs owner-email verification — deferred until email delivery is chosen">
+            <Button type="button" variant="outline" size="sm" disabled title="Unlocking needs a code emailed to the feed owner, and email isn't set up yet">
               Request unlock
             </Button>
           ) : (
@@ -152,11 +145,8 @@ export default function LockVerify({
         </div>
 
         <p className="text-[12.5px] text-muted-foreground">
-          Unlocking is deferred: it requires a verified owner email and a 6-digit
-          code sent to it, and this build has no email delivery configured yet
-          (see <code className="font-mono">STATUS.md</code>'s outstanding inputs).
-          Locking doesn't need email, so it's real above. Lock/unlock audit
-          logging arrives with the real unlock flow.
+          Unlocking sends a 6-digit code to the feed owner's email, so it will be available once email is set
+          up for this server. Locking works now.
         </p>
       </section>
 
@@ -176,7 +166,7 @@ export default function LockVerify({
             </HelpTerm>
             <HelpTerm term="AI content disclosure">
               <code>true</code>/<code>false</code> flag disclosing AI-generated
-              content at the show level. Stage 07 adds a per-episode override.
+              content at the show level.
             </HelpTerm>
           </HelpPopover>
         </div>
@@ -215,19 +205,13 @@ export default function LockVerify({
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="preset">Preset</Label>
-              <select
+              <FormSelect
                 id="preset"
                 name="preset"
                 value={preset}
-                onChange={(e) => setPreset(e.target.value)}
-                className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                {PRESETS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setPreset}
+                options={PRESETS.map((p) => ({ value: p.value, label: p.label }))}
+              />
             </div>
 
             {preset === "custom" && (
@@ -241,15 +225,15 @@ export default function LockVerify({
           {preset === "ai-content" ? (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="value">Value</Label>
-              <select
+              <FormSelect
                 id="value"
                 name="value"
                 defaultValue="true"
-                className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
+                options={[
+                  { value: "true", label: "true" },
+                  { value: "false", label: "false" },
+                ]}
+              />
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -276,6 +260,6 @@ export default function LockVerify({
           </div>
         </Form>
       </section>
-    </div>
+    </Page>
   );
 }

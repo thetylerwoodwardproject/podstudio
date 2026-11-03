@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BRAND_PRESETS,
+  brandVars,
   DEFAULT_BRAND_THEME,
   contrast,
   linkColor,
@@ -40,9 +41,9 @@ describe("onAccent", () => {
       expect(contrast(p.hex, chosen)).toBeGreaterThanOrEqual(contrast(p.hex, other));
     }
   });
-  it("amber gets dark text, ink gets white", () => {
-    expect(onAccent(BRAND_PRESETS.amber.hex)).toBe("#111113");
-    expect(onAccent(BRAND_PRESETS.ink.hex)).toBe("#ffffff");
+  it("gold gets dark text, black gets white", () => {
+    expect(onAccent(BRAND_PRESETS.gold.hex)).toBe("#111113");
+    expect(onAccent(BRAND_PRESETS.black.hex)).toBe("#ffffff");
   });
 });
 
@@ -57,19 +58,20 @@ describe("linkColor", () => {
     expect(linkColor("#1b1a18", "light")).toBe("#1b1a18");
   });
   it("darkens in light mode and lightens in dark mode", () => {
-    const amber = BRAND_PRESETS.amber.hex;
+    const amber = BRAND_PRESETS.gold.hex;
     expect(linkColor(amber, "light")).not.toBe(amber);
     expect(linkColor("#1b1a18", "dark")).not.toBe("#1b1a18");
   });
 });
 
 describe("studioAccent", () => {
-  it("turns ink into bone", () => {
+  it("turns black (and the old ink) into bone", () => {
     expect(studioAccent("#1b1a18")).toBe(BONE);
+    expect(studioAccent(BRAND_PRESETS.black.hex)).toBe(BONE);
   });
   it("lightens an accent under 3:1 on #111113 and leaves a passing one alone", () => {
     expect(contrast(studioAccent("#2a2a60"), "#111113")).toBeGreaterThanOrEqual(3);
-    expect(studioAccent(BRAND_PRESETS.amber.hex)).toBe(BRAND_PRESETS.amber.hex);
+    expect(studioAccent(BRAND_PRESETS.gold.hex)).toBe(BRAND_PRESETS.gold.hex);
   });
 });
 
@@ -82,12 +84,24 @@ describe("readBrandTheme", () => {
     expect(readBrandTheme({ accent: "custom", customHex: "nope" }).accent).toBe(DEFAULT_BRAND_THEME.accent);
   });
   it("rejects unknown enum values field by field and keeps good ones", () => {
-    const t = readBrandTheme({ accent: "teal", appearance: "neon", corners: "round", scopes: { studio: true, embeds: "yes" } });
-    expect(t.accent).toBe("teal");
+    const t = readBrandTheme({ accent: "cyan", appearance: "neon", corners: "round", scopes: { studio: true, embeds: "yes" } });
+    expect(t.accent).toBe("cyan");
     expect(t.appearance).toBe(DEFAULT_BRAND_THEME.appearance);
     expect(t.corners).toBe("round");
     expect(t.scopes.studio).toBe(true);
     expect(t.scopes.embeds).toBe(DEFAULT_BRAND_THEME.scopes.embeds);
+  });
+  it("keeps a show saved on an old preset on its exact color, as custom", () => {
+    expect(readBrandTheme({ accent: "teal" })).toMatchObject({ accent: "custom", customHex: "#178a92" });
+    expect(readBrandTheme({ accent: "amber" })).toMatchObject({ accent: "custom", customHex: "#e8b04a" });
+  });
+  it("reads a custom hex that is one of the presets as that preset", () => {
+    expect(readBrandTheme({ accent: "custom", customHex: "#BEFF00" }).accent).toBe("lime");
+  });
+  it("shows black as bone on dark pages only", () => {
+    const t = readBrandTheme({ accent: "black" });
+    expect(brandVars(t, "dark")["--brand-accent"]).toBe(BONE);
+    expect(brandVars(t, "light")["--brand-accent"]).toBe("#000000");
   });
   it("normalizes a custom hex", () => {
     expect(readBrandTheme({ accent: "custom", customHex: "#FA0" })).toMatchObject({ accent: "custom", customHex: "#ffaa00" });

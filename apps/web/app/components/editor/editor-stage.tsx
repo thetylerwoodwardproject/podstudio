@@ -28,14 +28,15 @@ import { canRedo, canUndo, commit, createHistory, redo, undo, type History } fro
 import { parsePeaks, type Peaks } from "~/lib/project/peaks";
 import { EditorPlayer } from "~/lib/project/player";
 import { clockText } from "./draw";
-import { Inspector } from "./inspector";
-import { MasterMeter, TransportMeter, useMeters } from "./meters";
-import { LibrarySidebar } from "./library-sidebar";
-import { Switch } from "~/components/ui/switch";
+import { Inspector, type Tab as InspectorTab } from "./inspector";
+import { FxPanel } from "./fx-panel";
+import type { TrackFx } from "@podstudio/audio/fx";
+import { TransportMeter, useMeters } from "./meters";
+import { DEFAULT_DELIVERY_PRESET, DELIVERY_PRESETS, type DeliveryPreset } from "@podstudio/audio/delivery";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
 import { ExportPanel } from "./export-panel";
-import { LibraryPanel, type LibraryItem } from "./library-panel";
+import type { LibraryItem } from "./library-panel";
 import { RetakePanel } from "./retake-panel";
 import { UploadsStrip } from "./uploads-strip";
 import { IMPORT_ACCEPT, useImports, type Place } from "./use-imports";
@@ -46,13 +47,15 @@ export interface EditorProps {
   project: { revisionId: string; seq: number; doc: ProjectDoc; missing?: { id: string; label: string; clips: number }[] };
   openCleanup?: boolean;
   openExport?: boolean;
+  /** The show's default delivery preset (the episode's own, if set, wins). */
+  showPreset?: DeliveryPreset;
 }
 
 type SaveState = { kind: "saved"; seq: number } | { kind: "dirty" } | { kind: "saving" } | { kind: "error"; message: string } | { kind: "conflict" };
 
 const SAVE_DELAY_MS = 1200;
 
-export function EditorStage({ episode, project, openCleanup, openExport }: EditorProps) {
+export function EditorStage({ episode, project, openCleanup, openExport, showPreset }: EditorProps) {
   const [hist, setHist] = useState<History>(() => createHistory(project.doc));
   const [draft, setDraft] = useState<ProjectDoc | null>(null);
   const [sel, setSel] = useState<Selection>({ trackId: project.doc.tracks[0]?.id ?? null, clipId: null, range: null });
@@ -63,27 +66,12 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
   const [save, setSave] = useState<SaveState>({ kind: "saved", seq: project.seq });
   const [cleanup, setCleanup] = useState(!!openCleanup);
   const [exporting, setExporting] = useState(!!openExport);
-  const [libraryOpen, setLibraryOpen] = useState(false);
   // sources whose audio no longer exists (e.g. a take deleted from the Record screen)
   const [missingAll] = useState(project.missing ?? []);
   const missingIds = useMemo(() => new Set(missingAll.map((m) => m.id)), [missingAll]);
   const missingRef = useRef(missingIds);
   missingRef.current = missingIds;
   const [rangeTool, setRangeTool] = useState(false);
-  // Simple (default) vs Advanced layout, remembered per browser
-  const [advanced, setAdvanced] = useState(false);
-  useEffect(() => {
-    try {
-      if (localStorage.getItem("podstudio.editor.advanced") === "1") setAdvanced(true);
-    } catch {}
-  }, []);
-  const changeAdvanced = (v: boolean) => {
-    setAdvanced(v);
-    if (!v) setRangeTool(false);
-    try {
-      localStorage.setItem("podstudio.editor.advanced", v ? "1" : "0");
-    } catch {}
-  };
   const [meterMode, setMeterMode] = useState<"dbfs" | "lufs">("dbfs");
   useEffect(() => {
     try {
@@ -145,19 +133,17 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
   const [uploadMenu, setUploadMenu] = useState(false);
 
   const inspectorCollapsedRef = useRef(false);
-  const advancedRef = useRef(false);
   try {
     if (typeof window !== "undefined") {
       inspectorCollapsedRef.current = localStorage.getItem("podstudio.editor.inspector") === "collapsed";
-      advancedRef.current = localStorage.getItem("podstudio.editor.advanced") === "1";
     }
   } catch {}
   // ---- initial zoom: fit the whole project -------------------------------------------
   useEffect(() => {
     if (spp) return;
     // main column = window − inspector (320) − track headers (208) − a little margin
-    // right side: Simple = library sidebar (256), Advanced = meter column (118) + inspector (320), either may be a 44 px rail
-    const right = advancedRef.current ? 118 + (inspectorCollapsedRef.current ? 44 : 320) : inspectorCollapsedRef.current ? 44 : 256;
+    // right side: the side panel (320), or its 44 px rail
+    const right = inspectorCollapsedRef.current ? 44 : 320;
     const avail = Math.max(300, window.innerWidth - right - 208 - 40);
     const len = Math.max(projectLength(project.doc), rate * 10);
     setSpp(Math.max(16, Math.ceil(len / avail / 8) * 8));
@@ -183,8 +169,8 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
 
   // ---- player ---------------------------------------------------------------------------
   useEffect(() => {
-    const sources: Record<string, { assetId: string; totalSamples: number }> = {};
-    for (const s of docRef.current.sources) if (!missingRef.current.has(s.id)) sources[s.id] = { assetId: s.assetId, totalSamples: s.totalSamples };
+    const sources: Record<string, { assetId: string; totalSamples: number; channels?: 1 | 2 }> = {};
+    for (const s of docRef.current.sources) if (!missingRef.current.has(s.id)) sources[s.id] = { assetId: s.assetId, totalSamples: s.totalSamples, channels: s.channels };
     const pl = new EditorPlayer(docRef.current, sources);
     pl.onEnded = () => setPlaying(false);
     pl.onError = (m) => {
@@ -202,15 +188,17 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
   useEffect(() => {
     const pl = playerRef.current;
     if (!pl) return;
-    const sources: Record<string, { assetId: string; totalSamples: number }> = {};
-    for (const s of present.sources) if (!missingIds.has(s.id)) sources[s.id] = { assetId: s.assetId, totalSamples: s.totalSamples };
+    const sources: Record<string, { assetId: string; totalSamples: number; channels?: 1 | 2 }> = {};
+    for (const s of present.sources) if (!missingIds.has(s.id)) sources[s.id] = { assetId: s.assetId, totalSamples: s.totalSamples, channels: s.channels };
     pl.setSources(sources);
     pl.setDoc(present);
   }, [present, missingIds]);
 
   // ---- meters ------------------------------------------------------------------------------
   const trackIdList = useMemo(() => present.tracks.map((t) => t.id), [present.tracks]);
-  const meters = useMeters(playerRef, rate, trackIdList, playing);
+  // meters measure loudness the way the delivery preset will: stereo (−16) or mono (−19)
+  const layout = DELIVERY_PRESETS[present.delivery?.preset ?? showPreset ?? DEFAULT_DELIVERY_PRESET].channels === 1 ? "mono" : "stereo";
+  const meters = useMeters(playerRef, rate, trackIdList, playing, layout);
 
   // ---- playhead animation ---------------------------------------------------------------
   useEffect(() => {
@@ -316,14 +304,13 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
     if (!item.assetId || item.durationS == null) return;
     const d = docRef.current;
     const track = d.tracks.find((t) => t.id === sel.trackId);
-    const source = { id: crypto.randomUUID(), assetId: item.assetId, label: item.name, totalSamples: Math.round(item.durationS * d.sampleRate) };
+    const source = { id: crypto.randomUUID(), assetId: item.assetId, label: item.name, totalSamples: Math.round(item.durationS * d.sampleRate), ...(item.channels === 2 ? { channels: 2 as const } : {}) };
     const known = d.sources.find((s) => s.assetId === item.assetId);
     if (known) source.totalSamples = known.totalSamples;
     const useSelected = where === "selected" && track && !track.locked;
     const want = Math.round(posRef.current);
     const r = useSelected ? addSourceClip(d, { source, trackId: track.id, at: freeSpot(d, track.id, want, source.totalSamples) }) : addSourceClip(d, { source, newTrack: { kind: item.kind }, at: want });
     if (apply(r)) {
-      setLibraryOpen(false);
       flash(`Added “${item.name}” to the timeline.`);
     }
   };
@@ -334,7 +321,7 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
     const track = d.tracks.find((t) => t.id === trackId);
     if (!track || track.locked) return flash(track ? `“${track.name}” is locked.` : "No such track.");
     const known = d.sources.find((s) => s.assetId === item.assetId);
-    const source = { id: crypto.randomUUID(), assetId: item.assetId, label: item.name, totalSamples: known?.totalSamples ?? Math.round(item.durationS * d.sampleRate) };
+    const source = { id: crypto.randomUUID(), assetId: item.assetId, label: item.name, totalSamples: known?.totalSamples ?? Math.round(item.durationS * d.sampleRate), ...(item.channels === 2 ? { channels: 2 as const } : {}) };
     if (apply(addSourceClip(d, { source, trackId, at: freeSpot(d, trackId, Math.max(0, Math.round(at)), source.totalSamples) }))) flash(`Added “${item.name}” to “${track.name}”.`);
   };
   const onFiles = (files: File[], place?: Place) => {
@@ -428,9 +415,25 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
 
   const onTrackUpdate = useCallback(
     (trackId: string, patch: Parameters<typeof updateTrack>[2]) =>
-      apply(updateTrack(docRef.current, trackId, patch), { group: patch.height !== undefined ? `h-${trackId}` : patch.name !== undefined ? `n-${trackId}` : patch.color !== undefined ? `c-${trackId}` : patch.gainDb !== undefined ? `g-${trackId}` : undefined }),
+      apply(updateTrack(docRef.current, trackId, patch), { group: patch.height !== undefined ? `h-${trackId}` : patch.name !== undefined ? `n-${trackId}` : patch.color !== undefined ? `c-${trackId}` : patch.gainDb !== undefined ? `g-${trackId}` : patch.pan !== undefined ? `p-${trackId}` : undefined }),
     [apply],
   );
+  // FX edits on one track merge into one undo step while you turn a knob
+  // FX edits merge into one undo step only while you keep working the same control (one knob turn);
+  // switching something else on or off is its own step
+  const onFx = useCallback(
+    (trackId: string, fx: TrackFx | null) => {
+      const before = docRef.current.tracks.find((t) => t.id === trackId)?.fx;
+      const parts = ["on", "nr", "hpf", "lpf", "comp"] as const;
+      const changed = !fx || !before ? "all" : [...parts.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(fx[k])), ...(["low", "mid", "high"] as const).filter((b) => JSON.stringify(before.eq[b]) !== JSON.stringify(fx.eq[b])).map((b) => `eq-${b}`)].join(",");
+      // a switch flip is its own step; a knob drag (same part, value only) merges
+      const isSwitch = !!fx && !!before && parts.some((k) => k !== "on" && (before[k] as { on?: boolean }).on !== (fx[k] as { on?: boolean }).on);
+      const toggledMaster = !!fx && !!before && before.on !== fx.on;
+      apply(updateTrack(docRef.current, trackId, { fx }), { group: changed === "all" || isSwitch || toggledMaster ? undefined : `fx-${trackId}-${changed}` });
+    },
+    [apply],
+  );
+  const [inspectorTab, setInspectorTab] = useState<{ tab: InspectorTab; n: number } | null>(null);
   const onDeleteTrack = useCallback(
     (trackId: string) => {
       const t = docRef.current.tracks.find((x) => x.id === trackId);
@@ -551,7 +554,10 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      // shortcuts stay off while typing — but a fader/pan (range input) or a checkbox isn't typing:
+      // after touching a fader, Ctrl+Z, Space, M/S… must still work (arrows are kept by the control itself)
+      const typing = !!el && ((el.tagName === "INPUT" && !["range", "checkbox", "radio", "button"].includes((el as HTMLInputElement).type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      if (typing) return;
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key;
       const d = docRef.current;
@@ -698,7 +704,7 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
         <ToolButton icon={faRotateLeft} label="Undo" title="Undo (Ctrl+Z)" onClick={doUndo} disabled={!canUndo(hist)} testid="undo" />
         <ToolButton icon={faRotateRight} label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={doRedo} disabled={!canRedo(hist)} testid="redo" />
         <Sep />
-        {advanced && <ToolButton icon={faICursor} label="Range" title="Range tool (R): drag over clips to select instead of moving them. Shift+drag does this any time." onClick={() => setRangeTool((v) => !v)} pressed={rangeTool} testid="range-tool" />}
+        {<ToolButton icon={faICursor} label="Range" title="Range tool (R): drag over clips to select instead of moving them. Shift+drag does this any time." onClick={() => setRangeTool((v) => !v)} pressed={rangeTool} testid="range-tool" />}
         <ToolButton icon={faScissors} label="Split" title="Split at the playhead (X)" onClick={doSplit} testid="split" />
         <ToolButton icon={faEraser} label="Delete" title="Delete the selection, leave a gap (Delete)" onClick={() => doDelete(false)} testid="gap-delete" />
         <ToolButton icon={faTrashCan} label="Ripple" title="Ripple delete: later audio moves up on every track (Shift+Delete)" onClick={() => doDelete(true)} testid="ripple-delete" />
@@ -716,7 +722,7 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        <ToolButton icon={faRecordVinyl} label="Library" title="The show's reusable audio" onClick={() => (advanced ? setLibraryOpen(true) : toggleInspector(false))} testid="open-library" />
+        <ToolButton icon={faRecordVinyl} label="Library" title="The show's reusable audio" onClick={() => { toggleInspector(false); setInspectorTab((t) => ({ tab: "library", n: (t?.n ?? 0) + 1 })); }} testid="open-library" />
         <input ref={fileInput} type="file" multiple accept={IMPORT_ACCEPT} className="hidden" data-testid="upload-input" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; onFiles(files, pendingPlace.current ?? undefined); pendingPlace.current = null; }} />
         <ToolButton icon={faBroom} label={retakeCount > 0 ? `Retakes ${retakeCount}` : "Retakes"} title="Find and remove retakes" onClick={() => setCleanup((v) => !v)} pressed={cleanup} testid="open-cleanup" />
         <div className="min-w-2 flex-1" />
@@ -725,10 +731,6 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
           <span aria-disabled title="Transcripts arrive in Stage 07" className="cursor-not-allowed px-2 py-0.5 text-muted-foreground/50">Transcript</span>
           <Link to={`/studio/publish?episode=${episode.id}`} className="px-2 py-0.5 text-muted-foreground hover:text-foreground">Publish</Link>
         </nav>
-        <label className="ml-2 flex cursor-pointer items-center gap-1.5 text-[11.5px] text-muted-foreground" title="Show the advanced tools: inspector, ducking, marks lane, per-track meters, range tool">
-          <Switch checked={advanced} onCheckedChange={changeAdvanced} aria-label="Advanced" data-testid="advanced-toggle" />
-          Advanced
-        </label>
         <span data-testid="save-status" className={cn("ml-2 hidden whitespace-nowrap text-[11.5px] lg:inline", save.kind === "error" || save.kind === "conflict" ? "max-w-[220px] truncate text-destructive" : "text-muted-foreground")} aria-live="polite">{saveText}</span>
         <Button size="sm" onClick={() => setExporting(true)} data-testid="open-export" className="ml-2">Export</Button>
       </header>
@@ -789,7 +791,7 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
               loop={loop}
               onMenuAction={onMenuAction}
               trackMeter={meters.trackSource}
-              advanced={advanced}
+              fxPanel={(t) => <FxPanel track={t} doc={shown} onFx={(fx) => onFx(t.id, fx)} onGain={(g) => onTrackUpdate(t.id, { gainDb: g })} onDuck={(op, group) => void apply(op(docRef.current), { group })} player={playerRef} playing={playing} />}
               onDropLibrary={(item, trackId, at) => addLibraryAt(item, trackId, at)}
               onUploadTo={(trackId) => chooseFiles({ trackId })}
             />
@@ -836,7 +838,7 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
                 <FontAwesomeIcon icon={faRepeat} />
               </Button>
               <span className="ml-3 whitespace-nowrap rounded-md bg-background/70 px-3 py-1 font-mono tabular-nums shadow-[inset_0_0_0_1px_var(--border)]" data-testid="clock"><span ref={clockRef} className="text-[19px] font-semibold">0:00.0</span><span className="text-[12px] text-muted-foreground"> / {clockText(total / rate, 1)}</span></span>
-              {!advanced && <span className="ml-2 hidden lg:inline-flex"><TransportMeter master={meters.master} loud={meters.loud} readout={meters.readout} mode={meterMode} onMode={changeMeterMode} /></span>}
+              {<span className="ml-2 hidden lg:inline-flex"><TransportMeter master={meters.master} loud={meters.loud} readout={meters.readout} mode={meterMode} onMode={changeMeterMode} layout={layout} /></span>}
             </div>
             <div className="flex items-center justify-end gap-1">
               <Tool label="Zoom out" onClick={() => zoom(2)} icon={faMagnifyingGlassMinus} testid="zoom-out" />
@@ -844,9 +846,7 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
             </div>
           </div>
         </main>
-        {advanced && <MasterMeter master={meters.master} loud={meters.loud} readout={meters.readout} onReset={meters.reset} mode={meterMode} onMode={changeMeterMode} />}
-        {!advanced && <LibrarySidebar collapsed={inspectorCollapsed} onCollapsedChange={toggleInspector} onAdd={(item) => addFromLibrary(item, "new")} />}
-        {advanced && <Inspector
+        {<Inspector
           doc={shown}
           clip={selectedClip}
           sel={sel}
@@ -862,15 +862,31 @@ export function EditorStage({ episode, project, openCleanup, openExport }: Edito
             if (!hit) return flash("Put the playhead on audio to add a chapter.");
             apply(addChapter(d, hit.c.sourceId, hit.sample, label));
           }}
-          onDuck={(op, group) => void apply(op(docRef.current), { group })}
+          onAddLibrary={(item) => addFromLibrary(item, "new")}
           onRemoveAnnotation={(id) => apply({ ok: true, doc: removeAnnotation(docRef.current, id) })}
           trackHeightRange={TRACK_HEIGHT}
           collapsed={inspectorCollapsed}
           onCollapsedChange={toggleInspector}
+          openTab={inspectorTab ?? undefined}
+          player={playerRef}
+          playing={playing}
+          loudness={{ readout: meters.readout, onReset: meters.reset, layout }}
         />}
       </div>
-      {libraryOpen && <LibraryPanel selectedTrackName={selectedTrack()?.name ?? null} onAdd={addFromLibrary} onClose={() => setLibraryOpen(false)} />}
-      {exporting && <ExportPanel episodeId={episode.id} saved={save.kind === "saved"} revisionSeq={save.kind === "saved" ? save.seq : null} onClose={() => setExporting(false)} />}
+      {exporting && (
+        <ExportPanel
+          episodeId={episode.id}
+          saved={save.kind === "saved"}
+          revisionSeq={save.kind === "saved" ? save.seq : null}
+          onClose={() => setExporting(false)}
+          episodePreset={present.delivery?.preset ?? null}
+          onEpisodePreset={(preset) => {
+            const d = docRef.current;
+            const { delivery: _drop, ...rest } = d;
+            apply({ ok: true, doc: preset ? { ...d, delivery: { preset } } : rest });
+          }}
+        />
+      )}
       {toast && <div role="status" className="pointer-events-none fixed bottom-10 left-1/2 z-50 -translate-x-1/2 rounded-md border border-border bg-card px-4 py-2 text-[13px] shadow-lg" data-testid="toast">{toast}</div>}
     </div>
   );
@@ -928,7 +944,7 @@ const SHORTCUTS: [string, string][] = [
   ["Drag ruler", "Select across all tracks"],
   ["C", "Loop the selection"],
   ["Drag clip corner", "Fade in / out"],
-  ["Right-click track", "Colour, delete"],
+  ["Right-click track", "Color, delete"],
 ];
 
 function ShortcutsButton() {

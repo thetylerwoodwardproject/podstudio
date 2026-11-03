@@ -11,7 +11,9 @@ import {
   Command,
   LogOut,
   ChevronDown,
+  Menu,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetTitle } from "~/components/ui/sheet";
 import { cn } from "~/lib/utils";
 import { signOut } from "~/lib/auth-client";
 import { CommandPalette } from "./command-palette";
@@ -28,7 +30,8 @@ type Item = { label: string; to: string; end?: boolean; match?: (path: string) =
 const HOSTING: Item[] = [
   { label: "Feed", to: "/studio/feed", end: true },
   { label: "Analytics", to: "/studio/analytics" },
-  { label: "Show tags", to: "/studio/feed/tags", match: (p) => p.startsWith("/studio/feed/") },
+  { label: "Show tags", to: "/studio/feed/tags", match: (p) => p === "/studio/feed/tags" },
+  { label: "Lock & verify", to: "/studio/feed/lock-verify" },
   { label: "Podroll", to: "/studio/podroll" },
   { label: "Storage", to: "/studio/storage", match: (p) => p === "/studio/storage" },
   { label: "Move podcast", to: "/studio/storage/move" },
@@ -66,7 +69,10 @@ export function StudioShell({
   role: "admin" | "editor" | null;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const { pathname, hash } = useLocation();
+  // The phone drawer closes whenever you go somewhere.
+  useEffect(() => setNavOpen(false), [pathname]);
   const navigate = useNavigate();
 
   const inHosting =
@@ -160,9 +166,8 @@ export function StudioShell({
   // and let the whole page scroll). overflow-clip, unlike hidden, also blocks
   // programmatic scrolling of this box (focus, scrollIntoView), so only <main> and
   // the sidebar nav ever scroll.
-  return (
-    <div className="fixed inset-0 grid grid-cols-[248px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-clip bg-background text-foreground">
-      <aside className="flex min-h-0 flex-col border-r border-sidebar-border bg-sidebar px-3.5 py-4">
+  const sidebar = (
+    <>
         <div className="mb-4 flex items-center gap-2.5 px-1.5 text-[15px] font-bold tracking-tight">
           <span className="flex size-[18px] items-center justify-center rounded-full border-2 border-destructive">
             <span className="size-1.5 rounded-full bg-destructive" />
@@ -254,10 +259,11 @@ export function StudioShell({
               key={label}
               className={cn(row, "cursor-not-allowed text-muted-foreground/50")}
               aria-disabled="true"
-              title="Not built yet"
+              title="Coming in a later release"
             >
               <Icon className="size-4" />
-              {label}
+              <span className="flex-1">{label}</span>
+              <span className="rounded border border-border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">Soon</span>
             </div>
           ))}
 
@@ -303,7 +309,35 @@ export function StudioShell({
             <LogOut className="size-3.5" />
           </button>
         </div>
-      </aside>
+          </>
+  );
+
+  return (
+    <div className="fixed inset-0 grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-clip md:grid-cols-[248px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] bg-background text-foreground">
+      <aside className="hidden min-h-0 flex-col border-r border-sidebar-border bg-sidebar px-3.5 py-4 md:flex">{sidebar}</aside>
+
+      {/* Phones and narrow windows: a top bar with the same menu in a drawer. */}
+      <header className="flex items-center gap-2 border-b border-sidebar-border bg-sidebar px-3 py-2.5 md:hidden">
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label="Open menu"
+          data-testid="open-nav"
+          className="rounded-md p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <Menu className="size-4" />
+        </button>
+        <span className="flex size-[16px] shrink-0 items-center justify-center rounded-full border-2 border-destructive">
+          <span className="size-1 rounded-full bg-destructive" />
+        </span>
+        <span className="truncate text-[14px] font-bold tracking-tight">{show?.title ?? "Podstudio"}</span>
+      </header>
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="left" className="flex w-[272px] flex-col gap-0 border-sidebar-border bg-sidebar px-3.5 py-4 sm:max-w-[272px]">
+          <SheetTitle className="sr-only">Studio menu</SheetTitle>
+          {sidebar}
+        </SheetContent>
+      </Sheet>
 
       <main className="min-h-0 overflow-y-auto overscroll-y-contain">
         <ShowSlugContext.Provider value={show?.slug ?? null}>

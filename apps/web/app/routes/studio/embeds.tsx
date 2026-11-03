@@ -6,6 +6,10 @@ import type { EmbedConfig } from "~/lib/embeds.server";
 import { buildSnippets, embedSrc } from "~/lib/embed-snippets";
 import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
+import { FormSelect } from "~/components/ui/form-select";
+import { ChoiceCards } from "~/components/ui/choice-cards";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 27 (Embed players, admin). Per README: what to embed (one episode /
 // latest / whole show), player (audio / video), theme, accent, toggles for
@@ -37,9 +41,12 @@ const THEME_OPTIONS = [
   { value: "auto", label: "Match device" },
 ] as const;
 const ACCENT_OPTIONS = [
-  { value: "amber", label: "Show amber", swatch: "#e8b04a" },
-  { value: "teal", label: "Teal", swatch: "#3fb8a5" },
-  { value: "ink", label: "Ink", swatch: "#8f8e88" },
+  { value: "black", label: "Black", swatch: "#000000" },
+  { value: "gold", label: "Gold", swatch: "#fabf47" },
+  { value: "cyan", label: "Cyan", swatch: "#00fff5" },
+  { value: "lime", label: "Lime", swatch: "#beff00" },
+  { value: "coral", label: "Coral", swatch: "#ff807f" },
+  { value: "lavender", label: "Lavender", swatch: "#c7bff6" },
 ] as const;
 const TABS = [
   { id: "iframe", label: "iframe", note: "Recommended — isolated from the host page's CSS and JS." },
@@ -82,31 +89,7 @@ function Radios<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
-  return (
-    <div className="flex flex-wrap gap-2" role="radiogroup">
-      {options.map((o) => (
-        <label
-          key={o.value}
-          className={`flex cursor-pointer flex-col rounded-md border px-3 py-1.5 text-[13px] ${
-            value === o.value ? "border-foreground bg-accent" : "border-border"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <input
-              type="radio"
-              name={name}
-              value={o.value}
-              checked={value === o.value}
-              onChange={() => onChange(o.value)}
-              className="accent-foreground"
-            />
-            {o.label}
-          </span>
-          {o.hint && <span className="pl-6 text-[11.5px] text-muted-foreground">{o.hint}</span>}
-        </label>
-      ))}
-    </div>
-  );
+  return <ChoiceCards name={name} value={value} onValueChange={onChange} options={options} />;
 }
 
 function Toggle({
@@ -121,14 +104,8 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-[13px]">
-      <input
-        type="checkbox"
-        name={name}
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="accent-foreground"
-      />
+    <label className="flex cursor-pointer items-center gap-2.5 text-[13px]">
+      <Checkbox name={name} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
       {label}
     </label>
   );
@@ -145,10 +122,10 @@ export default function Embeds({
 
   if (!ctx) {
     return (
-      <div className="mx-auto max-w-2xl p-6">
+      <Page>
         <h1 className="text-2xl font-semibold tracking-tight">Embed players</h1>
         <p className="mt-4 text-[13px] text-muted-foreground">No show seeded yet.</p>
-      </div>
+      </Page>
     );
   }
 
@@ -207,16 +184,8 @@ function EmbedsForm({
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-            Public page &amp; embeds
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Embed players</h1>
-        </div>
-        <ViewPublicPage />
-      </div>
+    <Page>
+      <PageHeader eyebrow="Public page &amp; embeds" title="Embed players" description="Put a player for one episode, your latest episode or the whole show on any website." actions={<ViewPublicPage />} />
 
       <Form method="post" className="flex flex-col gap-5">
         <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
@@ -232,20 +201,16 @@ function EmbedsForm({
                     No public, published episodes yet — only those are eligible to embed.
                   </p>
                 ) : (
-                  <select
+                  <FormSelect
                     name="episodePublicId"
                     aria-label="Episode"
                     value={episodePublicId}
-                    onChange={(e) => setEpisodePublicId(e.target.value)}
-                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  >
-                    {ctx.eligibleEpisodes.map((e) => (
-                      <option key={e.publicId} value={e.publicId}>
-                        {e.number != null ? `Ep. ${e.number} — ` : ""}
-                        {e.title}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setEpisodePublicId}
+                    options={ctx.eligibleEpisodes.map((e) => ({
+                      value: e.publicId,
+                      label: `${e.number != null ? `Ep. ${e.number} — ` : ""}${e.title}`,
+                    }))}
+                  />
                 )}
               </div>
             )}
@@ -263,31 +228,13 @@ function EmbedsForm({
 
           <div className="flex flex-col gap-1.5">
             <Label>Accent</Label>
-            <div className="flex flex-wrap gap-2" role="radiogroup">
-              {ACCENT_OPTIONS.map((a) => (
-                <label
-                  key={a.value}
-                  className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-[13px] ${
-                    accent === a.value ? "border-foreground bg-accent" : "border-border"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="accent"
-                    value={a.value}
-                    checked={accent === a.value}
-                    onChange={() => setAccent(a.value)}
-                    className="accent-foreground"
-                  />
-                  <span
-                    aria-hidden
-                    className="h-3 w-3 rounded-full border border-border"
-                    style={{ background: a.swatch }}
-                  />
-                  {a.label}
-                </label>
-              ))}
-            </div>
+            <ChoiceCards
+              name="accent"
+              aria-label="Accent"
+              value={accent}
+              onValueChange={setAccent}
+              options={ACCENT_OPTIONS}
+            />
           </div>
 
           <div className="flex flex-wrap gap-5">
@@ -320,13 +267,13 @@ function EmbedsForm({
             title="Embed preview"
             sandbox="allow-scripts allow-popups"
             className="w-full rounded-md border border-border"
-            style={{ height: player === "video" ? 360 : 152 }}
+            style={{ height: player === "video" ? 400 : 196 }}
             data-testid="preview"
           />
         )}
         <p className="text-[11.5px] text-muted-foreground">
-          This is the real embed route. The audio player itself (screen 28) isn't built, so it shows the
-          show and episode with "Audio isn't available yet" — no play button, chapters or transcript.
+          This is the live player, exactly as visitors will see it. Chapters and the transcript button appear once
+          episodes have them.
         </p>
       </section>
 
@@ -365,6 +312,6 @@ function EmbedsForm({
           {" "}Origin shown is this studio's own host ({origin}); the real public domain isn't chosen yet.
         </p>
       </section>
-    </div>
+    </Page>
   );
 }

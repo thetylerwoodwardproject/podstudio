@@ -106,6 +106,20 @@ export function htmlToText(raw: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * A short plain-text lead for list rows, cards and meta descriptions: the paragraphs
+ * before the first heading, list, quote, table or divider — so chapter lists and link
+ * sections don't get flattened into one run-on line. Falls back to the whole text when
+ * the notes don't start with a paragraph.
+ */
+export function htmlToSnippet(raw: string | null | undefined): string {
+  const html = toHtml(raw);
+  if (!html) return "";
+  const cut = html.search(/<(h[1-6]|ul|ol|blockquote|table|hr|pre|details|figure|iframe)\b/i);
+  const lead = cut > 0 ? htmlToText(html.slice(0, cut)) : "";
+  return lead || htmlToText(html);
+}
+
 /** What gets stored: sanitised HTML, or null when the editor was left effectively empty. */
 export function cleanForStorage(raw: string | null | undefined): string | null {
   const html = sanitizeRichHtml(raw);

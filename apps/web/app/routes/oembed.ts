@@ -32,7 +32,7 @@ export async function loader({ request }: { request: Request }) {
     provider_url: req.origin,
     title: resolved.title,
     width: 600,
-    height: 152,
+    height: 196,
     html: iframeHtml(src, { ...opts, theme: "auto" }),
   };
   return new Response(JSON.stringify(body), {

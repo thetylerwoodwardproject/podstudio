@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-11-03 — Page polish (studio + public; editor untouched)
+- Every studio page uses one layout (`components/layout/page.tsx`: `Page` + `PageHeader`): same padding, two widths (form / wide), eyebrow = sidebar section, title, one-line description, actions on the right.
+- Studio works on phones/narrow windows: top bar + menu drawer (shadcn Sheet) below 768 px; Episodes hides Length/Edited on small screens; Library and Storage rows wrap.
+- Native controls replaced with shadcn: `FormSelect` (Select with a form-friendly API, `components/ui/form-select.tsx`) for all 16 dropdowns, Checkbox, RadioGroup-based `ChoiceCards` for the radio cards, Switch for the podroll/analytics on-off buttons, ToggleGroup for Library's Music/Sound effect, DropdownMenu for the Episodes row menu (was hand-rolled and closed on mouse-leave).
+- Episodes: dead checkbox column removed, whole row opens the episode, pagination hidden on one page.
+- Sidebar: Lock & verify has its own entry (it used to highlight Show tags); disabled items show a "Soon" tag.
+- Developer notes removed from UI copy (stage/screen numbers, STATUS.md, "nothing fabricated"); stale lines fixed (embed preview said the player wasn't built; podroll said the feed isn't generated).
+- Server settings reordered: Your account → Users → This server.
+- Rich-text toolbar: Font Awesome icons, fits on one line. Login: narrower card, tagline, no "later stages" footer.
+- Public pages: bullet and numbered lists in show notes now show their markers (Tailwind's reset had removed them; `ol` was unstyled).
+- Public pages, second pass: snippets (list rows, Latest card, host profiles, cards, meta descriptions) use the notes' opening paragraphs only (`htmlToSnippet`, 3 tests) instead of flattening chapters/links into one line; Latest episode card carries Ep · date · length and "with …" itself, button reads "Show notes"; list rows a size larger, and episodes without audio dim only the play button; light-theme embed shows the playing row in a contrast-safe accent (gold was under 2:1 on white). Light theme checked on the show page, episode page and embed.
+- Verified against the live build: 16 form checks (selects/checkbox/radios/switches submit correctly, dropdown delete with confirm, drawer nav), no console errors on any page at 1440 and 390 px. Test episode deleted; show settings changed by the test were restored byte-for-byte.
+
+## 2026-11-02 — Stage 05 review fixes (Tyler)
+- FX panel redone Hindenburg-style: effect list with per-effect switches, only the selected effect's controls shown; one popover in Simple and Advanced (inspector FX tab removed). FX button is an audiocn ChannelToggle in the show accent (filled = active, outlined = open); popovers now get the accent too.
+- Recorder mic setup after audiocn's mic-setup block (device select, meter, level check). Editor clips drawn with audiocn Waveform bars. Public list view on audiocn TrackList; grid play buttons on audiocn.
+- Advanced switch removed: one editor; right panel tabs Library · Clip · Marks · LUFS; track meters always on; Range tool always in the toolbar.
+- FX: larger knobs, built-in podcast presets, Ducking as a per-track FX entry (Duck tab removed).
+- Base palette #000000 #FABF47 #00FFF5 #BEFF00 #FF807F #C7BFF6 for brand accents, track colors and embed accents (black shows as bone on dark); old saved presets keep their color.
+- Export dialog: one-line explanation; per export only LUFS · dBTP · size and warnings.
+- Take times and new clip names in the viewer's own time zone (were UTC; also fixed a hydration warning).
+- Meters use audiocn's stock LevelMeter look (solid, default zones, scale, readout, clip light).
+- Embed player rebuilt on audiocn AudioPlayer + TrackList (React route); editor Library dialog preview on audiocn.
+- US English in UI text (color, center, favorite, analyze, canceled); stored values unchanged.
+
+## 2026-11-02 — Stage 04 passed; stereo; Stage 05 built (awaiting review)
+- Tyler passed Stage 04 (PR #1 merged), approved stereo music/SFX, and started Stage 05.
+- Stereo sources, pan (balance law), stereo mix/export/peaks/meters.
+- Stage 05: per-track FX (spectral noise reduction, HPF/LPF, 3-band EQ, compressor) in one deterministic module shared by the worker and an AudioWorklet (browser vs Node: −300 dBFS residual); FX UI on audiocn knobs/spectrum/LCD; LUFS AudioWorklet meter; MP3 presets with post-encode loudness/true-peak correction (−16.0 / −19.0 LUFS verified with ffmpeg) and diagnostics.
+- audiocn adopted as the audio UI kit across editor, recorder, library and public players.
+- Incident: a timed-out rebuild left web/worker down a few minutes; rebuilds now run in the background.
+
 ## 2026-11-02 — Editor round 2 (Tyler's requests during use; uncommitted, awaiting review)
 - Add-track popover with library items; track context menu + ⋯ popover: rename, colour (`Track.color`), mute/solo/lock, delete.
 - Range selection on tracks (drag / Shift+drag / Range tool R, multi-track), right-click actions incl. delete from one track only; Delete = leave gap, Shift+Delete = ripple (swapped).

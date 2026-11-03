@@ -14,6 +14,9 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { HelpPopover, HelpTerm } from "~/components/ui/help-popover";
+import { FormSelect } from "~/components/ui/form-select";
+import { ChoiceCards } from "~/components/ui/choice-cards";
+import { Page, PageHeader } from "~/components/layout/page";
 
 // Screen 17 (Storage). Per BUILD_PLAN §4: `storage_targets(id, provider,
 // endpoint, bucket, region, key_ref, routes json)` — revised on Tyler's
@@ -137,12 +140,12 @@ export async function action({ request }: { request: Request }) {
 export default function Storage(props: StorageProps) {
   if (!props.loaderData.isAdmin) {
     return (
-      <div className="mx-auto max-w-2xl p-6">
+      <Page>
         <h1 className="text-2xl font-semibold tracking-tight">Storage</h1>
         <p className="mt-4 text-[13px] text-muted-foreground">
           Storage holds the server's S3 credentials, so only admins can view or change it.
         </p>
-      </div>
+      </Page>
     );
   }
   return <StorageAdmin {...props} />;
@@ -176,13 +179,8 @@ function StorageAdmin({ loaderData, actionData }: StorageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-5">
-        <div className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-          Podcast hosting
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Storage</h1>
-      </div>
+    <Page>
+      <PageHeader eyebrow="Podcast hosting" title="Storage" description="Where recordings, exports and published audio are kept." />
 
       <section className="flex flex-col gap-4 rounded-[14px] border border-border bg-card p-5">
         <div className="flex items-center gap-2">
@@ -212,15 +210,15 @@ function StorageAdmin({ loaderData, actionData }: StorageProps) {
               const keysError = actionData?.keysTargetId === t.id ? actionData.error : undefined;
               return (
                 <li key={t.id} className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
-                  <div className="flex items-center justify-between gap-3 text-[13px]">
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-[13px]">
                     <div className="flex min-w-0 flex-col">
                       <span className="font-medium">{t.label}</span>
-                      <span className="font-mono text-[12px] text-muted-foreground">
+                      <span className="font-mono text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
                         {PROVIDER_LABELS[t.provider as StorageProvider]} · {t.bucket}
                         {t.region ? ` · ${t.region}` : ""}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Form method="post">
                         <input type="hidden" name="intent" value="test-connection" />
                         <input type="hidden" name="id" value={t.id} />
@@ -301,26 +299,14 @@ function StorageAdmin({ loaderData, actionData }: StorageProps) {
 
           <div className="flex flex-col gap-1.5">
             <Label>Provider</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {PROVIDER_LIST.map((p) => (
-                <label
-                  key={p}
-                  className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[13px] ${
-                    provider === p ? "border-ring bg-accent" : "border-border"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="provider"
-                    value={p}
-                    checked={provider === p}
-                    onChange={() => setProvider(p)}
-                    className="accent-primary"
-                  />
-                  {PROVIDER_LABELS[p]}
-                </label>
-              ))}
-            </div>
+            <ChoiceCards
+              name="provider"
+              aria-label="Provider"
+              value={provider}
+              onValueChange={setProvider}
+              className="grid grid-cols-2 sm:grid-cols-3"
+              options={PROVIDER_LIST.map((p) => ({ value: p, label: PROVIDER_LABELS[p] }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -387,19 +373,12 @@ function StorageAdmin({ loaderData, actionData }: StorageProps) {
           {ROUTE_LIST.map((r) => (
             <div key={r} className="flex flex-col gap-1.5">
               <Label htmlFor={`route-${r}`}>{ROUTE_LABELS[r]}</Label>
-              <select
+              <FormSelect
                 id={`route-${r}`}
                 name={`route-${r}`}
                 defaultValue={routing[r]}
-                className="rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                <option value="">Not set</option>
-                {targets.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+                options={[{ value: "", label: "Not set" }, ...targets.map((t) => ({ value: t.id, label: t.label }))]}
+              />
             </div>
           ))}
 
@@ -412,6 +391,6 @@ function StorageAdmin({ loaderData, actionData }: StorageProps) {
           </div>
         </Form>
       </section>
-    </div>
+    </Page>
   );
 }
