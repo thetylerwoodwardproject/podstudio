@@ -21,6 +21,8 @@ import {
   faPaperPlane,
   faArrowRotateLeft,
   faCheck,
+  faPlay,
+  faPause,
 } from "@fortawesome/free-solid-svg-icons";
 import { listEpisodeRows } from "~/lib/episodes.server";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
@@ -48,11 +50,12 @@ import { cn } from "~/lib/utils";
 // Customize settings, and Rewrite cycles canned variants. Settings are kept in
 // this browser only (the real build saves them with the show).
 // Design notes: docs/notes/social-generator.md.
-export async function loader() {
+export async function loader({ request }: { request: Request }) {
   const { show, rows } = listEpisodeRows();
   const art = getShowArtwork();
   return {
     showTitle: show?.title ?? "Your show",
+    domain: new URL(request.url).host,
     brandAccent: accentHex(readBrandTheme(show?.theme)),
     artUrl: art ? `/${art.slug}/artwork/${artworkFile(art)}` : null,
     episodes: rows.slice(0, 24).map((r) => ({ id: r.id, number: r.number, title: r.title, guest: r.guest })),
@@ -84,23 +87,22 @@ interface Settings {
     layout: "auto" | LayoutName;
     accent: string; // "brand" or a hex
     darken: number; // 0–90
-    corners: "sharp" | "soft" | "round";
     waveform: boolean;
     wordmark: boolean;
     episodeNumber: boolean;
   };
   carousel: { slides: number; numbers: boolean; quotes: boolean };
-  clips: { style: CaptionStyle; hook: boolean; progress: boolean; position: "upper" | "middle" | "lower" };
+  clips: { layout: "auto" | LayoutName | "None"; darken: number; wordmark: "stacked" | "domain"; progress: boolean; safeZones: boolean; captions: "off" | CaptionStyle };
 }
 
 const DEFAULTS: Settings = {
   posts: { platforms: ["bluesky", "threads", "mastodon", "facebook", "instagram", "youtube"], length: "standard", hashtags: 2, emoji: false, tagGuests: true, link: true, cta: "listen" },
-  look: { template: "headline", layout: "auto", accent: "brand", darken: 55, corners: "soft", waveform: true, wordmark: true, episodeNumber: true },
+  look: { template: "headline", layout: "auto", accent: "brand", darken: 55, waveform: true, wordmark: true, episodeNumber: true },
   carousel: { slides: 6, numbers: true, quotes: true },
-  clips: { style: "Bold pop", hook: true, progress: true, position: "lower" },
+  clips: { layout: "auto", darken: 55, wordmark: "stacked", progress: true, safeZones: false, captions: "off" },
 };
 
-const STORE = "podstudio.social.settings.v1";
+const STORE = "podstudio.social.settings.v2";
 
 function useSettings() {
   const [s, setS] = useState<Settings>(DEFAULTS);
@@ -217,6 +219,7 @@ interface Ctx {
   ep: Ep | undefined;
   showTitle: string;
   artUrl: string | null;
+  domain: string;
   accent: string;
   brandAccent: string;
   s: Settings;
@@ -226,7 +229,7 @@ interface Ctx {
 }
 
 export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { showTitle, episodes, artUrl, brandAccent } = loaderData;
+  const { showTitle, episodes, artUrl, brandAccent, domain } = loaderData;
   const [epId, setEpId] = useState(episodes[0]?.id ?? "");
   const ep = episodes.find((e) => e.id === epId);
   const { s, set, reset } = useSettings();
@@ -236,7 +239,7 @@ export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<
     setTimeout(() => setToast(null), 1600);
   };
   const accent = s.look.accent === "brand" ? brandAccent : (normalizeHex(s.look.accent) ?? brandAccent);
-  const ctx: Ctx = { ep, showTitle, artUrl, accent, s, set, reset, flash, brandAccent };
+  const ctx: Ctx = { ep, showTitle, artUrl, domain, accent, s, set, reset, flash, brandAccent };
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -420,7 +423,7 @@ function Bars({ accent, className }: { accent: string; className?: string }) {
   );
 }
 
-const RADIUS = { sharp: "0", soft: "2.2cqw", round: "5cqw" } as const;
+// Every image is square-cornered: platforms crop to their own frame and none accept rounded edges.
 
 // ---------------------------------------------------------------- posts
 
@@ -650,18 +653,6 @@ function LookPanel({ s, set, reset, brandAccent, ep }: Ctx) {
       <Field label="Darken art" hint={`${l.darken}%`}>
         <Slider min={0} max={90} step={5} value={[l.darken]} onValueChange={([v]) => set("look", { darken: v })} aria-label="Darken art" />
       </Field>
-      <Field label="Corners">
-        <Segmented
-          label="Corners"
-          value={l.corners}
-          onChange={(corners) => set("look", { corners })}
-          options={[
-            { value: "sharp", label: "Sharp" },
-            { value: "soft", label: "Soft" },
-            { value: "round", label: "Round" },
-          ]}
-        />
-      </Field>
       <Separator />
       <Field inline label="Waveform">
         <Switch checked={l.waveform} onCheckedChange={(waveform) => set("look", { waveform })} aria-label="Waveform" />
@@ -712,7 +703,7 @@ function Design({ ctx, ratio }: { ctx: Ctx; ratio: number }) {
   );
 
   return (
-    <div className="@container relative size-full overflow-hidden bg-[#111113]" style={{ borderRadius: RADIUS[l.corners] }}>
+    <div className="@container relative size-full overflow-hidden bg-[#111113]">
       {layout === "Split" && (
         <div className={cn("flex size-full", tall ? "flex-col" : "flex-row-reverse")}>
           <Art url={artUrl} className={tall ? "h-[54%] w-full shrink-0" : "h-full w-[42%] shrink-0"} />
@@ -735,7 +726,7 @@ function Design({ ctx, ratio }: { ctx: Ctx; ratio: number }) {
       {layout === "Corner" && (
         <>
           <Art url={artUrl} className={cn("absolute right-[5cqw] top-[5cqw] aspect-square", tall ? "w-[42%]" : "w-[26%]")} />
-          <span className="absolute left-[6cqw] top-[6cqw] h-[1cqw] w-[10cqw] rounded-full" style={{ background: accent }} />
+          <span className="absolute left-[6cqw] top-[6cqw] h-[1cqw] w-[10cqw]" style={{ background: accent }} />
           <div className="absolute inset-x-0 bottom-0 p-[6cqw]">{type}</div>
         </>
       )}
@@ -800,12 +791,12 @@ function GraphicsTab(ctx: Ctx) {
           <Design ctx={ctx} ratio={1200 / 630} />
         </Tile>
         <Tile name="Episode cover" size="3000 × 3000" ratio={1}>
-          <div className="@container relative size-full overflow-hidden" style={{ borderRadius: RADIUS[s.look.corners] }}>
+          <div className="@container relative size-full overflow-hidden">
             <Art url={artUrl} className="absolute inset-0" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#111113]/95 via-[#111113]/20 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 flex flex-col gap-[2cqw] p-[7cqw]">
               {ep?.number != null && s.look.episodeNumber && (
-                <span className="w-fit rounded-[1cqw] px-[2cqw] py-[0.8cqw] font-mono text-[3.2cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
+                <span className="w-fit px-[2cqw] py-[0.8cqw] font-mono text-[3.2cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
                   EP {ep.number}
                 </span>
               )}
@@ -814,11 +805,11 @@ function GraphicsTab(ctx: Ctx) {
           </div>
         </Tile>
         <Tile name="YouTube thumbnail" size="1280 × 720" ratio={16 / 9}>
-          <div className="@container relative size-full overflow-hidden bg-[#111113]" style={{ borderRadius: RADIUS[s.look.corners] }}>
+          <div className="@container relative size-full overflow-hidden bg-[#111113]">
             <Art url={artUrl} className="absolute inset-y-0 right-0 w-[52%]" />
             <div className="absolute inset-y-0 left-0 flex w-[62%] flex-col justify-center gap-[2.4cqw] bg-gradient-to-r from-[#111113] from-70% to-transparent p-[5cqw]">
               <span className="text-[7.4cqw] font-black uppercase leading-[0.95] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{title}</span>
-              <span className="h-[1.2cqw] w-[16cqw] rounded-full" style={{ background: accent }} />
+              <span className="h-[1.2cqw] w-[16cqw]" style={{ background: accent }} />
             </div>
           </div>
         </Tile>
@@ -873,7 +864,7 @@ function CarouselTab(ctx: Ctx) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {slides.map((sl, i) => (
             <figure key={i} className="flex flex-col gap-1.5">
-              <div className="@container relative aspect-[1080/1350] overflow-hidden bg-[#111113] shadow-md ring-1 ring-border" style={{ borderRadius: RADIUS[s.look.corners] }}>
+              <div className="@container relative aspect-[1080/1350] overflow-hidden bg-[#111113] shadow-md ring-1 ring-border">
                 {sl.type === "cover" && (
                   <>
                     <Art url={artUrl} className="absolute inset-x-0 top-0 h-[58%]" />
@@ -885,7 +876,7 @@ function CarouselTab(ctx: Ctx) {
                 )}
                 {sl.type === "text" && (
                   <div className="flex size-full flex-col justify-center gap-[4cqw] p-[9cqw]">
-                    <span className="h-[1.4cqw] w-[14cqw] rounded-full" style={{ background: accent }} />
+                    <span className="h-[1.4cqw] w-[14cqw]" style={{ background: accent }} />
                     <span className="text-[9cqw] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">{sl.heading}</span>
                     <span className="text-[5.4cqw] leading-[1.4] text-white/70">{sl.body}</span>
                   </div>
@@ -901,9 +892,9 @@ function CarouselTab(ctx: Ctx) {
                 )}
                 {sl.type === "cta" && (
                   <div className="flex size-full flex-col items-center justify-center gap-[5cqw] p-[9cqw] text-center">
-                    <Art url={artUrl} className="aspect-square w-[46%] rounded-[3cqw] shadow-2xl" />
+                    <Art url={artUrl} className="aspect-square w-[46%] shadow-2xl" />
                     <span className="text-[8cqw] font-extrabold leading-[1.05] text-white">{sl.heading}</span>
-                    <span className="rounded-full px-[5cqw] py-[2cqw] text-[4.6cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
+                    <span className="px-[5cqw] py-[2cqw] text-[4.6cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
                       {sl.body}
                     </span>
                   </div>
@@ -959,22 +950,42 @@ function CarouselTab(ctx: Ctx) {
 }
 
 // ---------------------------------------------------------------- clips
+// The reel follows the TWP social generator's Video tab: near-black ground, the
+// same imagery layouts, type kept inside the platforms' safe zones (17% top,
+// 27% bottom), mono meta line with a running timer, a large headline, 24 wide
+// bars in the accent, a thin progress line and the show wordmark. Bars here are
+// a canned animation; the real ones come from the clip's audio, computed once
+// per frame so preview and render match.
 
 const CLIPS = [
-  { start: "04:12", end: "05:03", hook: "Nobody checks this first", quote: "Everybody blames the transmitter. It's almost never the transmitter." },
-  { start: "18:40", end: "19:52", hook: "The 2 a.m. fix", quote: "I had one note in the log, and that note saved the whole night." },
-  { start: "31:05", end: "31:58", hook: "What I'd do now", quote: "Test it the way your listeners actually hear it, not the way you do." },
+  { start: "04:12", end: "05:03", secs: 51, hook: "Nobody checks this first", quote: "Everybody blames the transmitter. It's almost never the transmitter." },
+  { start: "18:40", end: "19:52", secs: 72, hook: "The 2 a.m. fix", quote: "I had one note in the log, and that note saved the whole night." },
+  { start: "31:05", end: "31:58", secs: 53, hook: "What I'd do now", quote: "Test it the way your listeners actually hear it, not the way you do." },
 ];
 
-function CaptionPreview({ style, words, accent }: { style: CaptionStyle; words: string[]; accent: string }) {
+const REEL_LAYOUTS = [...LAYOUTS, "None"] as const;
+type ReelLayout = (typeof REEL_LAYOUTS)[number];
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+// Plausible band levels for time t: low bands move more, every band keeps some life.
+function bandLevels(t: number, seed: number) {
+  return Array.from({ length: 24 }, (_, i) => {
+    const tilt = 1 - i / 34;
+    const a = Math.abs(Math.sin(t * (5.3 + (i % 5) * 0.7) + i * 0.9 + seed));
+    const b = Math.abs(Math.sin(t * 2.1 + i * 1.7 + seed * 2));
+    return Math.max(0.08, Math.min(1, (0.25 + 0.75 * a * b) * tilt + 0.06));
+  });
+}
+
+function CaptionLine({ style, words, accent }: { style: CaptionStyle; words: string[]; accent: string }) {
   const active = Math.min(2, words.length - 1);
   return (
     <span
       className={cn("flex flex-wrap justify-center gap-x-[1.6cqw] text-center leading-[1.15]", style === "Bold pop" && "font-black uppercase", style === "Minimal" ? "font-medium" : "font-bold")}
-      style={{ fontSize: style === "Minimal" ? "6cqw" : "7.5cqw" }}
+      style={{ fontSize: style === "Minimal" ? "5.4cqw" : "6.6cqw" }}
     >
       {style === "Boxed" ? (
-        <span className="rounded-[1.5cqw] bg-black/75 px-[2.5cqw] py-[1cqw] text-white">
+        <span className="bg-black/80 px-[2.5cqw] py-[1cqw] text-white">
           {words.map((w, i) => (
             <span key={i} style={i === active ? { color: accent } : undefined}>
               {w}{" "}
@@ -986,7 +997,7 @@ function CaptionPreview({ style, words, accent }: { style: CaptionStyle; words: 
           const on = i === active;
           if (style === "Word bubble" && on)
             return (
-              <span key={i} className="rounded-[1.5cqw] px-[1.5cqw]" style={{ background: accent, color: onAccent(accent) }}>
+              <span key={i} className="px-[1.5cqw]" style={{ background: accent, color: onAccent(accent) }}>
                 {w}
               </span>
             );
@@ -1002,129 +1013,231 @@ function CaptionPreview({ style, words, accent }: { style: CaptionStyle; words: 
   );
 }
 
-function ClipsTab(ctx: Ctx) {
-  const { ep, s, set, reset, accent, artUrl, flash } = ctx;
+function Reel({ ctx, clip, index, t, headline, meta }: { ctx: Ctx; clip: (typeof CLIPS)[number]; index: number; t: number; headline: string; meta: string }) {
+  const { s, accent, artUrl, showTitle, domain, ep } = ctx;
   const c = s.clips;
-  const targets: { id: string; name: string; icon: IconDefinition; caption: (clip: (typeof CLIPS)[number]) => string }[] = [
-    { id: "tiktok", name: "TikTok", icon: faTiktok, caption: (k) => `${k.hook}.\n\n#radio #broadcastengineer #podcast` },
-    { id: "reels", name: "Reels", icon: faInstagram, caption: (k) => `${k.hook}. “${k.quote}”\n\nFrom ${ep?.title ?? "the episode"}. Full episode: link in bio.\n\n#radio #podcastclips #tech` },
-    { id: "shorts", name: "Shorts", icon: faYoutube, caption: (k) => `${k.hook} | ${ep?.title ?? "Episode"}\n\n#shorts #radio #podcast` },
+  const layout: ReelLayout = c.layout === "auto" ? LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length] : c.layout;
+  const dim = c.darken / 100;
+  const bars = bandLevels(t, index * 1.9);
+  const words = clip.quote.replace(/[.,]/g, "").split(" ");
+  const wi = Math.floor((t / clip.secs) * words.length * 3) % Math.max(1, words.length - 3);
+  // Where the type column starts: below the imagery for the layouts that take the top.
+  const typeTop = { Split: "43%", "Full bleed": "17%", Framed: "62%", Corner: "17%", Band: "47%", None: "17%" }[layout];
+
+  return (
+    <div className="@container relative aspect-[9/16] w-full overflow-hidden bg-[#0e0e0e] font-sans text-[#f5f5f2]">
+      {layout === "Split" && <Art url={artUrl} className="absolute inset-x-0 top-0 h-[40%]" />}
+      {layout === "Full bleed" && (
+        <>
+          <Art url={artUrl} className="absolute inset-0" />
+          <div className="absolute inset-0" style={{ background: `rgba(14,14,14,${dim})` }} />
+        </>
+      )}
+      {layout === "Framed" && <Art url={artUrl} className="absolute left-[8%] top-[9%] aspect-square w-[84%]" />}
+      {layout === "Corner" && <Art url={artUrl} className="absolute right-[8%] top-[17%] aspect-square w-[30%]" />}
+      {layout === "Band" && (
+        <div className="absolute inset-x-0 top-[17%] h-[27%]">
+          <Art url={artUrl} className="absolute inset-0" />
+          <div className="absolute inset-0" style={{ background: `rgba(14,14,14,${dim * 0.6})` }} />
+        </div>
+      )}
+
+      <div className="absolute inset-x-[8%] bottom-[27%] flex flex-col" style={{ top: typeTop }}>
+        <div className={cn("flex items-baseline justify-between gap-[3cqw] font-mono text-[3.4cqw] text-[#8a8a86]", layout === "Corner" && "pr-[36%]")}>
+          <span className="min-w-0 truncate">{meta}</span>
+          {c.progress && layout !== "Corner" && (
+            <span className="shrink-0 tabular-nums">
+              {clock(t)} / {clock(clip.secs)}
+            </span>
+          )}
+        </div>
+        <span className={cn("mt-[3cqw] font-medium leading-[1.08] tracking-[-0.025em] [overflow-wrap:anywhere]", layout === "Corner" && "pr-[36%]")} style={{ fontSize: layout === "Framed" || layout === "Band" ? "6.4cqw" : "8.4cqw" }}>
+          {headline}
+        </span>
+        <div className="flex min-h-[12cqw] flex-1 items-center">
+          <div className="flex h-[18cqw] max-h-full w-full items-center gap-[0.6cqw]">
+            {bars.map((h, i) => (
+              <span key={i} className="flex-1 rounded-full" style={{ height: `max(${100 / 24}cqw, ${h * 100}%)`, background: accent }} />
+            ))}
+          </div>
+        </div>
+        {c.captions !== "off" && (
+          <div className="mb-[3cqw]">
+            <CaptionLine style={c.captions} words={words.slice(wi, wi + 3)} accent={accent} />
+          </div>
+        )}
+        {c.progress && (
+          <div className="mb-[4cqw] h-[0.5cqw] w-full bg-[#262626]">
+            <div className="h-full bg-[#f5f5f2]" style={{ width: `${(t / clip.secs) * 100}%` }} />
+          </div>
+        )}
+        <div className="font-mono text-[3.4cqw] font-semibold uppercase leading-[1.15] tracking-[0.14em]">
+          {c.wordmark === "domain" ? domain : <span className="block max-w-[60%]">{showTitle}</span>}
+        </div>
+      </div>
+
+      {c.safeZones && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[17%] border-b border-dashed border-[#ff807f]/80 bg-[#ff807f]/10" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[27%] border-t border-dashed border-[#ff807f]/80 bg-[#ff807f]/10" />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ClipCard({ ctx, clip, index }: { ctx: Ctx; clip: (typeof CLIPS)[number]; index: number }) {
+  const { ep, flash } = ctx;
+  const [playing, setPlaying] = useState(false);
+  const [t, setT] = useState(0);
+  const [headline, setHeadline] = useState(clip.hook);
+  const [meta, setMeta] = useState("");
+  const metaLine = meta || [ep?.number != null ? `Ep. ${ep.number}` : null, ep?.title].filter(Boolean).join(" · ");
+
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setT((cur) => (cur + dt >= clip.secs ? 0 : cur + dt));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, clip.secs]);
+
+  const targets: { id: string; name: string; icon: IconDefinition; caption: string }[] = [
+    { id: "tiktok", name: "TikTok", icon: faTiktok, caption: `${clip.hook}.\n\n#radio #broadcastengineer #podcast` },
+    { id: "reels", name: "Reels", icon: faInstagram, caption: `${clip.hook}. “${clip.quote}”\n\nFrom ${ep?.title ?? "the episode"}. Full episode: link in bio.\n\n#radio #podcastclips #tech` },
+    { id: "shorts", name: "Shorts", icon: faYoutube, caption: `${clip.hook} | ${ep?.title ?? "Episode"}\n\n#shorts #radio #podcast` },
   ];
 
+  return (
+    <Card className="py-4">
+      <CardContent className="grid gap-5 px-4 md:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="mx-auto flex w-[240px] flex-col gap-2">
+          <div className="shadow-lg ring-1 ring-border">
+            <Reel ctx={ctx} clip={clip} index={index} t={t} headline={headline} meta={metaLine} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="icon" variant="outline" className="size-8 shrink-0" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause preview" : "Play preview"}>
+              <FontAwesomeIcon icon={playing ? faPause : faPlay} className="text-[11px]" />
+            </Button>
+            <Slider min={0} max={clip.secs} step={0.1} value={[t]} onValueChange={([v]) => setT(v)} aria-label="Position" />
+            <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">{clock(t)}</span>
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[14px] font-semibold">Clip {index + 1}</span>
+            <Badge variant="outline" className="font-mono font-normal">
+              {clip.start}–{clip.end} · {clock(clip.secs)}
+            </Badge>
+          </div>
+          <p className="text-[13px] italic leading-relaxed text-muted-foreground">“{clip.quote}”</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`hl-${index}`} className="text-[12px]">Headline</Label>
+              <Input id={`hl-${index}`} value={headline} onChange={(e) => setHeadline(e.target.value)} className="h-8 text-[13px]" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`meta-${index}`} className="text-[12px]">Meta line</Label>
+              <Input id={`meta-${index}`} value={meta} placeholder={metaLine} onChange={(e) => setMeta(e.target.value)} className="h-8 font-mono text-[12.5px]" />
+            </div>
+          </div>
+          <Separator className="my-1" />
+          <div className="grid gap-3 xl:grid-cols-3">
+            {targets.map((tg) => (
+              <div key={tg.id} className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-1.5 text-[12px]">
+                  <FontAwesomeIcon icon={tg.icon} className="text-muted-foreground" />
+                  {tg.name} caption
+                </Label>
+                <Textarea key={`${ep?.id}-${tg.id}`} aria-label={`Clip ${index + 1} ${tg.name} caption`} defaultValue={tg.caption} className="h-[132px] resize-none text-[12.5px] leading-relaxed [field-sizing:fixed]" />
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => flash("Captions rewritten")}>
+              <FontAwesomeIcon icon={faRotate} />
+              Rewrite captions
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button size="sm" variant="outline" disabled>
+                    <FontAwesomeIcon icon={faDownload} />
+                    MP4 + captions
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Clip rendering arrives with Stage 10c</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ClipsTab(ctx: Ctx) {
+  const { ep, s, set, reset } = ctx;
+  const c = s.clips;
+  const auto = LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length];
   const panel = (
     <Panel title="Customize" onReset={() => reset("clips")}>
-      <Field label="Caption style">
-        <div className="grid grid-cols-2 gap-1.5">
-          {CAPTION_STYLES.map((st) => (
-            <button
-              key={st}
-              type="button"
-              aria-pressed={c.style === st}
-              onClick={() => set("clips", { style: st })}
-              className={cn(
-                "flex h-[52px] flex-col items-center justify-center gap-1 rounded-md border bg-[#111113] px-1 transition-colors",
-                c.style === st ? "border-foreground/70 ring-1 ring-foreground/50" : "border-border hover:border-foreground/30",
-              )}
-            >
-              <span className="@container w-full">
-                <CaptionPreview style={st} words={["THE", "REAL", "MIX"]} accent={accent} />
-              </span>
-              <span className="text-[10.5px] text-white/60">{st}</span>
-            </button>
-          ))}
-        </div>
+      <Field label="Layout">
+        <FormSelect
+          aria-label="Reel layout"
+          value={c.layout}
+          onValueChange={(v) => set("clips", { layout: v as Settings["clips"]["layout"] })}
+          options={[{ value: "auto", label: `Rotate per episode (${auto})` }, ...REEL_LAYOUTS.map((x) => ({ value: x, label: x }))]}
+        />
       </Field>
-      <Field label="Caption position">
+      <Field label="Darken art" hint={`${c.darken}%`}>
+        <Slider min={0} max={90} step={5} value={[c.darken]} onValueChange={([v]) => set("clips", { darken: v })} aria-label="Darken reel art" />
+      </Field>
+      <Field label="Wordmark">
         <Segmented
-          label="Caption position"
-          value={c.position}
-          onChange={(position) => set("clips", { position })}
+          label="Wordmark"
+          value={c.wordmark}
+          onChange={(wordmark) => set("clips", { wordmark })}
           options={[
-            { value: "upper", label: "Upper" },
-            { value: "middle", label: "Middle" },
-            { value: "lower", label: "Lower" },
+            { value: "stacked", label: "Stacked" },
+            { value: "domain", label: "Domain" },
           ]}
         />
       </Field>
-      <Field label="Highlight" hint="Shared with Graphics">
+      <Field label="Bars" hint="Shared with Graphics">
         <AccentPicker value={s.look.accent} brand={ctx.brandAccent} onChange={(a) => set("look", { accent: a })} />
       </Field>
       <Separator />
-      <Field inline label="Hook title" hint="First 3 seconds">
-        <Switch checked={c.hook} onCheckedChange={(hook) => set("clips", { hook })} aria-label="Hook title" />
+      <Field inline label="Progress bar and timer">
+        <Switch checked={c.progress} onCheckedChange={(progress) => set("clips", { progress })} aria-label="Progress bar and timer" />
       </Field>
-      <Field inline label="Progress bar">
-        <Switch checked={c.progress} onCheckedChange={(progress) => set("clips", { progress })} aria-label="Progress bar" />
+      <Field inline label="Show safe zones" hint="Where TikTok, Reels and Shorts put their buttons">
+        <Switch checked={c.safeZones} onCheckedChange={(safeZones) => set("clips", { safeZones })} aria-label="Show safe zones" />
+      </Field>
+      <Separator />
+      <Field label="Captions" hint="From the edited transcript">
+        <FormSelect
+          aria-label="Captions"
+          value={c.captions}
+          onValueChange={(v) => set("clips", { captions: v as Settings["clips"]["captions"] })}
+          options={[{ value: "off", label: "Off" }, ...CAPTION_STYLES.map((x) => ({ value: x, label: x }))]}
+        />
       </Field>
     </Panel>
   );
 
-  const pos = { upper: "top-[20%]", middle: "top-[50%]", lower: "top-[72%]" }[c.position];
-
   return (
     <Workspace panel={panel}>
       <div className="flex flex-col gap-4">
-        {CLIPS.map((k, i) => {
-          const words = k.quote.replace(/[.,]/g, "").split(" ").slice(0, 4);
-          return (
-            <Card key={i} className="py-4">
-              <CardContent className="grid gap-5 px-4 md:grid-cols-[150px_minmax(0,1fr)]">
-                <div className="@container relative mx-auto aspect-[9/16] w-[150px] overflow-hidden rounded-lg bg-[#111113] shadow-md ring-1 ring-border">
-                  {c.hook && <span className="absolute inset-x-[6cqw] top-[6%] text-center text-[8cqw] font-black uppercase leading-[1.05] text-white">{k.hook}</span>}
-                  <div className="absolute left-1/2 top-[28%] w-[62%] -translate-x-1/2">
-                    <div className="absolute -inset-[8cqw] rounded-full opacity-50 blur-[10cqw]" style={{ background: accent }} />
-                    <Art url={artUrl} className="relative aspect-square w-full rounded-[3cqw]" />
-                  </div>
-                  <div className={cn("absolute inset-x-[5cqw]", pos)}>
-                    <CaptionPreview style={c.style} words={words} accent={accent} />
-                  </div>
-                  {c.progress && (
-                    <div className="absolute inset-x-[6cqw] bottom-[4%] h-[1.6cqw] rounded-full bg-white/20">
-                      <div className="h-full w-[35%] rounded-full" style={{ background: accent }} />
-                    </div>
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-col gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[14px] font-semibold">{k.hook}</span>
-                    <Badge variant="outline" className="font-mono font-normal">
-                      {k.start}–{k.end}
-                    </Badge>
-                  </div>
-                  <p className="text-[13px] italic leading-relaxed text-muted-foreground">“{k.quote}”</p>
-                  <div className="grid gap-3 xl:grid-cols-3">
-                    {targets.map((t) => (
-                      <div key={t.id} className="flex flex-col gap-1.5">
-                        <Label className="flex items-center gap-1.5 text-[12px]">
-                          <FontAwesomeIcon icon={t.icon} className="text-muted-foreground" />
-                          {t.name}
-                        </Label>
-                        <Textarea key={`${ep?.id}-${t.id}`} aria-label={`${k.hook} ${t.name} caption`} defaultValue={t.caption(k)} className="h-[132px] resize-none text-[12.5px] leading-relaxed [field-sizing:fixed]" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => flash("Captions rewritten")}>
-                      <FontAwesomeIcon icon={faRotate} />
-                      Rewrite
-                    </Button>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <Button size="sm" variant="outline" disabled>
-                            <FontAwesomeIcon icon={faDownload} />
-                            MP4 + captions
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>Clip rendering arrives with Stage 10c</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {CLIPS.map((k, i) => (
+          <ClipCard key={`${ep?.id}-${i}`} ctx={ctx} clip={k} index={i} />
+        ))}
       </div>
     </Workspace>
   );

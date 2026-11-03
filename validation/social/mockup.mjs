@@ -2,7 +2,7 @@
 import { launch, BASE, ok, failCount, sleep } from "../editor/lib.mjs";
 const OUT = process.env.OUT || "/tmp";
 const { b, p, errs } = await launch();
-await p.evaluate(() => localStorage.removeItem("podstudio.social.settings.v1"));
+await p.evaluate(() => localStorage.removeItem("podstudio.social.settings.v2"));
 await p.click('[data-testid=nav-social]'); await p.waitForURL("**/studio/social"); await p.waitForSelector("text=Rewrite all");
 ok("sidebar link opens Social", p.url().endsWith("/studio/social"));
 ok("posts render", await p.locator('textarea[aria-label="Bluesky post"]').count() === 1);
@@ -22,7 +22,13 @@ await p.screenshot({ path: OUT + "/social-graphics-custom.png", fullPage: true }
 await p.getByRole("tab", { name: "Carousel" }).click(); await sleep(400);
 await p.screenshot({ path: OUT + "/social-carousel.png", fullPage: true });
 await p.getByRole("tab", { name: "Clips" }).click(); await sleep(400);
+await p.getByRole("button", { name: "Play preview" }).first().click(); await sleep(1500);
+const timer = await p.locator("text=/0:0[1-9] \\/ 0:51/").count();
+ok("reel preview plays (timer advances)", timer > 0);
+await p.getByRole("button", { name: "Pause preview" }).first().click();
+await p.getByRole("switch", { name: "Show safe zones" }).click(); await sleep(200);
 await p.screenshot({ path: OUT + "/social-clips.png", fullPage: true });
+await p.getByRole("switch", { name: "Show safe zones" }).click();
 await p.getByRole("button", { name: "Show voice" }).click(); await sleep(400);
 ok("voice sheet opens", await p.locator('textarea[aria-label="Voice"]').count() === 1);
 await p.keyboard.press("Escape");
@@ -30,6 +36,6 @@ await p.setViewportSize({ width: 390, height: 844 }); await p.getByRole("tab", {
 const sw = await p.evaluate(() => document.documentElement.scrollWidth);
 ok("no horizontal scroll at 390", sw <= 390, String(sw));
 await p.screenshot({ path: OUT + "/social-phone.png", fullPage: true });
-await p.evaluate(() => localStorage.removeItem("podstudio.social.settings.v1"));
+await p.evaluate(() => localStorage.removeItem("podstudio.social.settings.v2"));
 ok("no page errors", errs.length === 0, errs.join(" | "));
 await b.close(); process.exit(failCount() ? 1 : 0);
