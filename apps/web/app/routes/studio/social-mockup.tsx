@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBluesky,
@@ -12,9 +12,19 @@ import {
   faYoutube,
   type IconDefinition,
 } from "@fortawesome/free-brands-svg-icons";
-import { faCopy, faRotate, faWandMagicSparkles, faFeather, faDownload, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
+import {
+  faCopy,
+  faRotate,
+  faWandMagicSparkles,
+  faFeather,
+  faDownload,
+  faPaperPlane,
+  faArrowRotateLeft,
+  faCheck,
+} from "@fortawesome/free-solid-svg-icons";
 import { listEpisodeRows } from "~/lib/episodes.server";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
+import { accentHex, BRAND_PRESETS, normalizeHex, onAccent, readBrandTheme } from "~/lib/brand-theme";
 import { Page, PageHeader } from "~/components/layout/page";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -22,79 +32,173 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction, 
 import { FormSelect } from "~/components/ui/form-select";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Separator } from "~/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "~/components/ui/sheet";
+import { Slider } from "~/components/ui/slider";
+import { Switch } from "~/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Textarea } from "~/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 
-// MOCKUP of the social features planned for Stage 07 (post copy) and Stage 10c
-// (graphics, carousel, clip captions). Nothing here calls an AI provider or a
-// platform: the drafts are sample text built from the episode title, and
-// Regenerate swaps between canned variants. Not in the sidebar; open
-// /studio/social directly. Design notes: docs/notes/social-generator.md.
+// MOCKUP of the social tools planned for Stage 07 (post copy) and Stage 10c
+// (graphics, carousel, clip captions). Nothing calls an AI provider or a
+// platform: drafts are sample text assembled from the episode and the
+// Customize settings, and Rewrite cycles canned variants. Settings are kept in
+// this browser only (the real build saves them with the show).
+// Design notes: docs/notes/social-generator.md.
 export async function loader() {
   const { show, rows } = listEpisodeRows();
   const art = getShowArtwork();
   return {
-    artUrl: art ? `/${art.slug}/artwork/${artworkFile(art)}` : null,
     showTitle: show?.title ?? "Your show",
+    brandAccent: accentHex(readBrandTheme(show?.theme)),
+    artUrl: art ? `/${art.slug}/artwork/${artworkFile(art)}` : null,
     episodes: rows.slice(0, 24).map((r) => ({ id: r.id, number: r.number, title: r.title, guest: r.guest })),
   };
 }
 
 type Ep = Awaited<ReturnType<typeof loader>>["episodes"][number];
 
-// ---------------------------------------------------------------- platform rules
+// ---------------------------------------------------------------- settings
 
 type PlatformId = "bluesky" | "threads" | "mastodon" | "x" | "facebook" | "instagram" | "linkedin" | "youtube";
+const LAYOUTS = ["Split", "Full bleed", "Framed", "Corner", "Band"] as const;
+type LayoutName = (typeof LAYOUTS)[number];
+const CAPTION_STYLES = ["Bold pop", "Clean", "Boxed", "Karaoke", "Word bubble", "Minimal"] as const;
+type CaptionStyle = (typeof CAPTION_STYLES)[number];
+
+interface Settings {
+  posts: {
+    platforms: PlatformId[];
+    length: "short" | "standard" | "long";
+    hashtags: number;
+    emoji: boolean;
+    tagGuests: boolean;
+    link: boolean;
+    cta: "listen" | "out-now" | "none";
+  };
+  look: {
+    template: "headline" | "quote";
+    layout: "auto" | LayoutName;
+    accent: string; // "brand" or a hex
+    darken: number; // 0–90
+    corners: "sharp" | "soft" | "round";
+    waveform: boolean;
+    wordmark: boolean;
+    episodeNumber: boolean;
+  };
+  carousel: { slides: number; numbers: boolean; quotes: boolean };
+  clips: { style: CaptionStyle; hook: boolean; progress: boolean; position: "upper" | "middle" | "lower" };
+}
+
+const DEFAULTS: Settings = {
+  posts: { platforms: ["bluesky", "threads", "mastodon", "facebook", "instagram", "youtube"], length: "standard", hashtags: 2, emoji: false, tagGuests: true, link: true, cta: "listen" },
+  look: { template: "headline", layout: "auto", accent: "brand", darken: 55, corners: "soft", waveform: true, wordmark: true, episodeNumber: true },
+  carousel: { slides: 6, numbers: true, quotes: true },
+  clips: { style: "Bold pop", hook: true, progress: true, position: "lower" },
+};
+
+const STORE = "podstudio.social.settings.v1";
+
+function useSettings() {
+  const [s, setS] = useState<Settings>(DEFAULTS);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORE);
+      if (raw) {
+        const v = JSON.parse(raw);
+        setS({
+          posts: { ...DEFAULTS.posts, ...v.posts },
+          look: { ...DEFAULTS.look, ...v.look },
+          carousel: { ...DEFAULTS.carousel, ...v.carousel },
+          clips: { ...DEFAULTS.clips, ...v.clips },
+        });
+      }
+    } catch {
+      /* storage can be blocked; defaults work */
+    }
+    setLoaded(true);
+  }, []);
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(STORE, JSON.stringify(s));
+    } catch {
+      /* ignore */
+    }
+  }, [s, loaded]);
+  const set = <K extends keyof Settings>(k: K, patch: Partial<Settings[K]>) => setS((cur) => ({ ...cur, [k]: { ...cur[k], ...patch } }));
+  const reset = (k: keyof Settings) => setS((cur) => ({ ...cur, [k]: DEFAULTS[k] }));
+  return { s, set, reset };
+}
+
+// ---------------------------------------------------------------- platform rules
 
 const segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter("en", { granularity: "grapheme" }) : null;
 const graphemes = (t: string) => (segmenter ? [...segmenter.segment(t)].length : [...t].length);
 const codePoints = (t: string) => [...t].length;
 const linksAs23 = (t: string) => codePoints(t.replace(/https?:\/\/\S+/g, "x".repeat(23)));
 
-const PLATFORMS: {
+interface Platform {
   id: PlatformId;
   name: string;
   icon: IconDefinition;
   limit: number;
   count: (t: string) => number;
   rule: string;
-}[] = [
-  { id: "bluesky", name: "Bluesky", icon: faBluesky, limit: 300, count: graphemes, rule: "300 graphemes · up to 3 hashtags at the end" },
-  { id: "threads", name: "Threads", icon: faThreads, limit: 500, count: codePoints, rule: "500 characters · no hashtags, one topic" },
-  { id: "mastodon", name: "Mastodon", icon: faMastodon, limit: 500, count: linksAs23, rule: "500 characters · every link counts as 23" },
-  { id: "x", name: "X", icon: faXTwitter, limit: 280, count: linksAs23, rule: "280 characters · links count as 23" },
-  { id: "facebook", name: "Facebook", icon: faFacebook, limit: 2000, count: codePoints, rule: "Keep it under about 2,000 characters" },
-  { id: "instagram", name: "Instagram", icon: faInstagram, limit: 1500, count: codePoints, rule: "Hook first line · “link in bio” · 3–5 hashtags" },
-  { id: "linkedin", name: "LinkedIn", icon: faLinkedin, limit: 3000, count: codePoints, rule: "3,000 characters · professional angle" },
-  { id: "youtube", name: "YouTube", icon: faYoutube, limit: 5000, count: codePoints, rule: "Description: summary, chapters, links" },
+  maxTags: number;
+  linkInText: boolean;
+}
+const PLATFORMS: Platform[] = [
+  { id: "bluesky", name: "Bluesky", icon: faBluesky, limit: 300, count: graphemes, rule: "Link becomes a card", maxTags: 3, linkInText: false },
+  { id: "threads", name: "Threads", icon: faThreads, limit: 500, count: codePoints, rule: "No hashtags · one topic", maxTags: 0, linkInText: false },
+  { id: "mastodon", name: "Mastodon", icon: faMastodon, limit: 500, count: linksAs23, rule: "Links count as 23", maxTags: 5, linkInText: true },
+  { id: "x", name: "X", icon: faXTwitter, limit: 280, count: linksAs23, rule: "Links count as 23", maxTags: 2, linkInText: true },
+  { id: "facebook", name: "Facebook", icon: faFacebook, limit: 2000, count: codePoints, rule: "Longer is fine", maxTags: 3, linkInText: true },
+  { id: "instagram", name: "Instagram", icon: faInstagram, limit: 2200, count: codePoints, rule: "“Link in bio”", maxTags: 5, linkInText: false },
+  { id: "linkedin", name: "LinkedIn", icon: faLinkedin, limit: 3000, count: codePoints, rule: "Professional angle", maxTags: 3, linkInText: true },
+  { id: "youtube", name: "YouTube", icon: faYoutube, limit: 5000, count: codePoints, rule: "Description with chapters", maxTags: 3, linkInText: true },
 ];
+
+const TAG_POOL = ["podcast", "radio", "broadcasting", "tech", "audio"];
+const LINK = "https://example.com/episode";
 
 // ---------------------------------------------------------------- sample drafts
 
-function drafts(ep: Ep | undefined, variant: number): Record<PlatformId, string> {
-  const t = ep?.title ?? "the new episode";
-  const n = ep?.number != null ? `Ep. ${ep.number}` : "New episode";
-  const with_ = ep?.guest ? ` with ${ep.guest}` : "";
-  const v = variant % 2;
-  return {
-    bluesky: v
-      ? `The short version of ${n}: ${t}. The part I keep thinking about is in the last ten minutes.\n\n#podcast #tech`
-      : `${n} is out: ${t}${with_}. One conversation, no filler, and a few things I got wrong last time.\n\n#podcast #radio`,
-    threads: v
-      ? `${t}${with_}. I went in expecting one answer and came out with a better question. Full episode is up now.`
-      : `New one's up: ${t}${with_}. If you've ever wondered how this actually works behind the scenes, this is the episode for you.`,
-    mastodon: v
-      ? `${n}: ${t}. Notes and the full transcript are on the episode page.\n\nhttps://example.com/episode\n\n#podcast`
-      : `${n} is out: ${t}${with_}. One conversation, no filler.\n\nhttps://example.com/episode\n\n#podcast #radio`,
-    x: v ? `${n}: ${t}. The last ten minutes are the part to hear.` : `${n} is out: ${t}${with_}. One conversation, no filler.`,
-    facebook: `${n} is live: ${t}${with_}.\n\nWe get into how it really works, what most people get wrong, and the one thing I'd change if I were starting over. Listen wherever you get podcasts, or right on the site.`,
-    instagram: `${t}${with_}.\n\nThis one started as a quick question and turned into the whole episode. Swipe for the short version.\n\nFull episode: link in bio.\n\n#podcast #broadcasting #radio #tech`,
-    linkedin: `In ${n} of the show I talk through ${t.toLowerCase()}${with_}.\n\nThree takeaways for anyone working in the field:\n1. Start with the signal path.\n2. Document what you change.\n3. Test it the way listeners use it.`,
-    youtube: `${t}${with_}.\n\nChapters\n00:00 Intro\n04:12 The setup\n18:40 What went wrong\n31:05 What I'd do now\n\nShow notes and transcript: https://example.com/episode`,
-  };
+function composePost(p: Platform, ep: Ep | undefined, o: Settings["posts"], variant: number): string {
+  const title = ep?.title ?? "the new episode";
+  const n = ep?.number != null ? `Ep. ${ep.number}` : "The new episode";
+  const v = variant % 3;
+  const guest = ep?.guest ? (o.tagGuests ? ` with @${ep.guest.replace(/\s+/g, "")}` : ` with ${ep.guest}`) : "";
+  const emoji = o.emoji ? " 🎙️" : "";
+  const opener = [`${n} is out: ${title}${guest}.${emoji}`, `New episode: ${title}${guest}.${emoji}`, `${title}${guest}.${emoji}`][v];
+  const mid = [
+    "One conversation, no filler, and a few things I got wrong last time.",
+    "I went in expecting one answer and came out with a better question.",
+    "The part I keep thinking about is in the last ten minutes.",
+  ][v];
+  const more = "We get into how it really works, what most people miss, and what I'd change if I were starting over.";
+  const cta = { listen: "Listen wherever you get podcasts.", "out-now": "Out now.", none: "" }[o.cta];
+
+  if (p.id === "youtube") {
+    return [`${title}${guest}.`, mid, "", "Chapters", "00:00 Intro", "04:12 The setup", "18:40 What went wrong", "31:05 What I'd do now", "", `Show notes and transcript: ${LINK}`].join("\n");
+  }
+  if (p.id === "linkedin") {
+    return [`In ${ep?.number != null ? n : "the new episode"} I talk through ${title.toLowerCase()}${guest}.`, "", "Three takeaways for anyone in the field:", "1. Start with the signal path.", "2. Document what you change.", "3. Test it the way listeners hear it.", o.link ? `\n${LINK}` : ""].join("\n").trim();
+  }
+
+  const body = o.length === "short" || p.id === "x" ? [opener] : o.length === "standard" ? [opener, mid] : [opener, mid, more];
+  if (p.id === "instagram") body.push("Full episode: link in bio.");
+  else if (cta) body.push(cta);
+
+  let text = body.join(p.id === "instagram" || o.length === "long" ? "\n\n" : " ");
+  if (o.link && p.linkInText) text += `\n\n${LINK}`;
+  const tags = Math.min(o.hashtags, p.maxTags);
+  if (tags > 0) text += `\n\n${TAG_POOL.slice(0, tags).map((t) => `#${t}`).join(" ")}`;
+  return text;
 }
 
 const DEFAULT_VOICE = `First person, plain and conversational, like talking to someone who works in the same building. Short sentences. Specific over general.
@@ -105,498 +209,924 @@ No hype words (game-changer, dive in, unpack), no clickbait, no rhetorical-quest
 
 Never invent facts, quotes, numbers or guests. Quotes are word for word from the transcript.`;
 
-// Fixed bar heights so server and client render the same thing.
 const BARS = [0.35, 0.6, 0.45, 0.8, 0.55, 0.95, 0.7, 0.4, 0.65, 0.85, 0.5, 0.3, 0.6, 0.9, 0.75, 0.45, 0.55, 0.8, 0.6, 0.35, 0.5, 0.7, 0.4, 0.25];
 
 // ---------------------------------------------------------------- page
 
-export default function SocialMockup({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
-  const { showTitle, episodes, artUrl } = loaderData;
-  ART_URL = artUrl;
+interface Ctx {
+  ep: Ep | undefined;
+  showTitle: string;
+  artUrl: string | null;
+  accent: string;
+  brandAccent: string;
+  s: Settings;
+  set: <K extends keyof Settings>(k: K, patch: Partial<Settings[K]>) => void;
+  reset: (k: keyof Settings) => void;
+  flash: (m: string) => void;
+}
+
+export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
+  const { showTitle, episodes, artUrl, brandAccent } = loaderData;
   const [epId, setEpId] = useState(episodes[0]?.id ?? "");
   const ep = episodes.find((e) => e.id === epId);
+  const { s, set, reset } = useSettings();
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => {
     setToast(m);
     setTimeout(() => setToast(null), 1600);
   };
+  const accent = s.look.accent === "brand" ? brandAccent : (normalizeHex(s.look.accent) ?? brandAccent);
+  const ctx: Ctx = { ep, showTitle, artUrl, accent, s, set, reset, flash, brandAccent };
 
   return (
-    <Page width="wide">
-      <PageHeader
-        eyebrow="Publish & share"
-        title="Social"
-        description="Posts, graphics and clip captions written for each platform from your episode. You review and copy everything; nothing posts on its own."
-        below={
-          <Badge variant="outline" className="border-dashed">
-            Mockup · sample text, nothing is generated yet
-          </Badge>
-        }
-        actions={
-          <>
-            <FormSelect
-              aria-label="Episode"
-              value={epId}
-              onValueChange={setEpId}
-              className="w-[280px]"
-              placeholder="Pick an episode"
-              options={episodes.map((e) => ({ value: e.id, label: `${e.number != null ? `Ep. ${e.number} · ` : ""}${e.title}` }))}
-            />
-            <VoiceSheet onSave={() => flash("Voice saved (mockup)")} />
-          </>
-        }
-      />
+    <TooltipProvider delayDuration={250}>
+      <Page width="wide" className="max-w-[1320px]">
+        <PageHeader
+          eyebrow="Publish & share"
+          title="Social"
+          description="Posts, graphics and clip captions for every platform, written from your episode. Review, tweak and copy; nothing posts on its own."
+          actions={
+            <>
+              <FormSelect
+                aria-label="Episode"
+                value={epId}
+                onValueChange={setEpId}
+                className="w-full sm:w-[300px]"
+                placeholder="Pick an episode"
+                options={episodes.map((e) => ({ value: e.id, label: `${e.number != null ? `Ep. ${e.number} · ` : ""}${e.title}` }))}
+              />
+              <VoiceSheet onSave={() => flash("Voice saved")} />
+            </>
+          }
+          below={
+            <Badge variant="secondary" className="font-normal text-muted-foreground">
+              Preview · sample text until AI writing arrives
+            </Badge>
+          }
+        />
 
-      <Tabs defaultValue="posts">
-        <TabsList>
-          <TabsTrigger value="posts">Posts</TabsTrigger>
-          <TabsTrigger value="graphics">Graphics</TabsTrigger>
-          <TabsTrigger value="carousel">Carousel</TabsTrigger>
-          <TabsTrigger value="clips">Clip captions</TabsTrigger>
-        </TabsList>
-        <TabsContent value="posts" className="mt-4">
-          <PostsTab ep={ep} flash={flash} />
-        </TabsContent>
-        <TabsContent value="graphics" className="mt-4">
-          <GraphicsTab ep={ep} showTitle={showTitle} />
-        </TabsContent>
-        <TabsContent value="carousel" className="mt-4">
-          <CarouselTab ep={ep} showTitle={showTitle} flash={flash} />
-        </TabsContent>
-        <TabsContent value="clips" className="mt-4">
-          <ClipsTab ep={ep} flash={flash} />
-        </TabsContent>
-      </Tabs>
+        {episodes.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-[13.5px] text-muted-foreground">Create an episode first; social posts are written from it.</CardContent>
+          </Card>
+        ) : (
+          <Tabs defaultValue="posts" className="gap-5">
+            <TabsList className="w-full justify-start sm:w-fit">
+              <TabsTrigger value="posts">Posts</TabsTrigger>
+              <TabsTrigger value="graphics">Graphics</TabsTrigger>
+              <TabsTrigger value="carousel">Carousel</TabsTrigger>
+              <TabsTrigger value="clips">Clips</TabsTrigger>
+            </TabsList>
+            <TabsContent value="posts">
+              <PostsTab {...ctx} />
+            </TabsContent>
+            <TabsContent value="graphics">
+              <GraphicsTab {...ctx} />
+            </TabsContent>
+            <TabsContent value="carousel">
+              <CarouselTab {...ctx} />
+            </TabsContent>
+            <TabsContent value="clips">
+              <ClipsTab {...ctx} />
+            </TabsContent>
+          </Tabs>
+        )}
 
-      {toast && (
-        <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-foreground px-4 py-2 text-[13px] font-medium text-background shadow-lg">
-          {toast}
-        </div>
-      )}
-    </Page>
+        {toast && (
+          <div role="status" className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full bg-foreground px-4 py-2 text-[13px] font-medium text-background shadow-lg">
+            <FontAwesomeIcon icon={faCheck} className="text-[11px]" />
+            {toast}
+          </div>
+        )}
+      </Page>
+    </TooltipProvider>
   );
 }
 
+// ---------------------------------------------------------------- shared bits
+
+function Workspace({ panel, children }: { panel: ReactNode; children: ReactNode }) {
+  return (
+    <div className="grid items-start gap-5 lg:grid-cols-[292px_minmax(0,1fr)]">
+      <div className="lg:sticky lg:top-4">{panel}</div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function Panel({ title, onReset, children, footer }: { title: string; onReset: () => void; children: ReactNode; footer?: ReactNode }) {
+  return (
+    <Card className="gap-0 py-0">
+      <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
+        <span className="text-[13px] font-semibold">{title}</span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-[12px] text-muted-foreground" onClick={onReset}>
+          <FontAwesomeIcon icon={faArrowRotateLeft} className="text-[10px]" />
+          Reset
+        </Button>
+      </div>
+      <Separator />
+      <div className="flex flex-col gap-4 px-4 py-4">{children}</div>
+      {footer && (
+        <>
+          <Separator />
+          <div className="px-4 py-3">{footer}</div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Field({ label, hint, children, inline }: { label: string; hint?: string; children: ReactNode; inline?: boolean }) {
+  if (inline)
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12.5px] font-medium">{label}</div>
+          {hint && <div className="text-[11.5px] leading-snug text-muted-foreground">{hint}</div>}
+        </div>
+        {children}
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[12.5px] font-medium">{label}</span>
+        {hint && <span className="text-[11.5px] text-muted-foreground">{hint}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label: string }) {
+  return (
+    <ToggleGroup type="single" variant="outline" size="sm" value={value} onValueChange={(v) => v && onChange(v as T)} className="w-full" aria-label={label}>
+      {options.map((o) => (
+        <ToggleGroupItem key={o.value} value={o.value} className="flex-1 px-1.5 text-[12px]">
+          {o.label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+}
+
+function AccentPicker({ value, brand, onChange }: { value: string; brand: string; onChange: (v: string) => void }) {
+  const presets = Object.values(BRAND_PRESETS).filter((p) => p.hex !== "#000000" && p.hex !== brand.toLowerCase());
+  const custom = value !== "brand" && !presets.some((p) => p.hex === value);
+  const swatch = (hex: string, active: boolean, label: string, onClick: () => void) => (
+    <Tooltip key={label}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={active}
+          onClick={onClick}
+          className={cn("size-7 rounded-full ring-offset-2 ring-offset-card transition-shadow", active ? "ring-2 ring-foreground" : "ring-1 ring-border hover:ring-foreground/50")}
+          style={{ background: hex }}
+        />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {swatch(brand, value === "brand", "Brand accent", () => onChange("brand"))}
+      <span className="h-5 w-px bg-border" aria-hidden />
+      {presets.map((p) => swatch(p.hex, value === p.hex, p.label, () => onChange(p.hex)))}
+      <label className={cn("relative size-7 cursor-pointer overflow-hidden rounded-full ring-offset-2 ring-offset-card", custom ? "ring-2 ring-foreground" : "ring-1 ring-border")} title="Custom color">
+        <span className="absolute inset-0" style={{ background: custom ? value : "conic-gradient(#ff807f,#fabf47,#beff00,#00fff5,#c7bff6,#ff807f)" }} />
+        <input type="color" aria-label="Custom color" className="absolute inset-0 cursor-pointer opacity-0" value={custom ? value : brand} onChange={(e) => onChange(e.target.value)} />
+      </label>
+    </div>
+  );
+}
+
+function Art({ url, className }: { url: string | null; className?: string }) {
+  const [ok, setOk] = useState(true);
+  return (
+    <div className={cn("relative overflow-hidden bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900", className)}>
+      {ok && url && <img src={url} alt="" draggable={false} className="absolute inset-0 size-full object-cover" onError={() => setOk(false)} />}
+    </div>
+  );
+}
+
+function Bars({ accent, className }: { accent: string; className?: string }) {
+  return (
+    <div className={cn("flex items-end gap-[0.5cqw]", className)} aria-hidden>
+      {BARS.map((h, i) => (
+        <span key={i} className="w-[0.7cqw] rounded-full" style={{ height: `${h * 100}%`, background: accent }} />
+      ))}
+    </div>
+  );
+}
+
+const RADIUS = { sharp: "0", soft: "2.2cqw", round: "5cqw" } as const;
+
 // ---------------------------------------------------------------- posts
 
-function PostsTab({ ep, flash }: { ep: Ep | undefined; flash: (m: string) => void }) {
-  const [mode, setMode] = useState("draft");
-  const [notes, setNotes] = useState("");
+function PostsTab({ ep, s, set, reset, flash }: Ctx) {
+  const o = s.posts;
   const [variants, setVariants] = useState<Record<string, number>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [topic, setTopic] = useState("Radio and Broadcasting");
-  const [enabled, setEnabled] = useState<string[]>(["bluesky", "threads", "mastodon", "facebook", "instagram", "youtube"]);
   const key = ep?.id ?? "";
-  const base = useMemo(() => {
-    const out: Record<string, string> = {};
-    for (const p of PLATFORMS) out[p.id] = drafts(ep, variants[p.id] ?? 0)[p.id];
-    return out;
-  }, [ep, variants]);
-  const text = (id: string) => edits[`${key}:${id}`] ?? base[id];
+  const text = (p: Platform) => edits[`${key}:${p.id}`] ?? composePost(p, ep, o, variants[p.id] ?? 0);
+  const active = PLATFORMS.filter((p) => o.platforms.includes(p.id));
+  const clearEdit = (id: string) =>
+    setEdits((cur) => {
+      const next = { ...cur };
+      delete next[`${key}:${id}`];
+      return next;
+    });
+
+  const panel = (
+    <Panel
+      title="Customize"
+      onReset={() => reset("posts")}
+      footer={
+        <Button
+          className="w-full"
+          onClick={() => {
+            setVariants((v) => Object.fromEntries(PLATFORMS.map((p) => [p.id, (v[p.id] ?? 0) + 1])));
+            setEdits({});
+            flash(`${active.length} posts rewritten`);
+          }}
+        >
+          <FontAwesomeIcon icon={faWandMagicSparkles} />
+          Rewrite all
+        </Button>
+      }
+    >
+      <Field label="Platforms" hint={`${active.length} on`}>
+        <div className="grid grid-cols-4 gap-1.5">
+          {PLATFORMS.map((p) => {
+            const on = o.platforms.includes(p.id);
+            return (
+              <Tooltip key={p.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={p.name}
+                    onClick={() => set("posts", { platforms: on ? o.platforms.filter((x) => x !== p.id) : [...o.platforms, p.id] })}
+                    className={cn(
+                      "flex h-9 items-center justify-center rounded-md border text-[15px] transition-colors",
+                      on ? "border-foreground/30 bg-secondary text-foreground" : "border-border text-muted-foreground/50 hover:text-muted-foreground",
+                    )}
+                  >
+                    <FontAwesomeIcon icon={p.icon} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{p.name}</TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+      </Field>
+      <Field label="Length">
+        <Segmented
+          label="Length"
+          value={o.length}
+          onChange={(length) => set("posts", { length })}
+          options={[
+            { value: "short", label: "Short" },
+            { value: "standard", label: "Standard" },
+            { value: "long", label: "Long" },
+          ]}
+        />
+      </Field>
+      <Field label="Hashtags" hint={o.hashtags === 0 ? "None" : `Up to ${o.hashtags}`}>
+        <Slider min={0} max={5} step={1} value={[o.hashtags]} onValueChange={([v]) => set("posts", { hashtags: v })} aria-label="Hashtags" />
+      </Field>
+      <Field label="Call to action">
+        <FormSelect
+          aria-label="Call to action"
+          value={o.cta}
+          onValueChange={(v) => set("posts", { cta: v as Settings["posts"]["cta"] })}
+          options={[
+            { value: "listen", label: "Listen wherever you get podcasts" },
+            { value: "out-now", label: "Out now" },
+            { value: "none", label: "None" },
+          ]}
+        />
+      </Field>
+      <Separator />
+      <Field inline label="Tag guests" hint="Uses handles from Hosts & guests">
+        <Switch checked={o.tagGuests} onCheckedChange={(tagGuests) => set("posts", { tagGuests })} aria-label="Tag guests" />
+      </Field>
+      <Field inline label="Episode link" hint="Where the platform allows it">
+        <Switch checked={o.link} onCheckedChange={(link) => set("posts", { link })} aria-label="Episode link" />
+      </Field>
+      <Field inline label="Emoji" hint="At most one">
+        <Switch checked={o.emoji} onCheckedChange={(emoji) => set("posts", { emoji })} aria-label="Emoji" />
+      </Field>
+    </Panel>
+  );
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle className="text-[15px]">Write posts</CardTitle>
-          <CardDescription>From the transcript, show notes and your voice.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label>Mode</Label>
-            <ToggleGroup type="single" variant="outline" size="sm" value={mode} onValueChange={(v) => v && setMode(v)} className="w-full">
-              <ToggleGroupItem value="draft" className="flex-1 text-[12.5px]">Draft</ToggleGroupItem>
-              <ToggleGroupItem value="clean" className="flex-1 text-[12.5px]">Clean up</ToggleGroupItem>
-              <ToggleGroupItem value="split" className="flex-1 text-[12.5px]">Split</ToggleGroupItem>
-            </ToggleGroup>
-            <p className="text-[12px] text-muted-foreground">
-              {mode === "draft" && "Writes from the episode. Your notes steer what to say."}
-              {mode === "clean" && "Fixes and tightens your text. Keeps your opinions."}
-              {mode === "split" && "Turns your text into a version for each platform."}
-            </p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="notes">{mode === "draft" ? "Notes (optional)" : "Your text"}</Label>
-            <Textarea
-              id="notes"
-              rows={4}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={mode === "draft" ? "Focus on the antenna story…" : "Paste or write your post…"}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Platforms</Label>
-            <ToggleGroup type="multiple" variant="outline" size="sm" value={enabled} onValueChange={setEnabled} className="flex w-full flex-wrap justify-start">
-              {PLATFORMS.map((p) => (
-                <ToggleGroupItem key={p.id} value={p.id} aria-label={p.name} title={p.name} className="flex-none px-2.5">
-                  <FontAwesomeIcon icon={p.icon} />
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </div>
-          <Button
-            onClick={() => {
-              setVariants((v) => Object.fromEntries(PLATFORMS.map((p) => [p.id, (v[p.id] ?? 0) + 1])));
-              setEdits({});
-              flash("Drafts written (sample text)");
-            }}
-          >
-            <FontAwesomeIcon icon={faWandMagicSparkles} />
-            Write {enabled.length} posts
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {PLATFORMS.filter((p) => enabled.includes(p.id)).map((p) => {
-          const t = text(p.id);
-          const n = p.count(t);
-          const over = n > p.limit;
-          const tags = (t.match(/#\w+/g) ?? []).map((h) => h.slice(1));
-          return (
-            <Card key={p.id} className="gap-3 py-4">
-              <CardHeader className="px-4">
-                <CardTitle className="flex items-center gap-2 text-[14px]">
-                  <FontAwesomeIcon icon={p.icon} className="text-muted-foreground" />
-                  {p.name}
-                </CardTitle>
-                <CardDescription className="text-[12px]">{p.rule}</CardDescription>
-                <CardAction>
-                  <span className={cn("font-mono text-[12px] tabular-nums", over ? "font-semibold text-destructive" : "text-muted-foreground")}>
-                    {n} / {p.limit.toLocaleString("en-US")}
-                  </span>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 px-4">
-                <Textarea
-                  aria-label={`${p.name} post`}
-                  value={t}
-                  onChange={(e) => setEdits((s) => ({ ...s, [`${key}:${p.id}`]: e.target.value }))}
-                  className="min-h-[120px] text-[13.5px] leading-relaxed"
-                  aria-invalid={over}
-                />
-                {p.id === "threads" && (
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="topic" className="shrink-0 text-[12px] text-muted-foreground">Topic</Label>
-                    <Input id="topic" value={topic} maxLength={50} onChange={(e) => setTopic(e.target.value.replace(/[.&]/g, ""))} className="h-8 text-[13px]" />
-                  </div>
-                )}
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((h) => (
-                      <Badge key={h} variant="secondary" className="font-normal">#{h}</Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="gap-2 px-4">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setVariants((v) => ({ ...v, [p.id]: (v[p.id] ?? 0) + 1 }));
-                    setEdits((s) => {
-                      const { [`${key}:${p.id}`]: _, ...rest } = s;
-                      return rest;
-                    });
-                  }}
-                >
-                  <FontAwesomeIcon icon={faRotate} />
-                  Regenerate
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(t).catch(() => {});
-                    flash(`${p.name} post copied`);
-                  }}
-                >
-                  <FontAwesomeIcon icon={faCopy} />
-                  Copy
-                </Button>
-                <Button size="sm" variant="ghost" disabled title="Posting from Podstudio is on the wish list" className="ml-auto">
-                  <FontAwesomeIcon icon={faPaperPlane} />
-                  Post
-                </Button>
-              </CardFooter>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
+    <Workspace panel={panel}>
+      {active.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-[13.5px] text-muted-foreground">Turn on a platform to write a post for it.</CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {active.map((p) => {
+            const t = text(p);
+            const n = p.count(t);
+            const pct = Math.min(1, n / p.limit);
+            const over = n > p.limit;
+            const edited = edits[`${key}:${p.id}`] !== undefined;
+            return (
+              <Card key={p.id} className="gap-3 py-4">
+                <CardHeader className="px-4">
+                  <CardTitle className="flex items-center gap-2 text-[14px]">
+                    <span className="flex size-7 items-center justify-center rounded-md bg-secondary text-[13px]">
+                      <FontAwesomeIcon icon={p.icon} />
+                    </span>
+                    {p.name}
+                    {edited && <span className="text-[11px] font-normal text-muted-foreground">· edited</span>}
+                  </CardTitle>
+                  <CardDescription className="text-[11.5px]">{p.rule}</CardDescription>
+                  <CardAction className="flex flex-col items-end gap-1">
+                    <span className={cn("font-mono text-[11.5px] tabular-nums", over ? "font-semibold text-destructive" : "text-muted-foreground")}>
+                      {n.toLocaleString("en-US")} / {p.limit.toLocaleString("en-US")}
+                    </span>
+                    <span className="h-1 w-16 overflow-hidden rounded-full bg-secondary" aria-hidden>
+                      <span className={cn("block h-full rounded-full", over ? "bg-destructive" : pct > 0.85 ? "bg-host" : "bg-foreground/40")} style={{ width: `${pct * 100}%` }} />
+                    </span>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2.5 px-4">
+                  <Textarea
+                    aria-label={`${p.name} post`}
+                    value={t}
+                    onChange={(e) => setEdits((cur) => ({ ...cur, [`${key}:${p.id}`]: e.target.value }))}
+                    className="min-h-[132px] resize-none text-[13.5px] leading-relaxed"
+                    aria-invalid={over}
+                  />
+                  {p.id === "threads" && (
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="topic" className="shrink-0 text-[12px] text-muted-foreground">
+                        Topic
+                      </Label>
+                      <Input id="topic" value={topic} maxLength={50} onChange={(e) => setTopic(e.target.value.replace(/[.&]/g, ""))} className="h-8 text-[13px]" />
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter className="gap-1.5 px-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setVariants((v) => ({ ...v, [p.id]: (v[p.id] ?? 0) + 1 }));
+                      clearEdit(p.id);
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faRotate} />
+                    Rewrite
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(t).catch(() => {});
+                      flash(`${p.name} post copied`);
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faCopy} />
+                    Copy
+                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="ml-auto">
+                        <Button size="sm" variant="ghost" disabled>
+                          <FontAwesomeIcon icon={faPaperPlane} />
+                          Post
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Posting from Podstudio comes later</TooltipContent>
+                  </Tooltip>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </Workspace>
   );
 }
 
 // ---------------------------------------------------------------- graphics
 
-const LAYOUTS = ["Split", "Full bleed", "Framed", "Corner", "Band"] as const;
-type LayoutName = (typeof LAYOUTS)[number];
-
-// Set once per render from the loader; every preview uses the show's artwork.
-let ART_URL: string | null = null;
-
-function Art({ className }: { className?: string }) {
-  const [ok, setOk] = useState(true);
-  return (
-    <div className={cn("relative overflow-hidden bg-gradient-to-br from-host/70 via-music/50 to-guest/60", className)}>
-      {ok && ART_URL && <img src={ART_URL} alt="" className="absolute inset-0 size-full object-cover" onError={() => setOk(false)} />}
-    </div>
-  );
-}
-
-function Bars({ className }: { className?: string }) {
-  return (
-    <div className={cn("flex h-6 items-end gap-[2px]", className)} aria-hidden>
-      {BARS.map((h, i) => (
-        <span key={i} className="w-[3px] rounded-full bg-primary" style={{ height: `${h * 100}%` }} />
-      ))}
-    </div>
-  );
-}
-
-function PostImage({ ep, showTitle, layout, ratio, label }: { ep: Ep | undefined; showTitle: string; layout: LayoutName; ratio: string; label: string }) {
-  const title = ep?.title ?? "Episode title";
-  const meta = `${ep?.number != null ? `Ep. ${ep.number}` : "New episode"}${ep?.guest ? ` · with ${ep.guest}` : ""}`;
-  const type = (
-    <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/70">{meta}</span>
-      <span className="text-[15px] font-bold leading-tight text-white [overflow-wrap:anywhere]">{title}</span>
-      <div className="mt-1 flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/80">{showTitle}</span>
-        <Bars className="h-4" />
-      </div>
-    </div>
-  );
-  return (
-    <figure className="flex flex-col gap-1.5">
-      <div className="relative w-full overflow-hidden rounded-md bg-[#151517] shadow-sm ring-1 ring-border" style={{ aspectRatio: ratio }}>
-        {layout === "Split" && (
-          <div className="flex size-full flex-col">
-            <Art className="flex-[1.3]" />
-            <div className="flex flex-1 flex-col justify-center p-3">{type}</div>
-          </div>
-        )}
-        {layout === "Full bleed" && (
-          <>
-            <Art className="absolute inset-0" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-3">{type}</div>
-          </>
-        )}
-        {layout === "Framed" && (
-          <div className="flex size-full flex-col gap-2 p-3">
-            <Art className="flex-1 rounded-sm" />
-            {type}
-          </div>
-        )}
-        {layout === "Corner" && (
-          <>
-            <Art className="absolute right-3 top-3 aspect-square w-[38%] rounded-sm" />
-            <div className="absolute inset-x-0 bottom-0 p-3">{type}</div>
-          </>
-        )}
-        {layout === "Band" && (
-          <div className="flex size-full flex-col">
-            <div className="flex flex-1 flex-col justify-end p-3">{type}</div>
-            <Art className="h-[34%]" />
-          </div>
-        )}
-      </div>
-      <figcaption className="text-[12px] text-muted-foreground">{label}</figcaption>
-    </figure>
-  );
-}
-
-function GraphicsTab({ ep, showTitle }: { ep: Ep | undefined; showTitle: string }) {
-  // Default layout rotates by episode, like the TWP generator.
+function LookPanel({ s, set, reset, brandAccent, ep }: Ctx) {
+  const l = s.look;
   const auto = LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length];
-  const [picked, setPicked] = useState<LayoutName | null>(null);
-  const layout = picked ?? auto;
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="py-4">
-        <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4">
-          <div className="flex items-center gap-2">
-            <Label className="text-[12.5px]">Layout</Label>
-            <ToggleGroup type="single" variant="outline" size="sm" value={layout} onValueChange={(v) => v && setPicked(v as LayoutName)}>
-              {LAYOUTS.map((l) => (
-                <ToggleGroupItem key={l} value={l} className="px-2.5 text-[12.5px]">
-                  {l}
-                  {l === auto && <span className="ml-1 text-[10px] text-muted-foreground">auto</span>}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+    <Panel title="Customize" onReset={() => reset("look")}>
+      <Field label="Template">
+        <Segmented
+          label="Template"
+          value={l.template}
+          onChange={(template) => set("look", { template })}
+          options={[
+            { value: "headline", label: "Headline" },
+            { value: "quote", label: "Quote" },
+          ]}
+        />
+      </Field>
+      <Field label="Layout">
+        <FormSelect
+          aria-label="Layout"
+          value={l.layout}
+          onValueChange={(v) => set("look", { layout: v as Settings["look"]["layout"] })}
+          options={[{ value: "auto", label: `Rotate per episode (${auto})` }, ...LAYOUTS.map((x) => ({ value: x, label: x }))]}
+        />
+      </Field>
+      <Field label="Accent">
+        <AccentPicker value={l.accent} brand={brandAccent} onChange={(accent) => set("look", { accent })} />
+      </Field>
+      <Field label="Darken art" hint={`${l.darken}%`}>
+        <Slider min={0} max={90} step={5} value={[l.darken]} onValueChange={([v]) => set("look", { darken: v })} aria-label="Darken art" />
+      </Field>
+      <Field label="Corners">
+        <Segmented
+          label="Corners"
+          value={l.corners}
+          onChange={(corners) => set("look", { corners })}
+          options={[
+            { value: "sharp", label: "Sharp" },
+            { value: "soft", label: "Soft" },
+            { value: "round", label: "Round" },
+          ]}
+        />
+      </Field>
+      <Separator />
+      <Field inline label="Waveform">
+        <Switch checked={l.waveform} onCheckedChange={(waveform) => set("look", { waveform })} aria-label="Waveform" />
+      </Field>
+      <Field inline label="Show name">
+        <Switch checked={l.wordmark} onCheckedChange={(wordmark) => set("look", { wordmark })} aria-label="Show name" />
+      </Field>
+      <Field inline label="Episode number">
+        <Switch checked={l.episodeNumber} onCheckedChange={(episodeNumber) => set("look", { episodeNumber })} aria-label="Episode number" />
+      </Field>
+    </Panel>
+  );
+}
+
+const QUOTE = "If you can't explain where the audio goes, you don't really know where it goes.";
+
+function Design({ ctx, ratio }: { ctx: Ctx; ratio: number }) {
+  const { ep, s, accent, artUrl, showTitle } = ctx;
+  const l = s.look;
+  const layout: LayoutName = l.layout === "auto" ? LAYOUTS[(ep?.number ?? 0) % LAYOUTS.length] : l.layout;
+  const tall = ratio < 1;
+  const title = ep?.title ?? "Episode title";
+  const meta = [l.episodeNumber && ep?.number != null ? `Episode ${ep.number}` : null, ep?.guest ? `with ${ep.guest}` : null].filter(Boolean).join(" · ");
+  const dim = l.darken / 100;
+  const quote = l.template === "quote";
+
+  const type = (
+    <div className="flex flex-col gap-[1.6cqw]">
+      {meta && <span className="font-mono text-[max(8px,2.2cqw)] uppercase tracking-[0.14em] text-white/70">{meta}</span>}
+      {quote ? (
+        <span className="font-semibold leading-[1.15] text-white [overflow-wrap:anywhere]" style={{ fontSize: tall ? "6.2cqw" : "4.2cqw" }}>
+          <span style={{ color: accent }}>“</span>
+          {QUOTE}
+          <span style={{ color: accent }}>”</span>
+        </span>
+      ) : (
+        <span className="font-extrabold leading-[1.02] tracking-[-0.02em] text-white [overflow-wrap:anywhere]" style={{ fontSize: tall ? "8cqw" : "5.4cqw" }}>
+          {title}
+        </span>
+      )}
+      {(l.wordmark || l.waveform) && (
+        <div className="mt-[1.2cqw] flex items-end justify-between gap-[3cqw]">
+          {l.wordmark ? <span className="min-w-0 truncate font-mono text-[max(8px,2.1cqw)] font-semibold uppercase tracking-[0.14em] text-white/85">{showTitle}</span> : <span />}
+          {l.waveform && <Bars accent={accent} className="h-[4.5cqw] shrink-0 max-w-[30%] overflow-hidden" />}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="@container relative size-full overflow-hidden bg-[#111113]" style={{ borderRadius: RADIUS[l.corners] }}>
+      {layout === "Split" && (
+        <div className={cn("flex size-full", tall ? "flex-col" : "flex-row-reverse")}>
+          <Art url={artUrl} className={tall ? "h-[54%] w-full shrink-0" : "h-full w-[42%] shrink-0"} />
+          <div className="flex min-w-0 flex-1 flex-col justify-center p-[6cqw]">{type}</div>
+        </div>
+      )}
+      {layout === "Full bleed" && (
+        <>
+          <Art url={artUrl} className="absolute inset-0" />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to top, rgba(17,17,19,${0.35 + dim * 0.6}) 30%, rgba(17,17,19,${dim * 0.5}))` }} />
+          <div className="absolute inset-x-0 bottom-0 p-[6cqw]">{type}</div>
+        </>
+      )}
+      {layout === "Framed" && (
+        <div className={cn("flex size-full gap-[4cqw] p-[5cqw]", tall ? "flex-col" : "flex-row")}>
+          <Art url={artUrl} className={cn("shrink-0", tall ? "w-full flex-1" : "aspect-square h-full")} />
+          <div className="flex min-w-0 flex-1 flex-col justify-end">{type}</div>
+        </div>
+      )}
+      {layout === "Corner" && (
+        <>
+          <Art url={artUrl} className={cn("absolute right-[5cqw] top-[5cqw] aspect-square", tall ? "w-[42%]" : "w-[26%]")} />
+          <span className="absolute left-[6cqw] top-[6cqw] h-[1cqw] w-[10cqw] rounded-full" style={{ background: accent }} />
+          <div className="absolute inset-x-0 bottom-0 p-[6cqw]">{type}</div>
+        </>
+      )}
+      {layout === "Band" && (
+        <div className="flex size-full flex-col">
+          <div className="relative flex flex-1 flex-col justify-end p-[6cqw]">{type}</div>
+          <div className="relative h-[34%]">
+            <Art url={artUrl} className="absolute inset-0" />
+            <div className="absolute inset-0" style={{ background: `rgba(17,17,19,${dim * 0.6})` }} />
+            <div className="absolute inset-x-0 top-0 h-[0.8cqw]" style={{ background: accent }} />
           </div>
-          <p className="text-[12px] text-muted-foreground">Each episode gets the next layout in the rotation, so your feed doesn't repeat.</p>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="outline" disabled>
-              <FontAwesomeIcon icon={faDownload} />
-              Download all (ZIP)
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.4fr_1.4fr]">
-        <PostImage ep={ep} showTitle={showTitle} layout={layout} ratio="1080 / 1350" label="Instagram post · 1080 × 1350" />
-        <PostImage ep={ep} showTitle={showTitle} layout={layout} ratio="1600 / 900" label="X · 1600 × 900" />
-        <PostImage ep={ep} showTitle={showTitle} layout={layout} ratio="1200 / 630" label="Facebook · 1200 × 630" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Tile({ name, size, ratio, children }: { name: string; size: string; ratio: number; children: ReactNode }) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="flex h-[300px] items-center justify-center bg-secondary/40 p-5">
+        <div className={cn("max-h-full max-w-full shadow-xl", ratio <= 1 ? "h-full" : "w-full")} style={{ aspectRatio: ratio }}>
+          {children}
+        </div>
       </div>
-      <div className="grid items-start gap-4 sm:grid-cols-[220px_1fr] lg:grid-cols-[220px_420px]">
-        <figure className="flex flex-col gap-1.5">
-          <div className="relative aspect-square overflow-hidden rounded-md ring-1 ring-border">
-            <Art className="absolute inset-0" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-            <span className="absolute inset-x-3 bottom-3 text-[14px] font-bold leading-tight text-white">{ep?.title}</span>
-          </div>
-          <figcaption className="text-[12px] text-muted-foreground">Episode cover · 3000 × 3000</figcaption>
-        </figure>
-        <figure className="flex flex-col gap-1.5">
-          <div className="relative aspect-video overflow-hidden rounded-md bg-[#151517] ring-1 ring-border">
-            <Art className="absolute inset-y-0 right-0 w-1/2" />
-            <div className="absolute inset-y-0 left-0 flex w-[58%] flex-col justify-center bg-gradient-to-r from-[#151517] via-[#151517] to-transparent p-4">
-              <span className="text-[19px] font-extrabold uppercase leading-[1.05] text-white [overflow-wrap:anywhere]">{ep?.title}</span>
-              <Bars className="mt-2 h-4" />
+      <div className="flex items-center justify-between border-t px-4 py-2.5">
+        <div>
+          <div className="text-[13px] font-medium">{name}</div>
+          <div className="font-mono text-[11px] text-muted-foreground">{size}</div>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button size="icon" variant="ghost" disabled aria-label={`Download ${name}`}>
+                <FontAwesomeIcon icon={faDownload} />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>PNG download arrives with Stage 10c</TooltipContent>
+        </Tooltip>
+      </div>
+    </Card>
+  );
+}
+
+function GraphicsTab(ctx: Ctx) {
+  const { ep, accent, artUrl, s } = ctx;
+  const title = ep?.title ?? "Episode title";
+  return (
+    <Workspace panel={<LookPanel {...ctx} />}>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Tile name="Instagram post" size="1080 × 1350" ratio={1080 / 1350}>
+          <Design ctx={ctx} ratio={1080 / 1350} />
+        </Tile>
+        <Tile name="Story" size="1080 × 1920" ratio={1080 / 1920}>
+          <Design ctx={ctx} ratio={1080 / 1920} />
+        </Tile>
+        <Tile name="X" size="1600 × 900" ratio={16 / 9}>
+          <Design ctx={ctx} ratio={16 / 9} />
+        </Tile>
+        <Tile name="Facebook and link previews" size="1200 × 630" ratio={1200 / 630}>
+          <Design ctx={ctx} ratio={1200 / 630} />
+        </Tile>
+        <Tile name="Episode cover" size="3000 × 3000" ratio={1}>
+          <div className="@container relative size-full overflow-hidden" style={{ borderRadius: RADIUS[s.look.corners] }}>
+            <Art url={artUrl} className="absolute inset-0" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#111113]/95 via-[#111113]/20 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-[2cqw] p-[7cqw]">
+              {ep?.number != null && s.look.episodeNumber && (
+                <span className="w-fit rounded-[1cqw] px-[2cqw] py-[0.8cqw] font-mono text-[3.2cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
+                  EP {ep.number}
+                </span>
+              )}
+              <span className="text-[8cqw] font-extrabold leading-[1.02] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{title}</span>
             </div>
           </div>
-          <figcaption className="text-[12px] text-muted-foreground">YouTube thumbnail · 1280 × 720 · title shrinks to fit</figcaption>
-        </figure>
+        </Tile>
+        <Tile name="YouTube thumbnail" size="1280 × 720" ratio={16 / 9}>
+          <div className="@container relative size-full overflow-hidden bg-[#111113]" style={{ borderRadius: RADIUS[s.look.corners] }}>
+            <Art url={artUrl} className="absolute inset-y-0 right-0 w-[52%]" />
+            <div className="absolute inset-y-0 left-0 flex w-[62%] flex-col justify-center gap-[2.4cqw] bg-gradient-to-r from-[#111113] from-70% to-transparent p-[5cqw]">
+              <span className="text-[7.4cqw] font-black uppercase leading-[0.95] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{title}</span>
+              <span className="h-[1.2cqw] w-[16cqw] rounded-full" style={{ background: accent }} />
+            </div>
+          </div>
+        </Tile>
       </div>
-    </div>
+    </Workspace>
   );
 }
 
 // ---------------------------------------------------------------- carousel
 
-function CarouselTab({ ep, showTitle, flash }: { ep: Ep | undefined; showTitle: string; flash: (m: string) => void }) {
+type SlideDef = { type: "cover" | "text" | "quote" | "cta"; heading: string; body: string; at?: string };
+
+const SLIDE_POOL: SlideDef[] = [
+  { type: "text", heading: "Start with the signal path", body: "Most problems show up long before the transmitter. Trace it from the mic forward." },
+  { type: "quote", heading: "", body: "If you can't explain where the audio goes, you don't really know where it goes.", at: "41:12" },
+  { type: "text", heading: "Write it down", body: "Every change, every setting. Future you is the one who fixes it at 2 a.m." },
+  { type: "text", heading: "Test like a listener", body: "Car radio, cheap earbuds, a phone speaker. That's the real mix." },
+  { type: "quote", heading: "", body: "Everybody blames the transmitter. It's almost never the transmitter.", at: "04:31" },
+  { type: "text", heading: "Keep one spare", body: "The part you don't have on the shelf is the part that fails." },
+];
+
+function CarouselTab(ctx: Ctx) {
+  const { ep, s, set, reset, accent, showTitle, artUrl, flash } = ctx;
+  const c = s.carousel;
   const title = ep?.title ?? "Episode title";
-  const slides = [
-    { type: "cover", heading: title, body: `${ep?.number != null ? `Ep. ${ep.number}` : "New episode"}${ep?.guest ? ` · with ${ep.guest}` : ""}` },
-    { type: "text", heading: "Start with the signal path", body: "Most problems show up long before the transmitter. Trace it from the mic forward." },
-    { type: "quote", heading: "", body: "“If you can't explain where the audio goes, you don't really know where it goes.”" },
-    { type: "text", heading: "Write it down", body: "Every change, every setting. Future you is the one who has to fix it at 2 a.m." },
-    { type: "cta", heading: "Listen to the full episode", body: `${showTitle} · wherever you get podcasts` },
-  ];
+  const middle = SLIDE_POOL.filter((x) => c.quotes || x.type !== "quote").slice(0, Math.max(1, c.slides - 2));
+  const slides: SlideDef[] = [{ type: "cover", heading: title, body: "" }, ...middle, { type: "cta", heading: "Listen to the full episode", body: "Wherever you get podcasts" }];
+  const total = slides.length;
   const caption = `${title}${ep?.guest ? ` with ${ep.guest}` : ""}.\n\nThe short version is in the slides. The long version is the episode.\n\nFull episode: link in bio.\n\n#podcast #radio #broadcasting`;
+
+  const panel = (
+    <Panel title="Customize" onReset={() => reset("carousel")}>
+      <Field label="Slides" hint={`${total} total`}>
+        <Slider min={3} max={8} step={1} value={[c.slides]} onValueChange={([v]) => set("carousel", { slides: v })} aria-label="Slides" />
+      </Field>
+      <Field inline label="Quote slides" hint="Word for word from the transcript">
+        <Switch checked={c.quotes} onCheckedChange={(quotes) => set("carousel", { quotes })} aria-label="Quote slides" />
+      </Field>
+      <Field inline label="Slide numbers">
+        <Switch checked={c.numbers} onCheckedChange={(numbers) => set("carousel", { numbers })} aria-label="Slide numbers" />
+      </Field>
+      <Separator />
+      <Field label="Accent" hint="Shared with Graphics">
+        <AccentPicker value={s.look.accent} brand={ctx.brandAccent} onChange={(a) => set("look", { accent: a })} />
+      </Field>
+    </Panel>
+  );
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-      <div className="flex snap-x gap-3 overflow-x-auto pb-2">
-        {slides.map((s, i) => (
-          <figure key={i} className="flex w-[190px] shrink-0 snap-start flex-col gap-1.5">
-            <div className="relative flex aspect-[1080/1350] flex-col justify-end overflow-hidden rounded-md bg-[#151517] p-3 ring-1 ring-border">
-              {s.type === "cover" && <Art className="absolute inset-x-0 top-0 h-[58%]" />}
-              <div className="relative flex flex-col gap-1.5">
-                {s.heading && <span className={cn("font-bold leading-tight text-white", s.type === "cover" ? "text-[15px]" : "text-[13px]")}>{s.heading}</span>}
-                <span className={cn("leading-snug", s.type === "quote" ? "text-[14px] font-semibold text-primary" : "text-[11px] text-white/75")}>{s.body}</span>
-                {s.type === "cta" && <Bars className="mt-2 h-5" />}
+    <Workspace panel={panel}>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {slides.map((sl, i) => (
+            <figure key={i} className="flex flex-col gap-1.5">
+              <div className="@container relative aspect-[1080/1350] overflow-hidden bg-[#111113] shadow-md ring-1 ring-border" style={{ borderRadius: RADIUS[s.look.corners] }}>
+                {sl.type === "cover" && (
+                  <>
+                    <Art url={artUrl} className="absolute inset-x-0 top-0 h-[58%]" />
+                    <div className="absolute inset-x-0 bottom-0 flex h-[42%] flex-col justify-center gap-[2cqw] p-[7cqw]">
+                      {ep?.number != null && <span className="font-mono text-[4cqw] uppercase tracking-[0.14em] text-white/65">Episode {ep.number}</span>}
+                      <span className="text-[9cqw] font-extrabold leading-[1.02] tracking-[-0.02em] text-white [overflow-wrap:anywhere]">{sl.heading}</span>
+                    </div>
+                  </>
+                )}
+                {sl.type === "text" && (
+                  <div className="flex size-full flex-col justify-center gap-[4cqw] p-[9cqw]">
+                    <span className="h-[1.4cqw] w-[14cqw] rounded-full" style={{ background: accent }} />
+                    <span className="text-[9cqw] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">{sl.heading}</span>
+                    <span className="text-[5.4cqw] leading-[1.4] text-white/70">{sl.body}</span>
+                  </div>
+                )}
+                {sl.type === "quote" && (
+                  <div className="flex size-full flex-col justify-center gap-[3cqw] p-[9cqw]">
+                    <span className="font-serif text-[26cqw] leading-[0.6]" style={{ color: accent }}>
+                      “
+                    </span>
+                    <span className="text-[7.6cqw] font-semibold leading-[1.2] text-white">{sl.body}</span>
+                    <span className="font-mono text-[3.8cqw] uppercase tracking-[0.12em] text-white/55">{ep?.guest ?? "Host"}</span>
+                  </div>
+                )}
+                {sl.type === "cta" && (
+                  <div className="flex size-full flex-col items-center justify-center gap-[5cqw] p-[9cqw] text-center">
+                    <Art url={artUrl} className="aspect-square w-[46%] rounded-[3cqw] shadow-2xl" />
+                    <span className="text-[8cqw] font-extrabold leading-[1.05] text-white">{sl.heading}</span>
+                    <span className="rounded-full px-[5cqw] py-[2cqw] text-[4.6cqw] font-bold" style={{ background: accent, color: onAccent(accent) }}>
+                      {sl.body}
+                    </span>
+                  </div>
+                )}
+                <div className="absolute inset-x-[7cqw] bottom-[5cqw] flex items-center justify-between">
+                  {sl.type !== "cover" ? <span className="font-mono text-[3.4cqw] font-semibold uppercase tracking-[0.14em] text-white/45">{showTitle}</span> : <span />}
+                  {c.numbers && (
+                    <span className="font-mono text-[3.4cqw] text-white/45">
+                      {i + 1}/{total}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            <figcaption className="flex items-center justify-between text-[11.5px] text-muted-foreground">
-              <span>{i + 1}. {s.type === "cta" ? "Listen" : s.type[0].toUpperCase() + s.type.slice(1)}</span>
-              {s.type === "quote" && <span className="text-[10.5px]">word for word, 41:12</span>}
-            </figcaption>
-          </figure>
-        ))}
+              <figcaption className="flex items-center justify-between px-0.5 text-[11.5px] text-muted-foreground">
+                <span>{sl.type === "cta" ? "Listen" : sl.type === "cover" ? "Cover" : sl.type === "quote" ? "Quote" : "Point"}</span>
+                {sl.at && <span className="font-mono">{sl.at}</span>}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="flex items-center gap-2 text-[14px]">
+              <FontAwesomeIcon icon={faInstagram} className="text-muted-foreground" />
+              Caption
+            </CardTitle>
+            <CardDescription className="text-[12px]">Written to go with these slides.</CardDescription>
+            <CardAction className="flex gap-1.5">
+              <Button size="sm" variant="outline" onClick={() => flash("Slides rewritten")}>
+                <FontAwesomeIcon icon={faRotate} />
+                Rewrite
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(caption).catch(() => {});
+                  flash("Caption copied");
+                }}
+              >
+                <FontAwesomeIcon icon={faCopy} />
+                Copy
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="px-4">
+            <Textarea aria-label="Carousel caption" defaultValue={caption} key={ep?.id} className="min-h-[150px] resize-none text-[13px] leading-relaxed" />
+          </CardContent>
+        </Card>
       </div>
-      <Card className="h-fit gap-3 py-4">
-        <CardHeader className="px-4">
-          <CardTitle className="flex items-center gap-2 text-[14px]">
-            <FontAwesomeIcon icon={faInstagram} className="text-muted-foreground" />
-            Caption
-          </CardTitle>
-          <CardDescription className="text-[12px]">AI writes 3–6 slides between the cover and the listen slide. Quotes come only from the transcript.</CardDescription>
-        </CardHeader>
-        <CardContent className="px-4">
-          <Textarea aria-label="Carousel caption" defaultValue={caption} key={ep?.id} className="min-h-[170px] text-[13px] leading-relaxed" />
-        </CardContent>
-        <CardFooter className="flex-wrap gap-2 px-4">
-          <Button size="sm" variant="outline" onClick={() => flash("Slides rewritten (sample text)")}>
-            <FontAwesomeIcon icon={faRotate} />
-            Rewrite slides
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => flash("Caption copied")}>
-            <FontAwesomeIcon icon={faCopy} />
-            Copy caption
-          </Button>
-          <Button size="sm" variant="outline" disabled>
-            <FontAwesomeIcon icon={faDownload} />
-            ZIP
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
+    </Workspace>
   );
 }
 
-// ---------------------------------------------------------------- clip captions
+// ---------------------------------------------------------------- clips
 
-function ClipsTab({ ep, flash }: { ep: Ep | undefined; flash: (m: string) => void }) {
-  const clips = [
-    { start: "04:12", end: "05:03", hook: "Nobody checks this first", quote: "Everybody blames the transmitter. It's almost never the transmitter." },
-    { start: "18:40", end: "19:52", hook: "The 2 a.m. fix", quote: "I had one note in the log, and that note saved the whole night." },
-    { start: "31:05", end: "31:58", hook: "What I'd do now", quote: "Test it the way your listeners actually hear it, not the way you do." },
-  ];
-  const targets: { id: string; name: string; icon: IconDefinition; tags: string }[] = [
-    { id: "tiktok", name: "TikTok", icon: faTiktok, tags: "#radio #broadcastengineer #podcast" },
-    { id: "reels", name: "Reels", icon: faInstagram, tags: "#radio #podcastclips #tech" },
-    { id: "shorts", name: "Shorts", icon: faYoutube, tags: "#shorts #radio #podcast" },
-  ];
+const CLIPS = [
+  { start: "04:12", end: "05:03", hook: "Nobody checks this first", quote: "Everybody blames the transmitter. It's almost never the transmitter." },
+  { start: "18:40", end: "19:52", hook: "The 2 a.m. fix", quote: "I had one note in the log, and that note saved the whole night." },
+  { start: "31:05", end: "31:58", hook: "What I'd do now", quote: "Test it the way your listeners actually hear it, not the way you do." },
+];
+
+function CaptionPreview({ style, words, accent }: { style: CaptionStyle; words: string[]; accent: string }) {
+  const active = Math.min(2, words.length - 1);
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-[13px] text-muted-foreground">
-        Clips come from the Clips screen. Each gets a caption and hashtags per platform, written from what's said in that clip, and the text downloads with the MP4.
-      </p>
-      {clips.map((c, i) => (
-        <Card key={i} className="py-4">
-          <CardContent className="grid gap-4 px-4 md:grid-cols-[130px_1fr]">
-            <div className="relative mx-auto flex aspect-[9/16] w-[130px] flex-col items-center justify-center gap-3 overflow-hidden rounded-md bg-[#151517] p-3 ring-1 ring-border">
-              <span className="absolute left-2 right-2 top-3 text-center text-[10px] font-bold uppercase leading-tight text-white">{c.hook}</span>
-              <Art className="aspect-square w-[70%] rounded-sm shadow-[0_0_24px_var(--color-primary)]" />
-              <span className="text-center text-[9.5px] font-bold leading-tight text-white">
-                {c.quote.split(" ").slice(0, 4).join(" ")} <span className="text-primary">{c.quote.split(" ")[4]}</span>
+    <span
+      className={cn("flex flex-wrap justify-center gap-x-[1.6cqw] text-center leading-[1.15]", style === "Bold pop" && "font-black uppercase", style === "Minimal" ? "font-medium" : "font-bold")}
+      style={{ fontSize: style === "Minimal" ? "6cqw" : "7.5cqw" }}
+    >
+      {style === "Boxed" ? (
+        <span className="rounded-[1.5cqw] bg-black/75 px-[2.5cqw] py-[1cqw] text-white">
+          {words.map((w, i) => (
+            <span key={i} style={i === active ? { color: accent } : undefined}>
+              {w}{" "}
+            </span>
+          ))}
+        </span>
+      ) : (
+        words.map((w, i) => {
+          const on = i === active;
+          if (style === "Word bubble" && on)
+            return (
+              <span key={i} className="rounded-[1.5cqw] px-[1.5cqw]" style={{ background: accent, color: onAccent(accent) }}>
+                {w}
               </span>
-              <div className="absolute inset-x-2 bottom-2 h-[3px] rounded-full bg-white/20">
-                <div className="h-full w-1/3 rounded-full bg-primary" />
-              </div>
-            </div>
-            <div className="flex min-w-0 flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[14px] font-semibold">Clip {i + 1}</span>
-                <Badge variant="outline" className="font-mono font-normal">{c.start}–{c.end}</Badge>
-                <span className="truncate text-[12.5px] text-muted-foreground">“{c.quote}”</span>
-              </div>
-              <div className="grid gap-3 lg:grid-cols-3">
-                {targets.map((t) => (
-                  <div key={t.id} className="flex flex-col gap-1.5">
-                    <Label className="flex items-center gap-1.5 text-[12px]">
-                      <FontAwesomeIcon icon={t.icon} className="text-muted-foreground" />
-                      {t.name}
-                    </Label>
-                    <Textarea
-                      key={`${ep?.id}-${t.id}`}
-                      aria-label={`Clip ${i + 1} ${t.name} caption`}
-                      defaultValue={`${c.hook}. ${c.quote}\n\nFrom ${ep?.title ?? "the episode"}.\n\n${t.tags}`}
-                      className="min-h-[110px] text-[12.5px] leading-relaxed"
-                    />
+            );
+          const color = on && style !== "Clean" && style !== "Minimal" ? accent : style === "Karaoke" && i > active ? "rgba(255,255,255,.45)" : "#fff";
+          return (
+            <span key={i} style={{ color, transform: on && style === "Bold pop" ? "scale(1.12)" : undefined, display: "inline-block" }}>
+              {w}
+            </span>
+          );
+        })
+      )}
+    </span>
+  );
+}
+
+function ClipsTab(ctx: Ctx) {
+  const { ep, s, set, reset, accent, artUrl, flash } = ctx;
+  const c = s.clips;
+  const targets: { id: string; name: string; icon: IconDefinition; caption: (clip: (typeof CLIPS)[number]) => string }[] = [
+    { id: "tiktok", name: "TikTok", icon: faTiktok, caption: (k) => `${k.hook}.\n\n#radio #broadcastengineer #podcast` },
+    { id: "reels", name: "Reels", icon: faInstagram, caption: (k) => `${k.hook}. “${k.quote}”\n\nFrom ${ep?.title ?? "the episode"}. Full episode: link in bio.\n\n#radio #podcastclips #tech` },
+    { id: "shorts", name: "Shorts", icon: faYoutube, caption: (k) => `${k.hook} | ${ep?.title ?? "Episode"}\n\n#shorts #radio #podcast` },
+  ];
+
+  const panel = (
+    <Panel title="Customize" onReset={() => reset("clips")}>
+      <Field label="Caption style">
+        <div className="grid grid-cols-2 gap-1.5">
+          {CAPTION_STYLES.map((st) => (
+            <button
+              key={st}
+              type="button"
+              aria-pressed={c.style === st}
+              onClick={() => set("clips", { style: st })}
+              className={cn(
+                "flex h-[52px] flex-col items-center justify-center gap-1 rounded-md border bg-[#111113] px-1 transition-colors",
+                c.style === st ? "border-foreground/70 ring-1 ring-foreground/50" : "border-border hover:border-foreground/30",
+              )}
+            >
+              <span className="@container w-full">
+                <CaptionPreview style={st} words={["THE", "REAL", "MIX"]} accent={accent} />
+              </span>
+              <span className="text-[10.5px] text-white/60">{st}</span>
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Caption position">
+        <Segmented
+          label="Caption position"
+          value={c.position}
+          onChange={(position) => set("clips", { position })}
+          options={[
+            { value: "upper", label: "Upper" },
+            { value: "middle", label: "Middle" },
+            { value: "lower", label: "Lower" },
+          ]}
+        />
+      </Field>
+      <Field label="Highlight" hint="Shared with Graphics">
+        <AccentPicker value={s.look.accent} brand={ctx.brandAccent} onChange={(a) => set("look", { accent: a })} />
+      </Field>
+      <Separator />
+      <Field inline label="Hook title" hint="First 3 seconds">
+        <Switch checked={c.hook} onCheckedChange={(hook) => set("clips", { hook })} aria-label="Hook title" />
+      </Field>
+      <Field inline label="Progress bar">
+        <Switch checked={c.progress} onCheckedChange={(progress) => set("clips", { progress })} aria-label="Progress bar" />
+      </Field>
+    </Panel>
+  );
+
+  const pos = { upper: "top-[20%]", middle: "top-[50%]", lower: "top-[72%]" }[c.position];
+
+  return (
+    <Workspace panel={panel}>
+      <div className="flex flex-col gap-4">
+        {CLIPS.map((k, i) => {
+          const words = k.quote.replace(/[.,]/g, "").split(" ").slice(0, 4);
+          return (
+            <Card key={i} className="py-4">
+              <CardContent className="grid gap-5 px-4 md:grid-cols-[150px_minmax(0,1fr)]">
+                <div className="@container relative mx-auto aspect-[9/16] w-[150px] overflow-hidden rounded-lg bg-[#111113] shadow-md ring-1 ring-border">
+                  {c.hook && <span className="absolute inset-x-[6cqw] top-[6%] text-center text-[8cqw] font-black uppercase leading-[1.05] text-white">{k.hook}</span>}
+                  <div className="absolute left-1/2 top-[28%] w-[62%] -translate-x-1/2">
+                    <div className="absolute -inset-[8cqw] rounded-full opacity-50 blur-[10cqw]" style={{ background: accent }} />
+                    <Art url={artUrl} className="relative aspect-square w-full rounded-[3cqw]" />
                   </div>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => flash(`Clip ${i + 1} captions rewritten (sample text)`)}>
-                  <FontAwesomeIcon icon={faRotate} />
-                  Rewrite
-                </Button>
-                <Button size="sm" variant="outline" disabled>
-                  <FontAwesomeIcon icon={faDownload} />
-                  MP4 + captions
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+                  <div className={cn("absolute inset-x-[5cqw]", pos)}>
+                    <CaptionPreview style={c.style} words={words} accent={accent} />
+                  </div>
+                  {c.progress && (
+                    <div className="absolute inset-x-[6cqw] bottom-[4%] h-[1.6cqw] rounded-full bg-white/20">
+                      <div className="h-full w-[35%] rounded-full" style={{ background: accent }} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-col gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[14px] font-semibold">{k.hook}</span>
+                    <Badge variant="outline" className="font-mono font-normal">
+                      {k.start}–{k.end}
+                    </Badge>
+                  </div>
+                  <p className="text-[13px] italic leading-relaxed text-muted-foreground">“{k.quote}”</p>
+                  <div className="grid gap-3 xl:grid-cols-3">
+                    {targets.map((t) => (
+                      <div key={t.id} className="flex flex-col gap-1.5">
+                        <Label className="flex items-center gap-1.5 text-[12px]">
+                          <FontAwesomeIcon icon={t.icon} className="text-muted-foreground" />
+                          {t.name}
+                        </Label>
+                        <Textarea key={`${ep?.id}-${t.id}`} aria-label={`${k.hook} ${t.name} caption`} defaultValue={t.caption(k)} className="h-[132px] resize-none text-[12.5px] leading-relaxed [field-sizing:fixed]" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => flash("Captions rewritten")}>
+                      <FontAwesomeIcon icon={faRotate} />
+                      Rewrite
+                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button size="sm" variant="outline" disabled>
+                            <FontAwesomeIcon icon={faDownload} />
+                            MP4 + captions
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Clip rendering arrives with Stage 10c</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </Workspace>
   );
 }
 
@@ -604,10 +1134,13 @@ function ClipsTab({ ep, flash }: { ep: Ep | undefined; flash: (m: string) => voi
 
 function VoiceSheet({ onSave }: { onSave: () => void }) {
   const [text, setText] = useState(DEFAULT_VOICE);
-  const history = [
-    { when: "Nov 2, 2026 · 9:14 PM", note: "Added the no-emoji rule" },
-    { when: "Oct 28, 2026 · 4:02 PM", note: "First saved version" },
-  ];
+  const history = useMemo(
+    () => [
+      { when: "Nov 2, 2026 · 9:14 PM", note: "Added the no-emoji rule" },
+      { when: "Oct 28, 2026 · 4:02 PM", note: "First saved version" },
+    ],
+    [],
+  );
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -619,25 +1152,29 @@ function VoiceSheet({ onSave }: { onSave: () => void }) {
       <SheetContent className="w-full gap-0 sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Show voice</SheetTitle>
-          <SheetDescription>How every post for this show should sound. Platform limits and formats are fixed rules and aren't edited here.</SheetDescription>
+          <SheetDescription>How every post for this show should sound. Platform limits and formats are handled for you.</SheetDescription>
         </SheetHeader>
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
-          <Textarea aria-label="Voice" value={text} onChange={(e) => setText(e.target.value)} className="min-h-[260px] text-[13px] leading-relaxed" />
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-[12.5px]">Saved versions</Label>
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4">
+          <Textarea aria-label="Voice" value={text} onChange={(e) => setText(e.target.value)} className="min-h-[280px] text-[13px] leading-relaxed" />
+          <div className="flex flex-col gap-2">
+            <span className="text-[12.5px] font-medium">Saved versions</span>
             {history.map((h) => (
               <div key={h.when} className="flex items-center justify-between rounded-md border px-3 py-2 text-[12.5px]">
                 <span>
                   {h.note}
                   <span className="block text-[11.5px] text-muted-foreground">{h.when}</span>
                 </span>
-                <Button size="sm" variant="ghost">Restore</Button>
+                <Button size="sm" variant="ghost">
+                  Restore
+                </Button>
               </div>
             ))}
           </div>
         </div>
-        <SheetFooter className="flex-row justify-between">
-          <Button variant="ghost" onClick={() => setText(DEFAULT_VOICE)}>Reset to default</Button>
+        <SheetFooter className="flex-row justify-between border-t">
+          <Button variant="ghost" onClick={() => setText(DEFAULT_VOICE)}>
+            Reset to default
+          </Button>
           <Button onClick={onSave}>Save voice</Button>
         </SheetFooter>
       </SheetContent>

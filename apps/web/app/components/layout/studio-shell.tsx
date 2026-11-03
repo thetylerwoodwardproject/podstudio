@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
   Mic,
   Music,
+  Share2,
   Rss,
   Layers,
   SlidersHorizontal,
@@ -210,6 +211,15 @@ export function StudioShell({
           >
             <Music className="size-4" />
             Library
+          </NavLink>
+
+          <NavLink
+            to="/studio/social"
+            data-testid="nav-social"
+            className={({ isActive }) => cn(row, "text-muted-foreground hover:text-foreground", isActive && "bg-sidebar-accent font-semibold text-foreground shadow-[inset_3px_0_0_var(--studio-nav-bar,transparent)]")}
+          >
+            <Share2 className="size-4" />
+            Social
           </NavLink>
 
           <div className="relative">

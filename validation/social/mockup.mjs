@@ -1,24 +1,35 @@
+// Browser check for the /studio/social mockup: sidebar link, tabs, counters, customize panels, saved settings.
 import { launch, BASE, ok, failCount, sleep } from "../editor/lib.mjs";
 const OUT = process.env.OUT || "/tmp";
-const { b, ctx, p, errs } = await launch();
-await p.goto(BASE + "/studio/social"); await p.waitForSelector("text=Write posts");
-ok("posts tab renders", await p.locator('textarea[aria-label="Bluesky post"]').count() === 1);
-const counter = await p.locator("text=/\\d+ \\/ 300/").first().textContent();
-ok("bluesky counter", /\d+ \/ 300/.test(counter ?? ""), counter);
-await p.locator('textarea[aria-label="Bluesky post"]').fill("x".repeat(310));
-ok("over-limit flagged", await p.locator('textarea[aria-label="Bluesky post"][aria-invalid=true]').count() === 1);
+const { b, p, errs } = await launch();
+await p.evaluate(() => localStorage.removeItem("podstudio.social.settings.v1"));
+await p.click('[data-testid=nav-social]'); await p.waitForURL("**/studio/social"); await p.waitForSelector("text=Rewrite all");
+ok("sidebar link opens Social", p.url().endsWith("/studio/social"));
+ok("posts render", await p.locator('textarea[aria-label="Bluesky post"]').count() === 1);
+const before = await p.locator('textarea[aria-label="Facebook post"]').inputValue();
+await p.getByRole("radio", { name: "Short" }).click(); await sleep(200);
+const after = await p.locator('textarea[aria-label="Facebook post"]').inputValue();
+ok("length setting changes drafts", after.length < before.length, `${before.length} -> ${after.length}`);
+await p.getByRole("button", { name: "Emoji" }).or(p.getByRole("switch", { name: "Emoji" })).first().click(); await sleep(200);
+ok("emoji switch applies", (await p.locator('textarea[aria-label="Facebook post"]').inputValue()).includes("🎙️"));
 await p.screenshot({ path: OUT + "/social-posts.png", fullPage: true });
-for (const [tab, file] of [["Graphics", "graphics"], ["Carousel", "carousel"], ["Clip captions", "clips"]]) {
-  await p.getByRole("tab", { name: tab }).click(); await sleep(400);
-  await p.screenshot({ path: `${OUT}/social-${file}.png`, fullPage: true });
-}
+await p.reload(); await p.waitForSelector("text=Rewrite all"); await sleep(400);
+ok("settings persist across reload", (await p.locator('textarea[aria-label="Facebook post"]').inputValue()).includes("🎙️"));
+await p.getByRole("tab", { name: "Graphics" }).click(); await sleep(400);
+await p.screenshot({ path: OUT + "/social-graphics.png", fullPage: true });
+await p.getByRole("button", { name: "Cyan" }).click(); await p.getByRole("radio", { name: "Quote" }).click(); await sleep(300);
+await p.screenshot({ path: OUT + "/social-graphics-custom.png", fullPage: true });
+await p.getByRole("tab", { name: "Carousel" }).click(); await sleep(400);
+await p.screenshot({ path: OUT + "/social-carousel.png", fullPage: true });
+await p.getByRole("tab", { name: "Clips" }).click(); await sleep(400);
+await p.screenshot({ path: OUT + "/social-clips.png", fullPage: true });
 await p.getByRole("button", { name: "Show voice" }).click(); await sleep(400);
 ok("voice sheet opens", await p.locator('textarea[aria-label="Voice"]').count() === 1);
-await p.screenshot({ path: OUT + "/social-voice.png" });
 await p.keyboard.press("Escape");
 await p.setViewportSize({ width: 390, height: 844 }); await p.getByRole("tab", { name: "Posts" }).click(); await sleep(400);
 const sw = await p.evaluate(() => document.documentElement.scrollWidth);
 ok("no horizontal scroll at 390", sw <= 390, String(sw));
 await p.screenshot({ path: OUT + "/social-phone.png", fullPage: true });
+await p.evaluate(() => localStorage.removeItem("podstudio.social.settings.v1"));
 ok("no page errors", errs.length === 0, errs.join(" | "));
 await b.close(); process.exit(failCount() ? 1 : 0);

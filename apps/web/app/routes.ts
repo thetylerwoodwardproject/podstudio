@@ -5,7 +5,7 @@ import { SCREENS } from "./lib/screens";
 // routes"). Screens with real: true in the registry have their own route file;
 // everything else renders the shared placeholder from routes/screen-placeholder.tsx.
 const PLACEHOLDER = "routes/screen-placeholder.tsx";
-const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b", "07", "08", "09", "12", "L1"]; // handled explicitly below, not generated
+const REAL_SCREEN_IDS = ["01", "02", "11", "15", "16", "16b", "17", "18", "27", "29", "29b", "14", "31", "32", "33", "33b", "07", "08", "09", "12", "L1", "S1"]; // handled explicitly below, not generated
 
 function stripPrefix(path: string, prefix: string) {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
@@ -64,7 +64,7 @@ export default [
     route("analytics", "routes/studio/analytics.tsx", { id: "screen-31" }),
     route("public/brand", "routes/studio/brand.tsx", { id: "screen-29b" }),
     route("public/links", "routes/studio/public-links.tsx", { id: "screen-29" }),
-    route("social", "routes/studio/social-mockup.tsx", { id: "social-mockup" }),
+    route("social", "routes/studio/social-mockup.tsx", { id: "screen-S1" }),
     ...studioScreens.map((s) =>
       route(stripPrefix(s.path, "/studio/"), PLACEHOLDER, { id: `screen-${s.id}` }),
     ),
