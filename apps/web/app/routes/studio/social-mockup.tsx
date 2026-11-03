@@ -40,6 +40,24 @@ import { drawReel, REEL_H, REEL_W } from "~/lib/social-render/video";
 import { drawSlide, SLIDE_H, SLIDE_W, type Slide } from "~/lib/social-render/carousel";
 import { artFormats, drawArtwork } from "~/lib/social-render/artwork";
 import { analyse, BAR_COUNT, decodeAudio, FPS } from "~/lib/social-render/audio";
+import { ctaIcons } from "~/lib/social-render/icons";
+import {
+  siAmazonmusic,
+  siAudible,
+  siCastbox,
+  siCastro,
+  siIheartradio,
+  siOvercast,
+  siPandora,
+  siPatreon,
+  siPocketcasts,
+  siPodcastaddict,
+  siPodcastindex,
+  siRss,
+  siSoundcloud,
+  siTunein,
+  siYoutubemusic,
+} from "simple-icons";
 import { Page, PageHeader } from "~/components/layout/page";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -113,6 +131,15 @@ const FONTS: FontDef[] = [
   { id: "space-mono", label: "Space Mono", kind: "Mono", family: '"Space Mono", ui-monospace, monospace', mark: 700, mono: true },
   { id: "plex-mono", label: "IBM Plex Mono", kind: "Mono", family: '"IBM Plex Mono", ui-monospace, monospace', mark: 600, mono: true },
 ];
+// Listening-platform glyphs (Simple Icons, CC0, 24×24). The first three are the TWP generator's own.
+const PLATFORM_ICONS: { id: string; name: string; d: string }[] = [
+  { id: "apple", name: "Apple Podcasts", d: ctaIcons[0].d },
+  { id: "spotify", name: "Spotify", d: ctaIcons[1].d },
+  { id: "youtube", name: "YouTube", d: ctaIcons[2].d },
+  ...[siYoutubemusic, siAmazonmusic, siPocketcasts, siOvercast, siCastbox, siCastro, siPodcastaddict, siIheartradio, siAudible, siTunein, siPandora, siSoundcloud, siPatreon, siPodcastindex, siRss].map((i) => ({ id: i.slug, name: i.title, d: i.path })),
+];
+const MAX_ICONS = 5;
+
 interface CustomFont {
   id: string;
   label: string;
@@ -133,7 +160,7 @@ interface Settings {
   carousel: { slides: number; numbers: boolean; quotes: boolean; swipe: boolean };
   clips: { layout: string; darken: number; wordmark: Wordmark; progress: boolean; safeZones: boolean };
   /** Show-level wordmark and fonts, used by every graphic. null = follow the show. */
-  brand: { lines: string | null; domain: string | null; headFont: string; markFont: string; tint: "original" | "white" | "accent" };
+  brand: { lines: string | null; domain: string | null; headFont: string; markFont: string; tint: "original" | "white" | "accent"; icons: string[]; cornerIcons: boolean; iconColor: "white" | "accent" };
 }
 
 const DEFAULTS: Settings = {
@@ -141,7 +168,7 @@ const DEFAULTS: Settings = {
   look: { template: "headline", layout: "auto", accent: "brand", darken: 60, wordmark: "Stacked", waveform: true },
   carousel: { slides: 6, numbers: true, quotes: true, swipe: true },
   clips: { layout: "auto", darken: 60, wordmark: "Stacked", progress: true, safeZones: false },
-  brand: { lines: null, domain: null, headFont: "archivo", markFont: "jetbrains", tint: "original" },
+  brand: { lines: null, domain: null, headFont: "archivo", markFont: "jetbrains", tint: "original", icons: ["apple", "spotify", "youtube"], cornerIcons: true, iconColor: "white" },
 };
 
 const STORE = "podstudio.social.settings.v3";
@@ -447,6 +474,9 @@ export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<
       markWeight: markFace.mark,
       markSpacing: markFace.mono ? 0.06 : 0.02,
       logo: logoCanvas,
+      icons: s.brand.icons.map((id) => PLATFORM_ICONS.find((i) => i.id === id)).filter((i): i is (typeof PLATFORM_ICONS)[number] => !!i),
+      cornerIcons: s.brand.cornerIcons,
+      iconColor: s.brand.iconColor === "accent" ? accent : "#f5f5f2",
     });
     const fonts = JSON.stringify({ fontsReady, b: s.brand, logo: !!logoCanvas, host, domain });
   const ctx: Ctx = { ep, showTitle, host, domain, artUrl: art, accent, s, set, reset, flash, brandAccent, image, upload, setUpload, fonts, audio, setAudio, brand, logo, setLogo, custom, addFont, allFonts, stackedAuto };
@@ -1421,13 +1451,13 @@ function BrandSheet(ctx: Ctx) {
       <SheetTrigger asChild>
         <Button variant="outline">
           <FontAwesomeIcon icon={faFont} />
-          Wordmark &amp; fonts
+          Branding
         </Button>
       </SheetTrigger>
       <SheetContent className="w-full gap-0 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Wordmark &amp; fonts</SheetTitle>
-          <SheetDescription>Used on every graphic, slide and reel for this show.</SheetDescription>
+          <SheetTitle>Branding</SheetTitle>
+          <SheetDescription>Wordmark, platform icons and fonts, used on every graphic, slide and reel for this show.</SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           <div className="mx-auto w-[220px] shadow-lg ring-1 ring-border">
@@ -1534,6 +1564,55 @@ function BrandSheet(ctx: Ctx) {
                 ]}
               />
             )}
+          </Field>
+
+          <Separator />
+          <Field label="Platform icons" hint={`${b.icons.length} of ${MAX_ICONS}`}>
+            <div className="grid grid-cols-6 gap-1.5">
+              {PLATFORM_ICONS.map((i) => {
+                const at = b.icons.indexOf(i.id);
+                const on = at >= 0;
+                const full = !on && b.icons.length >= MAX_ICONS;
+                return (
+                  <Tooltip key={i.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-pressed={on}
+                        aria-label={i.name}
+                        disabled={full}
+                        onClick={() => set("brand", { icons: on ? b.icons.filter((x) => x !== i.id) : [...b.icons, i.id] })}
+                        className={cn(
+                          "relative flex h-10 items-center justify-center border transition-colors disabled:opacity-30",
+                          on ? "border-foreground/50 bg-secondary text-foreground" : "border-border text-muted-foreground/60 hover:text-foreground",
+                        )}
+                      >
+                        <svg viewBox="0 0 24 24" className="size-[18px]" fill="currentColor" aria-hidden>
+                          <path d={i.d} />
+                        </svg>
+                        {on && <span className="absolute right-0.5 top-0 font-mono text-[9px] text-muted-foreground">{at + 1}</span>}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{full ? `Up to ${MAX_ICONS} icons` : i.name}</TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+            <span className="text-[11.5px] leading-snug text-muted-foreground">Shown in the order you pick them. Also used on the carousel's listen slide.</span>
+          </Field>
+          <Field inline label="Show in the top-right corner" hint="Posts only; the listen slide always shows them">
+            <Switch checked={b.cornerIcons} onCheckedChange={(cornerIcons) => set("brand", { cornerIcons })} aria-label="Show icons in the top-right corner" />
+          </Field>
+          <Field label="Icon color">
+            <Segmented
+              label="Icon color"
+              value={b.iconColor}
+              onChange={(iconColor) => set("brand", { iconColor })}
+              options={[
+                { value: "white", label: "White" },
+                { value: "accent", label: "Accent" },
+              ]}
+            />
           </Field>
 
           <Separator />

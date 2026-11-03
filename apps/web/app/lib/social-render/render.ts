@@ -137,6 +137,11 @@ export const brand = {
   markSpacing: 0.06,
   /** Drawn in the wordmark's place when the wordmark is 'Logo'. */
   logo: null as CanvasImageSource | null,
+  /** Listening-platform glyphs (24×24 paths): the top-right corner and the carousel's listen slide. */
+  icons: ctaIcons.map((i) => ({ name: i.name, d: i.d })) as { name: string; d: string }[],
+  /** Whether the icons sit in the top-right corner of posts. */
+  cornerIcons: true,
+  iconColor: INK as string,
 };
 export function setBrand(b: Partial<typeof brand>) {
   Object.assign(brand, b);
@@ -269,10 +274,11 @@ export function icons(
   size: number,
   gap: number,
 ) {
-  const total = ctaIcons.length * size + (ctaIcons.length - 1) * gap;
+  const list = brand.icons;
+  const total = list.length * size + (list.length - 1) * gap;
   let x = right - total;
-  ctx.fillStyle = INK;
-  for (const i of ctaIcons) {
+  ctx.fillStyle = brand.iconColor;
+  for (const i of list) {
     ctx.save();
     ctx.translate(x, top + (h - size) / 2);
     ctx.scale(size / 24, size / 24);
@@ -303,7 +309,8 @@ export function draw(canvas: HTMLCanvasElement, f: Format, s: Scene) {
 
   setFont(ctx, 400, f.meta * u, MONO);
   const mlh = lineBox(ctx);
-  const ic = a.icons ? f.icon * u : 0;
+  const showIcons = a.icons && brand.cornerIcons && brand.icons.length > 0;
+  const ic = showIcons ? f.icon * u : 0;
   const metaH = Math.max(mlh, ic);
   const top: Row = {
     h: metaH,
@@ -311,9 +318,10 @@ export function draw(canvas: HTMLCanvasElement, f: Format, s: Scene) {
       setFont(ctx, 400, f.meta * u, MONO);
       ctx.fillStyle = MUTED;
       const width = box.w - a.topInset;
-      const room = width - (a.icons ? ic * 3 + f.iconGap * u * 2 + 2 * u : 0);
+      const n = brand.icons.length;
+      const room = width - (showIcons ? ic * n + f.iconGap * u * (n - 1) + 2 * u : 0);
       line(ctx, clip(ctx, s.meta, room), box.x, y + (metaH - mlh) / 2, mlh);
-      if (a.icons) icons(ctx, box.x + width, y, metaH, ic, f.iconGap * u);
+      if (showIcons) icons(ctx, box.x + width, y, metaH, ic, f.iconGap * u);
     },
   };
 

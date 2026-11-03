@@ -160,12 +160,14 @@ function middle(
       const ic = f.icon * 1.25 * u,
         gap = f.iconGap * u,
         space = 4 * u;
+      const n = brand.icons.length;
+      if (!n) return text;
       return {
         h: text.h + space + ic,
         draw: (y) => {
           text.draw(y);
-          // icons() right-aligns, so hand it the right edge of the three-icon run.
-          const run = 3 * ic + 2 * gap;
+          // icons() right-aligns, so hand it the right edge of the icon run.
+          const run = n * ic + (n - 1) * gap;
           icons(ctx, box.x + run, y + text.h + space, ic, ic, gap);
         },
       };
