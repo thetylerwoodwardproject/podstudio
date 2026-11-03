@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 — Planning: social posts
+- Social post copy is in scope: Stage 07 adds editable per-platform drafts for each episode (from the transcript and show notes, within each platform's length limit, copy-to-clipboard); Stage 10c adds per-clip captions that download alongside the MP4.
+- Reviewed the TWP social generator (`docs/notes/social-generator.md`); Stage 07 gains its voice/modes/validator design, Stage 10c gains social images, an Instagram carousel and cover/thumbnail art, and the wish list gains its posting queue rules and Mastodon.
+- Platform API connections and posting straight from Podstudio are deferred to the new `docs/WISHLIST.md` (how it would work + security plan). Not scheduled.
+
 ## 2026-11-03 — Page polish (studio + public; editor untouched)
 - Every studio page uses one layout (`components/layout/page.tsx`: `Page` + `PageHeader`): same padding, two widths (form / wide), eyebrow = sidebar section, title, one-line description, actions on the right.
 - Studio works on phones/narrow windows: top bar + menu drawer (shadcn Sheet) below 768 px; Episodes hides Length/Edited on small screens; Library and Storage rows wrap.

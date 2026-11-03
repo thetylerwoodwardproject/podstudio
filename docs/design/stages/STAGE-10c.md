@@ -16,10 +16,12 @@
 - [ ] Audiogram: art RMS-envelope motion Still/Subtle/Lively, independent pulsing glow, 0–100% intensity, below-art captions, drag/centre snapping, corner resize and Reset positions
 - [ ] Hook title for first 3 seconds, logo, progress bar and optional 3-second end card; show real configured destination links rather than advertising unavailable platforms
 - [ ] Versioned TikTok/Reels/Shorts occlusion config; safe-area-aware defaults/reset, per-platform export placement and visible feedback for manually out-of-zone content
+- [ ] Per-clip post copy: AI drafts a caption + hashtags per platform from the clip's edited transcript (uses the Stage 07 social drafts and voice settings); editable, copy-to-clipboard, downloaded alongside the MP4 as a text file
+- [ ] Social graphics, after the TWP social generator (`docs/notes/social-generator.md`): episode post images (Instagram 1080×1350, X, Facebook) and an Instagram carousel (cover, 3–6 AI-written text/quote slides with quotes word for word from the transcript, listen slide, caption); default layout rotates per episode; preview and export are the same drawing; "Use in post" and one ZIP export. Cover art 3000×3000 and YouTube thumbnail are noted here until a better home is decided
 - [ ] H.264/AAC 1080×1920 at 30 fps, total duration under 90 seconds including any end card; deterministic envelope/motion/text rendering from the shared specification
 
 ## Out of scope
-Editable-project exports (10d), direct social-platform posting and mobile host recording.
+Editable-project exports (10d), direct social-platform posting (API connections and auto-posting are on `docs/WISHLIST.md`) and mobile host recording.
 
 ## Done when
 - [ ] Preview/export caption position is within 2% of frame dimensions, word timing within one frame, and text wrapping/styles match pinned reference frames
