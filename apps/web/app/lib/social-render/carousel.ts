@@ -36,7 +36,7 @@ export interface Slide {
 }
 
 export interface CarouselOptions {
-  wordmark: 'Stacked' | 'Domain';
+  wordmark: 'Stacked' | 'Domain' | 'Logo';
   waveform: boolean;
   numbers: boolean;
   swipe: boolean;

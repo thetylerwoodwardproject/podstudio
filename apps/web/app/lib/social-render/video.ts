@@ -29,7 +29,7 @@ export const REEL_H = 1920;
 export interface ReelFrame {
   headline: string;
   meta: string;
-  wordmark: 'Stacked' | 'Domain';
+  wordmark: 'Stacked' | 'Domain' | 'Logo';
   /** Bar heights for this frame, 0 to 1; empty draws the bars at rest. */
   bars: ArrayLike<number>;
   progress: boolean;

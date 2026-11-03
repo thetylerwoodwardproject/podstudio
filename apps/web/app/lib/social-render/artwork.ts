@@ -78,7 +78,7 @@ export interface ArtScene {
   title: string;
   /** Small mono line above the title, such as "Ep 42". Empty leaves it out. */
   kicker: string;
-  wordmark: 'Stacked' | 'Domain';
+  wordmark: 'Stacked' | 'Domain' | 'Logo';
   waveform: boolean;
   /** Full-bleed image behind the type; null is solid ground. */
   backdrop: CanvasImageSource | null;

@@ -10,6 +10,9 @@
 @import "@fontsource/jetbrains-mono/latin-400.css";
 @import "@fontsource/jetbrains-mono/latin-500.css";
 @import "@fontsource/jetbrains-mono/latin-600.css";
+@import "@fontsource/oswald/latin-500.css";
+@import "@fontsource/oswald/latin-600.css";
+@import "@fontsource/dm-serif-display/latin-400.css";
 
 /* Social graphics (lib/social-render, ported from the TWP generator) draw with Archivo and
    bold JetBrains Mono. Same files as tylerwoodward.me; only downloaded when a canvas uses them. */
@@ -26,6 +29,35 @@
   font-weight: 700;
   font-display: swap;
   src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+}
+/* Font choices for social headlines and wordmarks (all OFL, all self-hosted). */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Space Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/space-mono-400-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Space Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/space-mono-700-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-600-latin.woff2") format("woff2");
 }
 @font-face {
   font-family: "Archivo Fallback";

@@ -104,7 +104,7 @@ export interface Scene {
   meta: string;
   /** Empty falls back to the headline. */
   quote: string;
-  wordmark: 'Stacked' | 'Domain';
+  wordmark: 'Stacked' | 'Domain' | 'Logo';
   waveform: boolean;
   /** Where the picture goes (layout.ts). */
   layout: Layout;
@@ -120,7 +120,8 @@ export const SOFT = '#d4d4d0';
 export const MUTED = '#8a8a86';
 export const SIGNAL = '#c0fc00';
 export const TRACK = '#262626';
-export const SANS = 'Archivo, "Archivo Fallback", sans-serif';
+// `let`, so setBrand can swap the headline face; importers read the live binding at draw time.
+export let SANS = 'Archivo, "Archivo Fallback", sans-serif';
 export const MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
 /** Per-show pieces the TWP original hard-codes. Set before drawing. */
 export const brand = {
@@ -128,9 +129,18 @@ export const brand = {
   domain: 'tylerwoodward.me',
   signal: SIGNAL as string,
   speaker: 'Tyler Woodward',
+  /** Headline face (TWP: Archivo). */
+  sans: SANS,
+  /** Wordmark face, weight and tracking (TWP: bold JetBrains Mono, 6% tracking when stacked). */
+  markFamily: MONO,
+  markWeight: 700,
+  markSpacing: 0.06,
+  /** Drawn in the wordmark's place when the wordmark is 'Logo'. */
+  logo: null as CanvasImageSource | null,
 };
 export function setBrand(b: Partial<typeof brand>) {
   Object.assign(brand, b);
+  SANS = brand.sans;
 }
 
 export const BARS = [30, 55, 40, 72, 50, 88, 62, 100, 70, 46, 84, 56, 94, 40, 64, 34, 50];
@@ -392,34 +402,61 @@ export function footer(
   box: { x: number; y: number; w: number; h: number },
 ): Row {
   const u = f.w / 100;
-  const stacked = s.wordmark === 'Stacked';
-  const size = (stacked ? f.mark : f.domain) * u;
-  setFont(ctx, 700, size, MONO, stacked ? 0.06 : 0);
-  const textH = stacked ? size * 1.08 * brand.stacked.length : lineBox(ctx);
   const waveH = s.waveform ? f.waveH * u : 0;
+  const bw = f.waveW * u,
+    wgap = f.waveGap * u;
+  const waveW = s.waveform ? BARS.length * bw + (BARS.length - 1) * wgap : 0;
+  // Room left of the waveform: a long name shrinks to fit rather than running into the bars.
+  const avail = box.w - (waveW ? waveW + 3 * u : 0);
+  const logo = s.wordmark === 'Logo' ? brand.logo : null;
+  const stacked = s.wordmark === 'Stacked' || (s.wordmark === 'Logo' && !logo);
+  const lines = stacked ? brand.stacked : [brand.domain];
+  const spacing = stacked ? brand.markSpacing : 0;
+  let size = (stacked ? f.mark : f.domain) * u;
+  let textH: number;
+  let logoW = 0;
+  if (logo) {
+    // A logo takes the stacked wordmark's three-line height, never stretched, never past the bars.
+    const n = sizeOf(logo);
+    textH = f.mark * u * 1.08 * 3;
+    logoW = n.h ? (n.w / n.h) * textH : 0;
+    if (logoW > avail) {
+      textH *= avail / logoW;
+      logoW = avail;
+    }
+  } else {
+    const min = size * 0.5;
+    for (;;) {
+      setFont(ctx, brand.markWeight, size, brand.markFamily, spacing);
+      const widest = Math.max(0, ...lines.map((t) => ctx.measureText(t).width));
+      if (widest <= avail || size <= min) break;
+      size *= 0.94;
+    }
+    textH = stacked ? size * 1.08 * lines.length : lineBox(ctx);
+  }
   const h = Math.max(textH, waveH);
   return {
     h,
     draw: (y) => {
       const bottom = y + h;
-      setFont(ctx, 700, size, MONO, stacked ? 0.06 : 0);
-      ctx.fillStyle = INK;
-      if (stacked) {
-        brand.stacked.forEach((t, i) =>
-          line(ctx, t, box.x, bottom - textH + i * size * 1.08, size * 1.08),
-        );
-      } else line(ctx, brand.domain, box.x, bottom - textH, textH);
+      if (logo) {
+        ctx.drawImage(logo, box.x, bottom - textH, logoW, textH);
+      } else {
+        setFont(ctx, brand.markWeight, size, brand.markFamily, spacing);
+        ctx.fillStyle = INK;
+        if (stacked) {
+          lines.forEach((t, i) => line(ctx, t, box.x, bottom - textH + i * size * 1.08, size * 1.08));
+        } else line(ctx, brand.domain, box.x, bottom - textH, textH);
+      }
       if (!s.waveform) return;
-      const bw = f.waveW * u,
-        gap = f.waveGap * u;
-      let x = box.x + box.w - (BARS.length * bw + (BARS.length - 1) * gap);
+      let x = box.x + box.w - waveW;
       ctx.fillStyle = brand.signal;
       for (const pct of BARS) {
         const bh = (pct / 100) * waveH;
         ctx.beginPath();
         ctx.roundRect(x, bottom - waveH + (waveH - bh) / 2, bw, bh, bw / 2);
         ctx.fill();
-        x += bw + gap;
+        x += bw + wgap;
       }
     },
   };

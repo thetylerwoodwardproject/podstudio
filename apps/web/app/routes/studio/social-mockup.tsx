@@ -26,6 +26,8 @@ import {
   faImage,
   faMusic,
   faXmark,
+  faFont,
+  faUpload,
 } from "@fortawesome/free-solid-svg-icons";
 import { listEpisodeRows } from "~/lib/episodes.server";
 import { artworkFile, getShowArtwork } from "~/lib/artwork.server";
@@ -89,7 +91,33 @@ type Ep = Awaited<ReturnType<typeof loader>>["episodes"][number];
 
 type PlatformId = "bluesky" | "threads" | "mastodon" | "x" | "facebook" | "instagram" | "linkedin" | "youtube";
 const LAYOUT_NAMES = Object.keys(layoutLabels); // Split, Full bleed, Framed, Corner, Band, None
-type Wordmark = "Stacked" | "Domain";
+type Wordmark = "Stacked" | "Domain" | "Logo";
+
+// Faces for headlines and wordmarks. All self-hosted (app.css), so nothing loads from a third party.
+interface FontDef {
+  id: string;
+  label: string;
+  kind: string;
+  family: string;
+  /** Weight the wordmark uses with this face. */
+  mark: number;
+  mono?: boolean;
+}
+const FONTS: FontDef[] = [
+  { id: "archivo", label: "Archivo", kind: "Sans", family: 'Archivo, "Archivo Fallback", sans-serif', mark: 600 },
+  { id: "geist", label: "Geist", kind: "Sans", family: "Geist, sans-serif", mark: 700 },
+  { id: "space-grotesk", label: "Space Grotesk", kind: "Sans", family: '"Space Grotesk", sans-serif', mark: 700 },
+  { id: "oswald", label: "Oswald", kind: "Condensed", family: "Oswald, sans-serif", mark: 600 },
+  { id: "dm-serif", label: "DM Serif Display", kind: "Serif", family: '"DM Serif Display", serif', mark: 400 },
+  { id: "jetbrains", label: "JetBrains Mono", kind: "Mono", family: '"JetBrains Mono", ui-monospace, monospace', mark: 700, mono: true },
+  { id: "space-mono", label: "Space Mono", kind: "Mono", family: '"Space Mono", ui-monospace, monospace', mark: 700, mono: true },
+  { id: "plex-mono", label: "IBM Plex Mono", kind: "Mono", family: '"IBM Plex Mono", ui-monospace, monospace', mark: 600, mono: true },
+];
+interface CustomFont {
+  id: string;
+  label: string;
+  data: string; // data: URL, so it survives a reload
+}
 
 interface Settings {
   posts: {
@@ -104,6 +132,8 @@ interface Settings {
   look: { template: "headline" | "quote"; layout: string; accent: string; darken: number; wordmark: Wordmark; waveform: boolean };
   carousel: { slides: number; numbers: boolean; quotes: boolean; swipe: boolean };
   clips: { layout: string; darken: number; wordmark: Wordmark; progress: boolean; safeZones: boolean };
+  /** Show-level wordmark and fonts, used by every graphic. null = follow the show. */
+  brand: { lines: string | null; domain: string | null; headFont: string; markFont: string; tint: "original" | "white" | "accent" };
 }
 
 const DEFAULTS: Settings = {
@@ -111,6 +141,7 @@ const DEFAULTS: Settings = {
   look: { template: "headline", layout: "auto", accent: "brand", darken: 60, wordmark: "Stacked", waveform: true },
   carousel: { slides: 6, numbers: true, quotes: true, swipe: true },
   clips: { layout: "auto", darken: 60, wordmark: "Stacked", progress: true, safeZones: false },
+  brand: { lines: null, domain: null, headFont: "archivo", markFont: "jetbrains", tint: "original" },
 };
 
 const STORE = "podstudio.social.settings.v3";
@@ -128,6 +159,7 @@ function useSettings() {
           look: { ...DEFAULTS.look, ...v.look },
           carousel: { ...DEFAULTS.carousel, ...v.carousel },
           clips: { ...DEFAULTS.clips, ...v.clips },
+          brand: { ...DEFAULTS.brand, ...v.brand },
         });
       }
     } catch {
@@ -246,7 +278,14 @@ interface Ctx {
   image: HTMLImageElement | null;
   upload: string | null;
   setUpload: (url: string | null) => void;
-  fonts: boolean;
+  /** Changes whenever a face loads or the wordmark/fonts change, so every canvas redraws. */
+  fonts: string;
+  logo: string | null;
+  setLogo: (l: string | null) => void;
+  custom: CustomFont[];
+  addFont: (f: CustomFont) => void;
+  allFonts: FontDef[];
+  stackedAuto: string[];
   audio: Audio | null;
   setAudio: (a: Audio | null) => void;
   /** Points the ported renderer at this show before each draw. */
@@ -255,7 +294,9 @@ interface Ctx {
 
 // "The Tyler Woodward Project" -> TYLER / WOODWARD / PROJECT, like the TWP wordmark.
 function stackWords(title: string) {
-  const words = title.replace(/^the\s+/i, "").toUpperCase().split(/\s+/).filter(Boolean);
+  const all = title.toUpperCase().split(/\s+/).filter(Boolean);
+  // Drop a leading "The" only when two or more words remain ("The Daily" stays THE / DAILY).
+  const words = all[0] === "THE" && all.length > 2 ? all.slice(1) : all;
   if (words.length <= 3) return words.length ? words : ["PODCAST"];
   const lines: string[] = [];
   const per = Math.ceil(words.length / 3);
@@ -273,6 +314,73 @@ function useImage(url: string | null) {
     i.src = url;
   }, [url]);
   return img;
+}
+
+const ASSETS = "podstudio.social.assets.v1";
+
+function useAssets() {
+  const [logo, setLogoState] = useState<string | null>(null);
+  const [custom, setCustom] = useState<CustomFont[]>([]);
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(ASSETS) ?? "{}");
+      if (typeof v.logo === "string") setLogoState(v.logo);
+      if (Array.isArray(v.fonts)) setCustom(v.fonts);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const save = (next: { logo: string | null; fonts: CustomFont[] }) => {
+    try {
+      localStorage.setItem(ASSETS, JSON.stringify(next));
+    } catch {
+      /* too big or blocked: it still works until reload */
+    }
+  };
+  return {
+    logo,
+    custom,
+    setLogo: (l: string | null) => {
+      setLogoState(l);
+      save({ logo: l, fonts: custom });
+    },
+    addFont: (f: CustomFont) => {
+      const fonts = [...custom.filter((x) => x.id !== f.id), f];
+      setCustom(fonts);
+      save({ logo, fonts });
+    },
+  };
+}
+
+const readDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
+/** The logo, rasterized (SVGs without a size get one) and recolored when asked. */
+function useLogo(src: string | null, tint: Settings["brand"]["tint"], accent: string) {
+  const img = useImage(src);
+  return useMemo(() => {
+    if (!img || typeof document === "undefined") return null;
+    const w0 = img.naturalWidth || 1200,
+      h0 = img.naturalHeight || 1200;
+    const k = 1200 / Math.max(w0, h0);
+    const c = document.createElement("canvas");
+    c.width = Math.round(w0 * k);
+    c.height = Math.round(h0 * k);
+    const g = c.getContext("2d");
+    if (!g) return null;
+    g.drawImage(img, 0, 0, c.width, c.height);
+    if (tint !== "original") {
+      g.globalCompositeOperation = "source-in";
+      g.fillStyle = tint === "white" ? "#f5f5f2" : accent;
+      g.fillRect(0, 0, c.width, c.height);
+    }
+    return c;
+  }, [img, tint, accent]);
 }
 
 function useFonts() {
@@ -295,15 +403,53 @@ export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<
   const [audio, setAudio] = useState<Audio | null>(null);
   const art = ep?.art ?? artUrl;
   const image = useImage(upload ?? art);
-  const fonts = useFonts();
+  const baseFonts = useFonts();
+  const { logo, setLogo, custom, addFont } = useAssets();
+  const [fontRev, setFontRev] = useState(0);
+  const allFonts = useMemo<FontDef[]>(
+    () => [...FONTS, ...custom.map((f) => ({ id: f.id, label: f.label, kind: "Your fonts", family: `"${f.id}"`, mark: 400 }))],
+    [custom],
+  );
+  // Register uploaded faces with the document, then load whichever faces are picked.
+  useEffect(() => {
+    for (const f of custom) {
+      if ([...document.fonts].some((x) => x.family === f.id)) continue;
+      const face = new FontFace(f.id, `url(${f.data})`);
+      document.fonts.add(face);
+      face.load().then(() => setFontRev((r) => r + 1)).catch(() => {});
+    }
+  }, [custom]);
+  const headFace = allFonts.find((f) => f.id === s.brand.headFont) ?? FONTS[0];
+  const markFace = allFonts.find((f) => f.id === s.brand.markFont) ?? FONTS[5];
+  useEffect(() => {
+    Promise.all([document.fonts.load(`500 40px ${headFace.family}`), document.fonts.load(`${markFace.mark} 40px ${markFace.family}`)])
+      .catch(() => {})
+      .then(() => setFontRev((r) => r + 1));
+  }, [headFace.family, markFace.family, markFace.mark]);
+  const fontsReady = baseFonts ? fontRev + 1 : 0;
   const flash = (m: string) => {
     setToast(m);
     setTimeout(() => setToast(null), 1600);
   };
   const accent = s.look.accent === "brand" ? brandAccent : (normalizeHex(s.look.accent) ?? brandAccent);
-  const stacked = useMemo(() => stackWords(showTitle), [showTitle]);
-  const brand = () => setBrand({ stacked, domain, signal: accent, speaker: ep?.guest ?? host });
-  const ctx: Ctx = { ep, showTitle, host, domain, artUrl: art, accent, s, set, reset, flash, brandAccent, image, upload, setUpload, fonts, audio, setAudio, brand };
+  const stackedAuto = useMemo(() => stackWords(showTitle), [showTitle]);
+  const lines = s.brand.lines?.split("\n").map((x) => x.trim()).filter(Boolean);
+  const stacked = lines?.length ? lines : stackedAuto;
+  const logoCanvas = useLogo(logo, s.brand.tint, accent);
+  const brand = () =>
+    setBrand({
+      stacked,
+      domain: s.brand.domain?.trim() || domain,
+      signal: accent,
+      speaker: ep?.guest ?? host,
+      sans: headFace.family,
+      markFamily: markFace.family,
+      markWeight: markFace.mark,
+      markSpacing: markFace.mono ? 0.06 : 0.02,
+      logo: logoCanvas,
+    });
+    const fonts = JSON.stringify({ fontsReady, b: s.brand, logo: !!logoCanvas, host, domain });
+  const ctx: Ctx = { ep, showTitle, host, domain, artUrl: art, accent, s, set, reset, flash, brandAccent, image, upload, setUpload, fonts, audio, setAudio, brand, logo, setLogo, custom, addFont, allFonts, stackedAuto };
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -322,6 +468,7 @@ export default function Social({ loaderData }: { loaderData: Awaited<ReturnType<
                 placeholder="Pick an episode"
                 options={episodes.map((e) => ({ value: e.id, label: `${e.number != null ? `Ep. ${e.number} · ` : ""}${e.title}` }))}
               />
+              <BrandSheet {...ctx} />
               <VoiceSheet onSave={() => flash("Voice saved")} />
             </>
           }
@@ -425,11 +572,11 @@ function Field({ label, hint, children, inline }: { label: string; hint?: string
   );
 }
 
-function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label: string }) {
+function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; disabled?: boolean }[]; label: string }) {
   return (
     <ToggleGroup type="single" variant="outline" size="sm" value={value} onValueChange={(v) => v && onChange(v as T)} className="w-full" aria-label={label}>
       {options.map((o) => (
-        <ToggleGroupItem key={o.value} value={o.value} className="flex-1 px-1.5 text-[12px]">
+        <ToggleGroupItem key={o.value} value={o.value} disabled={o.disabled} className="flex-1 px-1.5 text-[12px]">
           {o.label}
         </ToggleGroupItem>
       ))}
@@ -785,7 +932,7 @@ function GraphicsTab(ctx: Ctx) {
         </Field>
       )}
       <Field label="Wordmark">
-        <Segmented label="Wordmark" value={l.wordmark} onChange={(wordmark) => set("look", { wordmark })} options={[{ value: "Stacked", label: "Stacked" }, { value: "Domain", label: "Domain" }]} />
+        <Segmented label="Wordmark" value={l.wordmark} onChange={(wordmark) => set("look", { wordmark })} options={[{ value: "Stacked", label: "Stacked" }, { value: "Domain", label: "Domain" }, { value: "Logo", label: "Logo", disabled: !ctx.logo }]} />
       </Field>
       <Field inline label="Waveform">
         <Switch checked={l.waveform} onCheckedChange={(waveform) => set("look", { waveform })} aria-label="Waveform" />
@@ -1144,7 +1291,7 @@ function ClipsTab(ctx: Ctx) {
         </Field>
       )}
       <Field label="Wordmark">
-        <Segmented label="Wordmark" value={c.wordmark} onChange={(wordmark) => set("clips", { wordmark })} options={[{ value: "Stacked", label: "Stacked" }, { value: "Domain", label: "Domain" }]} />
+        <Segmented label="Wordmark" value={c.wordmark} onChange={(wordmark) => set("clips", { wordmark })} options={[{ value: "Stacked", label: "Stacked" }, { value: "Domain", label: "Domain" }, { value: "Logo", label: "Logo", disabled: !ctx.logo }]} />
       </Field>
       <Field inline label="Progress bar and timer">
         <Switch checked={c.progress} onCheckedChange={(progress) => set("clips", { progress })} aria-label="Progress bar and timer" />
@@ -1205,6 +1352,203 @@ function ClipsTab(ctx: Ctx) {
         ))}
       </div>
     </Workspace>
+  );
+}
+
+// ---------------------------------------------------------------- wordmark & fonts
+
+function FontPicker({ label, value, fonts, onChange, onUpload }: { label: string; value: string; fonts: FontDef[]; onChange: (id: string) => void; onUpload: (f: File) => void }) {
+  const groups = [...new Set(fonts.map((f) => f.kind))].map((kind) => ({ label: kind, options: fonts.filter((f) => f.kind === kind).map((f) => ({ value: f.id, label: f.label })) }));
+  const cur = fonts.find((f) => f.id === value);
+  return (
+    <Field label={label}>
+      <div className="flex gap-1.5">
+        <FormSelect aria-label={label} value={value} onValueChange={onChange} groups={groups} className="min-w-0 flex-1" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild size="icon" variant="outline" className="shrink-0">
+              <label className="cursor-pointer" aria-label={`Upload a font for the ${label.toLowerCase()}`}>
+                <FontAwesomeIcon icon={faUpload} />
+                <input
+                  type="file"
+                  accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) onUpload(f);
+                  }}
+                />
+              </label>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Upload a font (.woff2, .ttf, .otf)</TooltipContent>
+        </Tooltip>
+      </div>
+      {cur && (
+        <span className="truncate text-[20px] leading-tight text-muted-foreground" style={{ fontFamily: cur.family }}>
+          The quick brown fox
+        </span>
+      )}
+    </Field>
+  );
+}
+
+function BrandSheet(ctx: Ctx) {
+  const { s, set, reset, ep, image, fonts, accent, brand, showTitle, domain, stackedAuto, logo, setLogo, allFonts, addFont, flash } = ctx;
+  const b = s.brand;
+  const l = s.look;
+  const [open, setOpen] = useState(false);
+  const scene = { template: "headline" as const, headline: ep?.title ?? showTitle, meta: defaultMeta(ep), quote: "", wordmark: l.wordmark, waveform: l.waveform, layout: layoutOf(l.layout, ep), image, dim: l.darken / 100 };
+
+  const uploadFont = async (file: File, slot: "headFont" | "markFont") => {
+    try {
+      const data = await readDataUrl(file);
+      const id = `PS ${file.name.replace(/\.[^.]+$/, "").replace(/[^\w -]/g, "").slice(0, 40) || "Custom"}`;
+      const face = new FontFace(id, `url(${data})`);
+      await face.load();
+      document.fonts.add(face);
+      addFont({ id, label: id.slice(3), data });
+      set("brand", { [slot]: id });
+      flash(`${id.slice(3)} added`);
+    } catch {
+      flash("That file couldn't be read as a font");
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline">
+          <FontAwesomeIcon icon={faFont} />
+          Wordmark &amp; fonts
+        </Button>
+      </SheetTrigger>
+      <SheetContent className="w-full gap-0 sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Wordmark &amp; fonts</SheetTitle>
+          <SheetDescription>Used on every graphic, slide and reel for this show.</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
+          <div className="mx-auto w-[220px] shadow-lg ring-1 ring-border">
+            {open && (
+              <CanvasView
+                w={formats[0].w}
+                h={formats[0].h}
+                label="Wordmark preview"
+                className="h-auto w-full"
+                deps={[fonts, image, accent, JSON.stringify({ ...scene, image: !!image })]}
+                paint={(c) => {
+                  brand();
+                  drawPost(c, formats[0], scene);
+                }}
+              />
+            )}
+          </div>
+
+          <Field label="Show as">
+            <Segmented
+              label="Show as"
+              value={l.wordmark}
+              onChange={(wordmark) => {
+                set("look", { wordmark });
+                set("clips", { wordmark });
+              }}
+              options={[
+                { value: "Stacked", label: "Stacked name" },
+                { value: "Domain", label: "Domain" },
+                { value: "Logo", label: "Logo", disabled: !logo },
+              ]}
+            />
+          </Field>
+
+          <Field label="Stacked name" hint="One line per row">
+            <Textarea
+              aria-label="Stacked name"
+              rows={3}
+              value={b.lines ?? stackedAuto.join("\n")}
+              onChange={(e) => set("brand", { lines: e.target.value })}
+              className="min-h-0 resize-none font-mono text-[13px] uppercase"
+            />
+            {b.lines !== null && (
+              <Button size="sm" variant="ghost" className="h-7 w-fit px-2 text-[12px]" onClick={() => set("brand", { lines: null })}>
+                Use the show name
+              </Button>
+            )}
+          </Field>
+
+          <Field label="Domain">
+            <Input aria-label="Domain" value={b.domain ?? ""} placeholder={domain} onChange={(e) => set("brand", { domain: e.target.value || null })} className="h-8 font-mono text-[12.5px]" />
+          </Field>
+
+          <Field label="Logo" hint="PNG or SVG, transparent background">
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-24 shrink-0 items-center justify-center bg-[#0e0e0e] p-2 ring-1 ring-border">
+                {logo ? <img src={logo} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-[11px] text-white/40">No logo</span>}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-[12px]">
+                  <label className="cursor-pointer">
+                    <FontAwesomeIcon icon={faImage} />
+                    {logo ? "Replace" : "Upload logo"}
+                    <input
+                      type="file"
+                      accept="image/png,image/svg+xml,image/webp,image/jpeg"
+                      className="sr-only"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!f) return;
+                        setLogo(await readDataUrl(f));
+                        set("look", { wordmark: "Logo" });
+                        set("clips", { wordmark: "Logo" });
+                      }}
+                    />
+                  </label>
+                </Button>
+                {logo && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[12px]"
+                    onClick={() => {
+                      setLogo(null);
+                      if (l.wordmark === "Logo") set("look", { wordmark: "Stacked" });
+                      if (s.clips.wordmark === "Logo") set("clips", { wordmark: "Stacked" });
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+            {logo && (
+              <Segmented
+                label="Logo color"
+                value={b.tint}
+                onChange={(tint) => set("brand", { tint })}
+                options={[
+                  { value: "original", label: "Original" },
+                  { value: "white", label: "White" },
+                  { value: "accent", label: "Accent" },
+                ]}
+              />
+            )}
+          </Field>
+
+          <Separator />
+          <FontPicker label="Headline font" value={b.headFont} fonts={allFonts} onChange={(headFont) => set("brand", { headFont })} onUpload={(f) => void uploadFont(f, "headFont")} />
+          <FontPicker label="Wordmark font" value={b.markFont} fonts={allFonts} onChange={(markFont) => set("brand", { markFont })} onUpload={(f) => void uploadFont(f, "markFont")} />
+          <p className="text-[11.5px] leading-snug text-muted-foreground">Meta lines and counters stay in JetBrains Mono. Uploaded fonts are kept in this browser for now; the real build saves them with the show.</p>
+        </div>
+        <SheetFooter className="flex-row justify-between border-t">
+          <Button variant="ghost" onClick={() => reset("brand")}>
+            Reset
+          </Button>
+          <Button onClick={() => setOpen(false)}>Done</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
