@@ -14,6 +14,7 @@ interface Spec {
   mid?: [gainDb: number, hz: number];
   high?: [gainDb: number, hz: number];
   comp?: number;
+  exp?: [thresholdDb: number, rangeDb: number];
 }
 
 function build(s: Spec): TrackFx {
@@ -24,6 +25,7 @@ function build(s: Spec): TrackFx {
   if (s.low) f.eq.low = { ...f.eq.low, gainDb: s.low[0], freq: s.low[1] };
   if (s.mid) f.eq.mid = { ...f.eq.mid, gainDb: s.mid[0], freq: s.mid[1] };
   if (s.high) f.eq.high = { ...f.eq.high, gainDb: s.high[0], freq: s.high[1] };
+  if (s.exp) f.exp = { on: true, thresholdDb: s.exp[0], rangeDb: s.exp[1] };
   if (s.comp !== undefined) f.comp = { on: true, amount: s.comp };
   return f;
 }
@@ -37,11 +39,11 @@ export interface BuiltinPreset {
 }
 
 export const PODCAST_PRESETS: BuiltinPreset[] = [
-  { id: "voice-clean", name: "Podcast voice", hint: "A good start for most voices: rumble out, a little less mud, a touch of presence, gentle 3:1 compression.", fx: build({ hpf: 80, low: [-2, 250], mid: [2, 3500], high: [1, 10000], comp: 0.35 }) },
+  { id: "voice-clean", name: "Podcast voice", hint: "A good start for most voices: noise reduction at 50 %, a gentle expander for the gaps, rumble out, a little less mud, a touch of presence, gentle 3:1 compression.", fx: build({ nr: 0.5, hpf: 80, low: [-2, 250], mid: [2, 3500], high: [1, 10000], exp: [-52, 12], comp: 0.35 }) },
   { id: "voice-deep", name: "Deeper voice", hint: "Lower voices: keeps the warmth, trims the boom around 300 Hz, a bit more presence.", fx: build({ hpf: 70, low: [-2.5, 300], mid: [2, 3000], high: [1.5, 10000], comp: 0.4 }) },
   { id: "voice-bright", name: "Brighter voice", hint: "Higher voices: a higher high-pass and less top-end lift so it doesn't get harsh.", fx: build({ hpf: 100, low: [-1, 250], mid: [1, 4000], comp: 0.35 }) },
   { id: "voice-broadcast", name: "Broadcast voice", hint: "Radio-style: a little low-end weight, forward presence and air, firmer 4:1-ish compression.", fx: build({ hpf: 80, low: [1.5, 120], mid: [2.5, 3500], high: [2, 10000], comp: 0.55 }) },
-  { id: "room-noisy", name: "Noisy room", hint: "Home office, fan, hum or hiss: noise reduction at 60 %, a higher high-pass, softer top.", fx: build({ nr: 0.6, hpf: 100, lpf: 14000, low: [-2, 250], mid: [2, 3500], comp: 0.4 }) },
+  { id: "room-noisy", name: "Noisy room", hint: "Home office, fan, hum or hiss: noise reduction at 60 %, a higher high-pass, softer top.", fx: build({ nr: 0.6, hpf: 100, lpf: 14000, low: [-2, 250], mid: [2, 3500], exp: [-48, 15], comp: 0.4 }) },
   { id: "guest-remote", name: "Remote guest (Zoom / phone)", hint: "Thin, band-limited call audio: cleans noise, trims the extremes, lifts intelligibility around 2.5 kHz.", fx: build({ nr: 0.4, hpf: 120, lpf: 9000, low: [-2, 300], mid: [3, 2500], comp: 0.55 }) },
   { id: "cleanup-gentle", name: "Gentle cleanup", hint: "Just tidies up: light noise reduction and a high-pass, nothing else.", fx: build({ nr: 0.3, hpf: 80 }) },
   { id: "music-bed", name: "Music under voice", hint: "For a music bed: dips the 3 kHz voice range so words cut through. Pair it with Ducking.", fx: build({ mid: [-4, 3000] }) },

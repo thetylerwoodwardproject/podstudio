@@ -1,0 +1,16 @@
+diff --git a/libDF/src/wasm.rs b/libDF/src/wasm.rs
+index 2e02095..aa0457e 100644
+--- a/libDF/src/wasm.rs
++++ b/libDF/src/wasm.rs
+@@ -86,3 +86,11 @@ pub unsafe fn df_process_frame(st: *mut DFState, input: &[f32]) -> js_sys::Float
+     let _lsnr = state.0.process(input, output_view).expect("Failed to process DF frame");
+     js_sys::Float32Array::from(output.as_slice().unwrap())
+ }
++
++/// Free a state made by df_create (added by Podstudio: upstream hands out the raw pointer but never frees it).
++#[wasm_bindgen]
++pub unsafe fn df_free(st: *mut DFState) {
++    if !st.is_null() {
++        drop(Box::from_raw(st));
++    }
++}

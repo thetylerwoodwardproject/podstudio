@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-11-03 — **page polish done (studio + public pages, editor untouched), deployed.** Still true from 11-02: Stage 05 awaits Tyler's review and everything is **uncommitted** (Stage 05 + today's polish on one working tree). Start at "Stereo + Stage 05 → Start here tomorrow"; today's changes are in "Page polish (2026-11-03)".
+**Last updated:** 2026-11-04 — **Stage 05 passed (Tyler).** DeepFilterNet noise reduction, the expander, the new FX order and export → publish are merged to `main` and deployed (see "Noise reduction is now DeepFilterNet" and the sections after it). **Stage 06 is next and not started — wait for Tyler's go.**
 player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
 applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
@@ -413,11 +413,21 @@ Tyler: "polish up the pages we have now, don't touch editor." Editor and its com
 
  (noise reduction, voice FX, loudness, MP3) + Tyler's review rounds — built 2026-11-02, awaiting review
 
-Tyler passed Stage 04, said yes to stereo, and started Stage 05. Stage 05 was built, then reworked through a long afternoon of Tyler's feedback (FX layout, accent consistency, audiocn everywhere, one editor instead of Simple/Advanced, presets, ducking in FX, palette, public player redesign). Everything below is **deployed and browser-verified, but uncommitted** (≈116 changed paths on `main`'s working tree; no branch or PR yet). Unit tests **261** pass; typecheck clean; browser scripts in `validation/editor/` and `validation/stage05/` (README there lists which are current and which are stale).
+Tyler passed Stage 04, said yes to stereo, and started Stage 05. Stage 05 was built, then reworked through a long afternoon of Tyler's feedback (FX layout, accent consistency, audiocn everywhere, one editor instead of Simple/Advanced, presets, ducking in FX, palette, public player redesign). Everything below is **deployed, browser-verified and merged** (PR #3, 2026-11-03). Unit tests **261** pass; typecheck clean; browser scripts in `validation/editor/` and `validation/stage05/` (README there lists which are current and which are stale).
+
+### Noise reduction is now DeepFilterNet (2026-11-04, after Tyler's review)
+- **What**: the per-track NR is DeepFilterNet3 (MIT/Apache), built from upstream commit `d375b2d` + `df-free.patch` into `packages/audio/dfn/` (wasm 14.5 MB + model 8 MB, `scripts/build-dfn.sh` rebuilds). Knob 0–100 % = 0–36 dB floor on a *smoothed* model gain (`NR_SMOOTH`: 9 bins, 8 ms up / 120 ms down), added after Tyler heard flutter at 38 %; `FX_LATENCY` is now 3072. `FX_LATENCY` is now **1920** (1440 model delay + one 480-sample hop).
+- **Same code both sides**: the AudioWorklet gets the compiled wasm + model from the page (`/studio/dfn/*`, `player.ts` → `audio-worklet.ts`); the export worker loads it from disk (`ensureDfnLoaded` in `render-jobs.ts`). Verified in headless Chromium vs Node: **384,000 of 384,000 samples bit-identical**.
+- **Behaviours to know**: 48 kHz only (other rates pass dry); until the model loads the preview is dry (panel says so); switching NR on/off/loading mid-stream never shifts audio; mono tracks run the model once; building a model takes ~0.5 s so the worklet pre-builds a pool while idle; ≈ 4.5× real time per channel, so a 1-hour export with NR takes ~13 min per pass (loudness export = 2 passes). It removes the 1 kHz retake tone (non-speech) - retake cleanup reads the source, so unaffected.
+- **Not done / not heard by Tyler yet**: listening comparison files are in `~/nr-compare/` (original, old NR, DeepFilterNet at 50/100 %). Live preview CPU with several NR tracks is unmeasured on real hardware. The old Wiener stopgap was removed.
+- Same session: retake tone −20 dBFS (was −6), 0–1 knobs now step 1 % (were 0/100 %), episode artwork preview works for drafts (own signed-in route), "Open in editor" after a take.
+
+- **FX order (Tyler, 2026-11-04): high-pass → noise reduction → expander → low-pass → EQ → compressor**, same in the engine (`packages/audio/src/fx.ts`) and the FX panel list. New **downward expander** (3:1, 6 dB knee, threshold −70…−20 dB, reduction 3…30 dB, ~3 ms open / 80 ms hold / 150 ms close); its detector hears the high-passed input 40 ms ahead of the audio, so it opens before words. Built into Podcast voice (−52 dB / 12 dB) and Noisy room (−48 / 15). Old projects have no `exp` and load with it off (FX_VERSION unchanged).
+- **Export → publish**: Export dialog has *Export & use for episode*; finished MP3s have *Use for episode* (copies the file into feed storage, verified like an upload); WAVs have *Convert & use* (renders an MP3 of the same revision, then uses it). Publish page has *Use my latest MP3 export*. Public episode page: platform buttons moved from the player card into the sidebar under Up next.
 
 ### Start here tomorrow
-1. Ask Tyler whether to **commit → PR → merge** this batch (he authorized that only for Stage 04). Branch first; don't commit on `main`.
-2. Tyler's by-ear checks (below) are still outstanding; Stage 05 isn't passed until he says so. Don't start Stage 06 without his go.
+1. ~~Commit → PR → merge~~ — done 2026-11-03 (PR #3). GitHub's default branch is `main`; the local checkout calls it `master`, so open PRs with `--base main`.
+2. ~~Tyler's by-ear checks~~ — done; he passed Stage 05 on 2026-11-04. Don't start Stage 06 without his go.
 3. Open threads from today: ChannelStrip for editor track headers (from his audiocn list, not done); stale validation scripts need rewriting (list in `validation/stage05/README.md`); Soundboard block noted for future hotkeys (not Release 1).
 4. Rebuild with `scripts/rebuild.sh` **in the background**, and when waiting for it, watch the log for `free space on` — don't `pgrep -f rebuild.sh` (the waiting loop matches itself and never exits).
 
@@ -485,7 +495,7 @@ Tyler: "we are in the United States … it's color". UI text and docs are US Eng
 - 2-hour MP3 export timing with FX not re-measured.
 - Ten older browser scripts drive the removed Advanced switch / master column / Duck tab and need rewriting (listed in `validation/stage05/README.md`).
 
-### Checks for Tyler (by ear / by hand)
+### Checks for Tyler (by ear / by hand) — all done, Stage 05 passed 2026-11-04
 1. A voice track: FX → try **Podcast voice**, then **Noisy room**; switch effects on/off in the list and A/B. **Listen** — especially noise reduction at 50–80 %.
 2. A music track under a voice: FX → **Ducking** on; play across a voice phrase.
 3. Export **MP3 128 stereo** and **64 mono**; play them.

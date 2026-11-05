@@ -240,6 +240,7 @@ export async function* renderWav(opts: RenderOptions): AsyncGenerator<Uint8Array
         )
       : null;
     let skip = lat;
+    try {
     for (let t = 0; t < total + lat; t += BLOCK) {
       let [L, R] = await mixBlock(doc, t, Math.min(BLOCK, total + lat - t), windowOf, duckStates, chains);
       if (skip > 0) {
@@ -255,6 +256,9 @@ export async function* renderWav(opts: RenderOptions): AsyncGenerator<Uint8Array
         for (let i = 0; i < m.length; i++) m[i] = (L[i]! + R[i]!) / 2;
         yield [m];
       }
+    }
+    } finally {
+      for (const c of chains?.values() ?? []) c.dispose(); // frees the noise-reduction models
     }
   }
   const scaled = (x: Float32Array[], g: number) =>

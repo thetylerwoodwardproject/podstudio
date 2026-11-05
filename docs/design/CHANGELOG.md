@@ -5,6 +5,12 @@
 - Reviewed the TWP social generator (`docs/notes/social-generator.md`); Stage 07 gains its voice/modes/validator design, Stage 10c gains social images, an Instagram carousel and cover/thumbnail art, and the wish list gains its posting queue rules and Mastodon.
 - Platform API connections and posting straight from Podstudio are deferred to the new `docs/WISHLIST.md` (how it would work + security plan). Not scheduled.
 
+## 2026-11-04 — Stage 05 passed (Tyler); DeepFilterNet, expander, export → publish
+- **Noise reduction is DeepFilterNet3** (MIT/Apache, built from upstream `d375b2d` + a one-function patch into `packages/audio/dfn/`; `scripts/build-dfn.sh`). The same wasm runs in the editor's AudioWorklet and in the export worker: browser vs export output is bit-identical (384,000 of 384,000 samples) with the whole chain on. Its per-bin gain is smoothed over time and frequency (`NR_SMOOTH`) before it is applied, which removed the flutter Tyler heard at ~38 %+ (frame-to-frame jitter 1.37 → 0.69 dB at 50 % on his take). The old homemade spectral filter is gone. `FX_LATENCY` is 3072.
+- **FX order** is now high-pass → noise reduction → expander → low-pass → EQ → compressor. New **downward expander** (3:1, soft knee, detector 64 ms ahead of the audio); in the Podcast voice and Noisy room presets. Podcast voice also has noise reduction at 50 %.
+- **Export → publish**: *Export & use for episode*, *Use for episode* on finished MP3s, *Convert & use* on WAVs (renders an MP3 of the same revision), *Use my latest MP3 export* on the Publish page; the Export window was tidied (settings grouped, actions in a footer, row menu). Public episode page: "Listen in your app" platform buttons moved from the player card to the sidebar under Up next.
+- Fixes: Reduction/Compression knobs moved only 0↔100 % (now 1 % steps); retake tone −6 → −20 dBFS; episode artwork preview works for unpublished drafts; "Open in editor" after a take.
+
 ## 2026-11-03 — Page polish (studio + public; editor untouched)
 - Every studio page uses one layout (`components/layout/page.tsx`: `Page` + `PageHeader`): same padding, two widths (form / wide), eyebrow = sidebar section, title, one-line description, actions on the right.
 - Studio works on phones/narrow windows: top bar + menu drawer (shadcn Sheet) below 768 px; Episodes hides Length/Edited on small screens; Library and Storage rows wrap.

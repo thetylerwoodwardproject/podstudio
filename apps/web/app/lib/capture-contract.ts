@@ -21,8 +21,8 @@ export const CAPTURE = {
 export const RETAKE_TONE = {
   freqHz: 1000,
   durationMs: 250,
-  /** Peak amplitude (0..1): −6 dBFS, loud enough to find in a noisy take. */
-  peak: 0.5,
+  /** Peak amplitude (0..1): −20 dBFS: findable in the file, but not painful to hear on playback. */
+  peak: 0.1,
   /** Raised-cosine fade in/out, to avoid clicks. */
   fadeMs: 5,
 } as const;
@@ -119,6 +119,9 @@ export function goertzel(window: Float32Array, sampleRate: number, freq: number)
  * strong (≥ 0.25 amplitude) and clearly dominant. Returns the start sample of each
  * tone. Used by tests now and by the retake-cleanup editor later.
  */
+/** Smallest 1 kHz magnitude that counts as the tone: half its peak (older, louder takes pass too). */
+const MIN_MAG = RETAKE_TONE.peak * 0.5;
+
 export function findRetakeTones(pcm: Float32Array, sampleRate: number): number[] {
   const win = Math.round(sampleRate * 0.025);
   const hop = Math.round(sampleRate * 0.005);
@@ -128,7 +131,7 @@ export function findRetakeTones(pcm: Float32Array, sampleRate: number): number[]
   for (let at = 0; at + win <= pcm.length; at += hop) {
     const slice = pcm.subarray(at, at + win);
     const mag = goertzel(slice, sampleRate, RETAKE_TONE.freqHz);
-    if (mag < 0.25) continue;
+    if (mag < MIN_MAG) continue;
     let rms = 0;
     for (let i = 0; i < slice.length; i++) rms += slice[i]! * slice[i]!;
     rms = Math.sqrt(rms / slice.length);
@@ -136,7 +139,7 @@ export function findRetakeTones(pcm: Float32Array, sampleRate: number): number[]
     if (at - last >= minGap) {
       // refine: walk back to where the tone actually begins
       let start = at;
-      while (start - hop >= 0 && goertzel(pcm.subarray(start - hop, start - hop + win), sampleRate, RETAKE_TONE.freqHz) >= 0.25) start -= hop;
+      while (start - hop >= 0 && goertzel(pcm.subarray(start - hop, start - hop + win), sampleRate, RETAKE_TONE.freqHz) >= MIN_MAG) start -= hop;
       hits.push(start);
     }
     last = at;

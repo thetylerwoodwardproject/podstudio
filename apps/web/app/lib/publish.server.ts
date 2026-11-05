@@ -2,6 +2,7 @@ import { desc, eq, ne } from "drizzle-orm";
 import { db, shows, episodes, episodePeople, people } from "@podstudio/db";
 import { zonedToUtcMs } from "~/lib/item-xml";
 import { getEpisodeAudio } from "~/lib/media.server";
+import { latestMp3Export } from "~/lib/project/exports.server";
 
 // Server-only — see CHANGELOG, "Real bug: two sidebar links silently failed
 // to navigate." "The episode only appears in the feed after every file is
@@ -30,7 +31,7 @@ export function getPublishData(id: string) {
     .innerJoin(people, eq(people.id, episodePeople.personId))
     .where(eq(episodePeople.episodeId, episode.id))
     .all();
-  return { episode, credits, timezone: show?.timezone ?? "UTC", showSlug: show?.slug ?? "", audio: getEpisodeAudio(id) };
+  return { episode, credits, timezone: show?.timezone ?? "UTC", showSlug: show?.slug ?? "", audio: getEpisodeAudio(id), mp3Export: latestMp3Export(id) };
 }
 
 export function scheduleEpisode(id: string, local: string): { ok: true } | { ok: false; error: string } {

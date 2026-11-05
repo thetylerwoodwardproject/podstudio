@@ -69,7 +69,7 @@ describe("pcm-capture worklet", () => {
     const all = new Float32Array(p.port.posted.filter((m: any) => m.type === "pcm").flatMap((m: any) => [...m.samples]));
     expect(Math.max(...all)).toBeLessThanOrEqual(1);
     expect(all.some((v) => v >= 0.999)).toBe(true);
-    expect(RETAKE_TONE.peak).toBe(0.5);
+    expect(RETAKE_TONE.peak).toBe(0.1);
   });
 
   it("ignores a second K while a tone is still playing", () => {

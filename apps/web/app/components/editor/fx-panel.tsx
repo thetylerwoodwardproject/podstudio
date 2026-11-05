@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { faRotateLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { FX_RANGES, defaultFx, fxActive, fxCurveDb, type TrackFx } from "@podstudio/audio/fx";
+import { FX_RANGES, defaultFx, fxActive, fxCurveDb, nrLimitDb, type TrackFx } from "@podstudio/audio/fx";
 import { Button } from "~/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
 import { Input } from "~/components/ui/input";
@@ -42,6 +42,8 @@ function FxKnob({ label, value, min, max, log, origin, size = "default", format,
       scale={log ? "log" : "linear"}
       origin={origin}
       resetValue={reset}
+      step={max - min <= 1 ? 0.01 : undefined}
+      largeStep={max - min <= 1 ? 0.1 : undefined}
       size={size}
       format={format}
       parse={parseNum}
@@ -100,18 +102,19 @@ function EqDisplay({ fx, player, trackId, playing, className }: { fx: TrackFx; p
   );
 }
 
-type FxSlot = "nr" | "hpf" | "lpf" | "eq" | "comp" | "duck" | "volume";
+type FxSlot = "nr" | "hpf" | "lpf" | "eq" | "exp" | "comp" | "duck" | "volume";
 /** The chain in signal order, as Hindenburg lists it: click one to edit it, switch it on/off in place. */
 const FX_SLOTS: { id: FxSlot; label: string; toggle?: (f: TrackFx, on: boolean) => void }[] = [
-  { id: "nr", label: "Noise reduction", toggle: (f, on) => (f.nr.on = on) },
   { id: "hpf", label: "High-pass", toggle: (f, on) => (f.hpf.on = on) },
+  { id: "nr", label: "Noise reduction", toggle: (f, on) => (f.nr.on = on) },
+  { id: "exp", label: "Expander", toggle: (f, on) => (f.exp.on = on) },
   { id: "lpf", label: "Low-pass", toggle: (f, on) => (f.lpf.on = on) },
   { id: "eq", label: "EQ" },
   { id: "comp", label: "Compressor", toggle: (f, on) => (f.comp.on = on) },
   { id: "duck", label: "Ducking" },
   { id: "volume", label: "Volume" },
 ];
-const slotOn = (fx: TrackFx, id: FxSlot) => (id === "nr" ? fx.nr.on : id === "hpf" ? fx.hpf.on : id === "lpf" ? fx.lpf.on : id === "comp" ? fx.comp.on : id === "eq" ? fx.eq.low.gainDb !== 0 || fx.eq.mid.gainDb !== 0 || fx.eq.high.gainDb !== 0 : false);
+const slotOn = (fx: TrackFx, id: FxSlot) => (id === "nr" ? fx.nr.on : id === "hpf" ? fx.hpf.on : id === "lpf" ? fx.lpf.on : id === "exp" ? fx.exp.on : id === "comp" ? fx.comp.on : id === "eq" ? fx.eq.low.gainDb !== 0 || fx.eq.mid.gainDb !== 0 || fx.eq.high.gainDb !== 0 : false);
 /** The effect last opened, so the panel comes back where you left it. */
 let lastPane: FxSlot = "nr";
 
@@ -119,8 +122,23 @@ let lastPane: FxSlot = "nr";
  * A track's FX (noise reduction, filters, 3-band EQ, compressor) and volume. Every control is real:
  * the same settings drive the preview's AudioWorklet and the export render (packages/audio/src/fx.ts).
  */
+function useDfnStatus(player: React.RefObject<EditorPlayer | null>) {
+  const [st, setSt] = useState<EditorPlayer["dfnStatus"]>(player.current?.dfnStatus ?? "idle");
+  useEffect(() => {
+    const p = player.current;
+    if (!p) return;
+    setSt(p.dfnStatus);
+    p.onDfnStatus = setSt;
+    return () => {
+      if (p.onDfnStatus === setSt) p.onDfnStatus = null;
+    };
+  }, [player]);
+  return st;
+}
+
 export function FxPanel({ track, doc, onFx, onGain, onDuck, player, playing }: { track: Track; doc: ProjectDoc; onFx: (fx: TrackFx | null) => void; onGain: (db: number) => void; onDuck: (op: (d: ProjectDoc) => EditResult, group?: string) => void; player: React.RefObject<EditorPlayer | null>; playing: boolean }) {
   const fx = track.fx ?? defaultFx();
+  const dfn = useDfnStatus(player);
   const set = (patch: (f: TrackFx) => void) => {
     const next = structuredClone(fx);
     patch(next);
@@ -207,7 +225,7 @@ export function FxPanel({ track, doc, onFx, onGain, onDuck, player, playing }: {
             <DropdownMenuItem onSelect={() => setSaving(true)} data-testid="fx-preset-save">Save these settings as a show preset…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <span className="ml-auto text-[11px] text-muted-foreground" title="Order: noise reduction → filters → EQ → compressor → volume. The preview plays exactly what the export renders." data-testid="fx-status">
+        <span className="ml-auto text-[11px] text-muted-foreground" title="Order: high-pass → noise reduction → expander → low-pass → EQ → compressor → volume. The preview plays exactly what the export renders." data-testid="fx-status">
           {!fx.on ? (duckRule?.enabled ? "FX bypassed; ducking still on" : "Bypassed: the track plays dry") : fxActive(fx) || duckRule?.enabled ? "Plays exactly as it will export" : "Nothing is changing the sound yet"}
         </span>
       </div>
@@ -259,8 +277,15 @@ export function FxPanel({ track, doc, onFx, onGain, onDuck, player, playing }: {
             <div className="flex flex-1 items-center justify-center gap-5">
               {pane === "nr" && (
                 <>
-                  <FxKnob size="lg" label="Reduction" value={fx.nr.amount} min={0} max={1} reset={0.5} format={(v) => `${fmtPct(v)} · ${Math.round(v * 20)} dB`} disabled={!fx.nr.on} onChange={(v) => set((f) => (f.nr.amount = v))} testid="fx-nr-amount" />
-                  <p className="max-w-[220px] text-[11.5px] leading-snug text-muted-foreground">Removes steady noise — hiss, hum, fans, room tone — between and under words. Start around 50% and listen with it on and off.</p>
+                  <FxKnob size="lg" label="Reduction" value={fx.nr.amount} min={0} max={1} reset={0.5} format={(v) => `${fmtPct(v)} · ${Math.round(nrLimitDb(v))} dB`} disabled={!fx.nr.on} onChange={(v) => set((f) => (f.nr.amount = v))} testid="fx-nr-amount" />
+                  <div className="flex max-w-[220px] flex-col gap-1.5">
+                    <p className="text-[11.5px] leading-snug text-muted-foreground">Removes background noise — hiss, hum, fans, room tone — and keeps the voice (DeepFilterNet). Start around 50% and listen with it on and off.</p>
+                    {dfn !== "ready" && fx.nr.on && (
+                      <p className={`text-[11.5px] leading-snug ${dfn === "failed" ? "text-destructive" : "text-muted-foreground"}`} data-testid="fx-nr-model-status">
+                        {dfn === "failed" ? "The noise model couldn't load, so the preview is unprocessed. The export still uses it." : "Loading the noise model… the preview is unprocessed until it's ready. Press play to start it."}
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
               {pane === "hpf" && <FxKnob size="lg" label="Cutoff" value={fx.hpf.freq} min={FX_RANGES.hpf.min} max={FX_RANGES.hpf.max} log reset={80} format={fmtHz} disabled={!fx.hpf.on} onChange={(v) => set((f) => (f.hpf.freq = v))} testid="fx-hpf-freq" />}
@@ -273,6 +298,13 @@ export function FxPanel({ track, doc, onFx, onGain, onDuck, player, playing }: {
                       <FxKnob label="" value={fx.eq[b].freq} min={FX_RANGES[b].min} max={FX_RANGES[b].max} log reset={b === "low" ? 120 : b === "mid" ? 2500 : 8000} format={fmtHz} onChange={(v) => set((f) => (f.eq[b].freq = v))} testid={`fx-eq-${b}-freq`} />
                     </div>
                   ))}
+                </div>
+              )}
+              {pane === "exp" && (
+                <div className="flex items-center gap-5" data-testid="fx-exp">
+                  <FxKnob size="lg" label="Threshold" value={fx.exp.thresholdDb} min={FX_RANGES.expThreshold.min} max={FX_RANGES.expThreshold.max} reset={-50} format={(v) => `${Math.round(v)} dB`} disabled={!fx.exp.on} onChange={(v) => set((f) => (f.exp.thresholdDb = Math.round(v)))} testid="fx-exp-threshold" />
+                  <FxKnob size="lg" label="Reduction" value={fx.exp.rangeDb} min={FX_RANGES.expRange.min} max={FX_RANGES.expRange.max} reset={12} format={(v) => `${Math.round(v)} dB`} disabled={!fx.exp.on} onChange={(v) => set((f) => (f.exp.rangeDb = Math.round(v)))} testid="fx-exp-range" />
+                  <p className="max-w-[210px] text-[11.5px] leading-snug text-muted-foreground">Turns down whatever is quieter than the threshold — the room between words and under breaths. Raise the threshold until the gaps go quiet but quiet words stay; it opens a few milliseconds before each word. It sits right after the noise reduction, before the compressor.</p>
                 </div>
               )}
               {pane === "comp" && (
