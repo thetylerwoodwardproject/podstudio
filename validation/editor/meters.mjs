@@ -1,34 +1,34 @@
+// Track meters + the transport's master meter (dBFS ⇄ LUFS) + the LUFS tab's LCD readout.
 import { launch, BASE, sleep, ok, failCount, resetProject, clearImports } from "./lib.mjs";
 import fs from "fs";
 const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
 const { b, ctx, p, errs } = await launch();
 resetProject(epId); await clearImports(ctx, epId);
+await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.removeItem("podstudio.editor.meter"); localStorage.removeItem("podstudio.editor.inspector"); });
 await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
-await p.evaluate(() => localStorage.removeItem("podstudio.editor.meter"));
-ok("master meter shown, dBFS by default", (await p.getAttribute("[data-testid=master-meter]", "data-mode")) === "dbfs");
+ok("master meter shown in the transport, dBFS by default", (await p.getAttribute("[data-testid=transport-meter]", "data-mode")) === "dbfs");
 ok("each track has a level meter", (await p.locator("[data-testid=track-host] [data-testid=track-meter]").count()) === 1);
 await p.click("[data-testid=play]"); await sleep(2500);
-const trackBar = await p.locator("[data-testid=track-host] [data-testid=track-meter] [data-slot=level-meter-bar]").evaluate((e) => getComputedStyle(e).transform + " " + e.getAttribute("style"));
-const dbfs = await p.innerText("[data-testid=dbfs-value]");
-ok("master dBFS readout moves while playing", /−?\d/.test(dbfs) && !dbfs.startsWith("−∞"), dbfs);
+const dbfs = await p.innerText("[data-testid=transport-meter-value]");
+ok("master dBFS readout moves while playing", /\d/.test(dbfs) && !dbfs.startsWith("−∞"), dbfs);
 await p.screenshot({ path: "meters-dbfs.png" });
-// click the meter body to switch
-await p.click("[data-testid=master-meter-body]"); await sleep(1500);
-ok("clicking the meter switches to LUFS", (await p.getAttribute("[data-testid=master-meter]", "data-mode")) === "lufs");
-ok("momentary loudness is live", /\d/.test(await p.innerText("[data-testid=lufs-momentary]")), await p.innerText("[data-testid=lufs-momentary]"));
+await p.click("[data-testid=transport-meter-block]"); await sleep(1500);
+ok("clicking the meter switches to LUFS", (await p.getAttribute("[data-testid=transport-meter]", "data-mode")) === "lufs");
+ok("LUFS target marker is drawn", (await p.locator("[data-testid=lufs-target]").count()) === 1);
 await p.screenshot({ path: "meters-lufs.png" });
-// let it play to the end, then compare integrated with the export's measurement of this mix (−21.3 LUFS)
+// play to the end, then read the integrated value in the transport and in the LUFS tab
 await p.waitForFunction(() => document.querySelector("[data-testid=play]").getAttribute("aria-label") === "Play", null, { timeout: 40000 });
 await sleep(400);
-const I = parseFloat((await p.innerText("[data-testid=lufs-integrated]")).replace("−", "-"));
+const num = (s) => parseFloat(s.replace("−", "-"));
+const I = num(await p.innerText("[data-testid=transport-meter-value]"));
 ok("integrated after the whole take is a real reading (exactness is proven by validation/stage05/parity.mjs)", Number.isFinite(I) && I < -6 && I > -60, String(I));
-const TP = parseFloat((await p.innerText("[data-testid=lufs-tp]")).replace("−", "-"));
-ok("true peak reported", Number.isFinite(TP), String(TP));
-await p.click("[data-testid=loudness-reset]"); await sleep(200);
-ok("reset clears integrated", (await p.innerText("[data-testid=lufs-integrated]")).includes("∞"));
+await p.click("[data-testid=tab-loud]"); await sleep(300);
+const lcd = num(await p.innerText("[data-testid=lcd-integrated]"));
+ok("LUFS tab agrees with the transport (±0.2)", Math.abs(lcd - I) <= 0.2, `${lcd} vs ${I}`);
+await p.click("[data-testid=lcd-reset]"); await sleep(300);
+ok("reset clears integrated", (await p.innerText("[data-testid=lcd-integrated]")).includes("∞"));
 await p.reload(); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(500);
-ok("meter mode remembered", (await p.getAttribute("[data-testid=master-meter]", "data-mode")) === "lufs");
+ok("meter mode remembered", (await p.getAttribute("[data-testid=transport-meter]", "data-mode")) === "lufs");
 await p.evaluate(() => localStorage.removeItem("podstudio.editor.meter"));
-console.log("track bar", trackBar);
 resetProject(epId);
 console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

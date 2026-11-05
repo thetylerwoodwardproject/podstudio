@@ -10,8 +10,6 @@ export const db=(body)=>execSync("cd /home/tylerw/podstudio/deploy && docker com
 export async function launch(){
   const b = await chromium.launch({executablePath: exe, args:["--ignore-certificate-errors","--host-resolver-rules=MAP studio.tylerwoodward.me 127.0.0.1","--use-fake-ui-for-media-stream","--use-fake-device-for-media-stream","--use-file-for-fake-audio-capture="+MIC,"--autoplay-policy=no-user-gesture-required"]});
   const ctx=await b.newContext({viewport:{width:1440,height:900},ignoreHTTPSErrors:true}); await ctx.grantPermissions(["microphone"],{origin:BASE});
-  // the regression scripts drive the Advanced editor (inspector, ducking, marks lane) unless a script opts out
-  await ctx.addInitScript(()=>{ try{ if(!localStorage.getItem("podstudio.editor.advanced")) localStorage.setItem("podstudio.editor.advanced", globalThis.__SIMPLE ? "0" : "1"); }catch{} });
   const p=await ctx.newPage(); const errs=[]; p.on("pageerror",e=>errs.push(String(e))); p.on("console",m=>{ if(m.type()==="error") errs.push("console: "+m.text()) });
   await p.goto(BASE+"/login"); await p.fill('input[type=email]',"tyler@fullymodulated.com"); await p.fill('input[type=password]',pw); await p.click('button[type=submit]'); await p.waitForSelector('[data-testid=show-card]');
   return {b,ctx,p,errs};

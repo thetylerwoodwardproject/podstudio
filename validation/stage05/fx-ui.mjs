@@ -1,4 +1,4 @@
-// Stage 05 demo path: FX on a voice track (Simple popover + Advanced inspector), then MP3 exports measured with ffmpeg.
+// Stage 05 demo path: FX on a voice track (popover from the track header), the LUFS tab, then MP3 exports measured with ffmpeg.
 import { launch, BASE, sleep, ok, failCount, resetProject, clearImports } from "./lib.mjs";
 import fs from "fs";
 import { execSync } from "child_process";
@@ -7,17 +7,21 @@ const { b, ctx, p, errs } = await launch();
 const proj = async () => await (await ctx.request.get(BASE + "/studio/projects/" + epId)).json();
 const saved = async () => { await sleep(500); await p.waitForFunction(() => /^Saved/.test(document.querySelector("[data-testid=save-status]").textContent), null, { timeout: 20000 }); };
 resetProject(epId); await clearImports(ctx, epId);
-await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.advanced", "0"); localStorage.removeItem("podstudio.editor.inspector"); });
+await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.removeItem("podstudio.editor.inspector"); });
 await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
 
-// ---- Simple: FX popover from the track header
+// ---- FX popover from the track header
 ok("FX button off at first", (await p.getAttribute("[data-testid=track-host] [data-testid=track-fx-button]", "aria-pressed")) === "false");
 await p.click("[data-testid=track-host] [data-testid=track-fx-button]");
 await p.waitForSelector("[data-testid=fx-popover] [data-testid=fx-panel]");
-ok("FX popover opens with the panel (filters, EQ, noise, compressor, volume, curve)", (await p.locator("[data-testid=fx-popover] [data-testid=fx-eq-curve]").count()) === 1 && (await p.locator("[data-testid=fx-popover] [data-testid=fx-comp]").count()) === 1);
+ok("FX popover opens with the effect chain and one effect's controls", (await p.locator("[data-testid=fx-popover] [data-testid=fx-chain]").count()) === 1);
 await p.click("[data-testid=fx-popover] [data-testid=fx-hpf-on]"); await sleep(150);
 await p.click("[data-testid=fx-popover] [data-testid=fx-nr-on]"); await sleep(150);
 await p.click("[data-testid=fx-popover] [data-testid=fx-comp-on]"); await sleep(150);
+await p.click("[data-testid=fx-popover] [data-testid=fx-tab-comp]"); await sleep(150);
+ok("compressor pane shows its gain-reduction readout", (await p.locator("[data-testid=fx-popover] [data-testid=fx-comp-gr]").count()) === 1);
+await p.click("[data-testid=fx-popover] [data-testid=fx-tab-eq]"); await sleep(250);
+ok("EQ pane shows the curve", (await p.locator("[data-testid=fx-popover] [data-testid=fx-eq-curve]").count()) === 1);
 // mid EQ gain by keyboard on the audiocn knob
 const dial = p.locator("[data-testid=fx-popover] [data-testid=fx-eq-mid-gain] [role=slider]").first();
 await dial.focus();
@@ -44,14 +48,9 @@ fx = d.doc.tracks.find((t) => t.kind === "host").fx;
 ok("one undo takes the whole knob turn back", fx?.eq.mid.gainDb === 0, String(fx?.eq.mid.gainDb));
 await p.keyboard.press("Control+Shift+z"); await saved();
 
-// ---- Advanced: the inspector's FX and LUFS tabs
-await p.click("[data-testid=advanced-toggle]"); await sleep(300);
-await p.click("[data-testid=track-host] [data-testid=track-fx-button]"); await sleep(300);
-ok("Advanced: FX button opens the inspector's FX tab", (await p.getAttribute("[data-testid=tab-fx]", "data-state")) === "active" && (await p.locator("[data-testid=inspector] [data-testid=fx-panel]").count()) === 1);
-await p.screenshot({ path: "fx-inspector.png" });
+// ---- the right panel's LUFS tab
 await p.click("[data-testid=tab-loud]"); await sleep(200);
 ok("LUFS tab shows the LCD readout", (await p.locator("[data-testid=loudness-tab] [data-testid=lcd-integrated]").count()) === 1);
-await p.evaluate(() => localStorage.setItem("podstudio.editor.advanced", "0"));
 
 // ---- MP3 exports, measured independently
 const exportMp3 = async (preset) => {
@@ -62,7 +61,7 @@ const exportMp3 = async (preset) => {
   await p.waitForFunction((n) => document.querySelectorAll("[data-testid=export-job]").length > n && document.querySelector("[data-testid=export-job]").dataset.status === "verified", before, { timeout: 300000 });
   const row = p.locator("[data-testid=export-job]").first();
   const label = await row.locator("[data-testid=export-label]").innerText();
-  const href = await row.locator("[data-testid=export-download]").getAttribute("href");
+  await row.locator("[data-testid=export-more]").click(); const href = await p.locator("[data-testid=export-download]").getAttribute("href"); await p.keyboard.press("Escape");
   const f = `fx-${preset}.mp3`;
   fs.writeFileSync(f, Buffer.from(await (await ctx.request.get(BASE + href)).body()));
   const probe = JSON.parse(execSync(`ffprobe -v error -show_streams -show_format -of json ${f}`).toString());
@@ -83,6 +82,6 @@ console.log("64 mono:", JSON.stringify(mo));
 ok("MP3 64 mono: 1 ch, 64 kbps", mo.ch === 1 && mo.kbps === 64);
 ok("MP3 64 mono measures −19 LUFS ±0.5", Math.abs(mo.I + 19) <= 0.5, String(mo.I));
 ok("MP3 64 mono true peak ≤ −1 dBTP", mo.TP <= -1.0, String(mo.TP));
-for (const id of await p.$$eval("[data-testid=export-job] [data-testid=export-download]", (a) => a.map((x) => x.getAttribute("href").split("/").pop()))) await ctx.request.delete(BASE + "/studio/exports/" + id);
+for (const j of (await (await ctx.request.get(BASE + `/studio/projects/${epId}/exports`)).json()).exports) await ctx.request.delete(BASE + "/studio/exports/" + j.id);
 resetProject(epId);
 console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

@@ -375,7 +375,7 @@ Fake microphone, headless Chromium, `validation/recording/run-long.sh 120` (deta
 - Export vs the sample-by-sample definition of the edit: −163 dBFS residual (24-bit); with fades + ducking −149 dBFS after dividing out the normalisation gain; crossfade of a clip trimmed back over its neighbour reproduces the original exactly (< −100 dBFS); track volume < −100 dBFS.
 - Loudness: EBU Tech 3341 case 1 reads −23.0 LUFS (48 and 44.1 kHz); **exports measured with ffmpeg `ebur128`: mono −19.0 LUFS, stereo −16.0 LUFS, TP −3.4 dBTP**; the editor's live integrated reading after playing a take equals the export's measurement of the same mix (−21.3); −12 dB on a fader = −12.0 LU.
 - 2-hour synthetic project, 8 tracks × 1,166 clips: opens and paints in 0.4 s, edits 60–120 ms, export 57 s at ~312 MiB (measured before normalisation; a normalised export does 2–4 mixing passes, so expect roughly 2–4× — **not re-measured**).
-- `pnpm test`: 27 files / 236 tests. Browser scripts passing against the live build: `track-menus`, `range-loop`, `crossfade`, `fades-and-ducking`, `rename-track`, `meters`, `fader`, `wheel-lanes-sliders`, `simple`, `lr`, `guard`, `loud-export`, `center`, `center-simple` (see `validation/editor/README.md`; they default to the Advanced layout).
+- `pnpm test`: 27 files / 236 tests. Browser scripts passing against the live build: `track-menus`, `range-loop`, `crossfade`, `fades-and-ducking`, `rename-track`, `meters`, `fader`, `wheel-lanes-sliders`, `layout` (was `simple`), `lr`, `guard`, `loud-export`, `meter-centre` (was `center-simple`), plus the 2026-11-05 rewrites `ducking-playback`, `stereo` and `stage05/fx-ui` (see `validation/editor/README.md`; no Advanced layout any more).
 
 ### Not done / caveats
 
@@ -435,7 +435,7 @@ Tyler passed Stage 04, said yes to stereo, and started Stage 05. Stage 05 was bu
 1. ~~Commit → PR → merge~~ — done (PR #3 on 2026-11-03, PR #4 on 2026-11-04). GitHub's default branch is `main`; the local checkout calls it `master`, so open PRs with `--base main`.
 2. ~~Tyler's by-ear checks~~ — done; he passed Stage 05 on 2026-11-04. Don't start Stage 06 without his go.
    Planning added 2026-11-05: Stage 06b (host publishing) is documented in STAGE-06b.md, BUILD_PLAN, STATUS and CHANGELOG; docs-only and uncommitted — check `git status`.
-3. Open threads from today: ChannelStrip for editor track headers (from his audiocn list, not done); stale validation scripts need rewriting (list in `validation/stage05/README.md`); Soundboard block noted for future hotkeys (not Release 1).
+3. Open threads from today: ChannelStrip for editor track headers (from his audiocn list, not done); ~~stale validation scripts need rewriting~~ done 2026-11-05 (all nine rewritten and green against the live build; `center.mjs` dropped); Soundboard block noted for future hotkeys (not Release 1).
 4. Rebuild with `scripts/rebuild.sh` **in the background**, and when waiting for it, watch the log for `free space on` — don't `pgrep -f rebuild.sh` (the waiting loop matches itself and never exits).
 
 ### Audio engine

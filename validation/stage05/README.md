@@ -7,7 +7,7 @@ from `../editor/record-take.mjs`.
 | Script | What it proves |
 |---|---|
 | `parity.mjs` + `parity-compare.test.ts` | The deployed preview FX (AudioWorklet in Chromium, OfflineAudioContext) vs the export's `FxChain` (Node) on the same fixture: residual must be < −60 dBFS. Last run: 287,488 / 288,000 samples bit-identical, −300 dBFS. Run `parity.mjs` (writes `apps/web/parity-browser.json`), then copy `parity-compare.test.ts` into `apps/web/app/lib/project/` and `npx vitest run` it; delete both afterwards. |
-| `fx-ui.mjs` | FX popover (Simple) and inspector tab (Advanced), switches, knob by keyboard, EQ curve shows the filters, playback through the FX, per-control undo, LUFS tab; MP3 128 stereo and 64 mono exports decoded with ffmpeg: format, bitrate, −16 / −19 LUFS ±0.5, true peak ≤ −1 dBTP. |
+| `fx-ui.mjs` | FX popover from the track header (chain switches, compressor readout, EQ curve shows the filters, knob by keyboard, playback through the FX, per-control undo), the LUFS tab; MP3 128 stereo and 64 mono exports decoded with ffmpeg: format, bitrate, −16 / −19 LUFS ±0.5, true peak ≤ −1 dBTP. |
 | `audiocn-screens.mjs` | Recorder live waveform (audiocn LiveWaveform) + retake tally, take player, studio Library previews, public inline player (audiocn AudioPlayer over the site-wide player). Plays Tyler's library item; changes nothing. |
 | `../editor/stereo.mjs` | Stereo import → stereo source/peaks, L/R meters, pan, stereo export with different L/R content at −16 LUFS. |
 
@@ -17,7 +17,7 @@ Run against the live site, from the same folder as `lib.mjs` (copy `../editor/li
 - `review-waveform-public.mjs` — public list on audiocn TrackList, grid play buttons, editor screenshot (audiocn waveform bars).
 - `review-one-editor.mjs` — no Advanced switch, right panel tabs, bigger knobs, podcast presets, per-track ducking in FX.
 
-**Stale after this round** (they drive the removed Advanced switch / master-meter column / Duck tab and need rewriting before they're useful again): `editor/center.mjs`, `editor/center-simple.mjs`, `editor/lr.mjs`, `editor/meters.mjs`, `editor/simple.mjs`, `editor/ducking-playback.mjs`, `editor/fades-and-ducking.mjs`, `editor/stereo.mjs`, `editor/track-menus.mjs`, `stage05/fx-ui.mjs`.
+**Rewritten 2026-11-05** for the one-editor layout and re-run green against the live studio: `editor/lr.mjs`, `meters.mjs`, `layout.mjs` (was `simple.mjs`), `meter-centre.mjs` (was `center-simple.mjs`), `ducking-playback.mjs`, `fades-and-ducking.mjs`, `stereo.mjs`, `track-menus.mjs` and `stage05/fx-ui.mjs`. `editor/center.mjs` was removed (the master-meter column is gone).
 - `recorder-live-waveform.mjs` — the recorder's live waveform scrolls left from the right edge (newest on the right), not out of the center (Tyler's screen recording, 2026-11-02).
 - `embed-sandboxed.mjs` — the embed plays inside a sandboxed iframe (origin "null") and a plain one.
 - `palette.mjs` — Brand & theme shows the six palette accents; a saved #BEFF00 reads as Lime; embed accents render.

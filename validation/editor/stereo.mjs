@@ -17,7 +17,7 @@ const item = (await items()).find((x) => x.name === NAME);
 ok("stereo upload decoded and ready", item?.status === "ready", item?.status);
 ok("library item and asset are 2-channel", item?.channels === 2 && db(`console.log(d.prepare("select channels from assets where id=?").get("${item.assetId}").channels)`) === "2");
 
-await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.advanced", "1"); localStorage.setItem("podstudio.editor.meter", "dbfs"); localStorage.removeItem("podstudio.editor.inspector"); });
+await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.meter", "dbfs"); localStorage.removeItem("podstudio.editor.inspector"); });
 await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800);
 await p.click("[data-testid=add-track]"); await p.waitForSelector("[data-testid=add-track-library-item]");
 await p.locator("[data-testid=add-track-library-item]").filter({ hasText: NAME }).locator("[data-testid=add-track-library-add]").click(); await saved();
@@ -34,10 +34,10 @@ ok("music track meter switches to L/R", (await p.locator("[data-testid=track-mus
 const lvl = (sel) => p.$$eval(sel, (els) => els.map((e) => parseFloat(getComputedStyle(e.closest("[data-slot=level-meter-channel]") ?? e).getPropertyValue("--meter-level") || "0")));
 await p.keyboard.press("Home"); await p.click("[data-testid=play]"); await sleep(2500);
 const tm = await p.$$eval("[data-testid=track-music] [data-testid=track-meter] [data-slot=level-meter-channel]", (els) => els.map((e) => parseFloat(getComputedStyle(e).getPropertyValue("--meter-level") || "0")));
-const mm = [...(await lvl("[data-testid=master-left]")), ...(await lvl("[data-testid=master-right]"))];
+const mm = [...(await lvl("[data-testid=transport-left]")), ...(await lvl("[data-testid=transport-right]"))];
 await p.click("[data-testid=play]");
 ok("track meter: left louder than right (file is −6 / −16.5 dBFS)", tm.length === 2 && tm[0] > tm[1] + 0.1, JSON.stringify(tm));
-ok("master meter: left louder than right", mm[0] > mm[1] + 0.1, JSON.stringify(mm));
+ok("transport meter: left louder than right", mm[0] > mm[1] + 0.1, JSON.stringify(mm));
 // pan the bed right: keyboard on the header pan (10 × → = R50)
 await p.locator("[data-testid=track-music] [data-testid=track-pan] input[type=range]").focus();
 for (let i = 0; i < 10; i++) await p.keyboard.press("ArrowRight");
@@ -53,7 +53,7 @@ const before = await p.locator("[data-testid=export-job]").count();
 await p.click("[data-testid=start-export]");
 // wait for *this* job (older exports can already be in the list)
 await p.waitForFunction((n) => document.querySelectorAll("[data-testid=export-job]").length > n && document.querySelector("[data-testid=export-job]")?.dataset.status === "verified", before, { timeout: 180000 });
-const href = await p.locator("[data-testid=export-job]").first().locator("[data-testid=export-download]").getAttribute("href");
+await p.locator("[data-testid=export-job]").first().locator("[data-testid=export-more]").click(); const href = await p.locator("[data-testid=export-download]").getAttribute("href"); await p.keyboard.press("Escape");
 fs.writeFileSync("stereo-export.wav", Buffer.from(await (await ctx.request.get(BASE + href)).body()));
 const chs = execSync("ffprobe -v error -show_entries stream=channels -of csv=p=0 stereo-export.wav").toString().trim();
 const vol = (pan) => parseFloat(execSync(`ffmpeg -hide_banner -nostats -i stereo-export.wav -af "pan=mono|c0=${pan},volumedetect" -f null - 2>&1 | grep mean_volume`).toString().match(/(-?[\d.]+) dB/)[1]);
@@ -62,8 +62,7 @@ const I = parseFloat(execSync("ffmpeg -hide_banner -nostats -i stereo-export.wav
 ok("export is 2-channel", chs === "2", chs);
 ok("left and right really differ in the export (bed is ~10 dB louder left)", lv > rv + 8, `L ${lv} dB, R ${rv} dB`);
 ok("stereo export measures −16 LUFS (ffmpeg ebur128)", Math.abs(I + 16) <= 0.5, String(I));
-for (const id of await p.$$eval("[data-testid=export-job] [data-testid=export-download]", (a) => a.map((x) => x.getAttribute("href").split("/").pop()))) await ctx.request.delete(BASE + "/studio/exports/" + id);
-await p.evaluate(() => localStorage.setItem("podstudio.editor.advanced", "0"));
+for (const j of (await (await ctx.request.get(BASE + `/studio/projects/${epId}/exports`)).json()).exports) await ctx.request.delete(BASE + "/studio/exports/" + j.id);
 resetProject(epId);
 for (const i of await items()) if (i.name === NAME) await ctx.request.delete(BASE + "/studio/library/items/" + i.id);
 console.log("errors", errs); console.log("FAILS", failCount()); await b.close();
