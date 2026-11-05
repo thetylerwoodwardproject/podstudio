@@ -36,3 +36,7 @@ Turn on OP3, add three shows to the podroll, dry-run a move to a test feed.
 
 ## Then
 Update `STATUS.md`, write a short summary of what changed and anything that was skipped, and **stop**. Don't start the next stage until Tyler says go.
+
+
+## Future
+Stage 06b stores per-platform host stats in `analytics_daily`. This stage shows them next to OP3, labeled separately and never merged. Add that to the Analytics screen here.

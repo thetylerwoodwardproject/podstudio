@@ -21,23 +21,31 @@ ok("dragging the top-right corner in 0.5 s sets a ~0.5 s fade-out", Math.abs(c.f
 ok("fade drag did not move or trim the clip", c.start===0&&c.srcStart===0&&c.length>20*R);
 await p.keyboard.press("Control+z"); await sleep(300); await p.keyboard.press("Control+z"); await sleep(300); await saved(); d=await proj(); ok("two undos remove both fades", d.doc.clips[0].fadeIn===0&&d.doc.clips[0].fadeOut===0);
 await p.keyboard.press("Control+Shift+z"); await sleep(300); await p.keyboard.press("Control+Shift+z"); await sleep(300); await saved();
-// ---------- add a music track with a file, then ducking
-await p.click('[data-testid=upload-menu]'); const [fc]=await Promise.all([p.waitForEvent("filechooser"), p.click('[data-testid=upload-new-music]')]); await fc.setFiles(M+"music.flac");
-await p.waitForFunction(()=>/music/.test(document.querySelector('[data-testid=toast]')?.textContent||""),null,{timeout:90000}); await sleep(500); await saved();
-await p.click('[data-testid=tab-duck]'); ok("Ducking tab starts empty", await p.locator('[data-testid=ducking-empty]').count()===1);
-await p.click('[data-testid=add-duck-rule]'); await sleep(300); await saved();
-const sum=await p.innerText('[data-testid=duck-summary]'); ok("a new rule ducks music under host + guest by default", /−12 dB under host \+ guest/.test(sum), sum);
+// ---------- add a music track from the library, then turn ducking on in its FX popover
+const NAME="ZZ duck bed (delete me)";
+const items=async()=>(await (await ctx.request.get(BASE+"/studio/library/items")).json()).items;
+for(const i of await items()) if(i.name===NAME) await ctx.request.delete(BASE+"/studio/library/items/"+i.id);
+await ctx.request.put(BASE+"/studio/library/items",{headers:{"X-Filename":"music.flac","X-Name":encodeURIComponent(NAME),"X-Kind":"music"},data:fs.readFileSync(M+"music.flac")});
+for(let i=0;i<60&&(await items()).find(x=>x.name===NAME)?.status!=="ready";i++) await sleep(1000);
+await p.reload(); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(800); await p.fill("[data-testid=library-sidebar-search]",NAME).catch(()=>{}); await sleep(400);
+await p.locator("[data-testid=library-sidebar-item]").filter({hasText:NAME}).locator("[data-testid=library-sidebar-add]").click({force:true}); await saved();
 d=await proj(); const music=d.doc.tracks.find(t=>t.kind==="music"), host=d.doc.tracks.find(t=>t.kind==="host");
-ok("rule targets exactly the music track", JSON.stringify(d.doc.ducking[0].targets)===JSON.stringify([music.id]));
-await p.click('[data-testid=duck-trigger-picked]'); await sleep(300);
-ok("picked-tracks mode lists tracks and pre-selects host", await p.locator(`[data-testid=duck-trigger-${host.id}]`).getAttribute("aria-pressed"))==="true";
-await p.locator(`[data-testid=duck-trigger-${host.id}]`).click(); await sleep(300);
-ok("with nothing picked it warns", (await p.locator('[data-testid=duck-triggers]').innerText()).includes("Pick at least one"));
-await p.locator(`[data-testid=duck-trigger-${host.id}]`).click(); await p.click('[data-testid=duck-trigger-speech]'); await sleep(300);
-await p.locator('[data-testid=duck-amount]').fill("-18"); await sleep(300);
-ok("amount slider updates the readout", (await p.innerText('[data-testid=duck-amount-value]'))==="−18 dB", await p.innerText('[data-testid=duck-amount-value]'));
-await saved(); d=await proj(); ok("rule saved with −18 dB, speech triggers", d.doc.ducking[0].amountDb===-18 && d.doc.ducking[0].triggers==="speech");
+ok("library + added the bed on a music track", !!music && d.doc.clips.some(c=>c.trackId===music.id));
+ok("no ducking yet", !(d.doc.ducking??[]).length);
+await p.locator("[data-testid=track-music] [data-testid=track-fx-button]").click(); await p.waitForSelector("[data-testid=fx-popover] [data-testid=fx-chain]");
+await p.click("[data-testid=fx-popover] [data-testid=fx-duck-on]"); await saved(); d=await proj();
+ok("Ducking switch makes a rule for exactly the music track, under host + guest", d.doc.ducking.length===1 && JSON.stringify(d.doc.ducking[0].targets)===JSON.stringify([music.id]) && d.doc.ducking[0].triggers==="speech", JSON.stringify(d.doc.ducking));
+await p.click("[data-testid=fx-popover] [data-testid=fx-duck-picked]"); await saved();
+d=await proj(); ok("picked-tracks mode pre-selects host", Array.isArray(d.doc.ducking[0].triggers) && d.doc.ducking[0].triggers.includes(host.id));
+await p.locator(`[data-testid=fx-duck-trigger-${host.id}]`).click(); await sleep(300);
+ok("with nothing picked it warns", (await p.locator("[data-testid=fx-popover] [data-testid=fx-duck]").innerText()).includes("Nothing triggers it yet"));
+await p.locator(`[data-testid=fx-duck-trigger-${host.id}]`).click(); await p.click("[data-testid=fx-popover] [data-testid=fx-duck-speech]"); await saved();
+// turn the amount up by keyboard on the knob
+const before=(await proj()).doc.ducking[0].amountDb;
+await p.locator("[data-testid=fx-popover] [data-testid=fx-duck-amount] [role=slider]").first().focus(); for(let i=0;i<3;i++) await p.keyboard.press("ArrowDown"); await saved();
+d=await proj(); ok("amount knob changes the rule", d.doc.ducking[0].amountDb!==before && d.doc.ducking[0].triggers==="speech", `${before} → ${d.doc.ducking[0].amountDb}`);
 await p.screenshot({path:"duck-ui.png"});
+await p.keyboard.press("Escape"); await sleep(200);
 // ---------- export and compare to an independent reference computed here
 await p.click('[data-testid=open-export]'); await p.click('[data-testid=fmt-wav]'); await p.click('[data-testid=ch-mono]'); await p.click('[data-testid=start-export]'); await p.waitForSelector('[data-testid=export-job][data-status=verified]',{timeout:90000});
 const jobs=(await (await ctx.request.get(BASE+`/studio/projects/${epId}/exports`)).json()).exports; const dl=new Uint8Array(await (await ctx.request.get(BASE+"/studio/exports/"+jobs[0].id)).body());
@@ -60,5 +68,6 @@ const ng=jobs[0].summary?.normalise; ok("export normalised to −19 LUFS without
 const kg=10**((ng?.gainDb??0)/20);
 const got=dec(dl,44,(dl.length-44)/3); let s=0; for(let t=0;t<len;t++) s+=(got[t]-expd[t]*kg)**2; const res=10*Math.log10(s/len+1e-20);
 ok("export matches an independent reference of fades + ducking × normalisation gain (residual < −60 dBFS)", res<-60 && got.length===len, `${res.toFixed(1)} dBFS, deepest dip ${(20*Math.log10(minG)).toFixed(1)} dB`);
-ok("the dip actually happened (≈ −18 dB at its deepest)", Math.abs(20*Math.log10(minG)+18)<1);
+ok("the dip actually happened (≈ the rule's amount at its deepest)", Math.abs(20*Math.log10(minG)-r.amountDb)<1, `${(20*Math.log10(minG)).toFixed(1)} vs ${r.amountDb}`);
+for(const i of await items()) if(i.name===NAME) await ctx.request.delete(BASE+"/studio/library/items/"+i.id); resetProject(epId);
 console.log("errors",errs); console.log("FAILS",failCount()); await b.close();

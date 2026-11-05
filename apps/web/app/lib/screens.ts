@@ -51,6 +51,7 @@ export const SCREENS: ScreenDef[] = [
   { id: "12", label: "Export", path: "/studio/export", area: "studio", section: "Edit", inSidebar: false, real: true, note: "Stage 04: Audio tab only — WAV 16/24-bit, 44.1/48 kHz, rendered by the worker from a saved revision, verified, downloadable. MP3, Video and Editor-project tabs are shown disabled" },
 
   // Publish & share
+  { id: "S1", label: "Social", path: "/studio/social", area: "studio", section: "Publish & share", inSidebar: true, real: true, note: "Mockup of the Stage 07/10c social tools: per-platform posts, graphics, carousel, clip captions" },
   { id: "13", label: "Clips", path: "/studio/clips", area: "studio", section: "Publish & share", inSidebar: true, real: false },
   { id: "13b", label: "Short video style", path: "/studio/clips/style", area: "studio", section: "Publish & share", inSidebar: false, real: false },
   { id: "14", label: "Publish to feed", path: "/studio/publish", area: "studio", section: "Publish & share", inSidebar: true, real: true, note: "Schedule/unschedule and the item XML preview are real; publish-now, uploads, enclosure and media-backed tags need Stage 02+" },

@@ -1,3 +1,4 @@
+// One editor layout (no Advanced switch): library sidebar + right panel tabs, ruler flags, track header controls, transport meter, drag from the library.
 import { launch, BASE, sleep, ok, failCount, resetProject, clearImports } from "./lib.mjs";
 import fs from "fs";
 const epId = fs.readFileSync(new URL("./epid.txt", import.meta.url), "utf8").trim();
@@ -11,17 +12,17 @@ for (const i of await items()) if (i.name === "ZZ test bed (delete me)") await c
 await ctx.request.put(BASE + "/studio/library/items", { headers: { "X-Filename": "music.flac", "X-Name": encodeURIComponent("ZZ test bed (delete me)"), "X-Kind": "music" }, data: fs.readFileSync(M + "music.flac") });
 for (let i = 0; i < 60 && (await items()).find((x) => x.name === "ZZ test bed (delete me)")?.status !== "ready"; i++) await sleep(1000);
 resetProject(epId); await clearImports(ctx, epId);
-await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.advanced", "0"); localStorage.removeItem("podstudio.editor.inspector"); });
+await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.removeItem("podstudio.editor.inspector"); });
 await p.goto(BASE + "/studio/editor?episode=" + epId); await p.click("[data-testid=start-editing]"); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(900);
-ok("Simple layout: library sidebar, no inspector, no marks lane", (await p.locator("[data-testid=library-sidebar]").count()) === 1 && (await p.locator("[data-testid=inspector]").count()) === 0 && (await p.getByText("Retakes & chapters").count()) === 0);
-ok("one toolbar row (header 52 px), title readable", (await p.locator("header").boundingBox()).height <= 53 && (await p.locator("[data-testid=editor-title]").boundingBox()).width >= 110);
+ok("library sidebar and the tabbed right panel (Library · Clip · Marks · LUFS)", (await p.locator("[data-testid=library-sidebar]").count()) === 1 && (await p.locator("[data-testid=inspector]").count()) === 1 && (await p.locator("[data-testid=advanced-toggle]").count()) === 0);
+ok("one toolbar row (header 52 px), title readable", (await p.locator("header:visible").first().boundingBox()).height <= 53 && (await p.locator("[data-testid=editor-title]").boundingBox()).width >= 110);
 ok("retake marks are flags on the ruler", (await p.locator("[data-testid=ruler] [data-testid=anno-retake]").count()) === 3);
-ok("track header: fader inline, no meter, no lock button", (await p.locator("[data-testid=track-host] [data-testid=track-fader]").count()) === 1 && (await p.locator("[data-testid=track-host] [data-testid=track-meter]").count()) === 0);
+ok("track header: fader inline plus a level meter", (await p.locator("[data-testid=track-host] [data-testid=track-fader]").count()) === 1 && (await p.locator("[data-testid=track-host] [data-testid=track-meter]").count()) === 1);
 ok("transport has the horizontal master meter", (await p.locator("[data-testid=transport-meter]").count()) === 1);
 await p.click("[data-testid=transport-meter]"); await sleep(150);
 ok("clicking it switches to LUFS", (await p.getAttribute("[data-testid=transport-meter]", "data-mode")) === "lufs");
 await p.click("[data-testid=transport-meter]");
-await p.screenshot({ path: "simple.png" });
+await p.screenshot({ path: "layout.png" });
 // drag a library item onto the Host lane at ~12 s
 await p.click("[data-testid=add-track]"); await p.click("[data-testid=add-track-music]"); await saved();
 const geo = await p.evaluate(() => { const r = document.querySelector("[data-testid=ruler]"); const box = r.getBoundingClientRect(); const ticks = [...r.children].filter((c) => /^\d+:\d\d$/.test(c.textContent.trim())).slice(0, 2).map((c) => ({ x: parseFloat(c.style.left), s: (([m, s]) => +m * 60 + +s)(c.textContent.trim().split(":")) })); return { left: box.left, pps: (ticks[1].x - ticks[0].x) / (ticks[1].s - ticks[0].s) }; });
@@ -33,14 +34,7 @@ let d = await proj();
 const music = d.doc.tracks.find((t) => t.kind === "music");
 const c = d.doc.clips.find((x) => x.trackId === music.id);
 ok("dragging a library item onto a track drops it there, at the drop point (≈3 s)", !!c && Math.abs(c.start / R - 3) < 0.3, c ? (c.start / R).toFixed(2) : "none");
-await p.screenshot({ path: "simple-dropped.png" });
-// Advanced toggle
-await p.click("[data-testid=advanced-toggle]"); await sleep(300);
-ok("Advanced shows the inspector, master meter column, marks lane, track meters", (await p.locator("[data-testid=inspector]").count()) === 1 && (await p.locator("[data-testid=master-meter]").count()) === 1 && (await p.getByText("Retakes & chapters").count()) === 1 && (await p.locator("[data-testid=track-meter]").count()) >= 1);
-await p.screenshot({ path: "advanced.png" });
-await p.reload(); await p.waitForSelector("[data-testid=canvas-host]"); await sleep(500);
-ok("Advanced is remembered", (await p.locator("[data-testid=inspector]").count()) === 1);
-await p.evaluate(() => localStorage.setItem("podstudio.editor.advanced", "0"));
+await p.screenshot({ path: "layout-dropped.png" });
 resetProject(epId);
 for (const i of await items()) if (i.name === "ZZ test bed (delete me)") await ctx.request.delete(BASE + "/studio/library/items/" + i.id);
 console.log("errors", errs); console.log("FAILS", failCount()); await b.close();

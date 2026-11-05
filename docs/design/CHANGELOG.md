@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-05 — Planning: external podcast hosts
+- Stage 10c also generates a **16:9 full-episode video for YouTube** (16:9 audiogram for audio-only episodes, branded camera video otherwise), with chapters, VTT and thumbnail alongside. Docs only.
+- **Promoted to a core stage (Tyler: "this will become a core part of the build").** New [Stage 06b](stages/STAGE-06b.md), right after Release 1 and before Stage 07; Release 1 stays scoped to the self-hosted feed. Self-hosted (S3 + our feed) stays an equal per-show option. Moved out of `WISHLIST.md`; `BUILD_PLAN.md` and `STATUS.md` updated; Stage 11 gets the host-stats display.
+- Scope: auto-upload episodes to Buzzsprout (reference adapter), RSS.com or Transistor instead of S3, with other hosts to evaluate; push chapters, transcripts, contributors, soundbites, podroll, feed verification and fan mail; pull per-platform stats into analytics next to OP3; Podcast Index and OP3 kept as the discovery/analytics layers.
+- Stage 06 keeps the `publications` table and publish jobs adapter-friendly.
+
+## 2026-11-03 — Planning: social posts
+- Social post copy is in scope: Stage 07 adds editable per-platform drafts for each episode (from the transcript and show notes, within each platform's length limit, copy-to-clipboard); Stage 10c adds per-clip captions that download alongside the MP4.
+- Reviewed the TWP social generator (`docs/notes/social-generator.md`); Stage 07 gains its voice/modes/validator design, Stage 10c gains social images, an Instagram carousel and cover/thumbnail art, and the wish list gains its posting queue rules and Mastodon.
+- Platform API connections and posting straight from Podstudio are deferred to the new `docs/WISHLIST.md` (how it would work + security plan). Not scheduled.
+
 ## 2026-11-04 — Stage 05 passed (Tyler); DeepFilterNet, expander, export → publish
 - **Noise reduction is DeepFilterNet3** (MIT/Apache, built from upstream `d375b2d` + a one-function patch into `packages/audio/dfn/`; `scripts/build-dfn.sh`). The same wasm runs in the editor's AudioWorklet and in the export worker: browser vs export output is bit-identical (384,000 of 384,000 samples) with the whole chain on. Its per-bin gain is smoothed over time and frequency (`NR_SMOOTH`) before it is applied, which removed the flutter Tyler heard at ~38 %+ (frame-to-frame jitter 1.37 → 0.69 dB at 50 % on his take). The old homemade spectral filter is gone. `FX_LATENCY` is 3072.
 - **FX order** is now high-pass → noise reduction → expander → low-pass → EQ → compressor. New **downward expander** (3:1, soft knee, detector 64 ms ahead of the audio); in the Podcast voice and Noisy room presets. Podcast voice also has noise reduction at 50 %.

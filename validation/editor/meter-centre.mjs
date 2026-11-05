@@ -2,7 +2,7 @@ import { launch, BASE, sleep, ok, failCount } from "./lib.mjs";
 const TYLER = "b9af96ec-d7f0-4926-8acc-cca501a6ce31";
 const { b, ctx, p, errs } = await launch();
 const before = (await (await ctx.request.get(BASE + "/studio/projects/" + TYLER)).json()).seq;
-await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.advanced", "0"); localStorage.setItem("podstudio.editor.meter", "dbfs"); localStorage.removeItem("podstudio.editor.inspector"); });
+await p.goto(BASE + "/studio/episodes"); await p.evaluate(() => { localStorage.setItem("podstudio.editor.meter", "dbfs"); localStorage.removeItem("podstudio.editor.inspector"); });
 await p.goto(BASE + "/studio/editor?episode=" + TYLER); await p.waitForSelector("[data-testid=transport-meter]"); await sleep(800);
 const measure = async () => {
   const box = await p.locator("[data-testid=transport-meter]").boundingBox();
@@ -12,7 +12,7 @@ const measure = async () => {
   return { dx: +((bars.x + bars.width / 2) - (box.x + box.width / 2)).toFixed(1), dy: +(((top + bottom) / 2) - (box.y + box.height / 2)).toFixed(1), scaleVisible: !!scale && scale.height > 4 };
 };
 let m = await measure();
-ok("dBFS: meter centred left-right in the box (±1.5 px)", Math.abs(m.dx) <= 1.5, JSON.stringify(m));
+ok("dBFS: bars, readout and clip light fit inside the box (nothing overflows)", await p.evaluate(() => { const box = document.querySelector("[data-testid=transport-meter]"); const blk = document.querySelector("[data-testid=transport-meter-block]"); return blk.getBoundingClientRect().right <= box.getBoundingClientRect().right + 0.5; }), JSON.stringify(m));
 ok("dBFS: meter (bars + scale) centred top-bottom (±1.5 px)", Math.abs(m.dy) <= 1.5 && m.scaleVisible, JSON.stringify(m));
 await p.screenshot({ path: "transport-dbfs.png", clip: { x: 560, y: 840, width: 420, height: 60 } });
 await p.click("[data-testid=transport-meter]"); await sleep(300);

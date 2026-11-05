@@ -1,6 +1,6 @@
 # Stage 10c: Clips, captions, audiograms & custom colours
 
-**Goal:** Produce finished shorts from audio-only or camera episodes with safe, reusable styles.
+**Goal:** Produce finished shorts from audio-only or camera episodes with safe, reusable styles, plus a 16:9 full-episode video for YouTube.
 
 ## Screens
 - 13 Clips
@@ -16,15 +16,20 @@
 - [ ] Audiogram: art RMS-envelope motion Still/Subtle/Lively, independent pulsing glow, 0–100% intensity, below-art captions, drag/centre snapping, corner resize and Reset positions
 - [ ] Hook title for first 3 seconds, logo, progress bar and optional 3-second end card; show real configured destination links rather than advertising unavailable platforms
 - [ ] Versioned TikTok/Reels/Shorts occlusion config; safe-area-aware defaults/reset, per-platform export placement and visible feedback for manually out-of-zone content
-- [ ] H.264/AAC 1080×1920 at 30 fps, total duration under 90 seconds including any end card; deterministic envelope/motion/text rendering from the shared specification
+- [ ] Per-clip post copy: AI drafts a caption + hashtags per platform from the clip's edited transcript (uses the Stage 07 social drafts and voice settings); editable, copy-to-clipboard, downloaded alongside the MP4 as a text file
+- [ ] Social graphics, after the TWP social generator (`docs/notes/social-generator.md`): episode post images (Instagram 1080×1350, X, Facebook) and an Instagram carousel (cover, 3–6 AI-written text/quote slides with quotes word for word from the transcript, listen slide, caption); default layout rotates per episode; preview and export are the same drawing; "Use in post" and one ZIP export. Cover art 3000×3000 and YouTube thumbnail are noted here until a better home is decided
+- [ ] Show-level wordmark & fonts (with Brand & theme): stacked name from the show title (editable lines; a leading "The" is dropped only when two or more words remain), domain from the show website, or an uploaded PNG/SVG logo (original/white/accent), never stretched; listening-platform icons (pick up to 5 of 18 Simple Icons glyphs, in order; white or accent; top-right corner on/off; always on the carousel listen slide); long names shrink to clear the waveform; headline and wordmark fonts from a self-hosted list or an uploaded font file, saved with the show
+- [ ] Shorts: H.264/AAC 1080×1920 at 30 fps, total duration under 90 seconds including any end card; deterministic envelope/motion/text rendering from the shared specification
+- [ ] **Full-episode 16:9 for YouTube** (Tyler, 2026-11-05): from the same generator, render the whole episode as one 1920×1080, 30 fps H.264/AAC video. Audio-only episodes get a 16:9 audiogram (episode art + waveform, show wordmark, optional chapter title lower-third and progress bar, same envelope/motion/glow controls); camera episodes use the Stage 10a/10b 16:9 export with the show's branding. Optional burned-in captions (same six styles, 16:9 positions, off by default since YouTube takes the VTT), no 90-second limit and no safe-zone occlusion (that applies to shorts only). Uses the show-level style with its own 16:9 normalized positions; hands off the chapters, VTT transcript and a 1280×720 thumbnail (see social graphics) for the YouTube upload. Renders as a long, resumable, cancellable worker job with progress; deterministic like the shorts. Direct YouTube upload stays on the wish list
 
 ## Out of scope
-Editable-project exports (10d), direct social-platform posting and mobile host recording.
+Editable-project exports (10d), direct social-platform posting (API connections and auto-posting are on `docs/WISHLIST.md`) and mobile host recording.
 
 ## Done when
 - [ ] Preview/export caption position is within 2% of frame dimensions, word timing within one frame, and text wrapping/styles match pinned reference frames
 - [ ] Default/reset audiogram captions and logo/hook fit inside each configured platform's safe region; reproduce and fix the mockup's TikTok-bottom overlap
 - [ ] Brand-linked styles follow a brand change while custom highlight/glow remain independent; old export revisions retain their resolved colours
+- [ ] The full-episode 16:9 render matches the episode's final audio (duration within one frame, approved loudness), survives a 2-hour episode without running out of memory, and can be cancelled and resumed; chapters, VTT and thumbnail download with it
 - [ ] Camera and audio-only clips export with correct layouts, duration, A/V timing and approved final audio metrics
 - [ ] Desktop screens match README overrides; lint/typecheck/unit/e2e and frame/media checks pass; CHANGELOG updated
 

@@ -15,6 +15,8 @@ At the end of this stage the app must still deploy and everything from earlier s
 - [ ] Source-to-edited mapping and stale detection after timeline changes; sentence-aware retake refinement adds to the already-working Stage-04 tone/silence cleanup
 - [ ] Auto-correct rules and custom vocabulary
 - [ ] AI suggestions (titles, description, chapters) as accept/dismiss; nothing auto-applied
+- [ ] Social post copy for the episode: per-platform drafts (X, Threads, Bluesky, Facebook, Instagram, TikTok, YouTube, LinkedIn) generated from the transcript and show notes, respecting each platform's length limits and the show's saved voice/hashtag settings; editable, regenerate per platform, copy-to-clipboard, saved with the episode. No posting; direct posting is on `docs/WISHLIST.md`
+- [ ] Social copy works like the TWP social generator (`docs/notes/social-generator.md`): two-part prompt (editable show voice with version history and Reset, plus fixed rules and a JSON schema in code); Clean up / Draft / Split per platform modes; Threads topic and a hashtag list as fields; one shared validator for limits (Bluesky graphemes, Mastodon links count as 23, Threads topic rules) used by the live counters and the server; AI rate limit and clear refusal/too-long errors
 - [ ] podcast:transcript and podcast:chapters in the feed
 
 ## Out of scope
@@ -24,6 +26,7 @@ Anything listed in a later stage. Leave stub routes, not half-built features.
 - [ ] Measure a 45-minute episode on the configured endpoint; target under 10 minutes and report provider limits/queue time separately rather than claiming an unmeasured hardware-independent SLA
 - [ ] Word-level seeking/highlighting and retake refinement stay aligned after linked edits, or clearly require reprocessing; endpoint omissions never fabricate word timing
 - [ ] Applying a suggestion is undoable
+- [ ] Social drafts stay within each platform's character limit, only quote things said in the transcript, and survive regeneration of other platforms
 - [ ] Screens match the mockup at 1440×900 (and 390×844 for phone screens)
 - [ ] lint, typecheck, unit and e2e tests pass in CI
 - [ ] CHANGELOG.md has an entry for this stage
