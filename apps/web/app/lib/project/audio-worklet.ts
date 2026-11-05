@@ -4,7 +4,9 @@
 //   constant FX_LATENCY. Posts gain reduction (for the compressor meter) about 20× a second.
 // - "podstudio-meter": on the master — L/R peak and RMS, and BS.1770 loudness of the stereo mix and of
 //   its mono fold-down (momentary, short-term, integrated, LRA, true peak), every 4096 samples.
-import { FxChain, defaultFx, normalizeFx } from "@podstudio/audio/fx";
+import "./worklet-text-shim"; // must stay first: the DeepFilterNet glue needs TextDecoder when it loads
+import { createDfnRuntime } from "@podstudio/audio/dfn-runtime";
+import { FxChain, defaultFx, dfnReady, normalizeFx, setDfnRuntime, type DfnRuntime } from "@podstudio/audio/fx";
 import { LoudnessMeter, TruePeakMeter } from "@podstudio/audio/loudness";
 
 // AudioWorkletGlobalScope (not in the DOM lib)
@@ -15,6 +17,8 @@ declare class AudioWorkletProcessor {
   constructor(options?: { processorOptions?: Record<string, unknown> });
 }
 
+let dfnRuntime: DfnRuntime | null = null;
+
 class FxProcessor extends AudioWorkletProcessor {
   private chain: FxChain;
   private quanta = 0;
@@ -24,6 +28,22 @@ class FxProcessor extends AudioWorkletProcessor {
     this.chain = new FxChain(sampleRate, 2, normalizeFx(options?.processorOptions?.fx) ?? defaultFx());
     this.port.onmessage = (e: MessageEvent) => {
       if (e.data?.type === "fx") this.chain.set(normalizeFx(e.data.fx) ?? defaultFx());
+      else if (e.data?.type === "dfn") {
+        // the page compiled the DeepFilterNet wasm and fetched the model; every FX node in this context shares them
+        try {
+          if (!dfnReady()) dfnRuntime = createDfnRuntime(e.data.module as WebAssembly.Module, new Uint8Array(e.data.model as ArrayBuffer));
+          setDfnRuntime(dfnRuntime);
+          this.port.postMessage({ type: "dfn", ok: true });
+        } catch (err) {
+          this.port.postMessage({ type: "dfn", ok: false, error: String(err) });
+        }
+      } else if (e.data?.type === "dfn-prepare" && dfnRuntime) {
+        try {
+          dfnRuntime.prepare?.(Number(e.data.count) || 0);
+        } catch {
+          /* the first real use will build one instead */
+        }
+      }
     };
   }
   process(inputs: Float32Array[][], outputs: Float32Array[][]) {

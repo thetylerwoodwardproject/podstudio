@@ -1,27 +1,30 @@
-// Per-track FX (Stage 05): noise reduction → high-pass → low-pass → 3-band EQ → compressor.
+// Per-track FX (Stage 05): high-pass → noise reduction → expander → low-pass → 3-band EQ → compressor.
 // One deterministic implementation shared by the export (worker render) and the browser preview
 // (an AudioWorklet runs this same module), so preview and export process audio identically.
 //
 // Algorithm record (PREBUILD's DSP decision, made here):
-// - FX_VERSION 1. Order: NR → HPF → LPF → EQ (low shelf, mid bell, high shelf) → compressor.
+// - FX_VERSION 1. Order: HPF → NR → expander → LPF → EQ (low shelf, mid bell, high shelf) → compressor.
+//   (Rumble and plosive thump out first, so nothing downstream reacts to them; noise reduction while the
+//   signal is still clean and before any dynamics; the expander before the compressor so the compressor
+//   can't lift the noise floor back up; subtractive EQ before the compressor.)
 //   Applied per track after clip gain/fades and ducking, before the fader and pan.
 // - Constant latency FX_LATENCY frames on every track that goes through FX (the NR's STFT frame;
 //   a plain delay line when NR is off), so tracks stay aligned; the render drops it, the preview
 //   schedules audio that much early.
-// - Noise reduction: STFT, N = 1024, hop 256, √Hann analysis/synthesis (Hann² overlap-add = 2 →
-//   ×½). Per bin: time-smoothed power, minimum-statistics noise floor (falls to any lower value
-//   at once, rises ≈ +3 dB/s; seeded from the first frame) × bias 6, power spectral subtraction
-//   (β = 3) → amplitude gain (smoothing 0.9 on the per-bin power), floor
-//   Gmin = 10^(−20·amount/20) (amount 0…1 → 0…20 dB maximum reduction), gains fall slowly
-//   (0.6/0.4 smoothing) and are averaged over 3 bins against musical noise.
+// - Noise reduction: DeepFilterNet3 (see the DFN block below and packages/audio/dfn/README.md). The
+//   The model runs at full strength and its per-bin gain is smoothed (time + frequency) before it is applied, so
+//   the noise floor doesn't flutter; the knob sets the smoothed gain's floor, 0…100 % → 0…36 dB. Latency 3072.
 // - Filters: RBJ biquads, transposed direct form II, 64-bit state. HPF/LPF Butterworth Q = 1/√2
 //   (12 dB/oct). Low shelf / high shelf slope 1, mid bell Q = 1.
+// - Downward expander (right after the noise reduction): 3:1 below the threshold, 6 dB soft knee, at most
+//   `rangeDb` of reduction; opens in ~3 ms, closes after an 80 ms hold over ~150 ms. Its detector listens to the
+//   high-passed input, which runs FX_LATENCY (64 ms) ahead of the output, so it opens before a word arrives.
 // - Compressor: stereo-linked peak detector (5 ms attack, 120 ms release) in dB, soft knee 6 dB.
 //   amount a ∈ 0…1 → threshold −10 − 20a dBFS, ratio 1.5 + 4.5a, make-up ½·|thr|·(1 − 1/ratio).
 // Every stage is sample-accurate, so the output doesn't depend on how audio is split into blocks.
 
 export const FX_VERSION = 1;
-export const FX_LATENCY = 1024;
+export const FX_LATENCY = 3072; // 1440 (DeepFilterNet's own delay) + the smoother's frame (1024) + hop batching, rounded up to 6 × 512
 
 export const FX_RANGES = {
   nrAmount: { min: 0, max: 1 },
@@ -32,6 +35,8 @@ export const FX_RANGES = {
   mid: { min: 300, max: 6000 },
   high: { min: 4000, max: 16000 },
   compAmount: { min: 0, max: 1 },
+  expThreshold: { min: -70, max: -20 },
+  expRange: { min: 3, max: 30 },
 } as const;
 
 export interface EqBand {
@@ -47,6 +52,8 @@ export interface TrackFx {
   hpf: { on: boolean; freq: number };
   lpf: { on: boolean; freq: number };
   eq: { low: EqBand; mid: EqBand; high: EqBand };
+  /** Downward expander: turns what is below `thresholdDb` down by up to `rangeDb` (between words, under breaths). */
+  exp: { on: boolean; thresholdDb: number; rangeDb: number };
   comp: { on: boolean; amount: number };
 }
 
@@ -57,13 +64,14 @@ export const defaultFx = (): TrackFx => ({
   hpf: { on: false, freq: 80 },
   lpf: { on: false, freq: 16000 },
   eq: { low: { gainDb: 0, freq: 120 }, mid: { gainDb: 0, freq: 2500 }, high: { gainDb: 0, freq: 8000 } },
+  exp: { on: false, thresholdDb: -50, rangeDb: 12 },
   comp: { on: false, amount: 0.4 },
 });
 
 /** Does this FX setting change the sound at all? (Bypassed, or nothing switched on and EQ flat.) */
 export function fxActive(fx: TrackFx | undefined): boolean {
   if (!fx || !fx.on) return false;
-  return fx.nr.on || fx.hpf.on || fx.lpf.on || fx.comp.on || fx.eq.low.gainDb !== 0 || fx.eq.mid.gainDb !== 0 || fx.eq.high.gainDb !== 0;
+  return fx.nr.on || fx.hpf.on || fx.lpf.on || fx.exp.on || fx.comp.on || fx.eq.low.gainDb !== 0 || fx.eq.mid.gainDb !== 0 || fx.eq.high.gainDb !== 0;
 }
 
 const clamp = (v: unknown, r: { min: number; max: number }, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.max(r.min, Math.min(r.max, v)) : d);
@@ -83,6 +91,7 @@ export function normalizeFx(raw: unknown): TrackFx | null {
     hpf: { on: bool(r.hpf?.on, d.hpf.on), freq: clamp(r.hpf?.freq, FX_RANGES.hpf, d.hpf.freq) },
     lpf: { on: bool(r.lpf?.on, d.lpf.on), freq: clamp(r.lpf?.freq, FX_RANGES.lpf, d.lpf.freq) },
     eq: { low: band(r.eq?.low, FX_RANGES.low, d.eq.low), mid: band(r.eq?.mid, FX_RANGES.mid, d.eq.mid), high: band(r.eq?.high, FX_RANGES.high, d.eq.high) },
+    exp: { on: bool(r.exp?.on, d.exp.on), thresholdDb: clamp(r.exp?.thresholdDb, FX_RANGES.expThreshold, d.exp.thresholdDb), rangeDb: clamp(r.exp?.rangeDb, FX_RANGES.expRange, d.exp.rangeDb) },
     comp: { on: bool(r.comp?.on, d.comp.on), amount: clamp(r.comp?.amount, FX_RANGES.compAmount, d.comp.amount) },
   };
 }
@@ -184,6 +193,43 @@ export function fxCurveDb(fx: TrackFx, f: number, rate = 48000): number {
   return fxBiquads(fx, rate).reduce((s, c) => s + biquadDb(c, f, rate), 0);
 }
 
+// ---- noise reduction (one channel; also the fixed-latency delay when off) ------------------------
+//
+// DeepFilterNet3 (packages/audio/dfn), run frame by frame: 480-sample hops at 48 kHz, 1440 samples of
+// inherent delay. The wasm is supplied from outside (the browser's AudioWorklet gets it from the page,
+// the export worker reads it from disk): setDfnRuntime(). Until it is supplied — or whenever the rate
+// isn't 48 kHz, or the amount is 0 — the stage is the exact same-length delay, i.e. dry audio.
+// The wet signal is played FX_LATENCY late and starts after a warm-up, so switching on, off or loading
+// the model mid-stream never moves audio in time and block sizes never change the output.
+
+export const DFN_HOP = 480;
+export const DFN_RATE = 48_000;
+/** Maximum reduction (dB) at amount = 1: DeepFilterNet's attenuation limit. */
+export const DFN_MAX_DB = 36;
+/** The knob → the noise reduction's maximum cut (dB): 0…100 % → 0…36 dB, linear. */
+export function nrLimitDb(amount: number): number {
+  const a = Math.max(0, Math.min(1, amount));
+  return DFN_MAX_DB * a;
+}
+
+export interface DfnInstance {
+  /** One hop (DFN_HOP samples) in, one hop out. */
+  process(frame: Float32Array): Float32Array;
+  setAttenLimit(db: number): void;
+  free(): void;
+}
+export interface DfnRuntime {
+  create(attenLimitDb: number): DfnInstance;
+  /** Build models ahead of time (so create() is instant) until `count` are ready. Optional. */
+  prepare?(count: number): void;
+}
+let dfnRuntime: DfnRuntime | null = null;
+/** Supply (or remove) the DeepFilterNet runtime. Chains pick it up on their next block. */
+export function setDfnRuntime(rt: DfnRuntime | null) {
+  dfnRuntime = rt;
+}
+export const dfnReady = () => dfnRuntime !== null;
+
 // ---- FFT (radix-2, in place) -------------------------------------------------------------------
 
 class FFT {
@@ -240,117 +286,171 @@ class FFT {
   }
 }
 
-// ---- noise reduction (one channel; also the fixed-latency delay when off) ------------------------
-
-const NR_N = FX_LATENCY;
-const NR_HOP = 256;
-const NR_BINS = NR_N / 2 + 1;
-/** Tuning (exported only so the tests can sweep it): power smoothing, minimum-statistics bias, over-subtraction. */
-export const NR_TUNING = { smooth: 0.9, bias: 6, beta: 3 };
+// DeepFilterNet runs at full strength; what reaches the listener is *our* gain: the per-bin gain the model applied
+// (|wet| / |dry| over a 1024-point STFT), smoothed across 9 bins and over time (fast up, 120 ms down), floored at the
+// knob's limit, and applied to the dry signal. Raw model output flutters where the limit is high (its gain flips between
+// "noise" and "not noise" frame by frame); smoothing cut that frame-to-frame jitter by about a third on a real take.
+export const NR_SMOOTH = { attackMs: 8, releaseMs: 120, bins: 9 };
+const SM_N = 1024;
+const SM_HOP = 512;
+const SM_BINS = SM_N / 2 + 1;
+const DFN_DELAY = 1440; // the model's own delay (measured)
+const OUT_LAG = FX_LATENCY - DFN_DELAY; // final[j] is played at time j + OUT_LAG
+const XFADE = 960;
+const RING = 8192; // power of two, ≥ any window we look back over
 
 class NoiseReducer {
-  private fft = new FFT(NR_N);
-  private win = new Float64Array(NR_N);
-  private inBuf = new Float64Array(NR_N); // the last N input samples
-  private outAcc = new Float64Array(NR_N); // overlap-add accumulator
-  private fill = 0; // samples since the last frame
-  private re = new Float64Array(NR_N);
-  private im = new Float64Array(NR_N);
-  private pSmooth = new Float64Array(NR_BINS);
-  private noise = new Float64Array(NR_BINS).fill(Number.POSITIVE_INFINITY);
-  private gPrev = new Float64Array(NR_BINS).fill(1);
-  private gRaw = new Float64Array(NR_BINS);
-  private frames = 0;
-  private rise: number;
-  // the output stream: one hop of finished samples is handed out at a time
-  private ready = new Float64Array(NR_HOP);
-  private readyPos = NR_HOP;
-  /** Pure delay mode (NR off): an exact FX_LATENCY-sample delay line. */
-  private delay = new Float64Array(NR_N);
+  /** Exact FX_LATENCY-sample delay line, always running (it is the dry signal when the model is off or warming up). */
+  private delay = new Float64Array(FX_LATENCY);
   private delayPos = 0;
+  private inst: DfnInstance | null = null;
+  private frame = new Float32Array(DFN_HOP);
+  private fill = 0;
+  private dryRing = new Float32Array(RING); // raw input by absolute index
+  private wetRing = new Float32Array(RING); // model output by absolute index
+  private fin = new Float32Array(RING); // finished output by play order
+  private tIn = 0;
+  private wetN = 0;
+  private nextEnd = SM_N;
+  private finWr = 0;
+  private finRd = 0;
+  private fft = new FFT(SM_N);
+  private win = new Float64Array(SM_N);
+  private xr = new Float64Array(SM_N);
+  private xi = new Float64Array(SM_N);
+  private yr = new Float64Array(SM_N);
+  private yi = new Float64Array(SM_N);
+  private acc = new Float64Array(SM_N);
+  private gSm = new Float64Array(SM_BINS).fill(1);
+  private lg = new Float64Array(SM_BINS);
+  private aAtt: number;
+  private aRel: number;
+  /** Samples since the wet path (re)started: dry until FX_LATENCY, then fades to wet over XFADE. */
+  private warm = 0;
+  private active = false;
   on = false;
-  floor = 1;
+  amount = 0;
 
-  constructor(rate: number) {
-    for (let i = 0; i < NR_N; i++) this.win[i] = Math.sqrt(0.5 - 0.5 * Math.cos((2 * Math.PI * i) / NR_N)); // √(periodic Hann)
-    // noise floor may rise ≈ 3 dB per second
-    this.rise = Math.pow(10, (3 / 10) * (NR_HOP / rate));
-    // prime the overlap-add so the STFT path has exactly FX_LATENCY samples of delay
-    this.readyPos = NR_HOP;
+  constructor(private rate: number) {
+    for (let i = 0; i < SM_N; i++) this.win[i] = Math.sqrt(0.5 - 0.5 * Math.cos((2 * Math.PI * i) / SM_N)); // √(periodic Hann)
+    this.aAtt = 1 - Math.exp(-SM_HOP / rate / (NR_SMOOTH.attackMs / 1000));
+    this.aRel = 1 - Math.exp(-SM_HOP / rate / (NR_SMOOTH.releaseMs / 1000));
   }
 
-  process(x: Float32Array, out: Float32Array) {
-    if (!this.on) {
-      // exact delay line
-      const d = this.delay;
-      let p = this.delayPos;
-      for (let i = 0; i < x.length; i++) {
-        out[i] = d[p]!;
-        d[p] = x[i]!;
-        p = p + 1 === NR_N ? 0 : p + 1;
-      }
-      this.delayPos = p;
-      return;
+  dispose() {
+    this.inst?.free();
+    this.inst = null;
+  }
+
+  /** Is the model currently shaping this channel's output (not dry, not warming up)? */
+  get wet() {
+    return this.active && this.warm >= FX_LATENCY;
+  }
+
+  private restart() {
+    this.fill = 0;
+    this.tIn = 0;
+    this.wetN = 0;
+    this.nextEnd = SM_N;
+    this.finWr = 0;
+    this.finRd = 0;
+    this.warm = 0;
+    this.acc.fill(0);
+    this.gSm.fill(1);
+    this.dryRing.fill(0);
+    this.wetRing.fill(0);
+    for (let i = 0; i < OUT_LAG; i++) this.fin[this.finWr++ & (RING - 1)] = 0;
+  }
+
+  /** One smoother frame over aligned samples [end − SM_N, end): dry = input delayed by the model's delay. */
+  private smooth(end: number) {
+    const { xr, xi, yr, yi, win } = this;
+    const start = end - SM_N;
+    for (let i = 0; i < SM_N; i++) {
+      const j = start + i;
+      const di = j - DFN_DELAY;
+      xr[i] = (di >= 0 ? this.dryRing[di & (RING - 1)]! : 0) * win[i]!;
+      yr[i] = this.wetRing[j & (RING - 1)]! * win[i]!;
+      xi[i] = 0;
+      yi[i] = 0;
     }
+    this.fft.run(xr, xi, false);
+    this.fft.run(yr, yi, false);
+    // the gain the model applied, in the log domain
+    const lg = this.lg;
+    for (let k = 0; k < SM_BINS; k++) {
+      const ax = Math.hypot(xr[k]!, xi[k]!);
+      const ay = Math.hypot(yr[k]!, yi[k]!);
+      const g = Math.min(1, ay / (ax + 1e-9));
+      lg[k] = Math.log(g > 1e-4 ? g : 1e-4);
+    }
+    // box smoothing across bins (edges clamped), then floor + asymmetric smoothing over time
+    const half = (NR_SMOOTH.bins - 1) >> 1;
+    const floor = Math.pow(10, -nrLimitDb(this.amount) / 20);
+    let run = 0;
+    for (let k = -half; k <= half; k++) run += lg[Math.min(SM_BINS - 1, Math.max(0, k))]!;
+    for (let k = 0; k < SM_BINS; k++) {
+      const target = Math.max(Math.exp(run / NR_SMOOTH.bins), floor);
+      const g = this.gSm[k]!;
+      this.gSm[k] = g + (target - g) * (target > g ? this.aAtt : this.aRel);
+      run += lg[Math.min(SM_BINS - 1, k + half + 1)]! - lg[Math.max(0, k - half)]!;
+    }
+    for (let k = 0; k < SM_BINS; k++) {
+      const g = this.gSm[k]!;
+      xr[k] = xr[k]! * g;
+      xi[k] = xi[k]! * g;
+      if (k > 0 && k < SM_N / 2) {
+        xr[SM_N - k] = xr[k]!;
+        xi[SM_N - k] = -xi[k]!;
+      }
+    }
+    this.fft.run(xr, xi, true);
+    // overlap-add: √Hann × √Hann = Hann, two of them at hop N/2 sum to 1; the inverse FFT is unscaled (×N)
+    const acc = this.acc;
+    for (let i = 0; i < SM_N; i++) acc[i] = acc[i]! + (xr[i]! * win[i]!) / SM_N;
+    for (let i = 0; i < SM_HOP; i++) this.fin[this.finWr++ & (RING - 1)] = acc[i]!;
+    acc.copyWithin(0, SM_HOP);
+    acc.fill(0, SM_N - SM_HOP);
+  }
+
+  /** `forceDry`: run only the delay line (the caller will copy another channel's result over this one). */
+  process(x: Float32Array, out: Float32Array, forceDry = false) {
+    const use = !forceDry && this.on && this.amount > 0.001 && dfnRuntime !== null && this.rate === DFN_RATE;
+    if (!use) {
+      this.active = false; // keep the model: switching back on is then instant (after a short warm-up)
+    } else if (!this.active) {
+      this.active = true;
+      this.inst ??= dfnRuntime!.create(100);
+      this.inst.setAttenLimit(100);
+      this.restart();
+    }
+    const d = this.delay;
+    let p = this.delayPos;
     for (let i = 0; i < x.length; i++) {
-      // shift the sample in
-      this.inBuf.copyWithin(0, 1);
-      this.inBuf[NR_N - 1] = x[i]!;
-      if (this.readyPos === NR_HOP) this.readyPos = 0;
-      out[i] = this.ready[this.readyPos++]!;
-      if (++this.fill === NR_HOP) {
+      const dry = d[p]!;
+      d[p] = x[i]!;
+      p = p + 1 === FX_LATENCY ? 0 : p + 1;
+      if (!this.active) {
+        out[i] = dry;
+        continue;
+      }
+      this.dryRing[this.tIn++ & (RING - 1)] = x[i]!;
+      this.frame[this.fill++] = x[i]!;
+      if (this.fill === DFN_HOP) {
         this.fill = 0;
-        this.frame();
+        const y = this.inst!.process(this.frame);
+        for (let k = 0; k < DFN_HOP; k++) this.wetRing[this.wetN++ & (RING - 1)] = Number.isFinite(y[k]!) ? y[k]! : 0;
+        while (this.nextEnd <= this.wetN) {
+          this.smooth(this.nextEnd);
+          this.nextEnd += SM_HOP;
+        }
       }
+      const wet = this.fin[this.finRd++ & (RING - 1)]!;
+      const w = this.warm < FX_LATENCY ? 0 : this.warm >= FX_LATENCY + XFADE ? 1 : (this.warm - FX_LATENCY) / XFADE;
+      this.warm++;
+      out[i] = dry + (wet - dry) * w;
     }
-  }
-
-  private frame() {
-    const { re, im, win } = this;
-    for (let i = 0; i < NR_N; i++) {
-      re[i] = this.inBuf[i]! * win[i]!;
-      im[i] = 0;
-    }
-    this.fft.run(re, im, false);
-    const floor = this.floor;
-    for (let k = 0; k < NR_BINS; k++) {
-      const p = re[k]! * re[k]! + im[k]! * im[k]!;
-      // seed the smoothing with the first frame; ramping up from 0 would plant a far-too-low noise floor
-      const a = this.frames === 0 ? 0 : NR_TUNING.smooth;
-      const ps = (this.pSmooth[k] = a * this.pSmooth[k]! + (1 - a) * p);
-      let nz = this.noise[k]!;
-      nz = ps < nz ? ps : nz * this.rise;
-      this.noise[k] = nz;
-      // the minimum of a smoothed periodogram sits below the noise mean: scale it back up (bias), then subtract (beta)
-      const sub = 1 - (NR_TUNING.beta * NR_TUNING.bias * nz) / Math.max(ps, 1e-20);
-      let g = Math.sqrt(Math.max(0, sub));
-      if (g < floor) g = floor;
-      const prev = this.gPrev[k]!;
-      if (g < prev) g = 0.6 * prev + 0.4 * g; // fall slowly
-      this.gRaw[k] = g;
-    }
-    for (let k = 0; k < NR_BINS; k++) {
-      const a = this.gRaw[k > 0 ? k - 1 : k]!;
-      const c = this.gRaw[k < NR_BINS - 1 ? k + 1 : k]!;
-      const g = (a + this.gRaw[k]! + c) / 3;
-      this.gPrev[k] = this.gRaw[k]!;
-      re[k] = re[k]! * g;
-      im[k] = im[k]! * g;
-      if (k > 0 && k < NR_N / 2) {
-        re[NR_N - k] = re[k]!;
-        im[NR_N - k] = -im[k]!;
-      }
-    }
-    this.frames++;
-    this.fft.run(re, im, true);
-    // overlap-add: √Hann × √Hann = Hann; four Hanns at hop N/4 sum to 2, and the inverse FFT is unscaled (×N)
-    const scale = 1 / (NR_N * 2);
-    const acc = this.outAcc;
-    for (let i = 0; i < NR_N; i++) acc[i] = acc[i]! + re[i]! * win[i]! * scale;
-    // the first hop is now complete
-    this.ready.set(acc.subarray(0, NR_HOP));
-    acc.copyWithin(0, NR_HOP);
-    acc.fill(0, NR_N - NR_HOP);
+    this.delayPos = p;
   }
 }
 
@@ -375,6 +475,12 @@ class Biquad {
   }
 }
 
+function sameSamples(a: Float32Array, b: Float32Array): boolean {
+  if (a === b) return true;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 // ---- the chain ---------------------------------------------------------------------------------
 
 /**
@@ -383,9 +489,11 @@ class Biquad {
  */
 export class FxChain {
   private nr: NoiseReducer[];
-  private eqs: Biquad[][] = [];
+  private hps: Biquad[][] = []; // the high-pass, ahead of the noise reduction
+  private eqs: Biquad[][] = []; // low-pass + EQ, after the expander
   private fx: TrackFx = defaultFx();
-  private sig = "";
+  private sigHp = "";
+  private sigEq = "";
   // compressor
   private env = 0; // detector level (linear)
   private atk: number;
@@ -395,11 +503,25 @@ export class FxChain {
   /** Deepest gain reduction (dB, ≤ 0) since the last read. */
   private grMin = 0;
   private tmp: Float32Array[] = [];
+  // expander
+  private xEnv = 0;
+  private xGain = 0; // current gain, dB (≤ 0)
+  private xHold = 0;
+  private xOpen: number;
+  private xClose: number;
+  private xDet: number;
+  private xDetRel: number;
+  private xHoldN: number;
 
   constructor(readonly rate: number, readonly channels: number, fx?: TrackFx) {
     this.nr = Array.from({ length: channels }, () => new NoiseReducer(rate));
     this.atk = 1 - Math.exp(-1 / (0.005 * rate));
     this.rel = 1 - Math.exp(-1 / (0.12 * rate));
+    this.xOpen = 1 - Math.exp(-1 / (0.003 * rate));
+    this.xClose = 1 - Math.exp(-1 / (0.15 * rate));
+    this.xDet = 1 - Math.exp(-1 / (0.001 * rate));
+    this.xDetRel = 1 - Math.exp(-1 / (0.03 * rate));
+    this.xHoldN = Math.round(0.08 * rate);
     this.set(fx ?? defaultFx());
   }
 
@@ -409,24 +531,37 @@ export class FxChain {
     const on = fx.on;
     for (const n of this.nr) {
       n.on = on && fx.nr.on;
-      n.floor = Math.pow(10, (-20 * (on ? fx.nr.amount : 0)) / 20);
+      n.amount = fx.nr.amount;
     }
-    const coefs = on ? fxBiquads(fx, this.rate) : [];
-    const sig = coefs.map((c) => `${c.b0},${c.b1},${c.b2},${c.a1},${c.a2}`).join("|");
-    if (sig !== this.sig) {
-      // keep existing filter states where the stage count is unchanged; new stages start at rest
-      this.eqs = Array.from({ length: this.channels }, (_, ch) => coefs.map((c, i) => {
-        const old = this.eqs[ch]?.[i];
-        if (old) {
-          old.c = c;
-          return old;
-        }
-        return new Biquad(c);
-      }));
-      this.sig = sig;
-    }
+    const hpf = on && fx.hpf.on ? [biquad("hpf", fx.hpf.freq, this.rate)] : [];
+    const rest = on ? fxBiquads({ ...fx, hpf: { ...fx.hpf, on: false } }, this.rate) : [];
+    this.sigHp = this.syncBiquads(this.hps, hpf, this.sigHp);
+    this.sigEq = this.syncBiquads(this.eqs, rest, this.sigEq);
     this.comp = compParams(fx.comp.amount);
     this.makeup = Math.pow(10, this.comp.makeupDb / 20);
+  }
+
+  /** Keep existing filter states where the stage count is unchanged (no clicks from resetting); new stages start at rest. */
+  private syncBiquads(lists: Biquad[][], coefs: Coefs[], prevSig: string): string {
+    const sig = coefs.map((c) => `${c.b0},${c.b1},${c.b2},${c.a1},${c.a2}`).join("|");
+    if (sig === prevSig) return prevSig;
+    for (let ch = 0; ch < this.channels; ch++) {
+      const old = lists[ch] ?? [];
+      lists[ch] = coefs.map((c, i) => {
+        const o = old[i];
+        if (o) {
+          o.c = c;
+          return o;
+        }
+        return new Biquad(c);
+      });
+    }
+    return sig;
+  }
+
+  /** Release the noise-reduction models (the render calls this when it is done with the chain). */
+  dispose() {
+    for (const n of this.nr) n.dispose();
   }
 
   /** Gain reduction (dB, ≤ 0) since the last call — for the meter. */
@@ -439,14 +574,61 @@ export class FxChain {
   /** Process one block (one array per channel, same length); returns new arrays. */
   process(input: Float32Array[]): Float32Array[] {
     const n = input[0]!.length;
-    const out = Array.from({ length: this.channels }, (_, c) => {
+    // 1. high-pass (on a copy: the caller's arrays are never touched)
+    const hp = Array.from({ length: this.channels }, (_, c) => {
+      const src = input[Math.min(c, input.length - 1)]!;
+      const bqs = this.hps[c] ?? [];
+      if (!bqs.length) return src;
+      const y = Float32Array.from(src);
+      for (const bq of bqs) bq.run(y);
+      return y;
+    });
+    // 2. noise reduction. A mono track reaches the chain as two identical channels: run the model once and copy it.
+    const dup = this.channels === 2 && this.nr[0]!.on && sameSamples(hp[0]!, hp[1]!);
+    const out = hp.map((x, c) => {
       const o = new Float32Array(n);
-      this.nr[c]!.process(input[Math.min(c, input.length - 1)]!, o);
+      this.nr[c]!.process(x, o, dup && c === 1);
       return o;
     });
+    if (dup) out[1]!.set(out[0]!);
+    // 3. expander (its detector hears the high-passed input, 64 ms ahead of `out`), 4. low-pass, 5. EQ, 6. compressor
+    if (this.fx.on && this.fx.exp.on) this.expand(hp, out);
     for (let c = 0; c < this.channels; c++) for (const bq of this.eqs[c] ?? []) bq.run(out[c]!);
     if (this.fx.on && this.fx.comp.on) this.compress(out);
     return out;
+  }
+
+  /** Downward expander. `det` is the track's input (FX_LATENCY ahead of `chs`, which carries the processed audio). */
+  private expand(det: Float32Array[], chs: Float32Array[]) {
+    const { thresholdDb, rangeDb } = this.fx.exp;
+    const slope = 2; // 3:1 → 2 dB of extra reduction per dB below the threshold
+    const knee = 6;
+    const n = chs[0]!.length;
+    let env = this.xEnv, g = this.xGain, hold = this.xHold;
+    for (let i = 0; i < n; i++) {
+      let peak = 0;
+      for (const c of det) {
+        const a = Math.abs(c[i]!);
+        if (a > peak) peak = a;
+      }
+      env += (peak - env) * (peak > env ? this.xDet : this.xDetRel);
+      const lvl = env > 1e-9 ? 20 * Math.log10(env) : -180;
+      const under = thresholdDb - lvl;
+      let want = 0;
+      if (under > knee / 2) want = -slope * under;
+      else if (under > -knee / 2) want = (-slope * (under + knee / 2) * (under + knee / 2)) / (2 * knee);
+      if (want < -rangeDb) want = -rangeDb;
+      if (want > g) {
+        g += (want - g) * this.xOpen; // opening: fast
+        if (want > -0.5) hold = this.xHoldN;
+      } else if (hold > 0) hold--;
+      else g += (want - g) * this.xClose; // closing: after the hold, slowly
+      const lin = g < -0.01 ? Math.pow(10, g / 20) : 1;
+      for (const c of chs) c[i] = c[i]! * lin;
+    }
+    this.xEnv = env;
+    this.xGain = g;
+    this.xHold = hold;
   }
 
   private compress(chs: Float32Array[]) {

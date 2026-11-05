@@ -11,6 +11,7 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { assets, db, projectRevisions, renderJobs, sqlite, storageTargets } from "@podstudio/db";
 import { parseProject } from "@podstudio/audio/document";
 import { renderWav, type RenderSummary } from "@podstudio/audio/render";
+import { ensureDfnLoaded } from "@podstudio/audio/dfn-node";
 import { PODCAST_LOUDNESS } from "@podstudio/audio/loudness";
 import { importJob, run } from "./import-job";
 import { DELIVERY_PRESETS, DELIVERY_RATE, isDeliveryPreset, loudnessTarget } from "@podstudio/audio/delivery";
@@ -56,6 +57,7 @@ export async function runNextRenderJob(): Promise<boolean> {
   }
   console.log(`[worker] render ${job.id} (revision ${job.revisionSeq}, attempt ${job.attempts})`);
   try {
+    await ensureDfnLoaded(); // noise reduction (DeepFilterNet) must be ready before any FxChain runs
     await (job.kind === "import" ? importJob(job) : job.kind === "mp3" ? renderMp3(job) : render(job));
   } catch (err) {
     const asked = db.select({ c: renderJobs.cancelRequested }).from(renderJobs).where(eq(renderJobs.id, job.id)).get()?.c;
