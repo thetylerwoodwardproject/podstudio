@@ -53,6 +53,7 @@ podstudio/
     embed/        Standalone player (Preact, < 30 KB gz), built to /embed.js + /embed/[...]
     audio/        Versioned edit model, capture/recovery, shared DSP, LUFS and retake detector
     integrations/ OP3 client, Podcast Index client, S3 client, LiveKit token service, LLM/Whisper clients
+                  (Stage 06b adds host adapters: Buzzsprout first, then RSS.com, Transistor and others. S3 + our own feed stays an equal per-show option.)
   deploy/
     docker-compose.yml   caddy, web, worker, litestream (+ minio as needed; livekit in Stage 08)
     Caddyfile
@@ -166,6 +167,7 @@ search_fts  -- FTS5 over episode titles, show notes and transcripts
 | 05 | Required noise reduction, voice FX, loudness and MP3 delivery |
 | 06 | Existing-show import, atomic feed publication, scheduling, owner verification and password-protected listening |
 | **Release 1** | **End-to-end solo audio review after Stage 06; use [RELEASE-01.md](stages/RELEASE-01.md)** |
+| 06b | Host publishing: Buzzsprout adapter first, then RSS.com and Transistor; push chapters, transcripts, contributors, soundbites, podroll, verification and fan mail; pull host stats |
 | 07 | Remote transcription/LLM adapters, word timing, revision-aware transcript and AI help |
 | 08 | Remote audio and optional live video, 24-hour invites, persistent guest recovery and drift correction |
 | 09 | Public SSR site, brand theme and lightweight embeds |

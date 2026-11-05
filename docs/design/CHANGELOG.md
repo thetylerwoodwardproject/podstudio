@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-05 — Planning: external podcast hosts
+- Stage 10c also generates a **16:9 full-episode video for YouTube** (16:9 audiogram for audio-only episodes, branded camera video otherwise), with chapters, VTT and thumbnail alongside. Docs only.
+- **Promoted to a core stage (Tyler: "this will become a core part of the build").** New [Stage 06b](stages/STAGE-06b.md), right after Release 1 and before Stage 07; Release 1 stays scoped to the self-hosted feed. Self-hosted (S3 + our feed) stays an equal per-show option. Moved out of `WISHLIST.md`; `BUILD_PLAN.md` and `STATUS.md` updated; Stage 11 gets the host-stats display.
+- Scope: auto-upload episodes to Buzzsprout (reference adapter), RSS.com or Transistor instead of S3, with other hosts to evaluate; push chapters, transcripts, contributors, soundbites, podroll, feed verification and fan mail; pull per-platform stats into analytics next to OP3; Podcast Index and OP3 kept as the discovery/analytics layers.
+- Stage 06 keeps the `publications` table and publish jobs adapter-friendly.
+
 ## 2026-11-03 — Planning: social posts
 - Social post copy is in scope: Stage 07 adds editable per-platform drafts for each episode (from the transcript and show notes, within each platform's length limit, copy-to-clipboard); Stage 10c adds per-clip captions that download alongside the MP4.
 - Reviewed the TWP social generator (`docs/notes/social-generator.md`); Stage 07 gains its voice/modes/validator design, Stage 10c gains social images, an Instagram carousel and cover/thumbnail art, and the wish list gains its posting queue rules and Mastodon.

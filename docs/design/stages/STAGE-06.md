@@ -50,3 +50,7 @@ Import the existing show into a test environment, compare identities/metadata, f
 
 ## Then
 Update `STATUS.md`, mark the Release 1 review current, report the checks/limitations using `RELEASE-01.md`, and **stop for the solo-audio release review**. Do not start Stage 07 or switch the production feed until Tyler says go.
+
+
+## Future
+Host publishing (Buzzsprout, RSS.com, Transistor) is Stage 06b, right after Release 1. Keep `publications` and the publish jobs adapter-friendly (one rendition in, idempotent external publish out). No build items here.

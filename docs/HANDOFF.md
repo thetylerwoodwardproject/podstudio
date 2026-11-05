@@ -5,7 +5,7 @@ each session, not appended to — history lives in `git log` and
 `docs/design/CHANGELOG.md`; the stage-by-stage plan lives in
 `docs/design/STATUS.md` and `docs/design/BUILD_PLAN.md`. Read this one first.
 
-**Last updated:** 2026-11-04 — **Stage 05 passed (Tyler).** DeepFilterNet noise reduction, the expander, the new FX order and export → publish are merged to `main` and deployed (see "Noise reduction is now DeepFilterNet" and the sections after it). **Stage 06 is next and not started — wait for Tyler's go.**
+**Last updated:** 2026-11-05 — **Planning only (docs): new Stage 06b, host publishing (Buzzsprout first, then RSS.com/Transistor), added after Release 1; no code changed.** Earlier, 2026-11-04 — **Stage 05 passed (Tyler).** DeepFilterNet noise reduction, the expander, the new FX order and export → publish are merged to `main` and deployed (see "Noise reduction is now DeepFilterNet" and the sections after it). **Stage 06 is next and not started — wait for Tyler's go.**
 player route + `/embed.js` + `/oembed` (27), Analytics (31), Brand & theme (29b,
 applied to public pages and optionally the studio chrome), public show/episode
 pages (25/30), Podroll (32), Publish to feed (14, scheduling + item XML), a real
@@ -231,7 +231,7 @@ scope/architecture/data model), `CLAUDE.md` (working rules).
 
 **First thing next session:** `docker compose -f deploy/docker-compose.yml ps` — `caddy`, `web`, `worker` should all be `Up` (Caddy was repaired 2026-10-23; see Known issues).
 
-**Next:** **Stage 05 is passed (Tyler, 2026-11-04).** Only on his go, Stage 06 (existing-show import, feed publish, protected sharing). The screens that don't need new infrastructure are done. What's left is
+**Next:** **Stage 05 is passed (Tyler, 2026-11-04).** Only on his go, Stage 06 (existing-show import, feed publish, protected sharing). **Planned, core to the build (2026-11-05):** Stage 06b, host publishing, right after Release 1 and before Stage 07 — see `docs/design/stages/STAGE-06b.md` (Buzzsprout adapter first, then RSS.com and Transistor; push chapters/transcripts/contributors/soundbites/podroll/verification/fan mail; pull host stats; self-hosted S3 + our feed stays an equal per-show option). Also planned: Stage 10c makes a 16:9 full-episode YouTube video (see STAGE-10c.md). Not started; don't build 06b before Release 1 passes and Tyler says go. Keep Stage 06's `publications` table and publish jobs adapter-friendly. The screens that don't need new infrastructure are done. What's left is
 blocked, not forgotten:
 
 - **13 Clips, 13b Short video style, 10 Transcript, 06 Record with a guest, 03/04/05 remote/guest, 19–24 mobile** all need capture,
@@ -434,6 +434,7 @@ Tyler passed Stage 04, said yes to stereo, and started Stage 05. Stage 05 was bu
 ### Start here tomorrow
 1. ~~Commit → PR → merge~~ — done (PR #3 on 2026-11-03, PR #4 on 2026-11-04). GitHub's default branch is `main`; the local checkout calls it `master`, so open PRs with `--base main`.
 2. ~~Tyler's by-ear checks~~ — done; he passed Stage 05 on 2026-11-04. Don't start Stage 06 without his go.
+   Planning added 2026-11-05: Stage 06b (host publishing) is documented in STAGE-06b.md, BUILD_PLAN, STATUS and CHANGELOG; docs-only and uncommitted — check `git status`.
 3. Open threads from today: ChannelStrip for editor track headers (from his audiocn list, not done); stale validation scripts need rewriting (list in `validation/stage05/README.md`); Soundboard block noted for future hotkeys (not Release 1).
 4. Rebuild with `scripts/rebuild.sh` **in the background**, and when waiting for it, watch the log for `free space on` — don't `pgrep -f rebuild.sh` (the waiting loop matches itself and never exits).
 

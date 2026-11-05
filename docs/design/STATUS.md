@@ -25,6 +25,7 @@ Plan revised 2026-10-17 with Tyler's answers. **No implementation or technical-v
 | [05](stages/STAGE-05.md) | Noise reduction, voice FX, loudness & MP3 | **passed — Tyler, 2026-11-04** (PRs #3 and the DeepFilterNet/expander/publish follow-up). Accepted after his listening checks: noise reduction is DeepFilterNet (same wasm in browser and export, bit-identical), ducking, brand colors, MP3 exports, public player, recording. Open and accepted: lint/e2e/CI, PREBUILD performance budgets, stale browser scripts (HANDOFF) |
 | [06](stages/STAGE-06.md) | Existing-show import, feed publish & protected sharing | **next — not started; waiting for Tyler's go** |
 | [Release 1](stages/RELEASE-01.md) | Solo-audio release review (after 06) | not started |
+| [06b](stages/STAGE-06b.md) | Host publishing (Buzzsprout, RSS.com, Transistor) | not started — core to the build; follows Release 1, before 07 |
 | [07](stages/STAGE-07.md) | Transcripts & AI help | not started |
 | [08](stages/STAGE-08.md) | Remote guests & optional live video | not started |
 | [09](stages/STAGE-09.md) | Public site & embeds | not started |
