@@ -12,6 +12,8 @@
     "./duck": "./src/duck.ts",
     "./loudness": "./src/loudness.ts",
     "./fx": "./src/fx.ts",
+    "./dfn-runtime": "./src/dfn-runtime.ts",
+    "./dfn-node": "./src/dfn-node.ts",
     "./delivery": "./src/delivery.ts"
   },
   "scripts": {

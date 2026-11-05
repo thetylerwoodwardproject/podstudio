@@ -8,6 +8,25 @@ import { panGains, triggerTrackIds, withCrossfades, type Clip, type Track } from
 import { FX_LATENCY, fxActive } from "@podstudio/audio/fx";
 import workletUrl from "./audio-worklet.ts?worker&url";
 
+// The DeepFilterNet wasm (compiled once) and model bytes, fetched the first time a project opens.
+const DFN_VERSION = "1"; // bump with packages/audio/dfn so browsers refetch
+let dfnAssets: Promise<{ module: WebAssembly.Module; model: ArrayBuffer }> | null = null;
+function loadDfnAssets() {
+  return (dfnAssets ??= (async () => {
+    const [wasm, model] = await Promise.all([
+      WebAssembly.compileStreaming(fetch(`/studio/dfn/df_bg.wasm?v=${DFN_VERSION}`)),
+      fetch(`/studio/dfn/DeepFilterNet3_onnx.tar.gz?v=${DFN_VERSION}`).then((r) => {
+        if (!r.ok) throw new Error(`model ${r.status}`);
+        return r.arrayBuffer();
+      }),
+    ]);
+    return { module: wasm, model };
+  })().catch((e) => {
+    dfnAssets = null;
+    throw e;
+  }));
+}
+
 /** Where the preview's AudioWorklet module is served (also used by the browser parity test). */
 export const AUDIO_WORKLET_URL = workletUrl;
 if (typeof window !== "undefined") (window as unknown as { __podstudioWorklet?: string }).__podstudioWorklet = workletUrl;
@@ -327,13 +346,48 @@ export class EditorPlayer {
       panR.gain.value = pr;
       const bus: Bus = { input, fx, fxSig: "", gr: 0, fader, panL, panR, analyserL, analyserR };
       fx.port.onmessage = (e: MessageEvent) => {
+        if (e.data?.type === "dfn") this.dfnAnswered(bus, e.data as { ok: boolean; error?: string });
         if (e.data?.type === "gr") bus.gr = e.data.db;
       };
       this.sendFx(bus, t?.fx);
       b = bus;
       this.buses.set(trackId, b);
+      this.shipDfn(bus);
     }
     return b.input;
+  }
+
+  /** Noise-reduction model state, for the FX panel: idle until the first track exists, then loading → ready (or failed). */
+  dfnStatus: "idle" | "loading" | "ready" | "failed" = "idle";
+  onDfnStatus: ((s: "idle" | "loading" | "ready" | "failed") => void) | null = null;
+  private setDfnStatus(s: EditorPlayer["dfnStatus"]) {
+    this.dfnStatus = s;
+    this.onDfnStatus?.(s);
+  }
+
+  /** Give this audio context the DeepFilterNet model (compiled once per page; every FX node in the context shares it). */
+  private shipDfn(bus: Bus) {
+    if (this.dfnStatus !== "idle") return;
+    this.setDfnStatus("loading");
+    loadDfnAssets().then(
+      (a) => bus.fx.port.postMessage({ type: "dfn", module: a.module, model: a.model.slice(0) }),
+      (err) => {
+        console.error("Noise reduction model failed to load", err);
+        this.setDfnStatus("failed");
+      },
+    );
+  }
+
+  private dfnAnswered(bus: Bus, r: { ok: boolean; error?: string }) {
+    if (!r.ok) {
+      console.error("Noise reduction model failed to start", r.error);
+      this.setDfnStatus("failed");
+      return;
+    }
+    this.setDfnStatus("ready");
+    // build the models now, while nothing is playing: building one takes ~0.5 s
+    const wanted = this.doc.tracks.filter((t) => t.fx?.on && t.fx.nr.on).length * 2 + 2;
+    bus.fx.port.postMessage({ type: "dfn-prepare", count: Math.min(8, wanted) });
   }
 
   dispose() {

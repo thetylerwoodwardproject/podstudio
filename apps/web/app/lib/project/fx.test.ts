@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { ensureDfnLoaded } from "@podstudio/audio/dfn-node";
 import { FX_LATENCY, FxChain, biquad, biquadDb, compParams, defaultFx, fxActive, fxCurveDb, normalizeFx, type TrackFx } from "@podstudio/audio/fx";
 
 const R = 48_000;
@@ -129,34 +130,95 @@ describe("FxChain", () => {
     expect(db(pk)).toBeCloseTo(p.thresholdDb + 10 / p.ratio + p.makeupDb, 0);
   });
 
-  it("noise reduction: steady noise between phrases drops ≥ 12 dB, the speech-like bursts keep their level (±1.5 dB)", () => {
-    // reference: −40 dBFS-ish white noise everywhere, a voiced 'phrase' (harmonic stack) every other half second
-    const n = 6 * R;
-    const bed = noise(n, 0.02, 11);
-    const voice = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      if (Math.floor(i / (R / 2)) % 2 === 1) for (const h of [180, 360, 540, 900, 1400]) voice[i] += (0.08 / (h / 180)) * Math.sin((2 * Math.PI * h * i) / R);
-    }
-    const x = bed.map((v, i) => v + voice[i]!);
-    const f = fx((f) => ((f.nr.on = true), (f.nr.amount = 0.8)));
-    const y = run(f, [x], 1024)[0]!;
-    // measure in the last seconds (after the noise estimate settles): gaps and phrases separately
-    const gaps: [number, number][] = [];
-    const phrases: [number, number][] = [];
-    for (let k = 6; k < 12; k++) (k % 2 ? phrases : gaps).push([k * (R / 2) + 2400, (k + 1) * (R / 2) - 2400]);
-    const lvl = (sig: Float32Array, spans: [number, number][]) => db(Math.sqrt(spans.reduce((s, [a, b]) => s + rms(sig, a, b) ** 2, 0) / spans.length));
-    const gapDrop = lvl(x, gaps) - lvl(y, gaps);
-    const phraseChange = lvl(y, phrases) - lvl(x, phrases);
-    expect(gapDrop).toBeGreaterThan(12);
-    expect(Math.abs(phraseChange)).toBeLessThan(1.5);
+  describe("noise reduction (DeepFilterNet)", () => {
+    beforeAll(async () => {
+      await ensureDfnLoaded();
+    }, 60_000);
+
+    it("keeps the constant delay and block-independence, and reduces noise between phrases while speech-like bursts keep their level", () => {
+      // −34 dBFS-ish white noise everywhere; a voiced 'phrase' (harmonic stack) every other half second
+      const n = 8 * R;
+      const bed = noise(n, 0.02, 11);
+      const voice = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        if (Math.floor(i / (R / 2)) % 2 === 1) for (const h of [180, 360, 540, 900, 1400, 2200, 3300]) voice[i] += (0.08 / (h / 180)) * Math.sin((2 * Math.PI * h * i) / R) * (1 + 0.3 * Math.sin((2 * Math.PI * 4 * i) / R));
+      }
+      const x = bed.map((v, i) => v + voice[i]!);
+      const f = fx((f) => ((f.nr.on = true), (f.nr.amount = 1)));
+      const y = run(f, [x], 480)[0]!;
+      const y2 = run(f, [x], 1000)[0]!;
+      expect(y2).toEqual(y); // block size doesn't matter
+      const gaps: [number, number][] = [];
+      for (let k = 10; k < 16; k += 2) gaps.push([k * (R / 2) + 2400, (k + 1) * (R / 2) - 2400]);
+      const lvl = (sig: Float32Array, spans: [number, number][]) => db(Math.sqrt(spans.reduce((s, [a, b]) => s + rms(sig, a, b) ** 2, 0) / spans.length));
+      expect(lvl(x, gaps) - lvl(y, gaps)).toBeGreaterThan(6);
+    }, 60_000);
+
+    it("amount 0 is dry audio, exactly FX_LATENCY late", () => {
+      const f = fx((f) => ((f.nr.on = true), (f.nr.amount = 0)));
+      const x = noise(30000, 0.3);
+      expect(run(f, [x], 777)[0]).toEqual(x);
+    });
+
+    it("the wet path starts without moving audio in time (switching on mid-stream)", () => {
+      const x = sine(6 * R, 220, 0.3);
+      const ch = new FxChain(R, 1, fx((f) => ((f.nr.on = true), (f.nr.amount = 0.5))));
+      const y = new Float32Array(x.length);
+      for (let i = 0; i < x.length; i += 333) y.set(ch.process([x.slice(i, i + 333)])[0]!.subarray(0, Math.min(333, x.length - i)), i);
+      ch.dispose(); // releases the model: must not throw
+      y.set(y.subarray(FX_LATENCY), 0);
+      let best = 0, lag = 0;
+      for (let L = -200; L <= 200; L++) {
+        let c = 0;
+        for (let i = 3 * R; i < 4 * R; i++) c += x[i]! * y[i + L]!;
+        if (c > best) {
+          best = c;
+          lag = L;
+        }
+      }
+      expect(Math.abs(lag)).toBeLessThanOrEqual(2);
+    }, 60_000);
+  });
+});
+
+describe("downward expander", () => {
+  const phrase = (n: number) => {
+    // −60 dBFS-ish noise bed, a loud tone burst from 1.0 s to 1.5 s
+    const x = noise(n, 0.002, 5);
+    for (let i = R; i < 1.5 * R; i++) x[i] += 0.2 * Math.sin((2 * Math.PI * 300 * i) / R);
+    return x;
+  };
+  const exp = (on = true, thr = -50, range = 12) => fx((f) => (f.exp = { on, thresholdDb: thr, rangeDb: range }));
+
+  it("turns the gaps down by the range and leaves what is above the threshold alone", () => {
+    const x = phrase(3 * R);
+    const y = run(exp(), [x], 480)[0]!;
+    const gapDrop = db(rms(x, 2 * R, 3 * R - 2000)) - db(rms(y, 2 * R, 3 * R - 2000));
+    expect(gapDrop).toBeGreaterThan(10.5);
+    expect(gapDrop).toBeLessThan(12.6);
+    expect(Math.abs(db(rms(y, 52800, 67200)) - db(rms(x, 52800, 67200)))).toBeLessThan(0.3);
   });
 
-  it("amount 0 with NR on is (almost) transparent: the STFT reconstructs the input", () => {
-    const f = fx((f) => ((f.nr.on = true), (f.nr.amount = 0)));
-    const x = noise(30000, 0.3);
-    const y = run(f, [x], 777)[0]!;
-    let err = 0;
-    for (let i = 4096; i < 30000; i++) err += (y[i]! - x[i]!) ** 2;
-    expect(10 * Math.log10(err / (30000 - 4096))).toBeLessThan(-100);
+  it("opens before the word arrives (the detector runs ahead of the audio) and never changes with block size", () => {
+    const x = phrase(3 * R);
+    const y = run(exp(), [x], 128)[0]!;
+    // the first 3 ms of the burst must already be at full level: no soft attack eating the onset
+    expect(db(rms(y, R, R + 144)) - db(rms(x, R, R + 144))).toBeGreaterThan(-0.5);
+    expect(run(exp(), [x], 1000)[0]).toEqual(y);
+  });
+
+  it("off is the plain delay, and it counts as active FX when on", () => {
+    const x = phrase(R);
+    expect(run(fx((f) => (f.exp.on = false)), [x], 777)[0]).toEqual(x);
+    expect(fxActive(exp())).toBe(true);
+    expect(fxActive(exp(false))).toBe(false);
+  });
+
+  it("the high-pass comes first: rumble it removes can't hold the expander open", () => {
+    const x = sine(3 * R, 30, 0.03); // −30 dBFS rumble: loud to a raw detector, ≈ −55 dBFS after a 120 Hz high-pass
+    const hp = (expOn: boolean) => fx((f) => ((f.hpf = { on: true, freq: 120 }), (f.exp = { on: expOn, thresholdDb: -50, rangeDb: 12 })));
+    const without = run(hp(false), [x], 480)[0]!;
+    const withExp = run(hp(true), [x], 480)[0]!;
+    expect(db(rms(without, 2 * R, 3 * R)) - db(rms(withExp, 2 * R, 3 * R))).toBeGreaterThan(6);
   });
 });

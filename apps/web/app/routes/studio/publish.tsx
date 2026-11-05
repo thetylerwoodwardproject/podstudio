@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
 import { htmlToText, sanitizeFeedHtml } from "~/lib/rich-text.server";
 import { listPublishable, getPublishData, scheduleEpisode, unscheduleEpisode, publishNow, unpublishEpisode } from "~/lib/publish.server";
+import { useExportAsEpisodeAudio } from "~/lib/project/exports.server";
 import { itemXml } from "~/lib/item-xml";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -37,6 +38,11 @@ export async function action({ request }: { request: Request }) {
   const form = await request.formData();
   const id = String(form.get("id") ?? "");
   const intent = form.get("intent");
+  if (intent === "use-export") {
+    // the editor's finished MP3 becomes the feed audio: no download and re-upload
+    const r = await useExportAsEpisodeAudio(String(form.get("jobId") ?? ""));
+    return r.ok ? { audioUpdated: true } : { error: r.error };
+  }
   if (intent === "schedule") {
     const r = scheduleEpisode(id, String(form.get("publishAt") ?? ""));
     return r.ok ? { scheduled: true } : { error: r.error };
@@ -82,7 +88,7 @@ const TAGS: TagRow[] = [
     label: "enclosure (MP3)",
     real: (d) => !!d.audio,
     missing: "no verified audio file",
-    fix: (id) => ({ label: "Upload it in Episode details", to: `/studio/episodes/${id}#audio-file` }),
+    fix: (id) => ({ label: "Export an MP3 in the editor", to: `/studio/editor?episode=${id}` }),
   },
   { label: "podcast:transcript", real: () => false, missing: "no transcript yet" },
   { label: "podcast:chapters", real: () => false, missing: "no chapters yet" },
@@ -165,6 +171,30 @@ export default function Publish({
               </Form>
             ) : (
               <>
+            {(!data.audio || (data.mp3Export && !data.mp3Export.inUse)) && (
+              <Form method="post" className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5" data-testid="episode-audio-source">
+                <input type="hidden" name="id" value={data.episode.id} />
+                {data.mp3Export ? (
+                  <>
+                    <input type="hidden" name="jobId" value={data.mp3Export.id} />
+                    <Button type="submit" name="intent" value="use-export" variant={data.audio ? "outline" : "default"} disabled={submitting} data-testid="use-latest-export">
+                      {data.audio ? "Use my newest MP3 export instead" : "Use my latest MP3 export"}
+                    </Button>
+                    <span className="text-[12.5px] text-muted-foreground">
+                      {data.audio ? "The episode's audio is an older file." : "From the editor's Export — no need to download and upload it again."}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[12.5px] text-muted-foreground">
+                    No audio yet.{" "}
+                    <Link to={`/studio/editor?episode=${data.episode.id}`} className="text-foreground underline" data-testid="export-in-editor">
+                      Export an MP3 in the editor
+                    </Link>
+                    , then come back here.
+                  </span>
+                )}
+              </Form>
+            )}
             <Form method="post" className="flex flex-wrap items-center gap-3">
               <input type="hidden" name="id" value={data.episode.id} />
               <Button type="submit" name="intent" value="publish-now" disabled={submitting || !data.audio || data.episode.status === "recording"}>
@@ -175,7 +205,7 @@ export default function Publish({
                   ? "Makes the episode public and adds it to the feed immediately."
                   : (
                       <>
-                        Needs a verified MP3 —{" "}
+                        Needs an MP3 — use an export above, or{" "}
                         <Link to={`/studio/episodes/${data.episode.id}#audio-file`} className="text-foreground underline">
                           upload one on this episode's page
                         </Link>

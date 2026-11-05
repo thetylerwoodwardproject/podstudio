@@ -139,16 +139,6 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
                       trackId={episode.publicId}
                     />
                   </div>
-                  {show.directories.length > 0 && (
-                    <div className="pub-dirs" style={{ marginTop: 14 }} aria-label="Listen in your app">
-                      {show.directories.map((d) => (
-                        <a key={d.id} className="pub-pill" href={d.url} target="_blank" rel="noopener">
-                          <FontAwesomeIcon icon={DIRECTORY_ICONS[d.id as DirectoryId]} />
-                          {d.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
                 </>
               ) : (
                 <p className="pub-muted" style={{ margin: "16px 0 0" }}>
@@ -235,6 +225,21 @@ export default function PublicEpisode({ loaderData }: { loaderData: Awaited<Retu
                     <FontAwesomeIcon icon={faPlay} className="pub-muted" style={{ width: 11 }} />
                   </Link>
                 ))}
+              </section>
+            )}
+            {show.directories.length > 0 && (
+              <section aria-label="Listen in your app" data-testid="listen-in-app">
+                <div className="pub-eyebrow" style={{ marginBottom: 8 }}>
+                  Listen in your app
+                </div>
+                <div className="pub-dirs">
+                  {show.directories.map((d) => (
+                    <a key={d.id} className="pub-pill" href={d.url} target="_blank" rel="noopener">
+                      <FontAwesomeIcon icon={DIRECTORY_ICONS[d.id as DirectoryId]} />
+                      {d.label}
+                    </a>
+                  ))}
+                </div>
               </section>
             )}
           </aside>

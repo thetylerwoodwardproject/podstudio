@@ -15,7 +15,7 @@ export function episodeArtUrl(slug: string, publicId: string, a: { sha256: strin
   return `/${slug}/episode-art/${publicId}/${artworkFile(a)}`;
 }
 
-function artAsset(episodeId: string) {
+export function artAsset(episodeId: string) {
   return (
     db
       .select({ id: assets.id, key: assets.key, targetId: assets.storageTargetId, bytes: assets.bytes, sha256: assets.sha256, contentType: assets.contentType, meta: assets.meta })
@@ -33,7 +33,8 @@ export function getEpisodeArtAdmin(episodeId: string) {
   const a = artAsset(episodeId);
   if (!ep || !show || !a) return null;
   const dims = (a.meta ?? {}) as { width?: number; height?: number };
-  return { url: episodeArtUrl(show.slug, ep.publicId, a), width: dims.width ?? null, height: dims.height ?? null, bytes: a.bytes, contentType: a.contentType };
+  // the public URL 404s until the episode is published, so the studio previews through its own signed-in route
+  return { url: `/studio/episodes/${episodeId}/artwork?v=${(a.sha256 ?? "").slice(0, 12)}`, publicUrl: episodeArtUrl(show.slug, ep.publicId, a), width: dims.width ?? null, height: dims.height ?? null, bytes: a.bytes, contentType: a.contentType };
 }
 
 export async function uploadEpisodeArtwork(episodeId: string, body: ReadableStream<Uint8Array> | null, declaredLength: number | null): Promise<EpisodeArtResult> {

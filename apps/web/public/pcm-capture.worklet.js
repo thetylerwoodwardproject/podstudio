@@ -12,7 +12,7 @@
 //   worklet.test.ts checks it does) into the captured samples starting at the
 //   next render quantum, and reports the sample position it started at.
 // - { type: "stop" } flushes the partial block and reports { type: "stopped", total }.
-const TONE = { freqHz: 1000, durationMs: 250, peak: 0.5, fadeMs: 5 };
+const TONE = { freqHz: 1000, durationMs: 250, peak: 0.1, fadeMs: 5 };
 
 class PcmCapture extends AudioWorkletProcessor {
   constructor(options) {

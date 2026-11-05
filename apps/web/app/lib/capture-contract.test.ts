@@ -38,7 +38,7 @@ describe("WAV header", () => {
 
 describe("retake tone", () => {
   const sr = CAPTURE.sampleRate;
-  it("is 250 ms, silent outside, peaks near −6 dBFS, and fades in and out", () => {
+  it("is 250 ms, silent outside, peaks near −20 dBFS, and fades in and out", () => {
     expect(toneLength(sr)).toBe(12000);
     expect(toneSample(-1, sr)).toBe(0);
     expect(toneSample(12000, sr)).toBe(0);

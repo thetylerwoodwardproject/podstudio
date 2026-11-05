@@ -163,9 +163,14 @@ export function SoloStage({ episode, recordings, storageReady }: StageProps) {
           Back to episode
         </Link>
         {st.phase === "done" ? (
-          <Button onClick={() => void session.openMic()} data-testid="new-take">
-            New take
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => void session.openMic()} data-testid="new-take">
+              New take
+            </Button>
+            <Button asChild data-testid="open-editor">
+              <Link to={`/studio/editor?episode=${episode.id}`}>Open in editor</Link>
+            </Button>
+          </>
         ) : recording ? (
           <Button variant="destructive" onClick={() => void session.stop()} data-testid="stop">
             Stop
