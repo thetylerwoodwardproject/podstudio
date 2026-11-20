@@ -16,9 +16,10 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
 from . import audio, denoise, podmic, render  # noqa: E402
+from . import recovery  # noqa: E402
 from .publish_ui import ArtCard, PublishPanel  # noqa: E402
 from .recordings_ui import RecordingsPage  # noqa: E402
-from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project  # noqa: E402
+from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project, list_sessions  # noqa: E402
 
 CONFIG = Path(GLib.get_user_config_dir()) / "podstudio" / "config.json"
 UDEV_RULE = 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="19f7", ATTRS{idProduct}=="004a", TAG+="uaccess"'
@@ -64,6 +65,16 @@ def ignore_scroll(scale: Gtk.Scale) -> Gtk.Scale:
     ctrl.connect("scroll", on_scroll)
     scale.add_controller(ctrl)
     return scale
+
+
+def human_duration(seconds: float) -> str:
+    """5 seconds, 2 min 30 s, 1 h 05 min: for sentences, where 00:02:30 reads like a clock."""
+    s = int(round(seconds))
+    if s < 60:
+        return f"{s} second{'s' if s != 1 else ''}"
+    if s < 3600:
+        return f"{s // 60} min {s % 60:02d} s"
+    return f"{s // 3600} h {(s // 60) % 60:02d} min"
 
 
 def make_label(text="", css=(), xalign=0.5, **kw) -> Gtk.Label:
@@ -434,6 +445,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self._held: set[int] = set()              # pads whose key is physically down (ignores auto-repeat)
         self._open_events: dict[int, Event] = {}  # held / toggled / looped hits that haven't ended yet
         self._clip_level_t = 0.0
+        self._journal: recovery.Journal | None = None       # hotkey hits, written as they happen so a crash loses none
         self.engine = audio.MicEngine(on_level=self._on_level, on_error=self._on_audio_error, on_voice=self._on_voice)
         self._duck_db = 0.0
         self.hk_level = -90.0
@@ -459,6 +471,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         GLib.timeout_add(2000, self._poll_mic)
         self._poll_mic()
         self.connect("close-request", self._on_close)
+        GLib.timeout_add(700, self._check_recovery)         # after the window is up
 
         key = Gtk.EventControllerKey()
         key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -1173,6 +1186,63 @@ class PodStudioWindow(Adw.ApplicationWindow):
         if hasattr(self, "publish"):
             self.publish.sync_chapters()
 
+    # ---- recovery: after a crash, a power cut or a damaged session file
+    def _check_recovery(self):
+        """At launch: if a recording was cut short, offer to bring it back."""
+        sessions = list_sessions(DEFAULT_ROOT)
+        stuck = [x for x in sessions if x["status"] == "interrupted"]
+        if not stuck:
+            damaged = [x for x in sessions if x["status"] == "damaged"]
+            if damaged:
+                self.toast(f"{len(damaged)} session{'s' if len(damaged) != 1 else ''} can be recovered. Open the Recordings tab.")
+            return False
+        x = stuck[0]
+        mins = f"about {human_duration(x['duration'])}" if x["duration"] else "some"
+        more = f" There are {len(stuck) - 1} more on the Recordings tab." if len(stuck) > 1 else ""
+        d = Adw.AlertDialog(
+            heading="Recover your last recording?",
+            body=f"PodStudio closed unexpectedly while recording “{x['name']}”. {mins[0].upper() + mins[1:]} of audio was saved to disk, "
+                 f"along with your hotkey hits.{more}")
+        d.add_response("later", "Not now")
+        d.add_response("recover", "Recover")
+        d.set_response_appearance("recover", Adw.ResponseAppearance.SUGGESTED)
+        d.set_default_response("recover")
+        d.set_close_response("later")
+        d.connect("response", lambda _d, r: r == "recover" and self.recover_session(x["path"]))
+        d.present(self)
+        return False
+
+    def recover_session(self, path):
+        """Repair a session folder in place, open it, and say what was done."""
+        if self.engine.recording:
+            self.toast("Stop recording first.")
+            return
+        try:
+            rec = recovery.recover(Path(path))
+        except recovery.RecoveryError as e:
+            self.toast(str(e))
+            return
+        except Exception as e:                                # never leave the user with a silent failure
+            self.toast(f"Recovery failed: {e}")
+            return
+        self.activate_project(path)
+        self.toast(" ".join(rec.notes) or "That session is fine. Nothing needed recovering.")
+        if rec.project.has_recording() and not rec.project.master_path.exists():
+            self.mix_now()                                    # the master was never made
+
+    def recover_folder(self):
+        dlg = Gtk.FileDialog(title="Recover a session folder")
+        dlg.set_initial_folder(Gio.File.new_for_path(str(DEFAULT_ROOT if DEFAULT_ROOT.exists() else Path.home())))
+
+        def done(d, res):
+            try:
+                gf = d.select_folder_finish(res)
+            except GLib.Error:
+                return
+            self.recover_session(gf.get_path())
+
+        dlg.select_folder(self, None, done)
+
     def activate_project(self, path):
         """Make a session the active one (used by the Recordings tab and Open Session)."""
         if self.engine.recording:
@@ -1276,7 +1346,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.project.mic_duration = audio.repair_wav_header(self.project.mic_path)
         except Exception:
             self.project.mic_duration = 0.0
+        self.project.recording = False
         self.project.save()
+        self._discard_journal()
         self._refresh_files()
         self.toast(f"The PodMic disconnected. Kept {fmt_time(self.project.mic_duration)} of the take.")
         self._refresh_source()
@@ -1313,6 +1385,10 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.recordings.pause()                      # never let preview audio reach the mic
         self.project.ensure_dirs()
         self.project.events = []
+        self.project.recording = True                   # still True after a crash: that is how it is noticed next launch
+        self.project.save()
+        self._journal = recovery.Journal(self.project.journal_path)
+        self._journal.start()
         self.engine.start_recording(self.source, self.project.mic_path)
         self._set_recording_ui(True)
         self.timecode.set_text("00:00:00")
@@ -1330,11 +1406,13 @@ class PodStudioWindow(Adw.ApplicationWindow):
         import soundfile as sf
         self._set_recording_ui(False)
         self.player.stop_all()
+        self.project.recording = False
         try:
             self.project.mic_duration = sf.info(str(self.project.mic_path)).duration
         except Exception:
             self.project.mic_duration = 0.0
         self.project.save()
+        self._discard_journal()                              # only now: its hits are safely in project.json
         self.engine.start_meter(self.source)
         self._refresh_files()
         self.toast(f"Saved {fmt_time(self.project.mic_duration)} take. Mixing master…")
@@ -1499,6 +1577,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
             if t is not None:
                 ev = Event(t=t, pad=i, clip=pad.clip, gain_db=gain, duck=pad.duck, loop=(pad.mode == "loop"))
                 self.project.events.append(ev)
+                if self._journal:
+                    self._journal.hit(len(self.project.events) - 1, ev)
                 if pad.mode != "once":
                     self._open_events[i] = ev                     # its length is known when the pad is released / toggled off
 
@@ -1509,12 +1589,25 @@ class PodStudioWindow(Adw.ApplicationWindow):
             t = self.engine.position()
             if t is not None:
                 ev.dur = max(0.0, t - ev.t)
+                self._journal_end(ev)
+
+    def _discard_journal(self):
+        if getattr(self, "_journal", None):
+            self._journal.discard()
+            self._journal = None
+
+    def _journal_end(self, ev):
+        if getattr(self, "_journal", None):
+            idx = next((i for i, e in enumerate(self.project.events) if e is ev), None)
+            if idx is not None:
+                self._journal.end(idx, ev.dur)
 
     def _close_open_events(self, t_end: float | None):
         """The take ended while pads were still held or looping: end them at the take's end."""
         for i, ev in list(self._open_events.items()):
             if t_end is not None:
                 ev.dur = max(0.0, t_end - ev.t)
+                self._journal_end(ev)
         self._open_events.clear()
 
     def capture_key(self, keyval) -> bool:

@@ -75,6 +75,15 @@ Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** 
 
 Keys work while PodStudio is focused. System-wide hotkeys aren't implemented yet (Wayland needs the GlobalShortcuts portal).
 
+## If something goes wrong: recovering a session
+
+Recording is built so a crash or power cut doesn't lose the take.
+
+- **Hotkey hits are written to a journal as you press them**, and the session is marked "recording" on disk. If PodStudio dies mid-take, the next launch offers to **recover** it: the audio is repaired (a killed recording never gets its final header), the hits are replayed, and you're back to a normal session. Only the last fraction of a second that was still in memory is lost.
+- **The session file keeps an automatic backup** (`project.json.bak`). If it is damaged, recovery restores your settings from the backup and keeps the damaged file next to it. If it is missing entirely, the session is rebuilt from the audio, and the pads are worked out from the hits.
+- The **Recordings** tab marks any session that needs this with a **Needs recovery** badge and a **Recover** button. **Recover from folder…** repairs a session that isn't in the list at all.
+- Recovery never deletes anything, and a healthy session is left as it is.
+
 ## Buzzsprout
 
 <details><summary>How publishing works</summary>

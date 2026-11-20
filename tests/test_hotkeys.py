@@ -139,6 +139,13 @@ def test_old_sessions_with_loop_flags_become_loop_pads():
 
 
 # ------------------------------------------------------------------ the press / release state machine
+class FakeJournal:
+    def __init__(self):
+        self.lines = []
+    def hit(self, i, ev): self.lines.append(("hit", i, ev.pad, ev.loop))
+    def end(self, i, dur): self.lines.append(("end", i, round(dur, 2)))
+
+
 class FakePlayer:
     def __init__(self):
         self.calls, self.active = [], set()
@@ -166,8 +173,9 @@ def rig(monkeypatch):
         clock = {"t": 0.0}
         widget = types.SimpleNamespace(flash=lambda: None, edit=types.SimpleNamespace(popup=lambda: None))
         w = types.SimpleNamespace(project=p, pads=[widget], player=FakePlayer(), _open_events={}, toast=lambda m: None,
-                                  engine=types.SimpleNamespace(recording=recording, position=lambda: clock["t"]))
-        for name in ("pad_press", "pad_release", "_start_pad", "_stop_pad", "_pad_gain_db"):
+                                  engine=types.SimpleNamespace(recording=recording, position=lambda: clock["t"]),
+                                  _journal=FakeJournal())
+        for name in ("pad_press", "pad_release", "_start_pad", "_stop_pad", "_pad_gain_db", "_journal_end"):
             setattr(w, name, types.MethodType(getattr(W, name), w))
         return w, p, clock
 
@@ -220,3 +228,16 @@ def test_outputs_are_written_atomically(tmp_path):
     assert len(read_stereo(f)) == 2 * SR and not list(tmp_path.glob("*.part"))
     old = tmp_path / "old.wav"; old.write_bytes(reader.read())
     assert len(read_stereo(old)) == SR                       # the open handle still reads the complete old file
+
+
+def test_every_hit_and_its_end_reach_the_journal(rig):
+    w, p, clock = rig("momentary")
+    w.pad_press(0); clock["t"] = 1.75; w.pad_release(0)
+    clock["t"] = 3.0; w.pad_press(0); clock["t"] = 4.0; w.pad_release(0)
+    assert w.player.calls and w._journal.lines == [("hit", 0, 0, False), ("end", 0, 1.75), ("hit", 1, 0, False), ("end", 1, 1.0)]
+
+
+def test_one_shots_are_journaled_without_an_end(rig):
+    w, p, clock = rig("once")
+    w.pad_press(0); w.pad_release(0)
+    assert w._journal.lines == [("hit", 0, 0, False)]

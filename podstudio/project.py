@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -59,6 +60,7 @@ class Project:
     buzz: dict = field(default_factory=dict)      # podcast_id, episode_id, public (ids only, never the token)
     chapters: list = field(default_factory=list)  # [{"t": seconds, "title": str}]
     art: str = ""                                # cover art, relative to the session folder
+    recording: bool = False                       # True while a take is being recorded; still True after a crash
     clean_key: str = ""                # identifies the take + strength that mic-clean.wav was made from
 
     # layout ---------------------------------------------------------------
@@ -73,6 +75,8 @@ class Project:
     @property
     def art_path(self) -> Path | None:
         return (self.root / self.art) if self.art and (self.root / self.art).exists() else None
+    @property
+    def journal_path(self) -> Path: return self.audio_dir / "events.jsonl"
     @property
     def hotkeys_path(self) -> Path: return self.audio_dir / "hotkeys.wav"
     @property
@@ -102,6 +106,7 @@ class Project:
             "denoise": self.denoise,
             "denoise_atten_db": self.denoise_atten_db,
             "clean_key": self.clean_key,
+            "recording": self.recording,
             "chapters": self.chapters,
             "art": self.art,
             "episode": self.episode,
@@ -114,16 +119,28 @@ class Project:
         }
         tmp = self.file.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, indent=2))
+        if self.file.exists():                                    # keep the last good copy so a damaged file can be restored
+            try:
+                json.loads(self.file.read_text())
+                shutil.copy2(self.file, self.file.with_name("project.json.bak"))
+            except (OSError, ValueError):
+                pass
         tmp.replace(self.file)
 
     @classmethod
     def load(cls, root: Path) -> "Project":
-        d = json.loads((Path(root) / "project.json").read_text())
+        return cls.from_dict(Path(root), json.loads((Path(root) / "project.json").read_text()))
+
+    @classmethod
+    def from_dict(cls, root: Path, d: dict) -> "Project":
         return cls(
             name=d["name"], root=Path(root), mic_db=d.get("mic_db", 0.0),
-            hotkeys_db=d.get("hotkeys_db", 0.0), hotkeys_muted=d.get("hotkeys_muted", False), target_lufs=d.get("target_lufs", -16.0),
-            created=d.get("created", ""), mic_duration=d.get("mic_duration", 0.0), mix_stats=d.get("mix_stats", {}), denoise=d.get("denoise", False),
-            denoise_atten_db=d.get("denoise_atten_db", 18.0), clean_key=d.get("clean_key", ""), chapters=d.get("chapters", []), art=d.get("art", ""), episode=d.get("episode", {}), buzz=d.get("buzz", {}),
+            hotkeys_db=d.get("hotkeys_db", 0.0), hotkeys_muted=d.get("hotkeys_muted", False),
+            target_lufs=d.get("target_lufs", -16.0),
+            created=d.get("created", ""), mic_duration=d.get("mic_duration", 0.0), mix_stats=d.get("mix_stats", {}),
+            denoise=d.get("denoise", False), denoise_atten_db=d.get("denoise_atten_db", 18.0),
+            clean_key=d.get("clean_key", ""), episode=d.get("episode", {}), buzz=d.get("buzz", {}),
+            chapters=d.get("chapters", []), art=d.get("art", ""), recording=d.get("recording", False),
             duck_amount_db=d.get("duck_amount_db", 12.0), duck_threshold_db=d.get("duck_threshold_db", -40.0),
             duck_release_ms=d.get("duck_release_ms", 350.0),
             pads=[cls._pad(p) for p in d.get("pads", [])],
@@ -161,15 +178,31 @@ class Project:
 
 
 def list_sessions(root: Path = DEFAULT_ROOT) -> list[dict]:
-    """Summaries of every session folder, newest first, for the Recordings tab. Unreadable folders are skipped."""
+    """Every session folder, newest first, for the Recordings tab.
+
+    status: "ok", "interrupted" (the app closed while recording) or "damaged" (the session file is missing or
+    unreadable but there is audio to recover). Folders with nothing in them are skipped."""
     out = []
-    for d in Path(root).glob("*/project.json"):
+    root = Path(root)
+    if not root.exists():
+        return out
+    for folder in (d for d in root.iterdir() if d.is_dir()):
+        pj = folder / "project.json"
+        data, status = None, "ok"
         try:
-            data = json.loads(d.read_text())
+            data = json.loads(pj.read_text())
+            if data.get("recording"):
+                status = "interrupted"
         except (OSError, ValueError):
-            continue
-        folder = d.parent
-        out.append({"path": folder, "name": data.get("name") or folder.name, "created": data.get("created", ""),
-                    "duration": float(data.get("mic_duration") or 0.0), "lufs": (data.get("mix_stats") or {}).get("after"),
-                    "has_master": (folder / "audio" / "master.wav").exists(), "mtime": d.stat().st_mtime})
+            status = "damaged"
+        mic = folder / "audio" / "mic.wav"
+        if data is None and not (mic.exists() or (folder / "project.json.bak").exists()):
+            continue                                   # not a session
+        d = data or {}
+        stamp = pj.stat().st_mtime if pj.exists() else folder.stat().st_mtime
+        mic_secs = max(0.0, (mic.stat().st_size - 44) / (SAMPLE_RATE * 3)) if mic.exists() else 0.0
+        out.append({"path": folder, "name": d.get("name") or folder.name, "created": d.get("created", ""),
+                    "duration": float(d.get("mic_duration") or 0.0) or (mic_secs if status != "ok" else 0.0),
+                    "lufs": (d.get("mix_stats") or {}).get("after"), "status": status,
+                    "has_master": (folder / "audio" / "master.wav").exists(), "mtime": stamp})
     return sorted(out, key=lambda r: r["mtime"], reverse=True)

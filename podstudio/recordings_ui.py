@@ -148,6 +148,10 @@ class RecordingsPage(Gtk.Box):
         sw = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         sw.set_child(self.listbox)
         left.append(sw)
+        rb = Gtk.Button(label="Recover from folder…", tooltip_text="Repair a session that isn't in this list")
+        rb.add_css_class("chip-btn")
+        rb.connect("clicked", lambda *_: self.win.recover_folder())
+        left.append(rb)
         self.append(left)
 
         # ---- right: player + chapters
@@ -160,6 +164,7 @@ class RecordingsPage(Gtk.Box):
         titles.append(self.meta)
         head.append(titles)
         self.open_btn = Gtk.Button(label="Open session", valign=Gtk.Align.CENTER, tooltip_text="Make this the active session")
+        self._status: dict = {}
         self.open_btn.add_css_class("chip-btn")
         self.open_btn.connect("clicked", lambda *_: self._open_selected())
         self.folder_btn = Gtk.Button(label="Show folder", valign=Gtk.Align.CENTER)
@@ -266,6 +271,7 @@ class RecordingsPage(Gtk.Box):
         """Re-read the session list (cheap) and refresh the player's view of the selected session."""
         sessions = list_sessions(DEFAULT_ROOT)
         active = Path(self.win.project.root) if self.win.project and self.win.project.created else None
+        self._status = {s["path"]: s["status"] for s in sessions}
         self._rebuilding = True
         while (r := self.listbox.get_first_child()) is not None:
             self.listbox.remove(r)
@@ -276,7 +282,9 @@ class RecordingsPage(Gtk.Box):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin_top=10, margin_bottom=10, margin_start=12, margin_end=12)
             top = Gtk.Box(spacing=6)
             top.append(_label(s["name"], ["session-title"], hexpand=True, ellipsize=Pango.EllipsizeMode.END))
-            if active and s["path"] == active:
+            if s["status"] != "ok":
+                top.append(_label("Needs recovery", ["pill", "warn"]))
+            elif active and s["path"] == active:
                 top.append(_label("Active", ["pill", "ok"]))
             box.append(top)
             bits = [s["created"][:16].replace("-", "/") if s["created"] else "", chap.fmt_time(s["duration"]) if s["duration"] else "no audio"]
@@ -324,6 +332,10 @@ class RecordingsPage(Gtk.Box):
     def select(self, path: Path):
         self.player.pause()
         self.sel_path = Path(path)
+        status = getattr(self, "_status", {}).get(self.sel_path, "ok")
+        if status != "ok":
+            self._show_needs_recovery(status)
+            return
         active = self.win.project
         if active is not None and active.created and Path(active.root) == self.sel_path:
             self._loaded = None
@@ -334,6 +346,8 @@ class RecordingsPage(Gtk.Box):
                 self.win.toast(f"Couldn't open that session: {e}")
                 return
         p = self.project
+        self.open_btn.set_label("Open session")
+        self.open_btn.set_tooltip_text("Make this the active session")
         self.title.set_text(p.name or self.sel_path.name)
         self.meta.set_text(f"{p.created}  ·  {chap.fmt_time(p.mic_duration)}" if p.mic_duration else p.created)
         is_active = p is self.win.project
@@ -351,6 +365,25 @@ class RecordingsPage(Gtk.Box):
         self.track = pick
         self._tracks[pick].set_active(True)
         self._load_track(pick, position=0.0)
+
+    def _show_needs_recovery(self, status: str):
+        """A session that can't be opened normally: say why, and offer the fix instead of a broken player."""
+        self._loaded = None
+        self.title.set_text(self.sel_path.name)
+        self.meta.set_text("The app closed while this was recording." if status == "interrupted"
+                           else "The session file is missing or damaged.")
+        self.open_btn.set_label("Recover")
+        self.open_btn.set_tooltip_text("Repair this session and open it")
+        self.open_btn.set_sensitive(True)
+        for btn in self._tracks.values():
+            btn.set_sensitive(False)
+        self._set_controls(False)
+        self.wave.set_data(None, 0, [], [])
+        self.player.stop()
+        self._loaded_sig = None
+        self.note.set_text("Recovery repairs the recording, restores your hotkey hits and settings where it can, and keeps "
+                           "anything it replaces. Nothing is deleted.")
+        self._rebuild_chapters()
 
     def _after_files_changed(self):
         """Files may have been re-rendered: update which stems exist and reload the current one if it changed."""
@@ -592,7 +625,11 @@ class RecordingsPage(Gtk.Box):
 
     # ------------------------------------------------------------------ actions
     def _open_selected(self):
-        if self.sel_path:
+        if not self.sel_path:
+            return
+        if self._status.get(self.sel_path, "ok") != "ok":
+            self.win.recover_session(self.sel_path)
+        else:
             self.win.activate_project(self.sel_path)
 
     def _show_folder(self):
