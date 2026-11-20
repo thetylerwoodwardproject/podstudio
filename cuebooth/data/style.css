@@ -147,3 +147,37 @@ scale.fader mark label { font-family: "JetBrains Mono", "Fira Mono", monospace; 
 .pad { background: #151a21; border: 1px solid #202833; border-radius: 12px; min-height: 84px; }
 .pad:hover { background: #1b222b; }
 .pad.hit { background: alpha(@vd_text, .22); }
+
+/* =================== mic page cards =================== */
+.card-pad { padding: 16px 18px 16px 18px; }
+.card-title { font-size: 10px; font-weight: 800; letter-spacing: 2.2px; color: @vd_dim; }
+.ch-mic > .card-title  { color: #3ddc97; }
+.ch-hk > .card-title   { color: #ffb454; }
+.fx-comp > .card-title, .fx-comp box > .card-title       { color: #ffb454; }
+.fx-gate > .card-title, .fx-gate box > .card-title       { color: #4fd8eb; }
+.fx-exciter > .card-title, .fx-exciter box > .card-title { color: #b48bff; }
+.fx-bottom > .card-title, .fx-bottom box > .card-title   { color: #ff7ad9; }
+.fx-comp   { box-shadow: inset 0 2px 0 #ffb454; }
+.fx-gate   { box-shadow: inset 0 2px 0 #4fd8eb; }
+.fx-exciter{ box-shadow: inset 0 2px 0 #b48bff; }
+.fx-bottom { box-shadow: inset 0 2px 0 #ff7ad9; }
+.param-name { font-size: 11px; color: @vd_dim; }
+.param-val  { font-size: 11px; color: @vd_text; }
+scale.param trough { background: @vd_line; min-height: 4px; border-radius: 2px; border: none; }
+scale.param highlight { background: @vd_dim; border-radius: 2px; border: none; }
+scale.param slider { min-width: 14px; min-height: 14px; border-radius: 99px; background: @vd_text; border: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.fx-comp scale.param highlight   { background: #ffb454; }
+.fx-gate scale.param highlight   { background: #4fd8eb; }
+.fx-exciter scale.param highlight{ background: #b48bff; }
+.fx-bottom scale.param highlight { background: #ff7ad9; }
+.ch-mic scale.param highlight    { background: #3ddc97; }
+.ch-hk scale.param highlight     { background: #ffb454; }
+.curve-frame { background: #0b0e12; border: 1px solid @vd_line; border-radius: 8px; padding: 0; }
+levelbar.hmeter trough { min-height: 10px; }
+levelbar.hmeter block.filled, levelbar.hmeter block.empty { min-width: 3px; margin: 0 1px; }
+.linked > .chip-btn { border-radius: 0; }
+.linked > .chip-btn:first-child { border-radius: 8px 0 0 8px; }
+.linked > .chip-btn:last-child  { border-radius: 0 8px 8px 0; }
+.chip-btn.chip-ok:checked { background: alpha(@vd_ok, .16); color: @vd_ok; box-shadow: inset 0 0 0 1px alpha(@vd_ok, .55); }
+.seg .chip-btn:checked { background: @vd_text; color: @vd_bg; box-shadow: none; }
+scale.param slider { margin: -5px; }

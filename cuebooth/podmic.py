@@ -339,23 +339,23 @@ class PodMic:
         return self._ok(self._xfer(param_report(param, P_GET, *args)), f"get 0x{param:02x}").data
 
     def hpf(self) -> bool: return bool(self.get_param(P_HPF)[0])
-    def set_hpf(self, on: bool): self.set_param(P_HPF, 0, int(on))
+    def set_hpf(self, on: bool): self.set_param(P_HPF, int(on))
     def muted(self) -> bool: return bool(self.get_param(P_MUTE)[0])
-    def set_mute(self, on: bool): self.set_param(P_MUTE, 0, int(on))
+    def set_mute(self, on: bool): self.set_param(P_MUTE, int(on))
     def monitoring(self) -> bool: return bool(self.get_param(P_MONITOR)[0])
-    def set_monitoring(self, on: bool): self.set_param(P_MONITOR, 0, int(on))
+    def set_monitoring(self, on: bool): self.set_param(P_MONITOR, int(on))
     def monitor_mix(self) -> int: return self.get_param(P_MONMIX)[0]
-    def set_monitor_mix(self, v: int): self.set_param(P_MONMIX, 0, _clamp(int(v), 0, 100))
+    def set_monitor_mix(self, v: int): self.set_param(P_MONMIX, _clamp(int(v), 0, 100))
     def processing(self) -> bool: return bool(self.get_param(P_PROCESSING)[0])
-    def set_processing(self, on: bool): self.set_param(P_PROCESSING, 0, int(on))
+    def set_processing(self, on: bool): self.set_param(P_PROCESSING, int(on))
     def advanced(self) -> bool: return bool(self.get_param(P_ADVANCED)[0])
-    def set_advanced(self, on: bool): self.set_param(P_ADVANCED, 0, int(on))
+    def set_advanced(self, on: bool): self.set_param(P_ADVANCED, int(on))
 
     def slider(self, idx: int) -> int:
-        return self.get_param(P_SLIDER, 0, idx)[1]
+        return self.get_param(P_SLIDER, idx)[1]          # reply is [index, value]
 
     def set_slider(self, idx: int, pct: int):
-        self.set_param(P_SLIDER, 0, idx, _clamp(int(pct), 0, 100))
+        self.set_param(P_SLIDER, idx, _clamp(int(pct), 0, 100))
 
     # -- DSP blocks
     def set_enabled(self, block: str, on: bool):

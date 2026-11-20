@@ -47,3 +47,31 @@ def test_decoders_invert_encoders():
         payload = p.ENCODERS[(block, field)][2](v)
         got = p.decode_field(block, field, payload)
         assert got is not None and abs(got - v) <= max(tol, abs(v) * 0.03), (block, field, v, got)
+
+
+class _Capture(p.PodMic):
+    """PodMic with the USB transfer replaced, so tests can see exactly what each setter sends."""
+    def __init__(self):
+        super().__init__(path="/dev/null")
+        self.sent = []
+    def _xfer(self, report, timeout=1.0):
+        self.sent.append(bytes(report))
+        return p.Reply("A", bytes([0, 0, 0, 0]))
+
+
+def _wire(fn):
+    m = _Capture()
+    fn(m)
+    return m.sent[-1].hex()
+
+
+def test_setters_send_the_bytes_in_the_spec_examples():
+    pad = lambda h, n=28: h.ljust(n * 2, "0")
+    assert _wire(lambda m: m.set_processing(True)) == pad("080d0001")          # spec 13: "08 0D 00 01"
+    assert _wire(lambda m: m.set_hpf(True)) == pad("08010001")                  # spec 13: "08 01 00 01"
+    assert _wire(lambda m: m.set_monitoring(True)) == pad("08030001")           # value is byte 3, not byte 4
+    assert _wire(lambda m: m.set_monitoring(False)) == pad("08030000")
+    assert _wire(lambda m: m.set_mute(True)) == pad("08080001")
+    assert _wire(lambda m: m.set_monitor_mix(91)) == pad("0804005b")
+    assert _wire(lambda m: m.set_slider(2, 70)) == pad("080c000246")            # spec 5.4: [0x0C, 0, index, percent]
+    assert _wire(lambda m: m.slider(1)) == pad("080c0101")                      # GET: [0x0C, 1, index]

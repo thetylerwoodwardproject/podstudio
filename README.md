@@ -70,9 +70,13 @@ sudo install -m644 data/70-cuebooth-podmic.rules /etc/udev/rules.d/ \
 
 The Mic tab shows this command (with a copy button) when it's needed.
 
-**Status:** the encoders are unit-tested against the byte sequences captured in the protocol research, and the app reads gain from real
-hardware. Writing DSP parameters to a physical mic has not yet been verified end to end by the author. Treat it as beta and
-please report what you see. Settings are stored in the mic itself and survive power cycles.
+<div align="center">
+<img src="docs/screenshots/mic.png" width="420" alt="Mic page, Basic mode"> <img src="docs/screenshots/mic-advanced.png" width="420" alt="Mic page, Advanced mode with compressor and gate curves">
+</div>
+
+**Status:** tested on a real PodMic USB. Gain, mute, direct monitoring, high-pass, Basic/Advanced mode and individual compressor and gate
+values all write and read back correctly, and the settings are stored in the mic. The encoders are also unit-tested against the byte
+sequences in the protocol research. Not every advanced field has been checked by ear yet, so treat the Advanced cards as beta.
 
 ## Development
 

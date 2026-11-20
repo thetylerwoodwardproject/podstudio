@@ -11,7 +11,9 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+gi.require_version("Graphene", "1.0")
+gi.require_version("Gsk", "4.0")
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
 from . import audio, podmic, render  # noqa: E402
 from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project  # noqa: E402
@@ -48,6 +50,49 @@ def make_label(text="", css=(), xalign=0.5, **kw) -> Gtk.Label:
     for c in css:
         lb.add_css_class(c)
     return lb
+
+
+# ===================================================================== transfer-curve graph
+
+
+class CurveGraph(Gtk.Widget):
+    """Tiny live plot of a processor's input/output curve (dB in, dB out)."""
+
+    __gtype_name__ = "CueboothCurveGraph"
+
+    def __init__(self, curve, color: str, marker=None, xr=(-60.0, 0.0), yr=(-60.0, 9.0)):
+        super().__init__()
+        self.curve, self.marker, self.xr, self.yr = curve, marker, xr, yr
+        self.rgba = Gdk.RGBA()
+        self.rgba.parse(color)
+        self.set_size_request(-1, 118)
+        self.set_hexpand(True)
+
+    def _stroke(self, snap, pts, width, color):
+        pb = Gsk.PathBuilder.new()
+        pb.move_to(*pts[0])
+        for x, y in pts[1:]:
+            pb.line_to(x, y)
+        snap.append_stroke(pb.to_path(), Gsk.Stroke.new(width), color)
+
+    def do_snapshot(self, snap):
+        w, h = self.get_width(), self.get_height()
+        (x0, x1), (y0, y1) = self.xr, self.yr
+        X = lambda v: (v - x0) / (x1 - x0) * w
+        Y = lambda v: h - (min(max(v, y0), y1) - y0) / (y1 - y0) * h
+        grid = Gdk.RGBA(); grid.parse("rgba(255,255,255,0.06)")
+        dim = Gdk.RGBA(); dim.parse("rgba(255,255,255,0.22)")
+        for g in range(-48, 1, 12):
+            snap.append_color(grid, Graphene.Rect().init(X(g), 0, 1, h))
+        for g in range(-48, 1, 12):
+            snap.append_color(grid, Graphene.Rect().init(0, Y(g), w, 1))
+        self._stroke(snap, [(X(x0), Y(x0)), (X(x1), Y(x1))], 1.0, dim)            # 1:1 reference
+        if self.marker:
+            m = self.marker()
+            if m is not None:
+                snap.append_color(dim, Graphene.Rect().init(X(m), 0, 1, h))
+        xs = [x0 + i * (x1 - x0) / 120 for i in range(121)]
+        self._stroke(snap, [(X(x), Y(self.curve(x))) for x in xs], 2.2, self.rgba)
 
 
 # ===================================================================== channel strip
@@ -488,12 +533,65 @@ class CueboothWindow(Adw.ApplicationWindow):
             self.pads.append(w)
             self.grid.attach(w, i % 4, i // 4, 1, 1)
 
-    # ---- Mic DSP page
+    # ---- Mic page: PodMic input, headphones and on-board processing, laid out as cards
+    def _card(self, title: str, css: str = "") -> Gtk.Box:
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, hexpand=True)
+        for c in ("vd-panel", "card-pad", css):
+            if c:
+                card.add_css_class(c)
+        card.append(make_label(title, ["card-title"], xalign=0))
+        return card
+
+    def _make_scale(self, key, lo, hi, step, value, fmt, apply, *, hid=True, basic=False, redraw=None):
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
+        scale.add_css_class("param")
+        scale.set_draw_value(False)
+        scale.set_hexpand(True)
+        scale.set_value(value)
+        val = make_label(fmt(value), ["mono", "param-val"], xalign=1, width_chars=9)
+
+        def changed(sc):
+            v = sc.get_value()
+            val.set_text(fmt(v))
+            if redraw:
+                redraw()
+            if self._syncing:
+                return
+            if basic:
+                self._debounce("basic", self._apply_basic_now)
+            else:
+                self._debounce(key, lambda: self._guard(lambda: apply(v), hid))
+
+        scale.connect("value-changed", changed)
+        self.dsp_rows[key] = scale
+        return scale, val
+
+    def _row(self, label: str, scale, val) -> Gtk.Box:
+        row = Gtk.Box(spacing=10)
+        row.append(make_label(label, ["param-name"], xalign=0, width_chars=11))
+        row.append(scale)
+        row.append(val)
+        return row
+
+    def _chip(self, key, label, apply, hid=True) -> Gtk.ToggleButton:
+        btn = Gtk.ToggleButton(label=label)
+        btn.add_css_class("chip-btn")
+        if key != "mute":                      # red means muted; every other "on" is green
+            btn.add_css_class("chip-ok")
+
+        def toggled(b):
+            if not self._syncing:
+                self._guard(lambda: apply(b.get_active()), hid)
+
+        btn.connect("toggled", toggled)
+        self.dsp_rows[key] = btn
+        return btn
+
     def _mic_page(self) -> Gtk.Widget:
         scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         scroller.add_css_class("vd-page")
-        clamp = Adw.Clamp(maximum_size=760, margin_top=16, margin_bottom=24, margin_start=16, margin_end=16)
-        self.dsp_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        clamp = Adw.Clamp(maximum_size=940, margin_top=16, margin_bottom=24, margin_start=16, margin_end=16)
+        self.dsp_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         clamp.set_child(self.dsp_box)
         scroller.set_child(clamp)
 
@@ -506,124 +604,146 @@ class CueboothWindow(Adw.ApplicationWindow):
         self._dsp_timers: dict[str, int] = {}
         self._syncing = False
         self.dsp_rows: dict[str, Gtk.Widget] = {}
-        self.dsp_widgets: list[Gtk.Widget] = []
+        self.fx_enable: dict[str, Gtk.ToggleButton] = {}
 
-        def group(title, desc=""):
-            g = Adw.PreferencesGroup(title=title, description=desc)
-            self.dsp_box.append(g)
-            return g
+        top = Gtk.Box(spacing=14, homogeneous=True)
+        self.dsp_box.append(top)
 
-        g = group("Input", "Hardware controls on the microphone itself.")
-        self._scale_row(g, "gain", "Input gain", "22–63 dB, stored in the mic", 22, 63, 0.5, 57,
-                        lambda v: f"{v:.1f} dB", lambda v: podmic.set_gain_db(v), hid=False)
-        self._switch_row(g, "mute", "Mute", "Mutes the mic in hardware", lambda on: self.mic.set_mute(on))
+        # -- input
+        inp = self._card("INPUT", "ch-mic")
+        gain_row = Gtk.Box(spacing=10)
+        self.gain_big = make_label("—", ["big-number", "mono"], xalign=0, hexpand=True)
+        gain_row.append(self.gain_big)
+        gain_row.append(make_label("GAIN", ["stat-label"], valign=Gtk.Align.END, margin_bottom=8))
+        inp.append(gain_row)
+        gscale, gval = self._make_scale("gain", 22, 63, 0.5, 57, lambda v: f"{v:.1f} dB",
+                                        lambda v: podmic.set_gain_db(v), hid=False)
+        gscale.connect("value-changed", lambda sc: self.gain_big.set_text(f"{sc.get_value():.1f} dB"))
+        self.gain_big.set_text("57.0 dB")
+        inp.append(gscale)
+        self.in_meter = Gtk.LevelBar(min_value=0, max_value=40, mode=Gtk.LevelBarMode.DISCRETE)
+        self.in_meter.add_css_class("meter")
+        self.in_meter.add_css_class("hmeter")
+        for off in (Gtk.LEVEL_BAR_OFFSET_LOW, Gtk.LEVEL_BAR_OFFSET_HIGH, Gtk.LEVEL_BAR_OFFSET_FULL):
+            self.in_meter.remove_offset_value(off)
+        self.in_meter.add_offset_value("low", 0.78 * 40)
+        self.in_meter.add_offset_value("high", 0.93 * 40)
+        self.in_meter.add_offset_value("full", 40)
+        inp.append(self.in_meter)
+        chips = Gtk.Box(spacing=8)
+        chips.append(self._chip("mute", "MUTE", lambda on: self.mic.set_mute(on)))
+        chips.append(self._chip("hpf", "HIGH-PASS", lambda on: self.mic.set_hpf(on)))
+        inp.append(chips)
+        inp.append(make_label("Mute is not remembered when the mic is unplugged. High-pass cuts below about 54 Hz.",
+                              ["vd-sub"], xalign=0, wrap=True))
         self.dsp_rows["mute"].connect("notify::active", lambda r, _p: self.mute_btn.set_active(r.get_active()))
-        self._switch_row(g, "monitoring", "Direct monitoring", "Hear yourself in the headphone jack",
-                         lambda on: self.mic.set_monitoring(on))
-        self._scale_row(g, "monitor_mix", "Monitor mix", "Mic level in the headphones", 0, 100, 1, 91,
-                        lambda v: f"{v * 66 / 100 - 60:+.0f} dB", lambda v: self.mic.set_monitor_mix(int(v)))
-        self._switch_row(g, "hpf", "High-pass filter", "2nd order, −3 dB at ≈54 Hz",
-                         lambda on: self.mic.set_hpf(on))
+        top.append(inp)
 
-        g = group("Processing", "Runs inside the microphone, so it affects every app that records it.")
-        self._switch_row(g, "processing", "Processing", "Master switch for the on-board DSP",
-                         lambda on: self.mic.set_processing(on))
-        self._switch_row(g, "advanced", "Advanced controls", "Off = Depth / Sparkle / Punch",
-                         self._set_advanced)
-        self.basic_group = group("Basic")
-        for key, title, sub, idx in (("depth", "Depth", "Big Bottom drive", 0), ("sparkle", "Sparkle", "Aural Exciter", 1),
-                                     ("punch", "Punch", "Compressor and gate", 2)):
-            self._scale_row(self.basic_group, key, title, sub, 0, 100, 1, 50, lambda v: f"{v:.0f}",
-                            lambda v: None, hid=True, basic=True)
-        self.adv_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        # -- headphones
+        ph = self._card("HEADPHONES", "ch-hk")
+        ph.append(make_label("MONITOR MIX", ["stat-label"], xalign=0))
+        mscale, mval = self._make_scale("monitor_mix", 0, 100, 1, 91, lambda v: f"{v * 66 / 100 - 60:+.0f} dB",
+                                        lambda v: self.mic.set_monitor_mix(int(v)))
+        ph.append(self._row("Mic level", mscale, mval))
+        mon = self._chip("monitoring", "DIRECT MONITORING", lambda on: self.mic.set_monitoring(on))
+        mon.set_halign(Gtk.Align.START)
+        ph.append(mon)
+        ph.append(make_label("Direct monitoring plays your mic in the headphone jack with no delay. "
+                             "It is independent of mute.", ["vd-sub"], xalign=0, wrap=True))
+        top.append(ph)
+
+        # -- processing header
+        head = Gtk.Box(spacing=12, margin_top=6)
+        head.append(make_label("PROCESSING", ["vd-title"], xalign=0, hexpand=True))
+        head.append(make_label("Runs inside the mic, so every app hears it.", ["vd-sub"]))
+        head.append(self._chip("processing", "ON", lambda on: self.mic.set_processing(on)))
+        seg = Gtk.Box(css_classes=["linked", "seg"])
+        basic_btn = Gtk.ToggleButton(label="BASIC", active=True)
+        adv_btn = Gtk.ToggleButton(label="ADVANCED", group=basic_btn)
+        for b in (basic_btn, adv_btn):
+            b.add_css_class("chip-btn")
+            seg.append(b)
+        adv_btn.connect("toggled", lambda b: (not self._syncing) and self._guard(lambda: self._set_advanced(b.get_active())))
+        self.dsp_rows["advanced"] = adv_btn
+        self._basic_btn = basic_btn
+        head.append(seg)
+        self.dsp_box.append(head)
+
+        # -- basic: three big cards
+        self.basic_box = Gtk.Box(spacing=14, homogeneous=True)
+        for key, title, sub, css in (("depth", "DEPTH", "Low-end weight (Big Bottom)", "fx-bottom"),
+                                     ("sparkle", "SPARKLE", "Air and presence (Aural Exciter)", "fx-exciter"),
+                                     ("punch", "PUNCH", "Dynamics (compressor and gate)", "fx-comp")):
+            c = self._card(title, css)
+            sc, val = self._make_scale(key, 0, 100, 1, 50, lambda v: f"{v:.0f}", lambda v: None, basic=True)
+            val.remove_css_class("param-val")
+            val.add_css_class("big-number")
+            val.set_xalign(0)
+            c.append(val)
+            c.append(sc)
+            c.append(make_label(sub, ["vd-sub"], xalign=0))
+            self.basic_box.append(c)
+        self.dsp_box.append(self.basic_box)
+
+        # -- advanced: four processor cards
+        self.adv_box = Gtk.Grid(row_spacing=14, column_spacing=14, column_homogeneous=True)
         self.dsp_box.append(self.adv_box)
+        val = lambda k: self.dsp_rows[k].get_value()
+        comp_curve = lambda x: ((x if x <= val("comp.threshold") else val("comp.threshold") + (x - val("comp.threshold")) / max(val("comp.ratio"), 1.0))
+                                + val("comp.gain"))
+        gate_curve = lambda x: x if x >= val("gate.threshold") else x + val("gate.range")
         spec = [
-            ("comp", "Compressor", [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"),
-                                    ("ratio", "Ratio", 1.5, 4.5, 0.05, "{:.2f} : 1"),
-                                    ("attack", "Attack", 0.1, 10, 0.1, "{:.1f} ms"),
-                                    ("release", "Release", 5, 200, 1, "{:.0f} ms"),
-                                    ("gain", "Make-up gain", 0, 9, 0.1, "{:.1f} dB")]),
-            ("gate", "Noise gate", [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"),
-                                    ("attack", "Attack", 0.1, 1000, 1, "{:.0f} ms"),
-                                    ("hold", "Hold", 0.05, 2, 0.01, "{:.2f} s"),
-                                    ("release", "Release", 0.05, 2, 0.01, "{:.2f} s"),
-                                    ("range", "Range", -100, 0, 1, "{:.0f} dB"),
-                                    ("hysteresis", "Hysteresis", 0, 100, 1, "{:.0f} %")]),
-            ("exciter", "Aural Exciter", [("harmonics", "Harmonics", 0, 100, 1, "{:.0f} %"),
-                                          ("tune", "Tune", 600, 5000, 10, "{:.0f} Hz")]),
-            ("bottom", "Big Bottom", [("drive", "Drive", 0, 100, 1, "{:.0f} %"),
-                                      ("tune", "Tune", 60, 312, 1, "{:.0f} Hz")]),
+            ("comp", "COMPRESSOR", "fx-comp", "#ffb454", 0, 0,
+             [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"), ("ratio", "Ratio", 1.5, 4.5, 0.05, "{:.2f} : 1"),
+              ("attack", "Attack", 0.1, 10, 0.1, "{:.1f} ms"), ("release", "Release", 5, 200, 1, "{:.0f} ms"),
+              ("gain", "Make-up gain", 0, 9, 0.1, "{:.1f} dB")], comp_curve, lambda: val("comp.threshold")),
+            ("gate", "NOISE GATE", "fx-gate", "#4fd8eb", 0, 1,
+             [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"), ("range", "Range", -100, 0, 1, "{:.0f} dB"),
+              ("attack", "Attack", 0.1, 1000, 1, "{:.0f} ms"), ("hold", "Hold", 0.05, 2, 0.01, "{:.2f} s"),
+              ("release", "Release", 0.05, 2, 0.01, "{:.2f} s"), ("hysteresis", "Hysteresis", 0, 100, 1, "{:.0f} %")],
+             gate_curve, lambda: val("gate.threshold")),
+            ("exciter", "AURAL EXCITER", "fx-exciter", "#b48bff", 1, 0,
+             [("harmonics", "Harmonics", 0, 100, 1, "{:.0f} %"), ("tune", "Tune", 600, 5000, 10, "{:.0f} Hz")], None, None),
+            ("bottom", "BIG BOTTOM", "fx-bottom", "#ff7ad9", 1, 1,
+             [("drive", "Drive", 0, 100, 1, "{:.0f} %"), ("tune", "Tune", 60, 312, 1, "{:.0f} Hz")], None, None),
         ]
-        self.adv_groups: dict[str, Adw.ExpanderRow] = {}
-        g = Adw.PreferencesGroup(title="Advanced")
-        self.adv_box.append(g)
-        for block, title, fields in spec:
-            ex = Adw.ExpanderRow(title=title, show_enable_switch=True)
-            ex.connect("notify::enable-expansion", lambda r, _p, b=block: self._on_block_toggle(b, r))
-            g.add(ex)
-            self.adv_groups[block] = ex
+        for block, title, css, color, row, col, fields, curve, marker in spec:
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, vexpand=True)
+            for c in ("vd-panel", "card-pad", css):
+                card.add_css_class(c)
+            hd = Gtk.Box(spacing=8)
+            hd.append(make_label(title, ["card-title"], xalign=0, hexpand=True))
+            en = self._chip(f"{block}_on", "ON", lambda on, b=block: self.mic.set_enabled(b, on))
+            self.fx_enable[block] = en
+            hd.append(en)
+            card.append(hd)
+            graph = None
+            if curve:
+                graph = CurveGraph(curve, color, marker=marker)
+                frame = Gtk.Box(css_classes=["curve-frame"])
+                frame.append(graph)
+                card.append(frame)
             for field, ftitle, lo, hi, step, fmt in fields:
-                dflt = podmic.DEFAULTS[(block, field)]
-                self._scale_row(ex, f"{block}.{field}", ftitle, "", lo, hi, step, dflt,
-                                lambda v, f=fmt: f.format(v),
-                                lambda v, b=block, f=field: self.mic.set_field(b, f, v), hid=True)
+                sc, v = self._make_scale(f"{block}.{field}", lo, hi, step, podmic.DEFAULTS[(block, field)],
+                                         lambda x, f=fmt: f.format(x),
+                                         lambda x, b=block, f=field: self.mic.set_field(b, f, x),
+                                         redraw=(graph.queue_draw if graph else None))
+                card.append(self._row(ftitle, sc, v))
+            self.adv_box.attach(card, col, row, 1, 1)
+
         self._update_mode_visibility(False)
         self._set_dsp_sensitive(False)
         return scroller
 
-    def _row_register(self, key, row, widget):
-        self.dsp_rows[key] = widget
-        self.dsp_widgets.append(row)
-
-    def _scale_row(self, parent, key, title, subtitle, lo, hi, step, value, fmt, apply, hid=True, basic=False):
-        row = Adw.ActionRow(title=title, subtitle=subtitle)
-        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
-        scale.set_value(value)
-        scale.set_draw_value(False)
-        scale.set_size_request(240, -1)
-        scale.set_valign(Gtk.Align.CENTER)
-        val = make_label(fmt(value), ["mono"], width_chars=9, xalign=1)
-        row.add_suffix(val)
-        row.add_suffix(scale)
-
-        def changed(s):
-            v = s.get_value()
-            val.set_text(fmt(v))
-            if self._syncing:
-                return
-            if basic:
-                self._debounce("basic", self._apply_basic_now)
-            else:
-                self._debounce(key, lambda: self._guard(lambda: apply(v), hid))
-
-        scale.connect("value-changed", changed)
-        scale._fmt = fmt
-        scale._val = val
-        (parent.add_row if isinstance(parent, Adw.ExpanderRow) else parent.add)(row)
-        self._row_register(key, row, scale)
-        if basic:
-            row._basic = True
-        return row
-
-    def _switch_row(self, parent, key, title, subtitle, apply):
-        row = Adw.SwitchRow(title=title, subtitle=subtitle)
-
-        def toggled(r, _p):
-            if not self._syncing:
-                self._guard(lambda: apply(r.get_active()), True)
-
-        row.connect("notify::active", toggled)
-        parent.add(row)
-        self._row_register(key, row, row)
-        return row
-
     def _debounce(self, key, fn, ms=120):
         if key in self._dsp_timers:
             GLib.source_remove(self._dsp_timers[key])
+
         def run():
             self._dsp_timers.pop(key, None)
             fn()
             return False
+
         self._dsp_timers[key] = GLib.timeout_add(ms, run)
 
     def _guard(self, fn, hid=True):
@@ -643,21 +763,14 @@ class CueboothWindow(Adw.ApplicationWindow):
         self._update_mode_visibility(on)
 
     def _update_mode_visibility(self, advanced: bool):
-        self.basic_group.set_visible(not advanced)
+        self.basic_box.set_visible(not advanced)
         self.adv_box.set_visible(advanced)
-
-    def _on_block_toggle(self, block, row):
-        if not self._syncing:
-            self._guard(lambda: self.mic.set_enabled(block, row.get_enable_expansion()))
 
     def _set_dsp_sensitive(self, on: bool):
         for k, w in self.dsp_rows.items():
-            if k == "gain":
-                continue
-            w.set_sensitive(on)
-        for ex in self.adv_groups.values():
-            ex.set_sensitive(on)
-        self.basic_group.set_sensitive(on)
+            if k != "gain":
+                w.set_sensitive(on)
+        self._basic_btn.set_sensitive(on)
 
     def _copy_udev(self, *_):
         self.get_clipboard().set(UDEV_CMD)
@@ -678,10 +791,9 @@ class CueboothWindow(Adw.ApplicationWindow):
                 self._dsp_set_state("denied")
             except podmic.PodMicError:
                 self._dsp_set_state("absent")
-        # gain works through ALSA regardless of hidraw permissions
-        if present:
+        if present:                                       # gain goes through ALSA, so it needs no HID permission
             g = podmic.get_gain_db()
-            if g is not None and not self._dsp_timers.get("gain"):
+            if g is not None and "gain" not in self._dsp_timers:
                 self._syncing = True
                 self.dsp_rows["gain"].set_value(g)
                 self._syncing = False
@@ -695,11 +807,11 @@ class CueboothWindow(Adw.ApplicationWindow):
             self.mic.close()
             self.mic = None
         self.dsp_state = state
-        ok = state == "ok"
-        self._set_dsp_sensitive(ok)
+        self._set_dsp_sensitive(state == "ok")
         b = self.dsp_banner
         if state == "denied":
-            b.set_title("Mic control needs a one-time permission. Copy the setup command and run it in a terminal (replug the mic if this message stays).")
+            b.set_title("Mic control needs a one-time permission. Copy the setup command and run it in a terminal "
+                        "(replug the mic if this message stays).")
             b.set_button_label("Copy command")
             b.set_revealed(True)
         elif state == "absent":
@@ -710,21 +822,23 @@ class CueboothWindow(Adw.ApplicationWindow):
             b.set_revealed(False)
 
     def _sync_from_mic(self):
-        """Pull current values from the mic so the sliders mirror the hardware."""
+        """Pull current values from the mic so the controls mirror the hardware."""
         self._syncing = True
         try:
             st = self.mic.read_state()
             for key in ("hpf", "mute", "monitoring", "processing", "advanced"):
                 if st.get(key) is not None:
                     self.dsp_rows[key].set_active(bool(st[key]))
+            if st.get("advanced") is not None and not st["advanced"]:
+                self._basic_btn.set_active(True)
             if st.get("monitor_mix") is not None:
                 self.dsp_rows["monitor_mix"].set_value(st["monitor_mix"])
             for key in ("depth", "sparkle", "punch"):
                 if st.get(key) is not None:
                     self.dsp_rows[key].set_value(st[key])
-            for block, ex in self.adv_groups.items():
+            for block, chip in self.fx_enable.items():
                 if st.get(f"{block}_on") is not None:
-                    ex.set_enable_expansion(bool(st[f"{block}_on"]))
+                    chip.set_active(bool(st[f"{block}_on"]))
             for key, w in self.dsp_rows.items():
                 if "." in key:
                     b, f = key.split(".")
@@ -876,6 +990,7 @@ class CueboothWindow(Adw.ApplicationWindow):
 
     def _on_level(self, rms, peak):
         self.mic_strip.set_level(peak)
+        self.in_meter.set_value(audio.meter_fraction(peak) * 40)
 
     def _on_audio_error(self, msg):
         self.toast(f"Audio error: {msg}")
