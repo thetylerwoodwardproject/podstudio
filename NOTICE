@@ -5,6 +5,13 @@ sponsored by RØDE Microphones. "RØDE" and "PodMic" are trademarks of their
 respective owner and are used only to describe compatible hardware.
 
 ----------------------------------------------------------------------------
+DeepFilterNet (https://github.com/Rikorose/DeepFilterNet), MIT or Apache-2.0
+
+The .deb package bundles the unmodified upstream `deep-filter` release binary for noise reduction.
+Licence texts: packaging/licenses/DeepFilterNet-LICENSE-MIT and DeepFilterNet-LICENSE-APACHE.
+Shadcn/ui (MIT) inspired the visual style; no code is used.
+
+----------------------------------------------------------------------------
 podmicusb-doctor (https://github.com/rumkit/podmicusb-doctor)
 
 The PodMic USB control protocol implemented in podstudio/podmic.py, and the

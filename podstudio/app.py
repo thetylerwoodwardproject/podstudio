@@ -42,7 +42,7 @@ class PodStudioApp(Adw.Application):
 
     def _about(self, *_):
         d = Adw.AboutDialog(
-            application_name="PodStudio", application_icon=APP_ID, version=__version__,
+            application_name="PodStudio", application_icon=APP_ID, version=f"v{__version__}",
             developer_name="The Tyler Woodward Project", license_type=Gtk.License.MIT_X11,
             website="https://github.com/thetylerwoodwardproject/podstudio",
             comments=("Record a USB mic, fire hotkey sounds on their own track, and master to −16 LUFS.\n\n"

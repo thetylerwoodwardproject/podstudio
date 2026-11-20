@@ -16,6 +16,7 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
 from . import audio, denoise, podmic, render  # noqa: E402
+from .publish_ui import PublishPanel  # noqa: E402
 from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project  # noqa: E402
 
 CONFIG = Path(GLib.get_user_config_dir()) / "podstudio" / "config.json"
@@ -970,6 +971,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
             row._play = btn
             self.files.add(row)
             self.file_rows[key] = row
+        self.publish = PublishPanel(self)
+        box.append(self.publish.group)
         self._refresh_files()
         self._sync_mix_settings()
         return scroller
@@ -1439,6 +1442,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self._apply_pad_css()
         self._refresh_files()
         self._sync_mix_settings()
+        self.publish._show_state()
         self._show_mix_stats()
         self.timecode.set_text(fmt_time(pr.mic_duration))
 
@@ -1449,6 +1453,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.toast("This session hasn't been saved yet.")
 
     # ------------------------------------------------------------------ misc
+    def save_cfg(self):
+        save_config(self.cfg)
+
     def toast(self, msg: str):
         self.toasts.add_toast(Adw.Toast(title=msg, timeout=4))
 

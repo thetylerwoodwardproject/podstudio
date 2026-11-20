@@ -9,6 +9,9 @@
     <p>PodStudio is a small console for recording a USB microphone. Fire sounds from hotkey pads, keep the mic and the hotkeys on separate tracks, and get a stereo master normalized to -16 LUFS.</p>
     <p>PodStudio is an independent project. It is not affiliated with, endorsed by, or sponsored by RØDE Microphones.</p>
   </description>
+  <releases>
+    <release version="2026.11.20" date="2026-11-20"/>
+  </releases>
   <launchable type="desktop-id">io.github.thetylerwoodwardproject.PodStudio.desktop</launchable>
   <url type="homepage">https://github.com/thetylerwoodwardproject/podstudio</url>
   <content_rating type="oars-1.1"/>

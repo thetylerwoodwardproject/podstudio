@@ -16,6 +16,7 @@ def _project(tmp_path, mic_amp=0.03):
     sf.write(p.mic_path, _tone(12, 220, mic_amp), SAMPLE_RATE, subtype="PCM_24")
     sf.write(p.clips_dir / "beep.wav", _tone(0.5, 880, 0.5, 2), SAMPLE_RATE, subtype="PCM_24")
     p.mic_duration = 12.0
+    p.denoise = False                  # synthetic tones are not speech; keep these tests independent of DeepFilterNet
     p.events = [Event(t=2.0, pad=0, clip="beep.wav"), Event(t=11.8, pad=0, clip="beep.wav")]
     return p
 

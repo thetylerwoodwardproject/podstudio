@@ -35,6 +35,7 @@ def _project(tmp_path, duck_a, duck_b):
     tone = lambda f: np.stack([0.2 * np.sin(2 * np.pi * f * np.arange(10 * SR) / SR)] * 2, 1)
     sf.write(p.clips_dir / "bed.wav", tone(330), SR, subtype="PCM_24")
     sf.write(p.clips_dir / "fx.wav", tone(1250), SR, subtype="PCM_24")
+    p.denoise = False                                # the sine 'voice' must reach the sidechain untouched
     p.mic_duration, p.mic_db = 10.0, -60.0          # mic nearly out of the mix, so the master is the hotkeys
     p.events = [Event(t=0, pad=0, clip="bed.wav", duck=duck_a), Event(t=0, pad=1, clip="fx.wav", duck=duck_b)]
     return p

@@ -4,9 +4,10 @@
 
 # PodStudio
 
-**A small recording console for a USB mic.**<br>
-Record the mic, fire hotkey sounds from pads, keep both on separate tracks, and export a stereo master normalized to podcast loudness.
+**A recording console for the RØDE PodMic USB.**<br>
+Record the mic, fire hotkey sounds from pads onto their own track, clean up the noise, and export a podcast-loudness master. Then send it to Buzzsprout as a private draft.
 
+![Version](https://img.shields.io/badge/version-v2026.11.20-informational?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Linux-informational?style=flat-square)
 ![GTK4 + libadwaita](https://img.shields.io/badge/GTK4-libadwaita-4a86cf?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)
@@ -16,80 +17,104 @@ Record the mic, fire hotkey sounds from pads, keep both on separate tracks, and 
 </div>
 
 > **Unofficial.** PodStudio is an independent project. It is **not affiliated with, endorsed by, or sponsored by RØDE
-> Microphones.** "RØDE", "PodMic" and "RØDE Central" are trademarks of their owner and are used only to describe
-> compatible hardware. Nothing here is RØDE code.
+> Microphones.** "RØDE", "PodMic" and "RØDE Central" are trademarks of their owner and are used only to describe the
+> hardware this software works with. Nothing here is RØDE code. **PodStudio works with the PodMic USB only.**
 
 ## What it does
 
 | | |
 |---|---|
-| 🎙 **Record** | 48 kHz, 24-bit WAV from your USB mic. Built around the RØDE PodMic USB, works with any input. |
-| 🎛 **Console** | Colour-coded Mic, Hotkeys and Master faders. LED meters with a dBFS ruler and peak hold. A highlighted **0 dB unity** mark with a magnetic detent (double-click a fader to snap back). |
+| 🎙 **Record** | 48 kHz, 24-bit WAV straight from the PodMic USB. Plug-and-play, hot-plug aware. If the mic disconnects mid-take, the take is repaired and kept. |
+| 🎛 **Console** | Colour-coded Mic, Hotkeys and Master faders with LED meters, a dBFS ruler, peak hold, and a highlighted **0 dB unity** mark with a detent. The Mic fader moves the meter live and sets the mic-versus-hotkeys balance. |
 | 🥁 **Hotkey pads** | Eight pads, each with its own key, sound, level and colour. Hits are timestamped against the mic stream. |
-| 📂 **Separate stems** | Every session is a folder: `mic.wav` (mono), `hotkeys.wav` (stereo) and `master.wav`. Normalization never touches the stems. |
-| 📏 **Podcast master** | Stereo, **−16 LUFS** integrated, **true peak ≤ −1 dBTP** (4× oversampled, so inter-sample overs are caught). A compliance panel shows the result. |
-| 💿 **MP3 export** | 128 kbps MP3 for distribution. It decodes its own output and re-limits if encoding pushed the peak over the ceiling. |
-| 🔧 **Mic DSP** | Controls the PodMic's on-board processing without RØDE Central. See below. |
+| 📉 **Ducking** | Switch **Duck** on for the pads that should dip under your voice, and leave the rest alone. Applied live and in the master, with look-ahead so the first syllable isn't covered. |
+| 🔇 **Noise reduction** | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) runs on the mic stem when the master is rendered (it's too heavy to run live, but processes audio about 10× faster than real time). Strength is adjustable. Your raw mic stem is never modified. |
+| 📂 **Separate stems** | Each session is a folder: `mic.wav`, `mic-clean.wav`, `hotkeys.wav` and `master.wav`. Hotkeys and mic are never baked together except in the master. |
+| 📏 **Podcast master** | Stereo, **−16 LUFS** integrated, **true peak ≤ −1 dBTP** (4× oversampled, so inter-sample overs are caught), with a pass/fail check on the Mix page. |
+| 💿 **MP3 export** | 128 kbps MP3 that decodes its own output to confirm it still meets the spec. |
+| 📡 **Buzzsprout** | Direct API upload as a **private draft**. Publishing is a separate, confirmed step. |
+| 🔧 **Mic DSP** | Controls the PodMic's on-board processing (see below) without RØDE Central. |
 
 <div align="center">
-<img src="docs/screenshots/mix.png" width="640" alt="Mix page with loudness readout and podcast standard checks">
+<img src="docs/screenshots/mix.png" width="520" alt="Mix page: cleanup, ducking and the podcast standard check"> <img src="docs/screenshots/publish.png" width="520" alt="Publish to Buzzsprout panel">
 </div>
 
 ## Install
 
+**Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb**
+
 ```bash
-sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 \
-                 gstreamer1.0-plugins-good gstreamer1.0-pulseaudio   # once
-./install.sh                                                          # no sudo; installs to ~/.local
-podstudio
+sudo apt install ./podstudio_2026.11.20_amd64.deb
 ```
 
-Needs Python 3.10+, GTK 4, libadwaita 1.5+ and GStreamer. Sessions are saved in `~/Music/PodStudio/`.
+It pulls in its dependencies, bundles DeepFilterNet, and installs the udev rule so the mic controls work straight away.
+Build it yourself with `./packaging/build-deb.sh` (output in `dist/`).
+
+**Per-user, no sudo**
+
+```bash
+sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir1.2-secret-1 \
+                 gstreamer1.0-plugins-good gstreamer1.0-plugins-base alsa-utils pulseaudio-utils   # once
+./install.sh              # installs to ~/.local and fetches DeepFilterNet (--no-deepfilter to skip)
+./install.sh --uninstall  # remove it again (do this after installing the .deb)
+```
+
+Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** is the 20th of November 2026.
 
 ## Using it
 
-1. Pick the input (the PodMic is chosen automatically) and set the Hotkeys pads. Click a pad's ✎ to choose a sound, key and colour. Any audio format works; sounds are converted to 48 kHz stereo WAV and kept in the session.
-2. **Ctrl+R** (or REC) starts and stops. Press a pad's key at any time. Hits are logged while recording.
-3. On stop, the master is mixed and normalized automatically. Adjust the Mic and Hotkeys faders and press **MIX** to remix. The mic stem is always recorded clean.
-4. Open the **Mix** tab to check the result against the podcast standard and **Export MP3**.
+1. Plug in the PodMic USB. The header shows it as connected.
+2. Set up your pads: click a pad's ✎ to choose a sound, key, colour, and whether it ducks under your voice.
+3. **Ctrl+R** (or Record) starts and stops. Press a pad's key at any time. Hits are logged while recording.
+4. On stop, the master is mixed and normalized automatically. On the **Mix** tab you can turn noise reduction on or off, tune ducking, and press **Mix** to re-render after any change.
+5. **Export MP3**, then upload to Buzzsprout.
 
-Keys work while PodStudio is focused. System-wide hotkeys are not implemented yet (Wayland needs the GlobalShortcuts portal).
+Keys work while PodStudio is focused. System-wide hotkeys aren't implemented yet (Wayland needs the GlobalShortcuts portal).
+
+## Buzzsprout
+
+<details><summary>How publishing works</summary>
+
+Paste your API token (Buzzsprout: Profile → API) on the Mix tab. It is kept in your desktop keyring (libsecret) and is never written to a file. If no keyring is available, the token lasts for the session only.
+
+- **Upload draft** creates a *private* episode, uploads the MP3 (Buzzsprout's start, PUT, complete flow), and waits for encoding. Uploading again updates the same draft.
+- **Publish…** asks for confirmation, then makes the episode public. It is the only thing that does.
+- The token goes only to Buzzsprout's API: never to the upload host and never across redirects. PodStudio identifies itself with a generic `PodStudio/<version>` User-Agent.
+</details>
 
 ## Mic DSP (PodMic USB)
 
+<div align="center">
+<img src="docs/screenshots/mic.png" width="520" alt="Mic page, Basic mode"> <img src="docs/screenshots/mic-advanced.png" width="520" alt="Mic page, Advanced mode with compressor and gate curves">
+</div>
+
 RØDE Central doesn't run on Linux, so PodStudio talks to the mic directly over USB HID, using the protocol reverse-engineered by
 [podmicusb-doctor](https://github.com/rumkit/podmicusb-doctor) (MIT). It covers input gain, mute, direct monitoring, the high-pass
-filter, Depth / Sparkle / Punch, and the advanced compressor, noise gate, Aural Exciter and Big Bottom.
-
-Gain works out of the box. The rest needs a one-time permission for the HID device:
+filter, Depth / Sparkle / Punch, and the advanced compressor, noise gate, Aural Exciter and Big Bottom. Gain works with no setup. The
+rest needs permission for the HID device, which the .deb installs. For a per-user install:
 
 ```bash
 sudo install -m644 data/70-podstudio-podmic.rules /etc/udev/rules.d/ \
   && sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=hidraw
 ```
 
-The Mic tab shows this command (with a copy button) when it's needed.
-
-<div align="center">
-<img src="docs/screenshots/mic.png" width="420" alt="Mic page, Basic mode"> <img src="docs/screenshots/mic-advanced.png" width="420" alt="Mic page, Advanced mode with compressor and gate curves">
-</div>
-
 **Status:** tested on a real PodMic USB. Gain, mute, direct monitoring, high-pass, Basic/Advanced mode and individual compressor and gate
-values all write and read back correctly, and the settings are stored in the mic. The encoders are also unit-tested against the byte
-sequences in the protocol research. Not every advanced field has been checked by ear yet, so treat the Advanced cards as beta.
+values write and read back correctly, and the settings are stored in the mic. Not every advanced field has been checked by ear yet, so
+treat the Advanced cards as beta.
 
 ## Development
 
 ```bash
 uv venv --system-site-packages && uv pip install -e ".[dev]"
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest          # 40+ tests, including a mock Buzzsprout server
 .venv/bin/python -m podstudio
 ```
 
 ## Credits
 
-- Protocol research and DSP tables: [rumkit/podmicusb-doctor](https://github.com/rumkit/podmicusb-doctor) (MIT). See [NOTICE](NOTICE).
-- Layout and packaging approach: [netaudio-desktop](https://github.com/thetylerwoodwardproject/netaudio-desktop).
-- Loudness measurement: [pyloudnorm](https://github.com/csteinmetz1/pyloudnorm) (ITU-R BS.1770).
+- Protocol research and DSP tables: [rumkit/podmicusb-doctor](https://github.com/rumkit/podmicusb-doctor) (MIT).
+- Noise reduction: [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) by Hendrik Schröter (MIT or Apache-2.0), bundled unmodified in the .deb.
+- Visual style inspired by [shadcn/ui](https://ui.shadcn.com) (MIT). App structure from [netaudio-desktop](https://github.com/thetylerwoodwardproject/netaudio-desktop).
+- Loudness follows ITU-R BS.1770-4.
 
-MIT licensed.
+See [NOTICE](NOTICE). MIT licensed.

@@ -51,6 +51,8 @@ class Project:
     duck_amount_db: float = 12.0       # how far ducked pads dip
     duck_threshold_db: float = -40.0   # mic level (dBFS RMS) that counts as speaking
     duck_release_ms: float = 350.0     # how fast they come back
+    episode: dict = field(default_factory=dict)   # title, description, tags, numbers for publishing
+    buzz: dict = field(default_factory=dict)      # podcast_id, episode_id, public (ids only, never the token)
     clean_key: str = ""                # identifies the take + strength that mic-clean.wav was made from
 
     # layout ---------------------------------------------------------------
@@ -91,6 +93,8 @@ class Project:
             "denoise": self.denoise,
             "denoise_atten_db": self.denoise_atten_db,
             "clean_key": self.clean_key,
+            "episode": self.episode,
+            "buzz": self.buzz,
             "duck_amount_db": self.duck_amount_db,
             "duck_threshold_db": self.duck_threshold_db,
             "duck_release_ms": self.duck_release_ms,
@@ -108,7 +112,7 @@ class Project:
             name=d["name"], root=Path(root), mic_db=d.get("mic_db", 0.0),
             hotkeys_db=d.get("hotkeys_db", 0.0), hotkeys_muted=d.get("hotkeys_muted", False), target_lufs=d.get("target_lufs", -16.0),
             created=d.get("created", ""), mic_duration=d.get("mic_duration", 0.0), mix_stats=d.get("mix_stats", {}), denoise=d.get("denoise", False),
-            denoise_atten_db=d.get("denoise_atten_db", 18.0), clean_key=d.get("clean_key", ""),
+            denoise_atten_db=d.get("denoise_atten_db", 18.0), clean_key=d.get("clean_key", ""), episode=d.get("episode", {}), buzz=d.get("buzz", {}),
             duck_amount_db=d.get("duck_amount_db", 12.0), duck_threshold_db=d.get("duck_threshold_db", -40.0),
             duck_release_ms=d.get("duck_release_ms", 350.0),
             pads=[Pad(**p) for p in d.get("pads", [])],
