@@ -1,0 +1,3 @@
+# Lets the logged-in desktop user talk to the PodMic USB's control channel (hidraw).
+# Cuebooth needs this only for the on-board processing controls; recording works without it.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="19f7", ATTRS{idProduct}=="004a", TAG+="uaccess"

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cuebooth"
+dynamic = ["version"]
+description = "Record a USB mic, fire hotkey sounds on their own track, and master to -16 LUFS."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["numpy>=1.26", "soundfile>=0.12", "pyloudnorm>=0.1.1"]
+classifiers = [
+  "Environment :: X11 Applications :: GTK",
+  "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+cuebooth = "cuebooth.app:main"
+
+[tool.setuptools]
+packages = ["cuebooth"]
+
+[tool.setuptools.dynamic]
+version = { attr = "cuebooth.__version__" }
+
+[tool.setuptools.package-data]
+cuebooth = ["data/*"]

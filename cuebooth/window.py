@@ -1,0 +1,1214 @@
+"""Main window: Session (strips + pads), Mic (PodMic DSP), Mix (master result)."""
+from __future__ import annotations
+
+import json
+import shutil
+import threading
+import time
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+from . import audio, podmic, render  # noqa: E402
+from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project  # noqa: E402
+
+CONFIG = Path(GLib.get_user_config_dir()) / "cuebooth" / "config.json"
+UDEV_RULE = 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="19f7", ATTRS{idProduct}=="004a", TAG+="uaccess"'
+UDEV_CMD = (f"echo '{UDEV_RULE}' | sudo tee /etc/udev/rules.d/70-cuebooth-podmic.rules >/dev/null && "
+            "sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=hidraw")
+
+
+def load_config() -> dict:
+    try:
+        return json.loads(CONFIG.read_text())
+    except Exception:
+        return {}
+
+
+def save_config(cfg: dict):
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG.write_text(json.dumps(cfg, indent=2))
+
+
+def fmt_db(v: float) -> str:
+    return "−∞" if v <= -60 else f"{v:+.1f}"
+
+
+def fmt_time(s: float) -> str:
+    s = int(s)
+    return f"{s // 3600:02d}:{(s // 60) % 60:02d}:{s % 60:02d}"
+
+
+def make_label(text="", css=(), xalign=0.5, **kw) -> Gtk.Label:
+    lb = Gtk.Label(label=text, xalign=xalign, **kw)
+    for c in css:
+        lb.add_css_class(c)
+    return lb
+
+
+# ===================================================================== channel strip
+
+DB_TICKS = (0, -6, -12, -24, -36, -48)
+CHANNEL_COLORS = {"mic": "#3ddc97", "hk": "#ffb454", "master": "#6ea8ff"}
+METER_H, METER_BLOCKS = 224, 32
+
+
+class Strip(Gtk.Box):
+    """Colour-coded console channel: name tag, dB readout, dBFS ruler + LED meter, fader, mute."""
+
+    def __init__(self, title: str, lo: float, hi: float, value: float, on_change, *, channel="mic", step=0.5,
+                 marks=(0,), fmt=fmt_db, unit="dB", meter=True, tooltip="", unity_label="UNITY"):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.add_css_class("strip")
+        self.add_css_class(f"ch-{channel}")
+        self.fmt, self.on_change, self._clip_until = fmt, on_change, 0.0
+        self.unity = marks[0] if marks else 0.0          # first mark is the reference point (0 dB / target)
+        self._peak, self._peak_until = -90.0, 0.0
+        self.set_hexpand(True)
+        if tooltip:
+            self.set_tooltip_text(tooltip)
+
+        self.append(make_label(title, ["strip-name"], halign=Gtk.Align.CENTER))
+        self.readout = make_label("", ["readout", "mono"])
+        self.append(self.readout)
+        self.append(make_label(unit, ["unit"]))
+
+        body = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER, vexpand=True)
+        # dBFS ruler: labels live in an overlay (overlays add no minimum height), placed from the meter's real height
+        self.ruler = Gtk.Overlay()
+        spacer = Gtk.Box(vexpand=True)
+        spacer.set_size_request(30, 60)
+        self.ruler.set_child(spacer)
+        self._ticks = []
+        for db in DB_TICKS:
+            lb = make_label(f"{db}", ["dbfs"], xalign=1, valign=Gtk.Align.START, halign=Gtk.Align.END)
+            self.ruler.add_overlay(lb)
+            self._ticks.append((db, lb))
+        self._ruler_h = -1
+        self.ruler.add_tick_callback(self._layout_ruler)
+        self.ruler.set_visible(meter)
+        body.append(self.ruler)
+
+        self.meter = Gtk.LevelBar(orientation=Gtk.Orientation.VERTICAL, mode=Gtk.LevelBarMode.DISCRETE,
+                                  min_value=0, max_value=METER_BLOCKS, inverted=True)
+        self.meter.add_css_class("meter")
+        for off in (Gtk.LEVEL_BAR_OFFSET_LOW, Gtk.LEVEL_BAR_OFFSET_HIGH, Gtk.LEVEL_BAR_OFFSET_FULL):
+            self.meter.remove_offset_value(off)
+        self.meter.add_offset_value("low", 0.78 * METER_BLOCKS)
+        self.meter.add_offset_value("high", 0.93 * METER_BLOCKS)
+        self.meter.add_offset_value("full", METER_BLOCKS)
+        self.meter.set_visible(meter)
+        self.meter.set_size_request(14, METER_H)
+        body.append(self.meter)
+
+        self.fader = Gtk.Scale.new_with_range(Gtk.Orientation.VERTICAL, lo, hi, step)
+        self.fader.add_css_class("fader")
+        self.fader.set_inverted(True)
+        self.fader.set_draw_value(False)
+        self.fader.set_size_request(52, METER_H)
+        self.fader.set_vexpand(True)
+        col = CHANNEL_COLORS.get(channel, "#e8ecf2")
+        for i, m in enumerate(marks):
+            label = (f"<span foreground='{col}' weight='bold'>{m:g} · {unity_label}</span>" if i == 0
+                     else f"<span foreground='#6b7686'>{m:g}</span>")
+            self.fader.add_mark(m, Gtk.PositionType.RIGHT, label)
+        self.fader.set_value(value)
+        self.fader.connect("value-changed", self._changed)
+        click = Gtk.GestureClick()          # double-click resets to unity / target
+        click.connect("pressed", lambda g, n, x, y: n == 2 and self.fader.set_value(marks[0] if marks else 0))
+        self.fader.add_controller(click)
+        body.append(self.fader)
+        self.append(body)
+
+        self.peak_label = make_label("", ["peak", "mono"])
+        self.peak_label.set_visible(meter)
+        self.append(self.peak_label)
+        self.mute = Gtk.ToggleButton(label="MUTE", halign=Gtk.Align.CENTER)
+        self.mute.add_css_class("mute-btn")
+        self.append(self.mute)
+        self.footer = Gtk.Box(halign=Gtk.Align.CENTER, spacing=6)
+        self.append(self.footer)
+        self._changed(self.fader)
+        self._show_peak()
+
+    def _layout_ruler(self, widget, _clock):
+        h = widget.get_height()
+        if h > 0 and h != self._ruler_h:
+            self._ruler_h = h
+            usable = h - 6                                   # LED trough has ~3 px padding at each end
+            for db, lb in self._ticks:
+                lb.set_margin_top(max(0, int(3 + (1 - (db + 60) / 60) * usable - 5)))
+        return GLib.SOURCE_CONTINUE
+
+    def _changed(self, scale):
+        v = scale.get_value()
+        if v != self.unity and abs(v - self.unity) < 0.4:      # magnetic detent at unity
+            scale.set_value(self.unity)
+            return
+        at_unity = abs(v - self.unity) < 0.05
+        (self.readout.add_css_class if at_unity else self.readout.remove_css_class)("unity")
+        self.readout.set_text(self.fmt(v))
+        self.on_change(v)
+
+    def _show_peak(self):
+        self.peak_label.set_text("PEAK  —" if self._peak <= -60 else f"PEAK {self._peak:5.1f} dBFS")
+
+    def set_level(self, peak_db: float):
+        self.meter.set_value(audio.meter_fraction(peak_db) * METER_BLOCKS)
+        now = time.monotonic()
+        if peak_db >= self._peak or now > self._peak_until:   # hold the peak for 1.5 s, then follow the signal
+            self._peak, self._peak_until = peak_db, now + 1.5
+            self._show_peak()
+        if peak_db > -1.0:
+            self._clip_until = now + 1.5
+        if now < self._clip_until:
+            self.readout.add_css_class("clip")
+            self.peak_label.add_css_class("clip")
+        else:
+            self.readout.remove_css_class("clip")
+            self.peak_label.remove_css_class("clip")
+
+
+# ===================================================================== pad
+
+
+class PadWidget(Gtk.Overlay):
+    def __init__(self, win: "CueboothWindow", index: int):
+        super().__init__()
+        self.win, self.index = win, index
+        self.add_css_class("pad-wrap")
+        self.btn = Gtk.Button()
+        self.btn.add_css_class("pad")
+        self.btn.add_css_class(f"pad-{index}")
+        self.btn.connect("clicked", lambda *_: win.trigger(index))
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin_top=10, margin_bottom=10,
+                        margin_start=12, margin_end=12)
+        self.key = make_label("", ["keycap"], halign=Gtk.Align.START)
+        self.label = make_label("", ["pad-label"], xalign=0, halign=Gtk.Align.START, vexpand=True,
+                                valign=Gtk.Align.END)
+        self.clip = make_label("", ["pad-clip"], xalign=0, halign=Gtk.Align.START, ellipsize=Pango.EllipsizeMode.END, max_width_chars=14)
+        for w in (self.key, self.label, self.clip):
+            inner.append(w)
+        self.btn.set_child(inner)
+        self.set_child(self.btn)
+
+        self.edit = Gtk.MenuButton(icon_name="document-edit-symbolic", halign=Gtk.Align.END, valign=Gtk.Align.START,
+                                   margin_top=6, margin_end=6, tooltip_text="Edit pad")
+        self.edit.add_css_class("pad-edit")
+        self.edit.add_css_class("flat")
+        self.add_overlay(self.edit)
+        self.pop = Gtk.Popover()
+        self.edit.set_popover(self.pop)
+        self.pop.connect("show", self._build_editor)
+        kc = Gtk.EventControllerKey()
+        kc.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        kc.connect("key-pressed", lambda c, kv, code, st: win.capture_key(kv))
+        self.pop.add_controller(kc)
+        self.refresh()
+
+    @property
+    def pad(self):
+        return self.win.project.pads[self.index]
+
+    def refresh(self):
+        p = self.pad
+        self.key.set_text(p.key.upper() or "–")
+        self.label.set_text(p.label or ("Empty" if not p.clip else Path(p.clip).stem))
+        self.clip.set_text(p.clip if p.clip else "Click ✎ to add a sound")
+        if p.clip:
+            self.btn.remove_css_class("empty")
+        else:
+            self.btn.add_css_class("empty")
+
+    def flash(self):
+        self.btn.add_css_class("hit")
+        GLib.timeout_add(140, lambda: (self.btn.remove_css_class("hit"), False)[1])
+
+    # -- editor popover
+    def _build_editor(self, *_):
+        p = self.pad
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin_top=12, margin_bottom=12,
+                      margin_start=12, margin_end=12)
+        box.set_size_request(260, -1)
+        name = Gtk.Entry(text=p.label, placeholder_text="Pad name")
+        name.connect("changed", lambda e: (setattr(self.pad, "label", e.get_text()), self.refresh(),
+                                           self.win.project.save()))
+        box.append(name)
+
+        row = Gtk.Box(spacing=8)
+        self.keybtn = Gtk.Button(label=f"Key: {p.key.upper() or '–'}")
+        self.keybtn.connect("clicked", self._capture_key)
+        sound = Gtk.Button(label="Choose sound…", hexpand=True)
+        sound.connect("clicked", lambda *_: self.win.choose_clip(self.index))
+        row.append(self.keybtn)
+        row.append(sound)
+        box.append(row)
+
+        box.append(make_label("LEVEL", ["vd-title"], xalign=0))
+        g = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -24, 12, 0.5)
+        g.set_value(p.gain_db)
+        g.add_mark(0, Gtk.PositionType.BOTTOM, "0 dB")
+        g.connect("value-changed", lambda s: (setattr(self.pad, "gain_db", s.get_value()), self.win.project.save()))
+        box.append(g)
+
+        sw = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER)
+        first = None
+        for c in PAD_COLORS:
+            b = Gtk.ToggleButton()
+            b.add_css_class("swatch")
+            b.set_active(c == p.color)
+            if first:
+                b.set_group(first)
+            first = first or b
+            css = Gtk.CssProvider()
+            css.load_from_string(f"button {{ background: {c}; }}")
+            b.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            b.connect("toggled", lambda t, col=c: t.get_active() and self.win.set_pad_color(self.index, col))
+            sw.append(b)
+        box.append(sw)
+
+        clear = Gtk.Button(label="Clear pad")
+        clear.add_css_class("destructive-action")
+        clear.connect("clicked", lambda *_: (self.win.clear_pad(self.index), self.pop.popdown()))
+        box.append(clear)
+        self.pop.set_child(box)
+
+    def _capture_key(self, *_):
+        self.keybtn.set_label("Press a key…")
+        self.win.capture_for = self.index
+
+
+# ===================================================================== window
+
+
+class CueboothWindow(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Cuebooth", default_width=1120, default_height=720)
+        self.add_css_class("cuebooth")
+        self.cfg = load_config()
+        self.project: Project | None = None
+        self.source: str | None = None
+        self.capture_for: int | None = None
+        self.player = audio.ClipPlayer()
+        self.engine = audio.MicEngine(on_level=self._on_level, on_error=self._on_audio_error)
+        self.hk_level = -90.0
+        self.rec_started = 0.0
+        self.mix_busy = False
+        self._pad_css = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), self._pad_css,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+
+        last = self.cfg.get("last_project")
+        try:
+            self.project = Project.load(Path(last)) if last else None
+        except Exception:
+            self.project = None
+        if self.project is None:
+            self.project = self._blank_project()
+
+        self._build()
+        self._load_sources()
+        self._apply_pad_css()
+        self._show_mix_stats()
+        GLib.timeout_add(100, self._tick)
+        GLib.timeout_add(2000, self._poll_mic)
+        self._poll_mic()
+        self.connect("close-request", self._on_close)
+
+        key = Gtk.EventControllerKey()
+        key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        key.connect("key-pressed", self._on_key)
+        self.add_controller(key)
+
+    # ------------------------------------------------------------------ project helpers
+    def _blank_project(self) -> Project:
+        p = Project(name="", root=DEFAULT_ROOT)
+        from .project import DEFAULT_KEYS, Pad
+        p.pads = [Pad(key=k, color=PAD_COLORS[i % len(PAD_COLORS)]) for i, k in enumerate(DEFAULT_KEYS[:8])]
+        return p
+
+    def _materialize(self):
+        """Give an unsaved scratch project a real folder the first time it's needed."""
+        if self.project.created:
+            return
+        fresh = Project.create(time.strftime("Session %Y-%m-%d %H-%M"))
+        fresh.pads = self.project.pads
+        fresh.mic_db, fresh.hotkeys_db, fresh.target_lufs = (self.project.mic_db, self.project.hotkeys_db,
+                                                             self.project.target_lufs)
+        self.project = fresh
+        fresh.save()
+        self._remember()
+
+    def _fork_for_take(self):
+        """A recording is never overwritten: a new take is a new project with the same pads."""
+        old = self.project
+        new = Project.create(time.strftime("Session %Y-%m-%d %H-%M"))
+        new.pads = [type(p)(**vars(p)) for p in old.pads]
+        new.mic_db, new.hotkeys_db, new.target_lufs = old.mic_db, old.hotkeys_db, old.target_lufs
+        new.ensure_dirs()
+        for p in new.pads:
+            if p.clip and (old.clips_dir / p.clip).exists():
+                shutil.copy2(old.clips_dir / p.clip, new.clips_dir / p.clip)
+        new.save()
+        self.project = new
+        self._remember()
+
+    def _remember(self):
+        self.cfg["last_project"] = str(self.project.root)
+        save_config(self.cfg)
+        self.title_label.set_text(self.project.name or "New session")
+
+    # ------------------------------------------------------------------ UI build
+    def _build(self):
+        self.toasts = Adw.ToastOverlay()
+        tv = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+
+        # record button + timecode
+        self.rec_btn = Gtk.Button()
+        self.rec_btn.add_css_class("rec-btn")
+        rb = Gtk.Box(spacing=8)
+        rb.append(Gtk.Box(css_classes=["rec-dot"], valign=Gtk.Align.CENTER))
+        self.rec_label = Gtk.Label(label="REC")
+        rb.append(self.rec_label)
+        self.rec_btn.set_child(rb)
+        self.rec_btn.set_tooltip_text("Record (Ctrl+R)")
+        self.rec_btn.connect("clicked", lambda *_: self.toggle_record())
+        header.pack_start(self.rec_btn)
+
+        self.stack = Adw.ViewStack()
+        switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
+        header.set_title_widget(switcher)
+
+        menu = Gio.Menu()
+        menu.append("New Session", "win.new")
+        menu.append("Open Session…", "win.open")
+        menu.append("Show Session Folder", "win.folder")
+        about = Gio.Menu()
+        about.append("About Cuebooth", "app.about")
+        menu.append_section(None, about)
+        mb = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
+        header.pack_end(mb)
+        self.title_label = make_label(self.project.name or "New session", ["vd-sub"], margin_end=8)
+        header.pack_end(self.title_label)
+        for name, cb in (("new", self.new_session), ("open", self.open_session), ("folder", self.open_folder)):
+            act = Gio.SimpleAction.new(name, None)
+            act.connect("activate", lambda *_a, cb=cb: cb())
+            self.add_action(act)
+
+        self.stack.add_titled_with_icon(self._session_page(), "session", "Session", "media-record-symbolic")
+        self.stack.add_titled_with_icon(self._mic_page(), "mic", "Mic", "audio-input-microphone-symbolic")
+        self.stack.add_titled_with_icon(self._mix_page(), "mix", "Mix", "multimedia-equalizer-symbolic")
+        tv.add_top_bar(header)
+        tv.set_content(self.stack)
+        self.toasts.set_child(tv)
+        self.set_content(self.toasts)
+
+    # ---- Session page: fader bank on the left, display + pads on the right
+    def _session_page(self) -> Gtk.Widget:
+        page = Gtk.Box(spacing=14, margin_top=16, margin_bottom=16, margin_start=16, margin_end=16)
+        page.add_css_class("vd-page")
+
+        pr = self.project
+        bank = Gtk.Box(spacing=0)
+        bank.add_css_class("console")
+        self.mic_strip = Strip("MIC", -60, 12, pr.mic_db, self._set_mic_db, channel="mic", marks=(0, 6, -6, -12, -24, -48),
+                               tooltip="Applied when the master is mixed. The mic stem is always recorded clean.")
+        self.hk_strip = Strip("HOTKEYS", -60, 12, pr.hotkeys_db, self._set_hk_db, channel="hk", marks=(0, 6, -6, -12, -24, -48),
+                              tooltip="Hotkey volume: live playback and master mix.")
+        self.master_strip = Strip("MASTER", -30, -6, pr.target_lufs, self._set_target, channel="master", marks=(-16, -12, -20, -24), unity_label="TARGET",
+                                  fmt=lambda v: f"{v:.1f}", unit="LUFS TARGET", meter=False,
+                                  tooltip="Integrated loudness the master is normalized to.")
+        self.mute_btn = self.mic_strip.mute                      # hardware mute (needs mic control)
+        self.mute_btn.connect("toggled", self._on_mute_toggled)
+        self.hk_strip.mute.set_active(pr.hotkeys_muted)
+        self.hk_strip.mute.connect("toggled", self._on_hk_mute)
+        self.master_strip.mute.set_visible(False)
+        self.mix_btn = Gtk.Button(label="MIX")
+        self.mix_btn.add_css_class("mix-btn")
+        self.mix_btn.connect("clicked", lambda *_: self.mix_now())
+        self.master_strip.footer.append(self.mix_btn)
+        for i, st in enumerate((self.mic_strip, self.hk_strip, self.master_strip)):
+            if i:
+                bank.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+            bank.append(st)
+        bank.set_size_request(440, -1)
+        page.append(bank)
+
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, hexpand=True)
+        # display
+        disp = Gtk.Box(spacing=18)
+        disp.add_css_class("display")
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+        self.state_label = make_label("● READY", ["disp-state"], xalign=0)
+        self.timecode = make_label("00:00:00", ["timecode", "mono"], xalign=0)
+        self.source_label = make_label("", ["disp-sub"], xalign=0)
+        for w in (self.state_label, self.timecode, self.source_label):
+            left.append(w)
+        disp.append(left)
+        stats = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.END, valign=Gtk.Align.CENTER)
+        self.disp_lufs = make_label("—", ["disp-lufs", "mono"], xalign=1)
+        stats.append(self.disp_lufs)
+        stats.append(make_label("LAST MASTER  LUFS", ["disp-sub"], xalign=1))
+        disp.append(stats)
+        right.append(disp)
+
+        top = Gtk.Box(spacing=8)
+        top.append(make_label("PADS", ["vd-title"], hexpand=True, xalign=0))
+        stop_btn = Gtk.Button(label="■  STOP SOUNDS")
+        stop_btn.add_css_class("chip-btn")
+        stop_btn.connect("clicked", lambda *_: self.player.stop_all())
+        top.append(stop_btn)
+        top.append(make_label("INPUT", ["vd-title"], margin_start=10))
+        self.source_drop = Gtk.DropDown()
+        self.source_drop.connect("notify::selected", self._on_source_changed)
+        top.append(self.source_drop)
+        right.append(top)
+        self.grid = Gtk.Grid(row_spacing=10, column_spacing=10, column_homogeneous=True, row_homogeneous=True,
+                             vexpand=True)
+        self.pads: list[PadWidget] = []
+        self._fill_pads()
+        right.append(self.grid)
+        self.hint = make_label("Press a pad's key to fire its sound. Ctrl+R starts and stops recording. "
+                               "Hotkey hits are saved on their own track.", ["vd-sub"], xalign=0, wrap=True)
+        right.append(self.hint)
+        page.append(right)
+        return page
+
+    def _fill_pads(self):
+        while (c := self.grid.get_first_child()):
+            self.grid.remove(c)
+        self.pads = []
+        for i in range(len(self.project.pads)):
+            w = PadWidget(self, i)
+            self.pads.append(w)
+            self.grid.attach(w, i % 4, i // 4, 1, 1)
+
+    # ---- Mic DSP page
+    def _mic_page(self) -> Gtk.Widget:
+        scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
+        scroller.add_css_class("vd-page")
+        clamp = Adw.Clamp(maximum_size=760, margin_top=16, margin_bottom=24, margin_start=16, margin_end=16)
+        self.dsp_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        clamp.set_child(self.dsp_box)
+        scroller.set_child(clamp)
+
+        self.dsp_banner = Adw.Banner(title="", revealed=False)
+        self.dsp_banner.connect("button-clicked", self._copy_udev)
+        self.dsp_box.append(self.dsp_banner)
+
+        self.mic: podmic.PodMic | None = None
+        self.dsp_state = None
+        self._dsp_timers: dict[str, int] = {}
+        self._syncing = False
+        self.dsp_rows: dict[str, Gtk.Widget] = {}
+        self.dsp_widgets: list[Gtk.Widget] = []
+
+        def group(title, desc=""):
+            g = Adw.PreferencesGroup(title=title, description=desc)
+            self.dsp_box.append(g)
+            return g
+
+        g = group("Input", "Hardware controls on the microphone itself.")
+        self._scale_row(g, "gain", "Input gain", "22–63 dB, stored in the mic", 22, 63, 0.5, 57,
+                        lambda v: f"{v:.1f} dB", lambda v: podmic.set_gain_db(v), hid=False)
+        self._switch_row(g, "mute", "Mute", "Mutes the mic in hardware", lambda on: self.mic.set_mute(on))
+        self.dsp_rows["mute"].connect("notify::active", lambda r, _p: self.mute_btn.set_active(r.get_active()))
+        self._switch_row(g, "monitoring", "Direct monitoring", "Hear yourself in the headphone jack",
+                         lambda on: self.mic.set_monitoring(on))
+        self._scale_row(g, "monitor_mix", "Monitor mix", "Mic level in the headphones", 0, 100, 1, 91,
+                        lambda v: f"{v * 66 / 100 - 60:+.0f} dB", lambda v: self.mic.set_monitor_mix(int(v)))
+        self._switch_row(g, "hpf", "High-pass filter", "2nd order, −3 dB at ≈54 Hz",
+                         lambda on: self.mic.set_hpf(on))
+
+        g = group("Processing", "Runs inside the microphone, so it affects every app that records it.")
+        self._switch_row(g, "processing", "Processing", "Master switch for the on-board DSP",
+                         lambda on: self.mic.set_processing(on))
+        self._switch_row(g, "advanced", "Advanced controls", "Off = Depth / Sparkle / Punch",
+                         self._set_advanced)
+        self.basic_group = group("Basic")
+        for key, title, sub, idx in (("depth", "Depth", "Big Bottom drive", 0), ("sparkle", "Sparkle", "Aural Exciter", 1),
+                                     ("punch", "Punch", "Compressor and gate", 2)):
+            self._scale_row(self.basic_group, key, title, sub, 0, 100, 1, 50, lambda v: f"{v:.0f}",
+                            lambda v: None, hid=True, basic=True)
+        self.adv_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        self.dsp_box.append(self.adv_box)
+        spec = [
+            ("comp", "Compressor", [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"),
+                                    ("ratio", "Ratio", 1.5, 4.5, 0.05, "{:.2f} : 1"),
+                                    ("attack", "Attack", 0.1, 10, 0.1, "{:.1f} ms"),
+                                    ("release", "Release", 5, 200, 1, "{:.0f} ms"),
+                                    ("gain", "Make-up gain", 0, 9, 0.1, "{:.1f} dB")]),
+            ("gate", "Noise gate", [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"),
+                                    ("attack", "Attack", 0.1, 1000, 1, "{:.0f} ms"),
+                                    ("hold", "Hold", 0.05, 2, 0.01, "{:.2f} s"),
+                                    ("release", "Release", 0.05, 2, 0.01, "{:.2f} s"),
+                                    ("range", "Range", -100, 0, 1, "{:.0f} dB"),
+                                    ("hysteresis", "Hysteresis", 0, 100, 1, "{:.0f} %")]),
+            ("exciter", "Aural Exciter", [("harmonics", "Harmonics", 0, 100, 1, "{:.0f} %"),
+                                          ("tune", "Tune", 600, 5000, 10, "{:.0f} Hz")]),
+            ("bottom", "Big Bottom", [("drive", "Drive", 0, 100, 1, "{:.0f} %"),
+                                      ("tune", "Tune", 60, 312, 1, "{:.0f} Hz")]),
+        ]
+        self.adv_groups: dict[str, Adw.ExpanderRow] = {}
+        g = Adw.PreferencesGroup(title="Advanced")
+        self.adv_box.append(g)
+        for block, title, fields in spec:
+            ex = Adw.ExpanderRow(title=title, show_enable_switch=True)
+            ex.connect("notify::enable-expansion", lambda r, _p, b=block: self._on_block_toggle(b, r))
+            g.add(ex)
+            self.adv_groups[block] = ex
+            for field, ftitle, lo, hi, step, fmt in fields:
+                dflt = podmic.DEFAULTS[(block, field)]
+                self._scale_row(ex, f"{block}.{field}", ftitle, "", lo, hi, step, dflt,
+                                lambda v, f=fmt: f.format(v),
+                                lambda v, b=block, f=field: self.mic.set_field(b, f, v), hid=True)
+        self._update_mode_visibility(False)
+        self._set_dsp_sensitive(False)
+        return scroller
+
+    def _row_register(self, key, row, widget):
+        self.dsp_rows[key] = widget
+        self.dsp_widgets.append(row)
+
+    def _scale_row(self, parent, key, title, subtitle, lo, hi, step, value, fmt, apply, hid=True, basic=False):
+        row = Adw.ActionRow(title=title, subtitle=subtitle)
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
+        scale.set_value(value)
+        scale.set_draw_value(False)
+        scale.set_size_request(240, -1)
+        scale.set_valign(Gtk.Align.CENTER)
+        val = make_label(fmt(value), ["mono"], width_chars=9, xalign=1)
+        row.add_suffix(val)
+        row.add_suffix(scale)
+
+        def changed(s):
+            v = s.get_value()
+            val.set_text(fmt(v))
+            if self._syncing:
+                return
+            if basic:
+                self._debounce("basic", self._apply_basic_now)
+            else:
+                self._debounce(key, lambda: self._guard(lambda: apply(v), hid))
+
+        scale.connect("value-changed", changed)
+        scale._fmt = fmt
+        scale._val = val
+        (parent.add_row if isinstance(parent, Adw.ExpanderRow) else parent.add)(row)
+        self._row_register(key, row, scale)
+        if basic:
+            row._basic = True
+        return row
+
+    def _switch_row(self, parent, key, title, subtitle, apply):
+        row = Adw.SwitchRow(title=title, subtitle=subtitle)
+
+        def toggled(r, _p):
+            if not self._syncing:
+                self._guard(lambda: apply(r.get_active()), True)
+
+        row.connect("notify::active", toggled)
+        parent.add(row)
+        self._row_register(key, row, row)
+        return row
+
+    def _debounce(self, key, fn, ms=120):
+        if key in self._dsp_timers:
+            GLib.source_remove(self._dsp_timers[key])
+        def run():
+            self._dsp_timers.pop(key, None)
+            fn()
+            return False
+        self._dsp_timers[key] = GLib.timeout_add(ms, run)
+
+    def _guard(self, fn, hid=True):
+        if hid and self.dsp_state != "ok":
+            return
+        try:
+            fn()
+        except podmic.PodMicError as e:
+            self.toast(f"Mic control: {e}")
+
+    def _apply_basic_now(self):
+        vals = [self.dsp_rows[k].get_value() for k in ("depth", "sparkle", "punch")]
+        self._guard(lambda: self.mic.apply_basic(*vals))
+
+    def _set_advanced(self, on: bool):
+        self.mic.set_advanced(on)
+        self._update_mode_visibility(on)
+
+    def _update_mode_visibility(self, advanced: bool):
+        self.basic_group.set_visible(not advanced)
+        self.adv_box.set_visible(advanced)
+
+    def _on_block_toggle(self, block, row):
+        if not self._syncing:
+            self._guard(lambda: self.mic.set_enabled(block, row.get_enable_expansion()))
+
+    def _set_dsp_sensitive(self, on: bool):
+        for k, w in self.dsp_rows.items():
+            if k == "gain":
+                continue
+            w.set_sensitive(on)
+        for ex in self.adv_groups.values():
+            ex.set_sensitive(on)
+        self.basic_group.set_sensitive(on)
+
+    def _copy_udev(self, *_):
+        self.get_clipboard().set(UDEV_CMD)
+        self.toast("Command copied. Paste it into a terminal and run it.")
+
+    def _poll_mic(self):
+        present = podmic.PodMic.present()
+        if not present:
+            self._dsp_set_state("absent")
+        elif self.dsp_state != "ok":
+            try:
+                m = podmic.PodMic()
+                m.open()
+                self.mic = m
+                self._dsp_set_state("ok")
+                self._sync_from_mic()
+            except podmic.PodMicAccessDenied:
+                self._dsp_set_state("denied")
+            except podmic.PodMicError:
+                self._dsp_set_state("absent")
+        # gain works through ALSA regardless of hidraw permissions
+        if present:
+            g = podmic.get_gain_db()
+            if g is not None and not self._dsp_timers.get("gain"):
+                self._syncing = True
+                self.dsp_rows["gain"].set_value(g)
+                self._syncing = False
+        self.dsp_rows["gain"].set_sensitive(present)
+        return True
+
+    def _dsp_set_state(self, state):
+        if state == self.dsp_state:
+            return
+        if self.dsp_state == "ok" and self.mic:
+            self.mic.close()
+            self.mic = None
+        self.dsp_state = state
+        ok = state == "ok"
+        self._set_dsp_sensitive(ok)
+        b = self.dsp_banner
+        if state == "denied":
+            b.set_title("Mic control needs a one-time permission. Copy the setup command and run it in a terminal (replug the mic if this message stays).")
+            b.set_button_label("Copy command")
+            b.set_revealed(True)
+        elif state == "absent":
+            b.set_title("PodMic USB not detected. Plug it in to control its on-board processing.")
+            b.set_button_label("")
+            b.set_revealed(True)
+        else:
+            b.set_revealed(False)
+
+    def _sync_from_mic(self):
+        """Pull current values from the mic so the sliders mirror the hardware."""
+        self._syncing = True
+        try:
+            st = self.mic.read_state()
+            for key in ("hpf", "mute", "monitoring", "processing", "advanced"):
+                if st.get(key) is not None:
+                    self.dsp_rows[key].set_active(bool(st[key]))
+            if st.get("monitor_mix") is not None:
+                self.dsp_rows["monitor_mix"].set_value(st["monitor_mix"])
+            for key in ("depth", "sparkle", "punch"):
+                if st.get(key) is not None:
+                    self.dsp_rows[key].set_value(st[key])
+            for block, ex in self.adv_groups.items():
+                if st.get(f"{block}_on") is not None:
+                    ex.set_enable_expansion(bool(st[f"{block}_on"]))
+            for key, w in self.dsp_rows.items():
+                if "." in key:
+                    b, f = key.split(".")
+                    v = self.mic.read_field(b, f)
+                    if v is not None:
+                        w.set_value(v)
+            self._update_mode_visibility(bool(st.get("advanced")))
+            self.mute_btn.set_active(bool(st.get("mute")))
+        finally:
+            self._syncing = False
+
+    # ---- Mix page
+    def _mix_page(self) -> Gtk.Widget:
+        scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
+        scroller.add_css_class("vd-page")
+        clamp = Adw.Clamp(maximum_size=760, margin_top=16, margin_bottom=24, margin_start=16, margin_end=16)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        clamp.set_child(box)
+        scroller.set_child(clamp)
+
+        card = Gtk.Box(spacing=0, homogeneous=True)
+        card.add_css_class("vd-panel")
+        self.stat = {}
+        for key, title in (("before", "MEASURED"), ("after", "MASTER"), ("gain", "GAIN APPLIED"), ("tp", "TRUE PEAK  dBTP")):
+            c = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_top=18, margin_bottom=18)
+            lb = make_label("—", ["big-number", "mono"])
+            c.append(lb)
+            c.append(make_label(title, ["stat-label"]))
+            card.append(c)
+            self.stat[key] = lb
+        box.append(card)
+        self.mix_status = make_label("Record a take, or press MIX to normalize what's in this session.",
+                                     ["vd-sub"], xalign=0, wrap=True)
+        box.append(self.mix_status)
+
+        self.spec = Adw.PreferencesGroup(title="Podcast standard",
+                                         description="Stereo, −16 LUFS integrated, true peak at or below −1 dBTP.")
+        box.append(self.spec)
+        self.spec_rows = {}
+        for key, title in (("lufs", "Loudness"), ("tp", "True peak"), ("fmt", "Format")):
+            row = Adw.ActionRow(title=title, subtitle="Not mixed yet")
+            icon = Gtk.Image(icon_name="content-loading-symbolic", valign=Gtk.Align.CENTER)
+            row.add_prefix(icon)
+            self.spec.add(row)
+            self.spec_rows[key] = (row, icon)
+
+        self.files = Adw.PreferencesGroup(title="Session files")
+        box.append(self.files)
+        self.file_rows = {}
+        for key, title in (("mic", "Mic stem"), ("hotkeys", "Hotkeys stem"), ("master", "Master (WAV)"),
+                           ("mp3", "Podcast MP3")):
+            row = Adw.ActionRow(title=title)
+            btn = Gtk.Button(icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER,
+                             tooltip_text="Open in your default player")
+            btn.add_css_class("flat")
+            btn.connect("clicked", lambda _b, k=key: self._open_file(k))
+            if key == "mp3":
+                self.export_btn = Gtk.Button(label="Export MP3", valign=Gtk.Align.CENTER,
+                                             tooltip_text="Encode the master to a 128 kbps MP3 and verify it")
+                self.export_btn.add_css_class("suggested-action")
+                self.export_btn.connect("clicked", lambda *_: self.export_mp3())
+                row.add_suffix(self.export_btn)
+            row.add_suffix(btn)
+            row._play = btn
+            self.files.add(row)
+            self.file_rows[key] = row
+        self._refresh_files()
+        return scroller
+
+    def _refresh_files(self):
+        p = self.project
+        paths = {"mic": p.mic_path, "hotkeys": p.hotkeys_path, "master": p.master_path, "mp3": p.mp3_path}
+        for k, row in self.file_rows.items():
+            f = paths[k]
+            if f.exists() and f.stat().st_size > 44:
+                kind = ("mono, 48 kHz, 24-bit" if k == "mic" else "stereo, 128 kbps CBR" if k == "mp3"
+                        else "stereo, 48 kHz, 24-bit")
+                tail = f"  ·  {self.mp3_note}" if k == "mp3" and getattr(self, "mp3_note", "") else ""
+                row.set_subtitle(f"{f.name}  ·  {f.stat().st_size / 1e6:.1f} MB  ·  {kind}{tail}")
+            else:
+                row.set_subtitle("Not created yet")
+            row._play.set_sensitive(f.exists())
+
+    def _open_file(self, key):
+        p = self.project
+        f = {"mic": p.mic_path, "hotkeys": p.hotkeys_path, "master": p.master_path, "mp3": p.mp3_path}[key]
+        Gtk.FileLauncher.new(Gio.File.new_for_path(str(f))).launch(self, None, None, None)
+
+    # ------------------------------------------------------------------ mixer callbacks
+    def _set_mic_db(self, v):
+        if self.project:
+            self.project.mic_db = v
+
+    def _set_hk_db(self, v):
+        if self.project:
+            self.project.hotkeys_db = v
+
+    def _set_target(self, v):
+        if self.project:
+            self.project.target_lufs = v
+
+    def _on_hk_mute(self, btn):
+        self.project.hotkeys_muted = btn.get_active()
+        if btn.get_active():
+            self.player.stop_all()
+        if self.project.created:
+            self.project.save()
+
+    def _on_mute_toggled(self, btn):
+        if self._syncing:
+            return
+        if self.dsp_state == "ok":
+            self.dsp_rows["mute"].set_active(btn.get_active())
+        else:
+            self.toast("Mute needs mic control. See the Mic tab.")
+            self._syncing = True
+            btn.set_active(False)
+            self._syncing = False
+
+    # ------------------------------------------------------------------ input source / metering
+    def _load_sources(self):
+        self.sources = audio.list_sources()
+        want = self.cfg.get("source") or audio.default_source(self.sources)
+        # a saved device that is no longer plugged in falls back to the PodMic / first input
+        if not any(n == want for n, _ in self.sources):
+            want = audio.default_source(self.sources)
+        idx = next((i for i, (n, _) in enumerate(self.sources) if n == want), 0)
+        self._loading_sources = True
+        self.source_drop.set_model(Gtk.StringList.new([d for _, d in self.sources] or ["No input found"]))
+        self.source_drop.set_selected(idx)
+        self._loading_sources = False
+        self.source = self.sources[idx][0] if self.sources else None
+        self.engine.start_meter(self.source)
+        self._update_source_label()
+
+    def _update_source_label(self):
+        d = next((d for n, d in self.sources if n == self.source), "No input")
+        self.source_label.set_text(f"{d}  ·  48 kHz  ·  24-bit")
+
+    def _on_source_changed(self, drop, _p):
+        i = drop.get_selected()
+        if getattr(self, "_loading_sources", False) or not self.sources or i >= len(self.sources) or self.engine.recording:
+            return
+        self.source = self.sources[i][0]
+        self.cfg["source"] = self.source
+        save_config(self.cfg)
+        self.engine.start_meter(self.source)
+        self._update_source_label()
+
+    def _on_level(self, rms, peak):
+        self.mic_strip.set_level(peak)
+
+    def _on_audio_error(self, msg):
+        self.toast(f"Audio error: {msg}")
+        self._set_recording_ui(False)
+
+    def _tick(self):
+        if self.engine.recording:
+            pos = self.engine.position() or 0.0
+            self.timecode.set_text(fmt_time(pos))
+        self.hk_level -= 4.0  # ~40 dB/s decay
+        self.hk_strip.set_level(self.hk_level)
+        return True
+
+    # ------------------------------------------------------------------ recording
+    def toggle_record(self):
+        if self.engine.recording:
+            self.rec_btn.set_sensitive(False)
+            self.engine.stop_recording(self._after_stop)
+            return
+        if not self.source:
+            self.toast("No input device found.")
+            return
+        if self.project.created and self.project.has_recording():
+            self._fork_for_take()
+            self._fill_pads()
+            self._refresh_files()
+        else:
+            self._materialize()
+        self.project.ensure_dirs()
+        self.project.events = []
+        self.engine.start_recording(self.source, self.project.mic_path)
+        self._set_recording_ui(True)
+        self.timecode.set_text("00:00:00")
+
+    def _set_recording_ui(self, rec: bool):
+        for w in (self.rec_btn,):
+            (w.add_css_class if rec else w.remove_css_class)("recording")
+        (self.timecode.add_css_class if rec else self.timecode.remove_css_class)("live")
+        self.rec_label.set_text("STOP" if rec else "REC")
+        self.state_label.set_text("● RECORDING" if rec else "● READY")
+        (self.state_label.add_css_class if rec else self.state_label.remove_css_class)("live")
+        self.rec_btn.set_sensitive(True)
+        self.source_drop.set_sensitive(not rec)
+
+    def _after_stop(self):
+        import soundfile as sf
+        self._set_recording_ui(False)
+        try:
+            self.project.mic_duration = sf.info(str(self.project.mic_path)).duration
+        except Exception:
+            self.project.mic_duration = 0.0
+        self.project.save()
+        self.engine.start_meter(self.source)
+        self._refresh_files()
+        self.toast(f"Saved {fmt_time(self.project.mic_duration)} take. Mixing master…")
+        self.mix_now()
+
+    # ------------------------------------------------------------------ mixing
+    def mix_now(self):
+        if self.mix_busy:
+            return
+        p = self.project
+        if not p.created or not p.has_recording():
+            self.toast("Nothing to mix yet. Record a take first.")
+            return
+        self.mix_busy = True
+        self.mix_btn.set_sensitive(False)
+        self.mix_status.set_text("Mixing…")
+        p.save()
+
+        def work():
+            try:
+                res = render.mix_master(p, progress=lambda m: GLib.idle_add(self.mix_status.set_text, m + "…"))
+                GLib.idle_add(self._mix_done, res, None)
+            except Exception as e:  # surfaced in the UI, never silent
+                GLib.idle_add(self._mix_done, None, str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _mix_done(self, res, err):
+        self.mix_busy = False
+        self.mix_btn.set_sensitive(True)
+        if err:
+            self.mix_status.set_text(f"Mix failed: {err}")
+            self.toast("Mix failed. See the Mix tab.")
+            return
+        self.project.mix_stats = {"before": res.measured_lufs, "after": res.final_lufs, "gain": res.gain_db,
+                                  "tp": res.true_peak_db, "limited": res.limited}
+        self.project.save()
+        self._show_mix_stats()
+        extra = " A peak limiter kept it under −1 dBFS." if res.limited else ""
+        self.mix_status.set_text(f"Master written to {res.path.name}: stereo, 48 kHz, 24-bit, "
+                                 f"{self.project.target_lufs:.1f} LUFS target.{extra}")
+        self._refresh_files()
+        self.toast("Master ready")
+
+    def _show_mix_stats(self):
+        st = self.project.mix_stats or {}
+
+        def f(k, signed=False):
+            return "—" if st.get(k) is None else (f"{st[k]:+.1f}" if signed else f"{st[k]:.1f}")
+
+        self.disp_lufs.set_text(f("after"))
+        for k, signed in (("before", False), ("after", False), ("gain", True), ("tp", False)):
+            self.stat[k].set_text(f(k, signed))
+        ok = st.get("after") is not None and abs(st["after"] - self.project.target_lufs) < 0.6
+        (self.stat["after"].add_css_class if ok else self.stat["after"].remove_css_class)("good")
+        self._update_spec(st)
+
+    def _update_spec(self, st):
+        def mark(key, good, text):
+            row, icon = self.spec_rows[key]
+            row.set_subtitle(text)
+            icon.set_from_icon_name("object-select-symbolic" if good else "dialog-warning-symbolic")
+            (icon.remove_css_class if good else icon.add_css_class)("warning")
+            (icon.add_css_class if good else icon.remove_css_class)("success")
+        if st.get("after") is None:
+            for key in self.spec_rows:
+                self.spec_rows[key][0].set_subtitle("Not mixed yet")
+                self.spec_rows[key][1].set_from_icon_name("content-loading-symbolic")
+            return
+        tgt = self.project.target_lufs
+        mark("lufs", abs(st["after"] - tgt) <= 0.5 and abs(tgt + 16) < 0.01,
+             f"{st['after']:.1f} LUFS" + ("" if abs(tgt + 16) < 0.01 else f"  ·  custom target {tgt:.1f}, podcast standard is −16"))
+        tp = st.get("tp")
+        if tp is None:                                   # session mixed before true peak was measured
+            row, icon = self.spec_rows["tp"]
+            row.set_subtitle("Press MIX to measure")
+            icon.set_from_icon_name("content-loading-symbolic")
+        else:
+            mark("tp", tp <= -0.95, f"{tp:.1f} dBTP" + ("  ·  peaks were limited to fit" if st.get("limited") else ""))
+        mark("fmt", True, "Stereo  ·  48 kHz  ·  24-bit WAV")
+
+    # ------------------------------------------------------------------ export
+    def export_mp3(self):
+        p = self.project
+        if not p.master_path.exists():
+            self.toast("Mix the master first.")
+            return
+        if getattr(self, "export_busy", False):
+            return
+        self.export_busy = True
+        self.export_btn.set_sensitive(False)
+        self.export_btn.set_label("Encoding…")
+
+        def work():
+            try:
+                res = render.export_mp3(p)
+                GLib.idle_add(self._export_done, res, None)
+            except Exception as e:
+                GLib.idle_add(self._export_done, None, str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _export_done(self, res, err):
+        self.export_busy = False
+        self.export_btn.set_sensitive(True)
+        self.export_btn.set_label("Export MP3")
+        if err:
+            self.toast(f"MP3 export failed: {err}")
+            return
+        self.mp3_note = f"verified {res.lufs:.1f} LUFS, {res.true_peak_db:.1f} dBTP" if res.lufs is not None else ""
+        self._refresh_files()
+        self.toast("MP3 exported and checked against the podcast spec")
+
+    # ------------------------------------------------------------------ pads / hotkeys
+    def trigger(self, i: int, from_key: bool = False):
+        p = self.project.pads[i]
+        self.pads[i].flash()
+        if not p.clip:
+            if not from_key:
+                self.pads[i].edit.popup()
+            return
+        path = self.project.clips_dir / p.clip
+        if not path.exists():
+            self.toast(f"Missing clip: {p.clip}")
+            return
+        if not self.project.hotkeys_muted:
+            self.player.play(path, p.gain_db + self.project.hotkeys_db)
+        self.hk_level = max(self.hk_level, -14.0 + p.gain_db + self.project.hotkeys_db)
+        if self.engine.recording:
+            t = self.engine.position()
+            if t is not None:
+                self.project.events.append(Event(t=t, pad=i, clip=p.clip, gain_db=p.gain_db))
+
+    def capture_key(self, keyval) -> bool:
+        """Used while a pad is waiting for its new key; ignores everything otherwise."""
+        return self.capture_for is not None and self._on_key(None, keyval, 0, 0)
+
+    def _on_key(self, ctrl, keyval, keycode, state):
+        name = Gdk.keyval_name(keyval) or ""
+        if self.capture_for is not None:
+            i, self.capture_for = self.capture_for, None
+            if name != "Escape":
+                self._materialize()
+                self.project.pads[i].key = Gdk.keyval_to_unicode(keyval) and chr(Gdk.keyval_to_unicode(keyval)).lower() or name
+                self.project.save()
+            self.pads[i].refresh()
+            if getattr(self.pads[i], "keybtn", None):
+                self.pads[i].keybtn.set_label(f"Key: {self.project.pads[i].key.upper()}")
+            return True
+        if state & Gdk.ModifierType.CONTROL_MASK and name.lower() == "r":
+            self.toggle_record()
+            return True
+        if state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK):
+            return False
+        if isinstance(self.get_focus(), Gtk.Editable) or (self.stack.get_visible_child_name() != "session"):
+            return False
+        ch = chr(Gdk.keyval_to_unicode(keyval)).lower() if Gdk.keyval_to_unicode(keyval) else ""
+        for i, p in enumerate(self.project.pads):
+            if p.key and p.key.lower() == ch:
+                self.trigger(i, from_key=True)
+                return True
+        return False
+
+    def choose_clip(self, i: int):
+        dlg = Gtk.FileDialog(title="Choose a sound")
+        f = Gtk.FileFilter(name="Audio")
+        f.add_mime_type("audio/*")
+        flt = Gio.ListStore.new(Gtk.FileFilter)
+        flt.append(f)
+        dlg.set_filters(flt)
+
+        def done(d, res):
+            try:
+                gf = d.open_finish(res)
+            except GLib.Error:
+                return
+            self._import_clip(i, Path(gf.get_path()))
+
+        dlg.open(self, None, done)
+
+    def _import_clip(self, i: int, src: Path):
+        self._materialize()
+        self.project.ensure_dirs()
+        dst = self.project.clips_dir / (src.stem + ".wav")
+        n = 2
+        while dst.exists():
+            dst = self.project.clips_dir / f"{src.stem}-{n}.wav"
+            n += 1
+        def work():
+            try:
+                audio.import_clip(src, dst)
+                GLib.idle_add(self._clip_ready, i, dst, None)
+            except Exception as e:
+                GLib.idle_add(self._clip_ready, i, dst, str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _clip_ready(self, i, dst: Path, err):
+        if err:
+            self.toast(f"Couldn't import that sound: {err}")
+            return
+        pad = self.project.pads[i]
+        pad.clip = dst.name
+        if not pad.label:
+            pad.label = dst.stem[:18]
+        self.project.save()
+        self.pads[i].refresh()
+        self.toast(f"Added {dst.name} to pad {pad.key.upper()}")
+
+    def set_pad_color(self, i, color):
+        self.project.pads[i].color = color
+        self.project.save()
+        self._apply_pad_css()
+
+    def clear_pad(self, i):
+        p = self.project.pads[i]
+        p.clip, p.label, p.gain_db = "", "", 0.0
+        self.project.save()
+        self.pads[i].refresh()
+
+    def _apply_pad_css(self):
+        css = "".join(f".pad-{i} {{ box-shadow: inset 0 3px 0 {p.color}; }}\n" for i, p in enumerate(self.project.pads))
+        self._pad_css.load_from_string(css)
+
+    # ------------------------------------------------------------------ sessions
+    def new_session(self):
+        if self.engine.recording:
+            self.toast("Stop recording first.")
+            return
+        self.project = self._blank_project()
+        self.cfg.pop("last_project", None)
+        save_config(self.cfg)
+        self._reload_project_ui()
+
+    def open_session(self):
+        dlg = Gtk.FileDialog(title="Open a Cuebooth session folder")
+        dlg.set_initial_folder(Gio.File.new_for_path(str(DEFAULT_ROOT if DEFAULT_ROOT.exists() else Path.home())))
+
+        def done(d, res):
+            try:
+                gf = d.select_folder_finish(res)
+                self.project = Project.load(Path(gf.get_path()))
+            except GLib.Error:
+                return
+            except Exception as e:
+                self.toast(f"Not a Cuebooth session: {e}")
+                return
+            self._remember()
+            self._reload_project_ui()
+
+        dlg.select_folder(self, None, done)
+
+    def _reload_project_ui(self):
+        pr = self.project
+        self.title_label.set_text(pr.name or "New session")
+        self.mic_strip.fader.set_value(pr.mic_db)
+        self.hk_strip.fader.set_value(pr.hotkeys_db)
+        self.hk_strip.mute.set_active(pr.hotkeys_muted)
+        self.master_strip.fader.set_value(pr.target_lufs)
+        self._fill_pads()
+        self._apply_pad_css()
+        self._refresh_files()
+        self._show_mix_stats()
+        self.timecode.set_text(fmt_time(pr.mic_duration))
+
+    def open_folder(self):
+        if self.project.created:
+            Gtk.FileLauncher.new(Gio.File.new_for_path(str(self.project.root))).launch(self, None, None, None)
+        else:
+            self.toast("This session hasn't been saved yet.")
+
+    # ------------------------------------------------------------------ misc
+    def toast(self, msg: str):
+        self.toasts.add_toast(Adw.Toast(title=msg, timeout=4))
+
+    def _on_close(self, *_):
+        if self.engine.recording:
+            self.engine.stop_recording(lambda: None)
+        self.engine.stop()
+        self.player.stop_all()
+        if self.mic:
+            self.mic.close()
+        if self.project and self.project.created:
+            self.project.save()
+        return False

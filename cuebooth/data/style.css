@@ -1,0 +1,149 @@
+/* Cuebooth: crisp, flat, dark. Built on libadwaita; palette lives in these variables. */
+@define-color vd_bg      #0c0e11;
+@define-color vd_panel   #13171c;
+@define-color vd_raised  #1a2028;
+@define-color vd_line    #232b35;
+@define-color vd_text    #e8ecf2;
+@define-color vd_dim     #8591a3;
+@define-color vd_accent  #ff4d6d;
+@define-color vd_ok      #3ddc97;
+@define-color vd_warn    #ffc857;
+
+window.cuebooth, window.cuebooth toolbarview, window.cuebooth .vd-page { background: @vd_bg; color: @vd_text; }
+window.cuebooth headerbar { background: @vd_bg; box-shadow: inset 0 -1px @vd_line; min-height: 48px; }
+
+.mono, .readout {
+  font-family: "JetBrains Mono", "Fira Mono", "DejaVu Sans Mono", monospace;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* ---------- panels ---------- */
+.vd-panel { background: @vd_panel; border: 1px solid @vd_line; border-radius: 14px; }
+.vd-title { font-size: 10px; font-weight: 800; letter-spacing: 2.4px; color: @vd_dim; }
+.vd-sub   { font-size: 11px; color: @vd_dim; }
+.vd-h1    { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+
+/* ---------- transport ---------- */
+.rec-btn {
+  background: @vd_accent; color: white; font-weight: 800; letter-spacing: 1.6px; font-size: 12px;
+  border-radius: 999px; padding: 7px 18px; min-height: 0; border: none; box-shadow: none;
+}
+.rec-btn:hover { background: shade(@vd_accent, 1.08); }
+.rec-btn.recording { background: transparent; color: @vd_accent; box-shadow: inset 0 0 0 2px @vd_accent; }
+.rec-dot { min-width: 9px; min-height: 9px; border-radius: 99px; background: currentColor; }
+.rec-btn.recording .rec-dot { animation: vd-pulse 1s ease-in-out infinite alternate; }
+@keyframes vd-pulse { from { opacity: 1; } to { opacity: 0.25; } }
+.timecode { font-size: 20px; font-weight: 700; color: @vd_text; }
+.timecode.live { color: @vd_accent; }
+
+/* ---------- channel strips ---------- */
+.strip { padding: 14px 12px 12px 12px; }
+.strip .readout { font-size: 13px; font-weight: 700; }
+.strip .readout.clip { color: @vd_accent; }
+.strip .unit { font-size: 10px; color: @vd_dim; letter-spacing: 1px; }
+
+levelbar.meter trough { background: @vd_bg; border: 1px solid @vd_line; border-radius: 3px; min-width: 10px; padding: 1px; }
+levelbar.meter block.filled { border-radius: 1px; border: none; min-width: 8px; }
+levelbar.meter block.filled.low  { background: @vd_ok; }
+levelbar.meter block.filled.high { background: @vd_warn; }
+levelbar.meter block.filled.full { background: @vd_accent; }
+levelbar.meter block.empty { background: transparent; border: none; }
+
+scale.fader trough { background: @vd_line; min-width: 4px; border-radius: 2px; border: none; }
+scale.fader highlight { background: @vd_dim; border-radius: 2px; border: none; }
+/* libadwaita turns the slider into a 45-degree arrow when marks sit on one side; keep ours square. */
+window.cuebooth scale > trough > slider { transform: none; }
+scale.fader slider {
+  min-width: 34px; min-height: 16px; border-radius: 4px; border: none;
+  background: linear-gradient(@vd_text, #c9d0da); box-shadow: 0 1px 0 rgba(0,0,0,.6), 0 4px 10px rgba(0,0,0,.45);
+}
+scale.fader slider:hover { background: white; }
+scale.fader mark indicator { background: @vd_dim; min-width: 6px; min-height: 1px; }
+scale.fader mark label { font-size: 9px; color: @vd_dim; }
+
+.chip-btn { background: @vd_raised; color: @vd_dim; border-radius: 8px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; padding: 4px 10px; min-height: 0; border: none; box-shadow: none; }
+.chip-btn:hover { color: @vd_text; }
+.chip-btn:checked { background: @vd_accent; color: white; }
+.chip-btn.suggested { background: @vd_text; color: @vd_bg; }
+
+/* ---------- pads ---------- */
+.pad {
+  background: @vd_raised; border: 1px solid @vd_line; border-radius: 14px; min-height: 92px; min-width: 112px;
+  padding: 0; box-shadow: none; transition: background 90ms, border-color 90ms;
+}
+.pad:hover { background: #212a35; }
+.pad.hit { background: alpha(@vd_text, 0.18); border-color: @vd_text; }
+.pad.empty .pad-label { color: @vd_dim; font-weight: 500; }
+.pad-label { font-weight: 700; font-size: 14px; }
+.pad-clip  { font-size: 10px; color: @vd_dim; }
+.keycap {
+  font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 12px; font-weight: 800; color: @vd_text;
+  background: @vd_bg; border: 1px solid @vd_line; border-bottom-width: 2px; border-radius: 6px; padding: 1px 8px; min-width: 14px;
+}
+.pad-edit { opacity: 0; min-width: 24px; min-height: 24px; padding: 0; border-radius: 8px; background: transparent; box-shadow: none; }
+.pad-wrap:hover .pad-edit, .pad-edit:checked { opacity: 1; }
+.swatch { min-width: 22px; min-height: 22px; border-radius: 99px; padding: 0; border: 2px solid transparent; box-shadow: none; }
+.swatch:checked { border-color: @vd_text; }
+
+/* ---------- status / banners ---------- */
+.pill { border-radius: 99px; padding: 2px 10px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; background: @vd_raised; color: @vd_dim; }
+.pill.ok { background: alpha(@vd_ok, .15); color: @vd_ok; }
+.pill.warn { background: alpha(@vd_warn, .15); color: @vd_warn; }
+.big-number { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+.big-number.good { color: @vd_ok; }
+.stat-label { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: @vd_dim; }
+code.cmd { background: @vd_bg; border: 1px solid @vd_line; border-radius: 8px; padding: 8px 10px; font-family: monospace; font-size: 12px; }
+
+/* preferences-style groups on the DSP page */
+window.cuebooth preferencesgroup > box > box > list, window.cuebooth .boxed-list { background: @vd_panel; border: 1px solid @vd_line; }
+window.cuebooth row { background: transparent; }
+window.cuebooth row.expander > box > list > row { background: alpha(@vd_bg, .35); }
+
+/* =================== console look (fader bank, display, LED pads) =================== */
+.console { background: linear-gradient(#161b22, #11151a); border: 1px solid @vd_line; border-radius: 16px; padding: 6px 4px; }
+.console separator { background: @vd_line; min-width: 1px; margin: 14px 0; }
+.strip { padding: 14px 12px 12px 12px; background: transparent; }
+.strip-name { font-size: 11px; font-weight: 800; letter-spacing: 2.2px; color: #0c0e11; border-radius: 6px; padding: 3px 12px; background: @vd_dim; }
+.ch-mic .strip-name    { background: #3ddc97; }
+.ch-hk .strip-name     { background: #ffb454; }
+.ch-master .strip-name { background: #6ea8ff; }
+.strip .readout.unity  { color: @vd_text; text-shadow: 0 0 10px alpha(@vd_text, .35); }
+.dbfs { font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 8px; color: #6b7686; }
+.peak { font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 9px; color: @vd_dim; letter-spacing: .5px; }
+.peak.clip { color: @vd_accent; }
+
+/* LED segment meter */
+levelbar.meter trough { padding: 2px; }
+levelbar.meter block.filled, levelbar.meter block.empty { margin: 1px 0; min-height: 3px; border-radius: 1px; }
+levelbar.meter block.empty { background: #1c232c; border: none; }
+
+/* fader caps: dark with a channel-colour line */
+scale.fader slider { background: linear-gradient(#323b47, #1d242d); box-shadow: 0 1px 0 rgba(0,0,0,.7), 0 5px 12px rgba(0,0,0,.5); min-width: 40px; min-height: 22px; }
+scale.fader slider:hover { background: linear-gradient(#3b4552, #232b35); }
+.ch-mic scale.fader slider    { border-top: 2px solid transparent; box-shadow: inset 0 -3px 0 #3ddc97, 0 5px 12px rgba(0,0,0,.5); }
+.ch-hk scale.fader slider     { box-shadow: inset 0 -3px 0 #ffb454, 0 5px 12px rgba(0,0,0,.5); }
+.ch-master scale.fader slider { box-shadow: inset 0 -3px 0 #6ea8ff, 0 5px 12px rgba(0,0,0,.5); }
+.ch-mic scale.fader highlight    { background: alpha(#3ddc97, .55); }
+.ch-hk scale.fader highlight     { background: alpha(#ffb454, .55); }
+.ch-master scale.fader highlight { background: alpha(#6ea8ff, .55); }
+scale.fader mark indicator { background: #3a4452; min-width: 7px; }
+scale.fader mark label { font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 9px; margin-left: 4px; }
+
+/* illuminated mute */
+.mute-btn { background: #1a2028; color: @vd_dim; border: 1px solid @vd_line; border-radius: 8px; min-width: 64px; min-height: 26px; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; box-shadow: none; padding: 0; }
+.mute-btn:hover { color: @vd_text; }
+.mute-btn:checked { background: alpha(@vd_accent, .22); color: @vd_accent; border-color: @vd_accent; box-shadow: 0 0 12px alpha(@vd_accent, .45); }
+.mix-btn { background: @vd_text; color: @vd_bg; border-radius: 8px; min-width: 64px; min-height: 26px; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; border: none; box-shadow: none; padding: 0; }
+
+/* display */
+.display { background: #07090c; border: 1px solid @vd_line; border-radius: 14px; padding: 14px 20px; box-shadow: inset 0 0 24px rgba(0,0,0,.6); }
+.display .timecode { font-size: 38px; font-weight: 700; letter-spacing: 1px; }
+.disp-state { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: @vd_ok; }
+.disp-state.live { color: @vd_accent; }
+.disp-sub { font-size: 10px; color: @vd_dim; letter-spacing: 1px; }
+.disp-lufs { font-size: 30px; font-weight: 800; color: @vd_ok; }
+
+/* pads as backlit rubber keys */
+.pad { background: #151a21; border: 1px solid #202833; border-radius: 12px; min-height: 84px; }
+.pad:hover { background: #1b222b; }
+.pad.hit { background: alpha(@vd_text, .22); }
