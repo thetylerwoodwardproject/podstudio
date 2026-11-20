@@ -75,6 +75,26 @@ Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** 
 
 Keys work while PodStudio is focused. System-wide hotkeys aren't implemented yet (Wayland needs the GlobalShortcuts portal).
 
+## Updates
+
+PodStudio checks GitHub for a newer release about once a day and shows an **Update available** badge in the header. Open it to read the release notes, then **Download and install**. You can also use the menu: **Check for Updates…**, or turn off **Check automatically**.
+
+- The check is an anonymous request to this project's GitHub releases. It sends no account, device or usage information.
+- An update is only installed if the release publishes a SHA-256 checksum and the download matches it. Downloads must come from GitHub's own hosts over HTTPS, and redirects anywhere else are refused.
+- Installing goes through your system's normal password prompt. It never happens silently, and never while you are recording.
+- A copy that wasn't installed from the .deb just links to the release page.
+
+<details><summary>Publishing a release</summary>
+
+Build, then upload the package **and its checksum**. The tag is `v` plus the package version, which is how installed copies tell a release is newer:
+
+```bash
+./packaging/build-deb.sh            # writes dist/podstudio_<version>_amd64.deb and a .sha256 next to it
+gh release create "v$(dpkg-deb -f dist/podstudio_*.deb Version)" dist/podstudio_*_amd64.deb dist/podstudio_*_amd64.deb.sha256 \
+  --title "PodStudio v<version>" --notes "What changed"
+```
+</details>
+
 ## If something goes wrong: recovering a session
 
 Recording is built so a crash or power cut doesn't lose the take.

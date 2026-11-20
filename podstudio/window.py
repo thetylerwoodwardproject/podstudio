@@ -16,7 +16,8 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
 from . import audio, denoise, podmic, render  # noqa: E402
-from . import recovery  # noqa: E402
+from . import recovery, updates  # noqa: E402
+from .update_ui import UpdateDialog  # noqa: E402
 from .publish_ui import ArtCard, PublishPanel  # noqa: E402
 from .recordings_ui import RecordingsPage  # noqa: E402
 from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project, list_sessions  # noqa: E402
@@ -472,6 +473,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self._poll_mic()
         self.connect("close-request", self._on_close)
         GLib.timeout_add(700, self._check_recovery)         # after the window is up
+        GLib.timeout_add_seconds(8, self._auto_check_updates)
 
         key = Gtk.EventControllerKey()
         key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -545,6 +547,10 @@ class PodStudioWindow(Adw.ApplicationWindow):
         menu.append("New Session", "win.new")
         menu.append("Open Session…", "win.open")
         menu.append("Show Session Folder", "win.folder")
+        upd = Gio.Menu()
+        upd.append("Check for Updates…", "win.check-updates")
+        upd.append("Check automatically", "win.auto-updates")
+        menu.append_section(None, upd)
         about = Gio.Menu()
         about.append("About PodStudio", "app.about")
         menu.append_section(None, about)
@@ -552,6 +558,17 @@ class PodStudioWindow(Adw.ApplicationWindow):
         header.pack_end(mb)
         self.title_label = make_label(self.project.name or "New session", ["vd-sub"], margin_end=8)
         header.pack_end(self.title_label)
+        self.update_btn = Gtk.Button(label="Update available", visible=False, valign=Gtk.Align.CENTER,
+                                     tooltip_text="A newer version of PodStudio is available")
+        self.update_btn.add_css_class("update-pill")
+        self.update_btn.connect("clicked", lambda *_: self.show_update_dialog())
+        header.pack_end(self.update_btn)
+        check = Gio.SimpleAction.new("check-updates", None)
+        check.connect("activate", lambda *_: self.check_updates(manual=True))
+        self.add_action(check)
+        auto = Gio.SimpleAction.new_stateful("auto-updates", None, GLib.Variant.new_boolean(self.cfg.get("auto_update_check", True)))
+        auto.connect("change-state", self._on_auto_updates)
+        self.add_action(auto)
         for name, cb in (("new", self.new_session), ("open", self.open_session), ("folder", self.open_folder)):
             act = Gio.SimpleAction.new(name, None)
             act.connect("activate", lambda *_a, cb=cb: cb())
@@ -1185,6 +1202,51 @@ class PodStudioWindow(Adw.ApplicationWindow):
     def on_chapters_changed(self):
         if hasattr(self, "publish"):
             self.publish.sync_chapters()
+
+    # ---- updates
+    def _on_auto_updates(self, action, value):
+        action.set_state(value)
+        self.cfg["auto_update_check"] = value.get_boolean()
+        self.save_cfg()
+
+    def _auto_check_updates(self):
+        if self.cfg.get("auto_update_check", True) and updates.should_check(self.cfg.get("last_update_check", 0)):
+            self.check_updates(manual=False)
+        return False
+
+    def check_updates(self, manual: bool):
+        """Look for a newer release off the UI thread. Automatic checks stay quiet unless there is something to say."""
+        def work():
+            try:
+                return updates.check(), None
+            except updates.UpdateError as e:
+                return None, str(e)
+
+        def done(result):
+            info, err = result
+            if err:
+                if manual:
+                    self.toast(f"Couldn't check for updates. {err}")
+                return False
+            self.cfg["last_update_check"] = time.time()
+            self.save_cfg()
+            self._update_info = info
+            self.update_btn.set_visible(info is not None)
+            if info is None:
+                if manual:
+                    self.toast(f"You're up to date (v{updates.current_version()}).")
+            elif manual:
+                self.show_update_dialog()
+            else:
+                self.toast(f"PodStudio v{info.version} is available.")
+            return False
+
+        threading.Thread(target=lambda: GLib.idle_add(done, work()), daemon=True).start()
+
+    def show_update_dialog(self):
+        info = getattr(self, "_update_info", None)
+        if info is not None:
+            UpdateDialog(self, info).present(self)
 
     # ---- recovery: after a crash, a power cut or a damaged session file
     def _check_recovery(self):

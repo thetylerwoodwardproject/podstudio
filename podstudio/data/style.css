@@ -192,3 +192,7 @@ button.flat { border-radius: 8px; }
 
 /* ---- pads that are currently sounding ---- */
 .pad.playing { background: alpha(@vd_ok, .10); border-color: alpha(@vd_ok, .7); }
+
+/* ---- update notice ---- */
+button.update-pill { background: alpha(@vd_ok, .10); color: @vd_ok; border: 1px solid alpha(@vd_ok, .4); border-radius: 99px; padding: 2px 12px; min-height: 0; font-size: 12px; font-weight: 600; box-shadow: none; }
+button.update-pill:hover { background: alpha(@vd_ok, .18); }

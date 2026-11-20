@@ -136,4 +136,6 @@ C
 
 mkdir -p "$here/dist"
 dpkg-deb --root-owner-group -Zxz --build "$root" "$here/dist/$pkg.deb" >/dev/null
-echo "Built dist/$pkg.deb ($(du -h "$here/dist/$pkg.deb" | cut -f1))"
+# the updater refuses releases that don't publish this: it is how an installed copy checks what it downloaded
+( cd "$here/dist" && sha256sum "$pkg.deb" > "$pkg.deb.sha256" )
+echo "Built dist/$pkg.deb ($(du -h "$here/dist/$pkg.deb" | cut -f1)) and $pkg.deb.sha256"
