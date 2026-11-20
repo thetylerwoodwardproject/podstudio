@@ -33,12 +33,46 @@ def write_wav24(path: Path, data: np.ndarray):
     sf.write(str(path), np.clip(data, -1.0, 1.0), SAMPLE_RATE, subtype="PCM_24")
 
 
-def render_hotkeys(project: Project, length_s: float | None = None) -> np.ndarray:
-    """Place every logged hotkey hit on a stereo timeline the length of the mic take."""
+DUCK_ATTACK_MS = 40.0
+_HOP = 480                                  # 10 ms analysis hop at 48 kHz
+
+
+def voice_duck_gain(mic: np.ndarray, amount_db: float, threshold_db: float,
+                    release_ms: float, attack_ms: float = DUCK_ATTACK_MS) -> np.ndarray:
+    """Per-sample linear gain that dips by `amount_db` while the mic is above `threshold_db` (RMS).
+
+    Offline, so it can look ahead: the dip starts one attack-time before the voice, instead of letting the
+    first syllable through.
+    """
+    mono = mic.mean(axis=1) if mic.ndim > 1 else mic
+    n = len(mono) // _HOP
+    if n == 0:
+        return np.ones(len(mono))
+    rms_db = 10 * np.log10((mono[: n * _HOP].reshape(n, _HOP) ** 2).mean(axis=1) + 1e-12)
+    target = np.where(rms_db > threshold_db, -abs(amount_db), 0.0)
+    look = max(1, int(round(attack_ms / 10)))
+    target = np.concatenate([target[look:], np.full(look, target[-1])])        # look-ahead
+    a_att = np.exp(-1.0 / max(attack_ms / 10, 0.1))
+    a_rel = np.exp(-1.0 / max(release_ms / 10, 0.1))
+    gain = np.empty(n)
+    cur = 0.0
+    for i in range(n):
+        coef = a_att if target[i] < cur else a_rel                              # going down = attack, up = release
+        cur = target[i] + (cur - target[i]) * coef
+        gain[i] = cur
+    centers = (np.arange(n) + 0.5) * _HOP
+    curve = np.interp(np.arange(len(mono)), centers, gain)
+    return 10 ** (curve / 20)
+
+
+def render_hotkeys(project: Project, length_s: float | None = None, split: bool = False):
+    """Place every logged hotkey hit on a stereo timeline the length of the mic take.
+
+    With split=True returns (plain, duckable) so the mix can duck only the pads that asked for it."""
     if length_s is None:
         length_s = project.mic_duration
-    total = int(round(length_s * SAMPLE_RATE))
-    out = np.zeros((max(total, 1), 2))
+    total = max(int(round(length_s * SAMPLE_RATE)), 1)
+    plain, duckable = np.zeros((total, 2)), np.zeros((total, 2))
     cache: dict[str, np.ndarray] = {}
     for ev in project.events:
         clip_path = project.clips_dir / ev.clip
@@ -48,11 +82,11 @@ def render_hotkeys(project: Project, length_s: float | None = None) -> np.ndarra
             cache[ev.clip] = read_stereo(clip_path)
         clip = cache[ev.clip] * db_to_lin(ev.gain_db)
         start = int(round(ev.t * SAMPLE_RATE))
-        if start >= len(out):
+        if start >= total:
             continue
-        end = min(start + len(clip), len(out))
-        out[start:end] += clip[: end - start]
-    return out
+        end = min(start + len(clip), total)
+        (duckable if getattr(ev, "duck", False) else plain)[start:end] += clip[: end - start]
+    return (plain, duckable) if split else plain + duckable
 
 
 def limit(x: np.ndarray, ceiling_db: float = TRUE_PEAK_LIMIT_DB, lookahead_ms: float = 5.0) -> np.ndarray:
@@ -86,11 +120,8 @@ def true_peak_db(x: np.ndarray, oversample: int = 4, chunk: int = 1 << 20) -> fl
 
 
 def integrated_lufs(x: np.ndarray) -> float | None:
-    import pyloudnorm as pyln
-    if len(x) < int(0.4 * SAMPLE_RATE):
-        return None
-    v = pyln.Meter(SAMPLE_RATE).integrated_loudness(x)
-    return None if not np.isfinite(v) else float(v)
+    from . import loudness
+    return loudness.integrated_loudness(x, SAMPLE_RATE)
 
 
 @dataclass
@@ -101,6 +132,9 @@ class MasterResult:
     gain_db: float
     true_peak_db: float
     limited: bool
+    denoised: bool = False
+    notes: tuple = ()
+    ducked: bool = False
 
 
 def normalize(mix: np.ndarray, target_lufs: float, ceiling_db: float = TRUE_PEAK_LIMIT_DB):
@@ -129,11 +163,28 @@ def mix_master(project: Project, progress=None) -> MasterResult:
         if progress:
             progress(msg)
 
+    notes, denoised, mic_path = [], False, project.mic_path
+    if project.denoise:
+        from . import denoise
+        if denoise.available():
+            try:
+                mic_path = denoise.ensure_clean(project, progress)
+                denoised = True
+            except denoise.DenoiseError as e:                    # never lose the render over a cleanup problem
+                notes.append(f"Noise reduction skipped: {e}")
+        else:
+            notes.append("DeepFilterNet isn't installed, so the master was rendered without noise reduction.")
     tick("Reading mic take")
-    mic = read_stereo(project.mic_path)
+    mic = read_stereo(mic_path)
     tick("Rendering hotkey track")
-    hk = render_hotkeys(project, len(mic) / SAMPLE_RATE)
-    write_wav24(project.hotkeys_path, hk)
+    hk_plain, hk_duck = render_hotkeys(project, len(mic) / SAMPLE_RATE, split=True)
+    write_wav24(project.hotkeys_path, hk_plain + hk_duck)          # the stem stays un-ducked
+    ducked = bool(np.any(hk_duck))
+    if ducked:
+        tick("Ducking hotkeys under your voice")
+        g = voice_duck_gain(mic, project.duck_amount_db, project.duck_threshold_db, project.duck_release_ms)
+        hk_duck = hk_duck * g[: len(hk_duck), None]
+    hk = hk_plain + hk_duck
     n = max(len(mic), len(hk))
     mix = np.zeros((n, 2))
     mix[: len(mic)] += mic * db_to_lin(project.mic_db)
@@ -144,7 +195,7 @@ def mix_master(project: Project, progress=None) -> MasterResult:
     out, measured, gain_db, final, tp, limited = normalize(mix, project.target_lufs)
     tick("Writing master")
     write_wav24(project.master_path, out)
-    return MasterResult(project.master_path, measured, final, gain_db, tp, limited)
+    return MasterResult(project.master_path, measured, final, gain_db, tp, limited, denoised, tuple(notes), ducked)
 
 
 @dataclass

@@ -21,6 +21,7 @@ class Pad:
     color: str = "#6ea8ff"
     gain_db: float = 0.0
     loop: bool = False
+    duck: bool = False        # lower this pad's sound while the mic is speaking
 
 
 @dataclass
@@ -29,6 +30,7 @@ class Event:
     pad: int                  # index into Project.pads
     clip: str
     gain_db: float = 0.0
+    duck: bool = False
 
 
 @dataclass
@@ -44,6 +46,12 @@ class Project:
     created: str = ""
     mic_duration: float = 0.0
     mix_stats: dict = field(default_factory=dict)
+    denoise: bool = True               # DeepFilterNet noise reduction when rendering the master
+    denoise_atten_db: float = 18.0     # strength: maximum attenuation in dB
+    duck_amount_db: float = 12.0       # how far ducked pads dip
+    duck_threshold_db: float = -40.0   # mic level (dBFS RMS) that counts as speaking
+    duck_release_ms: float = 350.0     # how fast they come back
+    clean_key: str = ""                # identifies the take + strength that mic-clean.wav was made from
 
     # layout ---------------------------------------------------------------
     @property
@@ -52,6 +60,8 @@ class Project:
     def clips_dir(self) -> Path: return self.root / "clips"
     @property
     def mic_path(self) -> Path: return self.audio_dir / "mic.wav"
+    @property
+    def clean_path(self) -> Path: return self.audio_dir / "mic-clean.wav"
     @property
     def hotkeys_path(self) -> Path: return self.audio_dir / "hotkeys.wav"
     @property
@@ -78,6 +88,12 @@ class Project:
             "target_lufs": self.target_lufs,
             "mic_duration": self.mic_duration,
             "mix_stats": self.mix_stats,
+            "denoise": self.denoise,
+            "denoise_atten_db": self.denoise_atten_db,
+            "clean_key": self.clean_key,
+            "duck_amount_db": self.duck_amount_db,
+            "duck_threshold_db": self.duck_threshold_db,
+            "duck_release_ms": self.duck_release_ms,
             "pads": [asdict(p) for p in self.pads],
             "events": [asdict(e) for e in self.events],
         }
@@ -91,7 +107,10 @@ class Project:
         return cls(
             name=d["name"], root=Path(root), mic_db=d.get("mic_db", 0.0),
             hotkeys_db=d.get("hotkeys_db", 0.0), hotkeys_muted=d.get("hotkeys_muted", False), target_lufs=d.get("target_lufs", -16.0),
-            created=d.get("created", ""), mic_duration=d.get("mic_duration", 0.0), mix_stats=d.get("mix_stats", {}),
+            created=d.get("created", ""), mic_duration=d.get("mic_duration", 0.0), mix_stats=d.get("mix_stats", {}), denoise=d.get("denoise", False),
+            denoise_atten_db=d.get("denoise_atten_db", 18.0), clean_key=d.get("clean_key", ""),
+            duck_amount_db=d.get("duck_amount_db", 12.0), duck_threshold_db=d.get("duck_threshold_db", -40.0),
+            duck_release_ms=d.get("duck_release_ms", 350.0),
             pads=[Pad(**p) for p in d.get("pads", [])],
             events=[Event(**e) for e in d.get("events", [])],
         )
@@ -108,6 +127,12 @@ class Project:
         p.pads = [Pad(key=k, color=PAD_COLORS[i % len(PAD_COLORS)]) for i, k in enumerate(DEFAULT_KEYS[:8])]
         p.save()
         return p
+
+    def carry_over(self, other: "Project"):
+        """Take the mixing and cleanup settings of another session (a new take starts from the last one)."""
+        for k in ("mic_db", "hotkeys_db", "hotkeys_muted", "target_lufs", "denoise", "denoise_atten_db",
+                  "duck_amount_db", "duck_threshold_db", "duck_release_ms"):
+            setattr(self, k, getattr(other, k))
 
     def has_recording(self) -> bool:
         return self.mic_path.exists() and self.mic_path.stat().st_size > 44

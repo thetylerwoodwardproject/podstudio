@@ -9,7 +9,7 @@ description = "Record a USB mic, fire hotkey sounds on their own track, and mast
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-dependencies = ["numpy>=1.26", "soundfile>=0.12", "pyloudnorm>=0.1.1"]
+dependencies = ["numpy>=1.26", "scipy>=1.11", "soundfile>=0.12"]
 classifiers = [
   "Environment :: X11 Applications :: GTK",
   "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
@@ -17,7 +17,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "pyloudnorm"]
 
 [project.scripts]
 podstudio = "podstudio.app:main"

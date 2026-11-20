@@ -15,7 +15,7 @@ gi.require_version("Graphene", "1.0")
 gi.require_version("Gsk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
-from . import audio, podmic, render  # noqa: E402
+from . import audio, denoise, podmic, render  # noqa: E402
 from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project  # noqa: E402
 
 CONFIG = Path(GLib.get_user_config_dir()) / "podstudio" / "config.json"
@@ -256,7 +256,12 @@ class PadWidget(Gtk.Overlay):
         self.label = make_label("", ["pad-label"], xalign=0, halign=Gtk.Align.START, vexpand=True,
                                 valign=Gtk.Align.END)
         self.clip = make_label("", ["pad-clip"], xalign=0, halign=Gtk.Align.START, ellipsize=Pango.EllipsizeMode.END, max_width_chars=14)
-        for w in (self.key, self.label, self.clip):
+        keyrow = Gtk.Box(spacing=6)
+        self.duck_badge = make_label("Duck", ["pill"], halign=Gtk.Align.END, hexpand=True)
+        self.duck_badge.set_tooltip_text("Ducks under your voice")
+        keyrow.append(self.key)
+        keyrow.append(self.duck_badge)
+        for w in (keyrow, self.label, self.clip):
             inner.append(w)
         self.btn.set_child(inner)
         self.set_child(self.btn)
@@ -282,6 +287,7 @@ class PadWidget(Gtk.Overlay):
     def refresh(self):
         p = self.pad
         self.key.set_text(p.key.upper() or "–")
+        self.duck_badge.set_visible(p.duck)
         self.label.set_text(p.label or ("Empty" if not p.clip else Path(p.clip).stem))
         self.clip.set_text(p.clip if p.clip else "Click ✎ to add a sound")
         if p.clip:
@@ -320,6 +326,14 @@ class PadWidget(Gtk.Overlay):
         g.add_mark(0, Gtk.PositionType.BOTTOM, "0 dB")
         g.connect("value-changed", lambda s: (setattr(self.pad, "gain_db", s.get_value()), self.win.project.save()))
         box.append(g)
+
+        dr = Gtk.Box(spacing=8)
+        dr.append(make_label("Duck under my voice", ["param-name"], xalign=0, hexpand=True))
+        duck_sw = Gtk.Switch(active=p.duck, valign=Gtk.Align.CENTER)
+        duck_sw.connect("notify::active", lambda s_, _p: (setattr(self.pad, "duck", s_.get_active()), self.refresh(),
+                                                          self.win.project.save()))
+        dr.append(duck_sw)
+        box.append(dr)
 
         sw = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER)
         first = None
@@ -360,7 +374,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.source: str | None = None
         self.capture_for: int | None = None
         self.player = audio.ClipPlayer()
-        self.engine = audio.MicEngine(on_level=self._on_level, on_error=self._on_audio_error)
+        self.engine = audio.MicEngine(on_level=self._on_level, on_error=self._on_audio_error, on_voice=self._on_voice)
+        self._duck_db = 0.0
         self.hk_level = -90.0
         self.rec_started = 0.0
         self.mix_busy = False
@@ -403,6 +418,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
             return
         fresh = Project.create(time.strftime("Session %Y-%m-%d %H-%M"))
         fresh.pads = self.project.pads
+        fresh.carry_over(self.project)
         fresh.mic_db, fresh.hotkeys_db, fresh.target_lufs = (self.project.mic_db, self.project.hotkeys_db,
                                                              self.project.target_lufs)
         self.project = fresh
@@ -414,6 +430,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         old = self.project
         new = Project.create(time.strftime("Session %Y-%m-%d %H-%M"))
         new.pads = [type(p)(**vars(p)) for p in old.pads]
+        new.carry_over(old)
         new.mic_db, new.hotkeys_db, new.target_lufs = old.mic_db, old.hotkeys_db, old.target_lufs
         new.ensure_dirs()
         for p in new.pads:
@@ -494,6 +511,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.mute_btn.connect("toggled", self._on_mute_toggled)
         self.hk_strip.mute.set_active(pr.hotkeys_muted)
         self.hk_strip.mute.connect("toggled", self._on_hk_mute)
+        self.duck_label = make_label("", ["peak"])
+        self.hk_strip.footer.append(self.duck_label)
         self.master_strip.mute.set_visible(False)
         self.mix_btn = Gtk.Button(label="Mix")
         self.mix_btn.add_css_class("mix-btn")
@@ -896,6 +915,30 @@ class PodStudioWindow(Adw.ApplicationWindow):
                                      ["vd-sub"], xalign=0, wrap=True)
         box.append(self.mix_status)
 
+        self._mix_syncing = False
+        self.clean_group = Adw.PreferencesGroup(
+            title="Cleanup", description="Applied when the master is rendered. Press Mix after changing these. "
+                                         "Your raw mic stem is never modified.")
+        box.append(self.clean_group)
+        self.denoise_row = Adw.SwitchRow(title="Noise reduction", subtitle="DeepFilterNet removes steady background noise")
+        self.denoise_row.connect("notify::active", lambda r, _p: self._mix_setting("denoise", r.get_active()))
+        self.clean_group.add(self.denoise_row)
+        self.strength_scale = self._mix_scale(self.clean_group, "denoise_atten_db", "Strength",
+                                              "Maximum reduction. Lower keeps the room sound.",
+                                              denoise.ATTEN_MIN, denoise.ATTEN_MAX, 1, lambda v: f"{v:.0f} dB")
+        self.duck_group = Adw.PreferencesGroup(
+            title="Ducking", description="Pads with Duck switched on (edit a pad with the pencil) dip while you speak. "
+                                         "Other pads play at full level.")
+        box.append(self.duck_group)
+        self.duck_scales = [
+            self._mix_scale(self.duck_group, "duck_amount_db", "Amount", "How far ducked pads dip", 3, 30, 1,
+                            lambda v: f"−{v:.0f} dB"),
+            self._mix_scale(self.duck_group, "duck_threshold_db", "Sensitivity", "Mic level that counts as speaking",
+                            -60, -20, 1, lambda v: f"{v:.0f} dBFS"),
+            self._mix_scale(self.duck_group, "duck_release_ms", "Release", "How quickly the pad comes back",
+                            50, 1500, 10, lambda v: f"{v:.0f} ms"),
+        ]
+
         self.spec = Adw.PreferencesGroup(title="Podcast standard",
                                          description="Stereo, −16 LUFS integrated, true peak at or below −1 dBTP.")
         box.append(self.spec)
@@ -910,8 +953,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.files = Adw.PreferencesGroup(title="Session files")
         box.append(self.files)
         self.file_rows = {}
-        for key, title in (("mic", "Mic stem"), ("hotkeys", "Hotkeys stem"), ("master", "Master (WAV)"),
-                           ("mp3", "Podcast MP3")):
+        for key, title in (("mic", "Mic stem"), ("clean", "Cleaned mic"), ("hotkeys", "Hotkeys stem"),
+                           ("master", "Master (WAV)"), ("mp3", "Podcast MP3")):
             row = Adw.ActionRow(title=title)
             btn = Gtk.Button(icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER,
                              tooltip_text="Open in your default player")
@@ -928,15 +971,60 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.files.add(row)
             self.file_rows[key] = row
         self._refresh_files()
+        self._sync_mix_settings()
         return scroller
+
+    def _mix_scale(self, group, attr, title, subtitle, lo, hi, step, fmt):
+        row = Adw.ActionRow(title=title, subtitle=subtitle)
+        scale = ignore_scroll(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step))
+        scale.set_draw_value(False)
+        scale.set_size_request(220, -1)
+        scale.set_valign(Gtk.Align.CENTER)
+        scale.add_css_class("param")
+        val = make_label("", ["mono", "param-val"], width_chars=9, xalign=1)
+        row.add_suffix(val)
+        row.add_suffix(scale)
+        scale._attr, scale._val, scale._fmt = attr, val, fmt
+
+        def changed(sc):
+            sc._val.set_text(sc._fmt(sc.get_value()))
+            self._mix_setting(attr, float(sc.get_value()))
+
+        scale.connect("value-changed", changed)
+        group.add(row)
+        return scale
+
+    def _mix_setting(self, attr, value):
+        if self._mix_syncing:
+            return
+        setattr(self.project, attr, value)
+        if self.project.created:
+            self.project.save()
+
+    def _sync_mix_settings(self):
+        """Show the current project's cleanup and ducking settings without writing them back."""
+        pr, have = self.project, denoise.available()
+        self._mix_syncing = True
+        try:
+            self.denoise_row.set_sensitive(have)
+            self.denoise_row.set_active(pr.denoise and have)
+            self.denoise_row.set_subtitle("DeepFilterNet removes steady background noise" if have else
+                                          "DeepFilterNet isn't installed. The .deb package includes it.")
+            for sc in [self.strength_scale] + self.duck_scales:
+                sc.set_value(getattr(pr, sc._attr))
+                sc._val.set_text(sc._fmt(sc.get_value()))
+            self.strength_scale.set_sensitive(have)
+        finally:
+            self._mix_syncing = False
 
     def _refresh_files(self):
         p = self.project
-        paths = {"mic": p.mic_path, "hotkeys": p.hotkeys_path, "master": p.master_path, "mp3": p.mp3_path}
+        paths = {"mic": p.mic_path, "clean": p.clean_path, "hotkeys": p.hotkeys_path, "master": p.master_path,
+                 "mp3": p.mp3_path}
         for k, row in self.file_rows.items():
             f = paths[k]
             if f.exists() and f.stat().st_size > 44:
-                kind = ("mono, 48 kHz, 24-bit" if k == "mic" else "stereo, 128 kbps CBR" if k == "mp3"
+                kind = ("mono, 48 kHz, 24-bit" if k in ("mic", "clean") else "stereo, 128 kbps CBR" if k == "mp3"
                         else "stereo, 48 kHz, 24-bit")
                 tail = f"  ·  {self.mp3_note}" if k == "mp3" and getattr(self, "mp3_note", "") else ""
                 row.set_subtitle(f"{f.name}  ·  {f.stat().st_size / 1e6:.1f} MB  ·  {kind}{tail}")
@@ -946,7 +1034,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
 
     def _open_file(self, key):
         p = self.project
-        f = {"mic": p.mic_path, "hotkeys": p.hotkeys_path, "master": p.master_path, "mp3": p.mp3_path}[key]
+        f = {"mic": p.mic_path, "clean": p.clean_path, "hotkeys": p.hotkeys_path, "master": p.master_path,
+             "mp3": p.mp3_path}[key]
         Gtk.FileLauncher.new(Gio.File.new_for_path(str(f))).launch(self, None, None, None)
 
     # ------------------------------------------------------------------ mixer callbacks
@@ -1007,6 +1096,17 @@ class PodStudioWindow(Adw.ApplicationWindow):
         (self.mic_pill.remove_css_class if ok else self.mic_pill.add_css_class)("warn")
         if not self.engine.recording:
             self.state_label.set_text("Ready" if ok else "Plug in your PodMic USB")
+
+    def _on_voice(self, rms_db):
+        """Live ducking: follow the mic's pre-fader level with the same attack/release the render uses."""
+        pr = self.project
+        target = -pr.duck_amount_db if rms_db > pr.duck_threshold_db else 0.0
+        tau = render.DUCK_ATTACK_MS if target < self._duck_db else pr.duck_release_ms
+        self._duck_db += (target - self._duck_db) * (1 - 2.718281828 ** (-50.0 / max(tau, 1.0)))   # 50 ms between messages
+        if abs(self._duck_db) < 0.05:
+            self._duck_db = 0.0
+        self.player.set_duck_db(self._duck_db)
+        self.duck_label.set_text(f"Ducking {self._duck_db:.1f} dB" if self._duck_db <= -0.5 else "")
 
     def _on_level(self, rms, peak):
         self.mic_strip.set_level(peak)
@@ -1114,6 +1214,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.project.save()
         self._show_mix_stats()
         extra = " A peak limiter kept it under −1 dBFS." if res.limited else ""
+        extra += (" Noise reduction applied." if res.denoised else "") + (" Ducking applied." if res.ducked else "")
+        extra += "".join(" " + n for n in res.notes)
         self.mix_status.set_text(f"Master written to {res.path.name}: stereo, 48 kHz, 24-bit, "
                                  f"{self.project.target_lufs:.1f} LUFS target.{extra}")
         self._refresh_files()
@@ -1201,12 +1303,12 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.toast(f"Missing clip: {p.clip}")
             return
         if not self.project.hotkeys_muted:
-            self.player.play(path, p.gain_db + self.project.hotkeys_db)
+            self.player.play(path, p.gain_db + self.project.hotkeys_db, duck=p.duck)
         self.hk_level = max(self.hk_level, -14.0 + p.gain_db + self.project.hotkeys_db)
         if self.engine.recording:
             t = self.engine.position()
             if t is not None:
-                self.project.events.append(Event(t=t, pad=i, clip=p.clip, gain_db=p.gain_db))
+                self.project.events.append(Event(t=t, pad=i, clip=p.clip, gain_db=p.gain_db, duck=p.duck))
 
     def capture_key(self, keyval) -> bool:
         """Used while a pad is waiting for its new key; ignores everything otherwise."""
@@ -1336,6 +1438,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self._fill_pads()
         self._apply_pad_css()
         self._refresh_files()
+        self._sync_mix_settings()
         self._show_mix_stats()
         self.timecode.set_text(fmt_time(pr.mic_duration))
 

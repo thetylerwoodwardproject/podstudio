@@ -85,7 +85,8 @@ class MicEngine:
     on_level(rms_db, peak_db) is called on the GLib main loop ~20 times a second.
     """
 
-    def __init__(self, on_level=None, on_error=None):
+    def __init__(self, on_level=None, on_error=None, on_voice=None):
+        self.on_voice = on_voice          # pre-fader mic RMS, for ducking
         self.on_level = on_level
         self.on_error = on_error
         self.pipeline: Gst.Pipeline | None = None
@@ -103,6 +104,7 @@ class MicEngine:
             return
         desc = (
             f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! "
+            "level name=pre interval=50000000 post-messages=true ! "
             "volume name=vol ! level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! "
             "fakesink sync=false"
         )
@@ -117,7 +119,7 @@ class MicEngine:
         # tee: the file gets the raw mic; the meter branch goes through the fader
         desc = (
             f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! tee name=t "
-            "t. ! queue ! volume name=vol ! level name=lvl interval=50000000 post-messages=true "
+            "t. ! queue ! level name=pre interval=50000000 post-messages=true ! volume name=vol ! level name=lvl interval=50000000 post-messages=true "
             "peak-ttl=300000000 ! fakesink sync=false "
             f"t. ! queue ! audioconvert ! audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=1 ! "
             f"wavenc name=enc ! filesink location=\"{path}\""
@@ -192,9 +194,12 @@ class MicEngine:
         t = msg.type
         if t == Gst.MessageType.ELEMENT:
             s = msg.get_structure()
-            if s and s.get_name() == "level" and self.on_level:
+            if s and s.get_name() == "level":
                 rms, peak = _level_db(s, "rms"), _level_db(s, "peak")
-                if rms and peak:
+                if msg.src is not None and msg.src.get_name() == "pre":
+                    if self.on_voice and rms:
+                        self.on_voice(max(rms))
+                elif self.on_level and rms and peak:
                     self.on_level(max(rms), max(peak))
         elif t == Gst.MessageType.EOS:
             cb, self._eos_cb = self._eos_cb, None
@@ -210,30 +215,41 @@ class MicEngine:
 
 
 class ClipPlayer:
-    """Fire-and-forget polyphonic clip playback to the default output."""
+    """Fire-and-forget polyphonic clip playback to the default output, with optional live ducking."""
 
     def __init__(self):
-        self._live: set[Gst.Pipeline] = set()
+        self._live: dict = {}          # pipeline -> (volume element, base gain, ducked?)
+        self.duck_db = 0.0
 
-    def play(self, path: Path, gain_db: float = 0.0, sink: str = "pulsesink"):
-        vol = 10 ** (gain_db / 20)
+    def play(self, path: Path, gain_db: float = 0.0, duck: bool = False, sink: str = "pulsesink"):
+        base = 10 ** (gain_db / 20)
         desc = (f"filesrc location=\"{path}\" ! decodebin ! audioconvert ! audioresample ! "
-                f"volume volume={vol:.5f} ! {sink}")
+                f"volume name=vol volume={base:.5f} ! {sink}")
         try:
             pipe = Gst.parse_launch(desc)
         except GLib.Error:
             return
+        vol = pipe.get_by_name("vol")
+        self._live[pipe] = (vol, base, duck)
+        if duck:
+            vol.set_property("volume", base * 10 ** (self.duck_db / 20))
         bus = pipe.get_bus()
         bus.add_signal_watch()
 
         def on_msg(_bus, msg):
             if msg.type in (Gst.MessageType.EOS, Gst.MessageType.ERROR):
                 pipe.set_state(Gst.State.NULL)
-                self._live.discard(pipe)
+                self._live.pop(pipe, None)
 
         bus.connect("message", on_msg)
-        self._live.add(pipe)
         pipe.set_state(Gst.State.PLAYING)
+
+    def set_duck_db(self, db: float):
+        """Current ducking depth (<= 0). Applied to every playing clip that has ducking enabled."""
+        self.duck_db = db
+        for vol, base, duck in self._live.values():
+            if duck:
+                vol.set_property("volume", base * 10 ** (db / 20))
 
     def stop_all(self):
         for p in list(self._live):
