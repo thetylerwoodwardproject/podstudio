@@ -18,9 +18,9 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa
 from . import audio, podmic, render  # noqa: E402
 from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project  # noqa: E402
 
-CONFIG = Path(GLib.get_user_config_dir()) / "cuebooth" / "config.json"
+CONFIG = Path(GLib.get_user_config_dir()) / "podstudio" / "config.json"
 UDEV_RULE = 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="19f7", ATTRS{idProduct}=="004a", TAG+="uaccess"'
-UDEV_CMD = (f"echo '{UDEV_RULE}' | sudo tee /etc/udev/rules.d/70-cuebooth-podmic.rules >/dev/null && "
+UDEV_CMD = (f"echo '{UDEV_RULE}' | sudo tee /etc/udev/rules.d/70-podstudio-podmic.rules >/dev/null && "
             "sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=hidraw")
 
 
@@ -58,7 +58,7 @@ def make_label(text="", css=(), xalign=0.5, **kw) -> Gtk.Label:
 class CurveGraph(Gtk.Widget):
     """Tiny live plot of a processor's input/output curve (dB in, dB out)."""
 
-    __gtype_name__ = "CueboothCurveGraph"
+    __gtype_name__ = "PodStudioCurveGraph"
 
     def __init__(self, curve, color: str, marker=None, xr=(-60.0, 0.0), yr=(-60.0, 9.0)):
         super().__init__()
@@ -222,7 +222,7 @@ class Strip(Gtk.Box):
 
 
 class PadWidget(Gtk.Overlay):
-    def __init__(self, win: "CueboothWindow", index: int):
+    def __init__(self, win: "PodStudioWindow", index: int):
         super().__init__()
         self.win, self.index = win, index
         self.add_css_class("pad-wrap")
@@ -330,10 +330,10 @@ class PadWidget(Gtk.Overlay):
 # ===================================================================== window
 
 
-class CueboothWindow(Adw.ApplicationWindow):
+class PodStudioWindow(Adw.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="Cuebooth", default_width=1120, default_height=720)
-        self.add_css_class("cuebooth")
+        super().__init__(application=app, title="PodStudio", default_width=1120, default_height=720)
+        self.add_css_class("podstudio")
         self.cfg = load_config()
         self.project: Project | None = None
         self.source: str | None = None
@@ -434,7 +434,7 @@ class CueboothWindow(Adw.ApplicationWindow):
         menu.append("Open Session…", "win.open")
         menu.append("Show Session Folder", "win.folder")
         about = Gio.Menu()
-        about.append("About Cuebooth", "app.about")
+        about.append("About PodStudio", "app.about")
         menu.append_section(None, about)
         mb = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
         header.pack_end(mb)
@@ -1277,7 +1277,7 @@ class CueboothWindow(Adw.ApplicationWindow):
         self._reload_project_ui()
 
     def open_session(self):
-        dlg = Gtk.FileDialog(title="Open a Cuebooth session folder")
+        dlg = Gtk.FileDialog(title="Open a PodStudio session folder")
         dlg.set_initial_folder(Gio.File.new_for_path(str(DEFAULT_ROOT if DEFAULT_ROOT.exists() else Path.home())))
 
         def done(d, res):
@@ -1287,7 +1287,7 @@ class CueboothWindow(Adw.ApplicationWindow):
             except GLib.Error:
                 return
             except Exception as e:
-                self.toast(f"Not a Cuebooth session: {e}")
+                self.toast(f"Not a PodStudio session: {e}")
                 return
             self._remember()
             self._reload_project_ui()

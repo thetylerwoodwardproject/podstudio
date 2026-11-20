@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 SAMPLE_RATE = 48000
-DEFAULT_ROOT = Path.home() / "Music" / "Cuebooth"
+DEFAULT_ROOT = Path.home() / "Music" / "PodStudio"
 PAD_COLORS = ["#ff5c7a", "#ffb454", "#f2e35c", "#5cff9d", "#4fd8eb", "#6ea8ff", "#b48bff", "#ff7ad9"]
 DEFAULT_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "q", "w"]
 

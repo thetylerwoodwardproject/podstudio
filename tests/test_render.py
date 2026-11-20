@@ -1,8 +1,8 @@
 import numpy as np
 import soundfile as sf
 
-from cuebooth.project import SAMPLE_RATE, Event, Project
-from cuebooth.render import integrated_lufs, mix_master, read_stereo, render_hotkeys
+from podstudio.project import SAMPLE_RATE, Event, Project
+from podstudio.render import integrated_lufs, mix_master, read_stereo, render_hotkeys
 
 
 def _tone(sec, hz, amp, ch=1):
@@ -58,7 +58,7 @@ def test_project_roundtrip(tmp_path):
 
 
 def test_true_peak_ceiling_is_enforced_on_hot_material(tmp_path):
-    from cuebooth.render import true_peak_db
+    from podstudio.render import true_peak_db
     p = _project(tmp_path, 0.9)                      # loud, peaky take: normalization must limit
     r = mix_master(p)
     master = read_stereo(p.master_path)
@@ -67,7 +67,7 @@ def test_true_peak_ceiling_is_enforced_on_hot_material(tmp_path):
 
 
 def test_true_peak_sees_intersample_overs():
-    from cuebooth.render import true_peak_db
+    from podstudio.render import true_peak_db
     t = np.arange(4800)
     x = np.sin(2 * np.pi * (SAMPLE_RATE / 4) * t / SAMPLE_RATE + np.pi / 4)  # fs/4 at 45deg: samples read 0.707 of true peak
     x = (x / np.max(np.abs(x))) * 0.5
@@ -75,7 +75,7 @@ def test_true_peak_sees_intersample_overs():
 
 
 def test_mp3_export_meets_podcast_spec(tmp_path):
-    from cuebooth.render import export_mp3
+    from podstudio.render import export_mp3
     p = _project(tmp_path, 0.2)
     mix_master(p)
     r = export_mp3(p)

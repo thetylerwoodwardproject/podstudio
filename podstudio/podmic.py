@@ -4,7 +4,7 @@ The wire protocol is documented by the podmicusb-doctor project (MIT, (c) 2026 r
 https://github.com/rumkit/podmicusb-doctor  (research/protocol/podmic-usb-hid-spec.md)
 The encoder tables in data/podmic-dsp-tables.json come from that project.
 
-Cuebooth is not affiliated with or endorsed by RØDE Microphones.
+PodStudio is not affiliated with or endorsed by RØDE Microphones.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ _tables: dict[str, list[int]] | None = None
 def tables() -> dict[str, list[int]]:
     global _tables
     if _tables is None:
-        raw = json.loads(resources.files("cuebooth").joinpath("data/podmic-dsp-tables.json").read_text())
+        raw = json.loads(resources.files("podstudio").joinpath("data/podmic-dsp-tables.json").read_text())
         _tables = {k: [int(x, 16) for x in v["values"]] for k, v in raw["tables"].items()}
     return _tables
 

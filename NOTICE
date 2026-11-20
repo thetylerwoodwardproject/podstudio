@@ -1,14 +1,14 @@
 Third-party notices
 
-Cuebooth is an independent project. It is not affiliated with, endorsed by, or
+PodStudio is an independent project. It is not affiliated with, endorsed by, or
 sponsored by RØDE Microphones. "RØDE" and "PodMic" are trademarks of their
 respective owner and are used only to describe compatible hardware.
 
 ----------------------------------------------------------------------------
 podmicusb-doctor (https://github.com/rumkit/podmicusb-doctor)
 
-The PodMic USB control protocol implemented in cuebooth/podmic.py, and the
-encoder tables in cuebooth/data/podmic-dsp-tables.json, come from the
+The PodMic USB control protocol implemented in podstudio/podmic.py, and the
+encoder tables in podstudio/data/podmic-dsp-tables.json, come from the
 reverse-engineering research published by that project:
 
 MIT License

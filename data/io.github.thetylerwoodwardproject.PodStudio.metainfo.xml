@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.thetylerwoodwardproject.PodStudio</id>
+  <name>PodStudio</name>
+  <summary>Record a USB mic with hotkey sounds and master to -16 LUFS</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>PodStudio is a small console for recording a USB microphone. Fire sounds from hotkey pads, keep the mic and the hotkeys on separate tracks, and get a stereo master normalized to -16 LUFS.</p>
+    <p>PodStudio is an independent project. It is not affiliated with, endorsed by, or sponsored by RØDE Microphones.</p>
+  </description>
+  <launchable type="desktop-id">io.github.thetylerwoodwardproject.PodStudio.desktop</launchable>
+  <url type="homepage">https://github.com/thetylerwoodwardproject/podstudio</url>
+  <content_rating type="oars-1.1"/>
+</component>

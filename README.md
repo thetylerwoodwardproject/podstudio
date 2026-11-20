@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="data/io.github.thetylerwoodwardproject.Cuebooth.svg" width="112" alt="Cuebooth icon">
+<img src="data/io.github.thetylerwoodwardproject.PodStudio.svg" width="112" alt="PodStudio icon">
 
-# Cuebooth
+# PodStudio
 
 **A small recording console for a USB mic.**<br>
 Record the mic, fire hotkey sounds from pads, keep both on separate tracks, and export a stereo master normalized to podcast loudness.
@@ -15,7 +15,7 @@ Record the mic, fire hotkey sounds from pads, keep both on separate tracks, and 
 
 </div>
 
-> **Unofficial.** Cuebooth is an independent project. It is **not affiliated with, endorsed by, or sponsored by RØDE
+> **Unofficial.** PodStudio is an independent project. It is **not affiliated with, endorsed by, or sponsored by RØDE
 > Microphones.** "RØDE", "PodMic" and "RØDE Central" are trademarks of their owner and are used only to describe
 > compatible hardware. Nothing here is RØDE code.
 
@@ -41,10 +41,10 @@ Record the mic, fire hotkey sounds from pads, keep both on separate tracks, and 
 sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 \
                  gstreamer1.0-plugins-good gstreamer1.0-pulseaudio   # once
 ./install.sh                                                          # no sudo; installs to ~/.local
-cuebooth
+podstudio
 ```
 
-Needs Python 3.10+, GTK 4, libadwaita 1.5+ and GStreamer. Sessions are saved in `~/Music/Cuebooth/`.
+Needs Python 3.10+, GTK 4, libadwaita 1.5+ and GStreamer. Sessions are saved in `~/Music/PodStudio/`.
 
 ## Using it
 
@@ -53,18 +53,18 @@ Needs Python 3.10+, GTK 4, libadwaita 1.5+ and GStreamer. Sessions are saved in 
 3. On stop, the master is mixed and normalized automatically. Adjust the Mic and Hotkeys faders and press **MIX** to remix. The mic stem is always recorded clean.
 4. Open the **Mix** tab to check the result against the podcast standard and **Export MP3**.
 
-Keys work while Cuebooth is focused. System-wide hotkeys are not implemented yet (Wayland needs the GlobalShortcuts portal).
+Keys work while PodStudio is focused. System-wide hotkeys are not implemented yet (Wayland needs the GlobalShortcuts portal).
 
 ## Mic DSP (PodMic USB)
 
-RØDE Central doesn't run on Linux, so Cuebooth talks to the mic directly over USB HID, using the protocol reverse-engineered by
+RØDE Central doesn't run on Linux, so PodStudio talks to the mic directly over USB HID, using the protocol reverse-engineered by
 [podmicusb-doctor](https://github.com/rumkit/podmicusb-doctor) (MIT). It covers input gain, mute, direct monitoring, the high-pass
 filter, Depth / Sparkle / Punch, and the advanced compressor, noise gate, Aural Exciter and Big Bottom.
 
 Gain works out of the box. The rest needs a one-time permission for the HID device:
 
 ```bash
-sudo install -m644 data/70-cuebooth-podmic.rules /etc/udev/rules.d/ \
+sudo install -m644 data/70-podstudio-podmic.rules /etc/udev/rules.d/ \
   && sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=hidraw
 ```
 
@@ -83,7 +83,7 @@ sequences in the protocol research. Not every advanced field has been checked by
 ```bash
 uv venv --system-site-packages && uv pip install -e ".[dev]"
 .venv/bin/python -m pytest
-.venv/bin/python -m cuebooth
+.venv/bin/python -m podstudio
 ```
 
 ## Credits

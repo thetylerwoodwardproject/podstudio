@@ -1,6 +1,6 @@
 import struct
 
-from cuebooth import podmic as p
+from podstudio import podmic as p
 
 
 def test_spec_worked_examples():

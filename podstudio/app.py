@@ -11,12 +11,12 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 from . import __version__  # noqa: E402
-from .window import CueboothWindow  # noqa: E402
+from .window import PodStudioWindow  # noqa: E402
 
-APP_ID = "io.github.thetylerwoodwardproject.Cuebooth"
+APP_ID = "io.github.thetylerwoodwardproject.PodStudio"
 
 
-class CueboothApp(Adw.Application):
+class PodStudioApp(Adw.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.win = None
@@ -25,7 +25,7 @@ class CueboothApp(Adw.Application):
         Adw.Application.do_startup(self)
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
         css = Gtk.CssProvider()
-        css.load_from_path(str(resources.files("cuebooth").joinpath("data/style.css")))
+        css.load_from_path(str(resources.files("podstudio").joinpath("data/style.css")))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         about = Gio.SimpleAction.new("about", None)
         about.connect("activate", self._about)
@@ -37,16 +37,16 @@ class CueboothApp(Adw.Application):
 
     def do_activate(self):
         if not self.win:
-            self.win = CueboothWindow(self)
+            self.win = PodStudioWindow(self)
         self.win.present()
 
     def _about(self, *_):
         d = Adw.AboutDialog(
-            application_name="Cuebooth", application_icon=APP_ID, version=__version__,
+            application_name="PodStudio", application_icon=APP_ID, version=__version__,
             developer_name="The Tyler Woodward Project", license_type=Gtk.License.MIT_X11,
-            website="https://github.com/thetylerwoodwardproject/cuebooth",
+            website="https://github.com/thetylerwoodwardproject/podstudio",
             comments=("Record a USB mic, fire hotkey sounds on their own track, and master to −16 LUFS.\n\n"
-                      "Cuebooth is an independent project. It is not affiliated with, endorsed by, or "
+                      "PodStudio is an independent project. It is not affiliated with, endorsed by, or "
                       "sponsored by RØDE Microphones. RØDE and PodMic are trademarks of their owner."),
             copyright="© 2026 The Tyler Woodward Project",
         )
@@ -55,4 +55,4 @@ class CueboothApp(Adw.Application):
 
 
 def main():
-    return CueboothApp().run(sys.argv)
+    return PodStudioApp().run(sys.argv)

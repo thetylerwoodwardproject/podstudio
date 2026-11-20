@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cuebooth"
+name = "podstudio"
 dynamic = ["version"]
 description = "Record a USB mic, fire hotkey sounds on their own track, and master to -16 LUFS."
 readme = "README.md"
@@ -20,13 +20,13 @@ classifiers = [
 dev = ["pytest"]
 
 [project.scripts]
-cuebooth = "cuebooth.app:main"
+podstudio = "podstudio.app:main"
 
 [tool.setuptools]
-packages = ["cuebooth"]
+packages = ["podstudio"]
 
 [tool.setuptools.dynamic]
-version = { attr = "cuebooth.__version__" }
+version = { attr = "podstudio.__version__" }
 
 [tool.setuptools.package-data]
-cuebooth = ["data/*"]
+podstudio = ["data/*"]
