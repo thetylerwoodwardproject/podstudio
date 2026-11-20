@@ -175,3 +175,20 @@ window.podstudio switch { background: @vd_muted; border: none; }
 window.podstudio switch:checked { background: @vd_text; }
 window.podstudio switch slider { background: @vd_bg; }
 window.podstudio switch:checked slider { background: @vd_bg; }
+
+/* ---- recordings tab ---- */
+.session-list { background: transparent; }
+.session-list row { border-radius: 10px; margin: 0 0 6px 0; border: 1px solid transparent; }
+.session-list row:hover { background: @vd_raised; }
+.session-list row:selected { background: @vd_raised; border-color: @vd_line; }
+.session-title { font-weight: 600; font-size: 13px; }
+.wave-frame { background: #09090b; border: 1px solid @vd_line; border-radius: 10px; padding: 6px 8px; }
+.time-label { font-size: 13px; color: @vd_text; }
+.play-btn { background: @vd_text; color: #18181b; border-radius: 99px; min-width: 40px; min-height: 40px; padding: 0; border: none; box-shadow: none; }
+.play-btn:hover { background: alpha(@vd_text, .9); }
+button.flat { border-radius: 8px; }
+.art-frame { background: @vd_raised; border: 1px solid @vd_line; border-radius: 10px; }
+.art-warn { color: @vd_warn; }
+
+/* ---- pads that are currently sounding ---- */
+.pad.playing { background: alpha(@vd_ok, .10); border-color: alpha(@vd_ok, .7); }

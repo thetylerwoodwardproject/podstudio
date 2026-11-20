@@ -5,7 +5,9 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$here"
 version="$(python3 -c 'import re,sys; print(re.search(r"__version__ = \"([^\"]+)\"", open("podstudio/__init__.py").read()).group(1))')"
 id=io.github.thetylerwoodwardproject.PodStudio
-pkg="podstudio_${version}_amd64"
+rev="$(cat "$here/packaging/revision" 2>/dev/null || echo 1)"
+debver="$version-$rev"             # upstream version (a date) plus the package revision, so apt sees rebuilds as upgrades
+pkg="podstudio_${debver}_amd64"
 root="$here/build/deb/$pkg"
 rm -rf "$root"; mkdir -p "$root"/{DEBIAN,usr/bin,usr/lib/podstudio/bin,usr/lib/udev/rules.d,usr/share/{applications,metainfo,doc/podstudio}}
 
@@ -73,7 +75,7 @@ License: MIT
 
 PodStudio is not affiliated with, endorsed by, or sponsored by RØDE Microphones.
 C
-{ printf 'podstudio (%s) unstable; urgency=low\n\n  * Initial release.\n\n -- %s  %s\n' "$version" "$maint" "$(date -R)"; } | gzip -9n > "$d/changelog.gz"
+{ printf 'podstudio (%s) unstable; urgency=low\n\n  * Release v%s.\n\n -- %s  %s\n' "$debver" "$version" "$maint" "$(date -R)"; } | gzip -9n > "$d/changelog.gz"
 
 # maintainer scripts
 cat > "$root/DEBIAN/postinst" <<'S'
@@ -112,7 +114,7 @@ find "$root" -type f ! -perm /111 -exec chmod 644 {} +
 size_kb="$(du -sk "$root" | cut -f1)"
 cat > "$root/DEBIAN/control" <<C
 Package: podstudio
-Version: $version
+Version: $debver
 Section: sound
 Priority: optional
 Architecture: amd64

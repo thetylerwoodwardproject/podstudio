@@ -1,6 +1,7 @@
 """Offline rendering: hotkey stem, master mix and loudness normalization."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,7 +31,12 @@ def read_stereo(path: Path) -> np.ndarray:
 
 
 def write_wav24(path: Path, data: np.ndarray):
-    sf.write(str(path), np.clip(data, -1.0, 1.0), SAMPLE_RATE, subtype="PCM_24")
+    """Write atomically: a player that has the old file open keeps reading it intact, and nothing ever sees a
+    half-written file (renders take seconds, and the Recordings tab may be playing the previous master)."""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".part")
+    sf.write(str(tmp), np.clip(data, -1.0, 1.0), SAMPLE_RATE, format="WAV", subtype="PCM_24")
+    os.replace(tmp, path)
 
 
 DUCK_ATTACK_MS = 40.0
@@ -65,6 +71,42 @@ def voice_duck_gain(mic: np.ndarray, amount_db: float, threshold_db: float,
     return 10 ** (curve / 20)
 
 
+def _shape_clip(clip: np.ndarray, dur: float | None, loop: bool, room_s: float) -> np.ndarray:
+    """A held, toggled or looped hit lasts `dur` (a loop with no end runs to the end of the take); cut ends get a
+    10 ms fade so they don't click."""
+    if loop:
+        n = int(round((dur if dur is not None else room_s) * SAMPLE_RATE))
+        if n <= 0:
+            return clip[:0]
+        clip = np.tile(clip, (-(-n // len(clip)), 1))[:n]
+    elif dur is not None:
+        n = int(round(dur * SAMPLE_RATE))
+        if n >= len(clip):
+            return clip
+        clip = clip[:max(n, 0)].copy()
+    else:
+        return clip
+    fade = min(len(clip), int(0.010 * SAMPLE_RATE))
+    if fade:
+        clip = clip.copy()
+        clip[-fade:] *= np.linspace(1.0, 0.0, fade)[:, None]
+    return clip
+
+
+def clip_gain_db(clip: np.ndarray) -> float:
+    """Gain that level-matches a sound effect so it sits with speech instead of towering over it.
+
+    Long clips aim for -22 LUFS (a good bed under -16 LUFS speech), capped so peaks stay under -3 dBFS.
+    Clips too short to measure loudness are peak-matched to -9 dBFS."""
+    peak = float(np.max(np.abs(clip))) if clip.size else 0.0
+    if peak < 1e-5:
+        return 0.0
+    lufs = integrated_lufs(clip) if len(clip) >= int(0.5 * SAMPLE_RATE) else None
+    want = (-22.0 - lufs) if lufs is not None else (-9.0 - lin_to_db(peak))
+    want = min(want, -3.0 - lin_to_db(peak))
+    return float(max(-40.0, min(12.0, want)))
+
+
 def render_hotkeys(project: Project, length_s: float | None = None, split: bool = False):
     """Place every logged hotkey hit on a stereo timeline the length of the mic take.
 
@@ -84,6 +126,7 @@ def render_hotkeys(project: Project, length_s: float | None = None, split: bool 
         start = int(round(ev.t * SAMPLE_RATE))
         if start >= total:
             continue
+        clip = _shape_clip(clip, getattr(ev, "dur", None), getattr(ev, "loop", False), (total - start) / SAMPLE_RATE)
         end = min(start + len(clip), total)
         (duckable if getattr(ev, "duck", False) else plain)[start:end] += clip[: end - start]
     return (plain, duckable) if split else plain + duckable
@@ -218,7 +261,9 @@ def export_mp3(project: Project, bitrate: int = 128) -> Mp3Result:
     retried = False
     for attempt in range(2):
         write_wav24(work, master)
-        audio.encode_mp3(work, project.mp3_path, title=project.name, bitrate=bitrate)
+        part = project.mp3_path.with_name(project.mp3_path.name + ".part")
+        audio.encode_mp3(work, part, title=project.name, bitrate=bitrate)
+        os.replace(part, project.mp3_path)
         decoded, sr = sf.read(str(project.mp3_path), dtype="float64", always_2d=True)
         tp = true_peak_db(decoded[:, :2])
         if tp <= TRUE_PEAK_LIMIT_DB + 0.05 or attempt == 1:

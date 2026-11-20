@@ -60,7 +60,18 @@ class Mock(BaseHTTPRequestHandler):
             S["polls"] = S.get("polls", 0) + 1
             return self._send(200, {"id": 99, "duration": -1 if S["polls"] < 3 else 1236})
         if path == "/api/7/episodes/99" and m == "PATCH":
+            if "multipart/form-data" in (self.headers.get("Content-Type") or ""):
+                S["multipart"] = (self.headers.get("Content-Type"), body)
+                return self._send(200, {"id": 99, "artwork_url": "https://example.com/a.png"})
             return self._send(200, {"id": 99, **json.loads(body)})
+        if path == "/api/7/episodes/99/chapters" and m == "PUT":
+            req = json.loads(body)
+            if not isinstance(req.get("chapters"), list):
+                return self._send(422, {"error": {"code": "invalid", "message": "chapters must be an array", "param": "chapters"}})
+            return self._send(200, [{"id": i, "title": c["title"], "start_time": c["start_time"], "url": c.get("url")}
+                                    for i, c in enumerate(req["chapters"], 1)])
+        if path == "/api/7/episodes/99/chapters" and m == "GET":
+            return self._send(200, [{"id": 1, "title": "Intro", "start_time": "00:00:00", "url": None}])
         return self._send(404, {"error": {"code": "not_found", "message": "nope"}})
 
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _handle
@@ -137,8 +148,10 @@ def test_publish_is_a_separate_explicit_call(server):
     c = client(srv)
     c.create_episode(7, "Pilot")
     assert not any(json.loads(b or b"{}").get("private") is False for m, p, h, b in S["calls"] if m == "POST")
-    assert c.publish(7, 99)["private"] is False
-    assert c.unpublish(7, 99)["private"] is True
+    assert c.publish(7, 99, explicit=True)["private"] is False
+    assert c.unpublish(7, 99, explicit=False)["private"] is True
+    patches = [json.loads(b) for m, p, h, b in S["calls"] if m == "PATCH"]
+    assert patches == [{"private": False, "explicit": True}, {"private": True, "explicit": False}]   # explicit is never dropped
 
 
 def test_errors_are_readable(server):
@@ -170,3 +183,37 @@ def test_token_is_never_in_repr_or_errors():
     assert TOKEN not in repr(c)
     with pytest.raises(bz.BuzzsproutError):
         bz.Client("   ")
+
+
+def test_artwork_is_sent_as_multipart_and_keeps_the_explicit_flag(server, tmp_path):
+    srv, S = server
+    img = tmp_path / "cover.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 500)
+    client(srv).set_artwork(7, 99, img, explicit=True)
+    ctype, body = S["multipart"]
+    assert ctype.startswith("multipart/form-data; boundary=")
+    assert b'name="artwork_file"; filename="cover.png"' in body and b"Content-Type: image/png" in body
+    assert b'name="explicit"\r\n\r\ntrue' in body                           # not reset to false by the update
+    assert b"\x89PNG" in body
+
+
+def test_artwork_size_limit(server, tmp_path, monkeypatch):
+    srv, S = server
+    monkeypatch.setattr(bz, "MAX_ART_BYTES", 100)
+    big = tmp_path / "big.jpg"
+    big.write_bytes(b"x" * 500)
+    with pytest.raises(bz.BuzzsproutError, match="limit"):
+        client(srv).set_artwork(7, 99, big, explicit=False)
+
+
+def test_chapters_replace_with_hms_times(server):
+    srv, S = server
+    out = client(srv).put_chapters(7, 99, [{"t": 0, "title": "Intro"}, {"t": 95.7, "title": "Main", "url": "https://x.example"},
+                                           {"t": 3725, "title": "Outro"}])
+    sent = json.loads([b for m, p, h, b in S["calls"] if m == "PUT" and p.endswith("/chapters")][0])
+    assert sent == {"chapters": [{"title": "Intro", "start_time": "00:00:00"},
+                                 {"title": "Main", "start_time": "00:01:35", "url": "https://x.example"},
+                                 {"title": "Outro", "start_time": "01:02:05"}]}
+    assert [c["title"] for c in out] == ["Intro", "Main", "Outro"]
+    assert client(srv).get_chapters(7, 99)[0]["title"] == "Intro"
+    assert bz.format_hms(3599.9) == "00:59:59"

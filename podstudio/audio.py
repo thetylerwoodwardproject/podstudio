@@ -215,46 +215,227 @@ class MicEngine:
 
 
 class ClipPlayer:
-    """Fire-and-forget polyphonic clip playback to the default output, with optional live ducking."""
+    """Polyphonic hotkey playback to the default output.
 
-    def __init__(self):
-        self._live: dict = {}          # pipeline -> (volume element, base gain, ducked?)
+    Handles: one-shots, held (momentary) clips, toggled clips and seamless loops. Every live clip follows the
+    hotkeys fader (`set_master_db`) and the ducking depth (`set_duck_db`) immediately, and the real signal
+    level is reported through on_level(peak_db), so the meter shows what you actually hear.
+    """
+
+    def __init__(self, on_level=None):
+        self._live: dict = {}          # pipeline -> {"vol", "base", "duck", "handle", "loop", "peak"}
         self.duck_db = 0.0
+        self.master_db = 0.0
+        self.on_level = on_level
 
-    def play(self, path: Path, gain_db: float = 0.0, duck: bool = False, sink: str = "pulsesink"):
-        base = 10 ** (gain_db / 20)
-        desc = (f"filesrc location=\"{path}\" ! decodebin ! audioconvert ! audioresample ! "
-                f"volume name=vol volume={base:.5f} ! {sink}")
+    # -- gain that follows the fader and ducking live
+    def _gain(self, c) -> float:
+        g = c["base"] * 10 ** (self.master_db / 20)
+        if c["duck"]:
+            g *= 10 ** (self.duck_db / 20)
+        return 0.0 if self.master_db <= -60 else g
+
+    def _apply(self):
+        for c in self._live.values():
+            c["vol"].set_property("volume", min(self._gain(c), 10.0))
+
+    def set_master_db(self, db: float):
+        self.master_db = db
+        self._apply()
+
+    def set_duck_db(self, db: float):
+        self.duck_db = db
+        self._apply()
+
+    # -- playback
+    def play(self, path: Path, gain_db: float = 0.0, duck: bool = False, loop: bool = False, handle=None,
+             sink: str = "pulsesink"):
+        desc = (f"filesrc location=\"{path}\" ! decodebin ! audioconvert ! audioresample ! volume name=vol ! "
+                f"level name=lvl interval=50000000 post-messages=true ! {sink}")
         try:
             pipe = Gst.parse_launch(desc)
         except GLib.Error:
-            return
-        vol = pipe.get_by_name("vol")
-        self._live[pipe] = (vol, base, duck)
-        if duck:
-            vol.set_property("volume", base * 10 ** (self.duck_db / 20))
+            return None
+        c = {"vol": pipe.get_by_name("vol"), "base": 10 ** (gain_db / 20), "duck": duck, "handle": handle,
+             "loop": loop, "peak": -90.0}
+        c["vol"].set_property("volume", min(self._gain(c), 10.0))
+        self._live[pipe] = c
         bus = pipe.get_bus()
         bus.add_signal_watch()
-
-        def on_msg(_bus, msg):
-            if msg.type in (Gst.MessageType.EOS, Gst.MessageType.ERROR):
-                pipe.set_state(Gst.State.NULL)
-                self._live.pop(pipe, None)
-
-        bus.connect("message", on_msg)
+        bus.connect("message", lambda _b, m, p=pipe: self._on_message(p, m))
+        if loop:                                  # gapless: segment seeks instead of restarting on EOS
+            pipe.set_state(Gst.State.PAUSED)
+            pipe.get_state(2 * Gst.SECOND)
+            pipe.seek(1.0, Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.SEGMENT, Gst.SeekType.SET, 0,
+                      Gst.SeekType.NONE, -1)
         pipe.set_state(Gst.State.PLAYING)
+        return pipe
 
-    def set_duck_db(self, db: float):
-        """Current ducking depth (<= 0). Applied to every playing clip that has ducking enabled."""
-        self.duck_db = db
-        for vol, base, duck in self._live.values():
-            if duck:
-                vol.set_property("volume", base * 10 ** (db / 20))
+    def _on_message(self, pipe, msg):
+        c = self._live.get(pipe)
+        if c is None:
+            return
+        t = msg.type
+        if t == Gst.MessageType.SEGMENT_DONE and c["loop"]:
+            pipe.seek(1.0, Gst.Format.TIME, Gst.SeekFlags.SEGMENT, Gst.SeekType.SET, 0, Gst.SeekType.NONE, -1)
+        elif t == Gst.MessageType.ELEMENT:
+            st = msg.get_structure()
+            if st and st.get_name() == "level":
+                peaks = _level_db(st, "peak")
+                if peaks:
+                    c["peak"] = max(peaks)
+                    self._report()
+        elif t in (Gst.MessageType.EOS, Gst.MessageType.ERROR):
+            self._end(pipe)
+
+    def _report(self):
+        if self.on_level:
+            self.on_level(max((c["peak"] for c in self._live.values()), default=-90.0))
+
+    def _end(self, pipe):
+        pipe.set_state(Gst.State.NULL)
+        self._live.pop(pipe, None)
+        self._report()
+
+    def is_active(self, handle) -> bool:
+        return any(c["handle"] == handle for c in self._live.values())
+
+    def stop(self, handle, fade_ms: int = 25):
+        """Stop every clip started by `handle`, with a short fade so a cut mid-waveform doesn't click."""
+        for pipe, c in list(self._live.items()):
+            if c["handle"] != handle:
+                continue
+            c["loop"] = False
+            c["handle"] = None                                    # no longer "active" for toggles
+            start, steps = c["vol"].get_property("volume"), 5
+
+            def step(i=[0], pipe=pipe, vol=c["vol"], start=start):
+                i[0] += 1
+                if pipe not in self._live:
+                    return False
+                if i[0] >= steps:
+                    self._end(pipe)
+                    return False
+                vol.set_property("volume", start * (1 - i[0] / steps))
+                return True
+
+            GLib.timeout_add(max(1, fade_ms // steps), step)
 
     def stop_all(self):
         for p in list(self._live):
             p.set_state(Gst.State.NULL)
         self._live.clear()
+        self._report()
+
+
+class Player:
+    """In-app playback of a recorded file: play, pause, seek, position. Replaces launching an external player."""
+
+    def __init__(self, on_eos=None, on_error=None, sink: str = "autoaudiosink"):
+        self.on_eos, self.on_error = on_eos, on_error
+        self.pipe = Gst.ElementFactory.make("playbin", "preview")
+        self.pipe.set_property("video-sink", Gst.ElementFactory.make("fakesink", None))
+        self.pipe.set_property("audio-sink", Gst.parse_bin_from_description(sink, True))
+        bus = self.pipe.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", self._on_message)
+        self.path: Path | None = None
+        self._playing = False
+
+    @property
+    def playing(self) -> bool:
+        return self._playing
+
+    def load(self, path: Path, position: float = 0.0) -> bool:
+        """Open a file paused at `position` seconds. Returns False if it can't be decoded."""
+        self.pipe.set_state(Gst.State.NULL)
+        self._playing = False
+        self.path = Path(path)
+        self.pipe.set_property("uri", Gst.filename_to_uri(str(self.path)))
+        self.pipe.set_state(Gst.State.PAUSED)
+        ok, state, _ = self.pipe.get_state(3 * Gst.SECOND)            # wait for the file to be opened
+        if ok == Gst.StateChangeReturn.FAILURE:
+            return False
+        if position > 0:
+            self.seek(position)
+        return True
+
+    def play(self):
+        if self.path:
+            self.pipe.set_state(Gst.State.PLAYING)
+            self._playing = True
+
+    def pause(self):
+        self.pipe.set_state(Gst.State.PAUSED)
+        self._playing = False
+
+    def toggle(self):
+        self.pause() if self._playing else self.play()
+
+    def stop(self):
+        self.pipe.set_state(Gst.State.NULL)
+        self._playing = False
+        self.path = None
+
+    def seek(self, seconds: float):
+        dur = self.duration()
+        if dur:
+            seconds = min(max(seconds, 0.0), max(dur - 0.05, 0.0))
+        self.pipe.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE, int(seconds * Gst.SECOND))
+
+    def position(self) -> float:
+        ok, pos = self.pipe.query_position(Gst.Format.TIME)
+        return pos / Gst.SECOND if ok else 0.0
+
+    def duration(self) -> float | None:
+        ok, dur = self.pipe.query_duration(Gst.Format.TIME)
+        return dur / Gst.SECOND if ok and dur > 0 else None
+
+    def set_volume(self, v: float):
+        self.pipe.set_property("volume", max(0.0, min(1.5, v)))
+
+    def _on_message(self, bus, msg):
+        if msg.type == Gst.MessageType.EOS:
+            self._playing = False
+            self.pipe.set_state(Gst.State.PAUSED)
+            self.seek(0.0)
+            if self.on_eos:
+                self.on_eos()
+        elif msg.type == Gst.MessageType.ERROR:
+            err, _dbg = msg.parse_error()
+            self._playing = False
+            self.pipe.set_state(Gst.State.NULL)
+            if self.on_error:
+                self.on_error(err.message)
+
+
+def compute_peaks(path: Path, bins: int = 1600):
+    """Waveform summary: (bins, 2) array of per-bin (min, max) in [-1, 1], mono-mixed. Constant memory."""
+    import numpy as np
+    import soundfile as sf
+    info = sf.info(str(path))
+    total = info.frames
+    if total <= 0:
+        return np.zeros((bins, 2))
+    hop = max(1, -(-total // bins))                          # frames per bin (ceil)
+    out_min, out_max = [], []
+    with sf.SoundFile(str(path)) as f:
+        while True:
+            blk = f.read(hop * 4096, dtype="float32", always_2d=True)
+            if len(blk) == 0:
+                break
+            mono = blk.mean(axis=1)
+            full = len(mono) // hop * hop
+            if full:
+                r = mono[:full].reshape(-1, hop)
+                out_min.append(r.min(axis=1)); out_max.append(r.max(axis=1))
+            if len(mono) > full:                                # tail shorter than one bin
+                out_min.append(np.array([mono[full:].min()])); out_max.append(np.array([mono[full:].max()]))
+    mn, mx = np.concatenate(out_min), np.concatenate(out_max)
+    peaks = np.stack([mn, mx], axis=1)
+    if len(peaks) < bins:
+        peaks = np.concatenate([peaks, np.zeros((bins - len(peaks), 2))])
+    return peaks[:bins]
 
 
 def import_clip(src: Path, dst: Path, timeout_s: float = 60.0) -> None:

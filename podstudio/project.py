@@ -20,8 +20,10 @@ class Pad:
     clip: str = ""            # file name inside <project>/clips
     color: str = "#6ea8ff"
     gain_db: float = 0.0
-    loop: bool = False
+    loop: bool = False        # legacy; superseded by mode == "loop"
     duck: bool = False        # lower this pad's sound while the mic is speaking
+    mode: str = "once"        # once | momentary (while held) | toggle | loop
+    norm_db: float | None = None   # level-matching gain computed from the clip itself; None = not measured yet
 
 
 @dataclass
@@ -31,6 +33,8 @@ class Event:
     clip: str
     gain_db: float = 0.0
     duck: bool = False
+    loop: bool = False             # repeat the clip for the whole duration
+    dur: float | None = None       # how long it played (held, toggled or looped); None = the clip's own length
 
 
 @dataclass
@@ -53,6 +57,8 @@ class Project:
     duck_release_ms: float = 350.0     # how fast they come back
     episode: dict = field(default_factory=dict)   # title, description, tags, numbers for publishing
     buzz: dict = field(default_factory=dict)      # podcast_id, episode_id, public (ids only, never the token)
+    chapters: list = field(default_factory=list)  # [{"t": seconds, "title": str}]
+    art: str = ""                                # cover art, relative to the session folder
     clean_key: str = ""                # identifies the take + strength that mic-clean.wav was made from
 
     # layout ---------------------------------------------------------------
@@ -64,6 +70,9 @@ class Project:
     def mic_path(self) -> Path: return self.audio_dir / "mic.wav"
     @property
     def clean_path(self) -> Path: return self.audio_dir / "mic-clean.wav"
+    @property
+    def art_path(self) -> Path | None:
+        return (self.root / self.art) if self.art and (self.root / self.art).exists() else None
     @property
     def hotkeys_path(self) -> Path: return self.audio_dir / "hotkeys.wav"
     @property
@@ -93,6 +102,8 @@ class Project:
             "denoise": self.denoise,
             "denoise_atten_db": self.denoise_atten_db,
             "clean_key": self.clean_key,
+            "chapters": self.chapters,
+            "art": self.art,
             "episode": self.episode,
             "buzz": self.buzz,
             "duck_amount_db": self.duck_amount_db,
@@ -112,12 +123,19 @@ class Project:
             name=d["name"], root=Path(root), mic_db=d.get("mic_db", 0.0),
             hotkeys_db=d.get("hotkeys_db", 0.0), hotkeys_muted=d.get("hotkeys_muted", False), target_lufs=d.get("target_lufs", -16.0),
             created=d.get("created", ""), mic_duration=d.get("mic_duration", 0.0), mix_stats=d.get("mix_stats", {}), denoise=d.get("denoise", False),
-            denoise_atten_db=d.get("denoise_atten_db", 18.0), clean_key=d.get("clean_key", ""), episode=d.get("episode", {}), buzz=d.get("buzz", {}),
+            denoise_atten_db=d.get("denoise_atten_db", 18.0), clean_key=d.get("clean_key", ""), chapters=d.get("chapters", []), art=d.get("art", ""), episode=d.get("episode", {}), buzz=d.get("buzz", {}),
             duck_amount_db=d.get("duck_amount_db", 12.0), duck_threshold_db=d.get("duck_threshold_db", -40.0),
             duck_release_ms=d.get("duck_release_ms", 350.0),
-            pads=[Pad(**p) for p in d.get("pads", [])],
+            pads=[cls._pad(p) for p in d.get("pads", [])],
             events=[Event(**e) for e in d.get("events", [])],
         )
+
+    @staticmethod
+    def _pad(d: dict) -> "Pad":
+        pad = Pad(**{k: v for k, v in d.items() if k in Pad.__dataclass_fields__})
+        if pad.loop and pad.mode == "once":          # sessions saved before pad modes existed
+            pad.mode = "loop"
+        return pad
 
     @classmethod
     def create(cls, name: str, parent: Path = DEFAULT_ROOT) -> "Project":
@@ -140,3 +158,18 @@ class Project:
 
     def has_recording(self) -> bool:
         return self.mic_path.exists() and self.mic_path.stat().st_size > 44
+
+
+def list_sessions(root: Path = DEFAULT_ROOT) -> list[dict]:
+    """Summaries of every session folder, newest first, for the Recordings tab. Unreadable folders are skipped."""
+    out = []
+    for d in Path(root).glob("*/project.json"):
+        try:
+            data = json.loads(d.read_text())
+        except (OSError, ValueError):
+            continue
+        folder = d.parent
+        out.append({"path": folder, "name": data.get("name") or folder.name, "created": data.get("created", ""),
+                    "duration": float(data.get("mic_duration") or 0.0), "lufs": (data.get("mix_stats") or {}).get("after"),
+                    "has_master": (folder / "audio" / "master.wav").exists(), "mtime": d.stat().st_mtime})
+    return sorted(out, key=lambda r: r["mtime"], reverse=True)

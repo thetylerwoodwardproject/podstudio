@@ -68,7 +68,9 @@ def denoise(src: Path, dst: Path, atten_db: float = ATTEN_DEFAULT, binary: Path 
     if len(clean) < len(data):                                   # delay compensation trims the tail slightly
         clean = np.pad(clean, ((0, len(data) - len(clean)), (0, 0)))
     clean = clean[: len(data)]
-    sf.write(str(dst), clean, rate, subtype="PCM_24")
+    part = Path(str(dst) + ".part")
+    sf.write(str(part), clean, rate, format="WAV", subtype="PCM_24")
+    os.replace(part, dst)
 
 
 def ensure_clean(project: Project, progress=None) -> Path:

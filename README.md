@@ -26,17 +26,20 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 |---|---|
 | 🎙 **Record** | 48 kHz, 24-bit WAV straight from the PodMic USB. Plug-and-play, hot-plug aware. If the mic disconnects mid-take, the take is repaired and kept. |
 | 🎛 **Console** | Colour-coded Mic, Hotkeys and Master faders with LED meters, a dBFS ruler, peak hold, and a highlighted **0 dB unity** mark with a detent. The Mic fader moves the meter live and sets the mic-versus-hotkeys balance. |
-| 🥁 **Hotkey pads** | Eight pads, each with its own key, sound, level and colour. Hits are timestamped against the mic stream. |
+| 🥁 **Hotkey pads** | Eight pads, each with its own key, sound, level and colour, and a **button mode**: *One-shot*, *Hold* (plays while pressed), *Toggle*, or *Loop* (seamless). New sounds are level-matched so they sit with your voice, the hotkeys fader moves sounds that are already playing, and its meter shows the real signal. Hits (and how long they were held or looped) are timestamped against the mic stream. |
 | 📉 **Ducking** | Switch **Duck** on for the pads that should dip under your voice, and leave the rest alone. Applied live and in the master, with look-ahead so the first syllable isn't covered. |
 | 🔇 **Noise reduction** | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) runs on the mic stem when the master is rendered (it's too heavy to run live, but processes audio about 10× faster than real time). Strength is adjustable. Your raw mic stem is never modified. |
+| 🎧 **Recordings** | Preview every session without leaving the app: a waveform player for the master, mic, cleaned mic, hotkeys and MP3, with hotkey hits marked on the timeline. Switching stems keeps your place, so you can A/B raw against cleaned. |
+| 🔖 **Chapters** | Press *Add chapter here* while you listen. Chapters are shown on the waveform and uploaded with the episode. |
 | 📂 **Separate stems** | Each session is a folder: `mic.wav`, `mic-clean.wav`, `hotkeys.wav` and `master.wav`. Hotkeys and mic are never baked together except in the master. |
 | 📏 **Podcast master** | Stereo, **−16 LUFS** integrated, **true peak ≤ −1 dBTP** (4× oversampled, so inter-sample overs are caught), with a pass/fail check on the Mix page. |
 | 💿 **MP3 export** | 128 kbps MP3 that decodes its own output to confirm it still meets the spec. |
-| 📡 **Buzzsprout** | Direct API upload as a **private draft**. Publishing is a separate, confirmed step. |
+| 📡 **Buzzsprout** | Direct API upload as a **private draft**, with your own **episode art** and chapters. Publishing is a separate, confirmed step. |
 | 🔧 **Mic DSP** | Controls the PodMic's on-board processing (see below) without RØDE Central. |
 
 <div align="center">
-<img src="docs/screenshots/mix.png" width="520" alt="Mix page: cleanup, ducking and the podcast standard check"> <img src="docs/screenshots/publish.png" width="520" alt="Publish to Buzzsprout panel">
+<img src="docs/screenshots/recordings.png" width="520" alt="Recordings tab: waveform player with hotkey markers and chapters"> <img src="docs/screenshots/mix.png" width="520" alt="Mix tab: master, noise reduction, ducking, podcast standard and export">
+<img src="docs/screenshots/publish.png" width="520" alt="Publish tab: episode art and the Buzzsprout form">
 </div>
 
 ## Install
@@ -44,7 +47,7 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 **Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb**
 
 ```bash
-sudo apt install ./podstudio_2026.11.20_amd64.deb
+sudo apt install ./dist/podstudio_*_amd64.deb      # or ./podstudio_<version>_amd64.deb
 ```
 
 It pulls in its dependencies, bundles DeepFilterNet, and installs the udev rule so the mic controls work straight away.
@@ -59,15 +62,16 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir
 ./install.sh --uninstall  # remove it again (do this after installing the .deb)
 ```
 
-Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** is the 20th of November 2026.
+Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** is the 20th of November 2026. A rebuilt package for the same date gets a revision (`2026.11.20-2`) so `apt` treats it as an upgrade.
 
 ## Using it
 
 1. Plug in the PodMic USB. The header shows it as connected.
-2. Set up your pads: click a pad's ✎ to choose a sound, key, colour, and whether it ducks under your voice.
+2. Set up your pads: click a pad's ✎ to choose a sound, key, colour, **button mode**, and whether it ducks under your voice.
 3. **Ctrl+R** (or Record) starts and stops. Press a pad's key at any time. Hits are logged while recording.
-4. On stop, the master is mixed and normalized automatically. On the **Mix** tab you can turn noise reduction on or off, tune ducking, and press **Mix** to re-render after any change.
-5. **Export MP3**, then upload to Buzzsprout.
+4. On stop, the master is mixed and normalized automatically. On the **Mix** tab you can turn noise reduction on or off, tune ducking, and **Render master** again after any change.
+5. Listen on the **Recordings** tab (Space plays and pauses, ←/→ skip 5 s) and add chapters where sections start.
+6. On the **Publish** tab, add cover art, then upload the draft to Buzzsprout.
 
 Keys work while PodStudio is focused. System-wide hotkeys aren't implemented yet (Wayland needs the GlobalShortcuts portal).
 
@@ -77,7 +81,8 @@ Keys work while PodStudio is focused. System-wide hotkeys aren't implemented yet
 
 Paste your API token (Buzzsprout: Profile → API) on the Mix tab. It is kept in your desktop keyring (libsecret) and is never written to a file. If no keyring is available, the token lasts for the session only.
 
-- **Upload draft** creates a *private* episode, uploads the MP3 (Buzzsprout's start, PUT, complete flow), and waits for encoding. Uploading again updates the same draft.
+- **Upload draft** creates a *private* episode, uploads your cover art (only when it changed), uploads the MP3 (Buzzsprout's start, PUT, complete flow), waits for encoding, then sets the chapters. Uploading again updates the same draft. Chapters are tidied first (sorted, and an "Intro" added at 0:00 if the first one starts later, which podcast apps expect), and you are told about any change.
+- **Artwork** should be a square JPEG or PNG, 1400 to 3000 px. Other sizes are allowed with a warning.
 - **Publish…** asks for confirmation, then makes the episode public. It is the only thing that does.
 - The token goes only to Buzzsprout's API: never to the upload host and never across redirects. PodStudio identifies itself with a generic `PodStudio/<version>` User-Agent.
 </details>

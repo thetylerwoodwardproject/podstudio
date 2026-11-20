@@ -9,7 +9,9 @@ PodStudio only ever creates private drafts. Going public is a separate explicit 
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
+import secrets
 import time
 import urllib.error
 import urllib.parse
@@ -22,6 +24,7 @@ API = "https://www.buzzsprout.com"
 # Buzzsprout asks for an identifiable User-Agent. This one names the app only, nothing about the user.
 USER_AGENT = f"PodStudio/{__version__} (Linux desktop app)"
 RETRY_STATUSES = (429, 500, 502, 503, 504)
+MAX_ART_BYTES = 20 * 1000 * 1000
 
 
 class BuzzsproutError(Exception):
@@ -83,18 +86,22 @@ class Client:
 
     # -- plumbing
     def _call(self, method: str, path: str, body=None, retry: bool = True):
+        data, ctype = None, None
+        if body is not None:
+            data, ctype = json.dumps(body).encode("utf-8"), "application/json; charset=utf-8"
+        return self._send(method, path, data, ctype, retry)
+
+    def _send(self, method: str, path: str, data: bytes | None, content_type: str | None, retry: bool = True):
         url = self.base + path
         headers = {"Authorization": f"Token token={self._token}", "User-Agent": self.user_agent,
                    "Accept": "application/json"}
-        data = None
-        if body is not None:
-            data = json.dumps(body).encode("utf-8")
-            headers["Content-Type"] = "application/json; charset=utf-8"
+        if content_type:
+            headers["Content-Type"] = content_type
         attempts = 4 if retry else 1
         for attempt in range(attempts):
             req = urllib.request.Request(url, data=data, headers=headers, method=method)
             try:
-                with self._opener.open(req, timeout=60) as r:
+                with self._opener.open(req, timeout=120) as r:
                     raw = r.read()
                     return json.loads(raw) if raw.strip() else None
             except urllib.error.HTTPError as e:
@@ -128,12 +135,45 @@ class Client:
     def update_episode(self, podcast_id: int, episode_id: int, **fields) -> dict:
         return self._call("PATCH", f"/api/{int(podcast_id)}/episodes/{int(episode_id)}", fields)
 
-    def publish(self, podcast_id: int, episode_id: int) -> dict:
-        """Make the episode public. Only call this after the user confirmed."""
-        return self.update_episode(podcast_id, episode_id, private=False)
+    def publish(self, podcast_id: int, episode_id: int, *, explicit: bool) -> dict:
+        """Make the episode public. Only call this after the user confirmed.
 
-    def unpublish(self, podcast_id: int, episode_id: int) -> dict:
-        return self.update_episode(podcast_id, episode_id, private=True)
+        `explicit` is required because Buzzsprout treats an omitted value on update as false, which would
+        silently clear the flag on an explicit episode."""
+        return self.update_episode(podcast_id, episode_id, private=False, explicit=bool(explicit))
+
+    def unpublish(self, podcast_id: int, episode_id: int, *, explicit: bool) -> dict:
+        return self.update_episode(podcast_id, episode_id, private=True, explicit=bool(explicit))
+
+    # -- artwork
+    def set_artwork(self, podcast_id: int, episode_id: int, path: Path, *, explicit: bool) -> dict:
+        """Upload episode cover art (multipart `artwork_file`). `explicit` is resent for the same reason as above."""
+        path = Path(path)
+        size = path.stat().st_size
+        if size > MAX_ART_BYTES:
+            raise BuzzsproutError(f"Artwork is {size / 1e6:.0f} MB; the limit here is {MAX_ART_BYTES // 1_000_000} MB.")
+        ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        boundary = "----podstudio" + secrets.token_hex(12)
+        parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="explicit"\r\n\r\n{"true" if explicit else "false"}\r\n'.encode(),
+                 (f'--{boundary}\r\nContent-Disposition: form-data; name="artwork_file"; filename="{path.name}"\r\n'
+                  f"Content-Type: {ctype}\r\n\r\n").encode(), path.read_bytes(), b"\r\n",
+                 f"--{boundary}--\r\n".encode()]
+        return self._send("PATCH", f"/api/{int(podcast_id)}/episodes/{int(episode_id)}", b"".join(parts),
+                          f"multipart/form-data; boundary={boundary}", retry=True)
+
+    # -- chapters
+    def get_chapters(self, podcast_id: int, episode_id: int) -> list[dict]:
+        return self._call("GET", f"/api/{int(podcast_id)}/episodes/{int(episode_id)}/chapters") or []
+
+    def put_chapters(self, podcast_id: int, episode_id: int, chapters: list[dict]) -> list[dict]:
+        """Replace the episode's whole chapter list. chapters: [{"t": seconds, "title": str, "url": optional}]."""
+        body = []
+        for c in chapters:
+            item = {"title": c["title"], "start_time": format_hms(c["t"])}
+            if c.get("url"):
+                item["url"] = c["url"]
+            body.append(item)
+        return self._call("PUT", f"/api/{int(podcast_id)}/episodes/{int(episode_id)}/chapters", {"chapters": body}) or []
 
     # -- media
     def upload_audio(self, podcast_id: int, episode_id: int, path: Path, progress=None,
@@ -194,6 +234,11 @@ class Client:
             if time.monotonic() > end:
                 raise BuzzsproutError("Buzzsprout is still encoding. Check the episode on buzzsprout.com.")
             self._sleep(max(poll, 1.0))
+
+
+def format_hms(seconds: float) -> str:
+    s = max(0, int(seconds))
+    return f"{s // 3600:02d}:{(s // 60) % 60:02d}:{s % 60:02d}"
 
 
 def episode_url(podcast_id: int, episode_id: int) -> str:

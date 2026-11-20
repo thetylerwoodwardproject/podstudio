@@ -70,7 +70,7 @@ def test_connect_then_draft_upload_then_confirmed_publish(panel):
 
     pn._publish()                                                           # what the confirmed dialog calls
     pump(lambda: w.project.buzz.get("public"))
-    assert any(c[0] == "PATCH" and json.loads(c[3]) == {"private": False} for c in S["calls"])
+    assert any(c[0] == "PATCH" and json.loads(c[3]) == {"private": False, "explicit": False} for c in S["calls"])
     assert not pn.publish_btn.get_visible()
     saved = json.loads(w.project.file.read_text())
     assert saved["buzz"]["episode_id"] == 99 and TOKEN not in json.dumps(saved)   # the token is never in the project file
@@ -100,3 +100,69 @@ def test_disconnect_forgets_the_token(panel):
     pn.token_row.set_text(TOKEN); pn.connect_account(); pump(lambda: pn._connected())
     pn.disconnect()
     assert not keyring and not pn._connected() and pn.token_row.get_visible()
+
+
+def _png(path, px=1400):
+    gi.require_version("GdkPixbuf", "2.0")
+    from gi.repository import GdkPixbuf
+    GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, False, 8, px, px).savev(str(path), "png", [], [])
+    return path
+
+
+def test_art_and_chapters_go_up_with_the_draft(panel, tmp_path):
+    from podstudio import artwork
+    pn, w, S, keyring = panel
+    p = w.project
+    artwork.import_art(p, _png(tmp_path / "cover.png"))
+    p.chapters = [{"t": 3.0, "title": "Main topic"}, {"t": 8.0, "title": "Wrap up"}, {"t": 9999.0, "title": "After the end"}]   # the take is 12 s long
+    p.save()
+    pn.token_row.set_text(TOKEN); pn.connect_account(); pump(lambda: pn._connected())
+    pn.explicit_row.set_active(True)
+    pn.upload()
+    pump(lambda: not pn.busy and p.buzz.get("episode_id") and not pn.status_row.get_visible())
+
+    patches = [c for c in S["calls"] if c[0] == "PATCH" and "multipart" in (c[2].get("Content-Type") or "")]
+    assert len(patches) == 1 and b'name="explicit"\r\n\r\ntrue' in patches[0][3] and b'filename="cover.png"' in patches[0][3]
+    put = json.loads([c for c in S["calls"] if c[0] == "PUT" and c[1].endswith("/chapters")][0][3])
+    assert [(c["title"], c["start_time"]) for c in put["chapters"]] == [("Intro", "00:00:00"), ("Main topic", "00:00:03"), ("Wrap up", "00:00:08")]
+    assert any("Intro" in m for m in w.toasts)                        # the user is told what was changed or dropped
+    assert any("Draft is on Buzzsprout" in m for m in w.toasts)
+    assert p.buzz["art_key"]
+
+    S["calls"].clear(); S["polls"] = 0
+    pn.upload(); pump(lambda: not pn.busy and S["polls"] >= 3)
+    assert not [c for c in S["calls"] if c[0] == "PATCH" and "multipart" in (c[2].get("Content-Type") or "")]   # unchanged art isn't re-sent
+
+
+def test_a_failed_cover_upload_does_not_lose_the_draft(panel, tmp_path, monkeypatch):
+    from podstudio import artwork
+    pn, w, S, keyring = panel
+    artwork.import_art(w.project, _png(tmp_path / "cover.png"))
+    pn.token_row.set_text(TOKEN); pn.connect_account(); pump(lambda: pn._connected())
+    monkeypatch.setattr(RealClient, "set_artwork", lambda *a, **k: (_ for _ in ()).throw(bz.BuzzsproutError("image rejected")))
+    pn.upload()
+    pump(lambda: not pn.busy and w.project.buzz.get("episode_id") and not pn.status_row.get_visible())
+    assert any("Cover art wasn't uploaded: image rejected" in m for m in w.toasts)
+    assert any(c[1].endswith("/uploads/up%2F1/complete") for c in S["calls"])      # the audio still went up
+
+
+def test_chapters_that_all_get_dropped_never_wipe_the_servers(panel):
+    pn, w, S, keyring = panel
+    w.project.chapters = [{"t": 500.0, "title": "Past the end of a 12 s take"}]
+    pn.token_row.set_text(TOKEN); pn.connect_account(); pump(lambda: pn._connected())
+    pn.upload()
+    pump(lambda: not pn.busy and w.project.buzz.get("episode_id") and not pn.status_row.get_visible())
+    assert not [c for c in S["calls"] if c[0] == "PUT" and c[1].endswith("/chapters")]      # an empty PUT would delete them all
+    assert any("None of the chapters could be uploaded" in m for m in w.toasts)
+
+
+def test_removing_every_chapter_clears_the_ones_already_uploaded(panel):
+    pn, w, S, keyring = panel
+    w.project.chapters = [{"t": 2.0, "title": "One"}]
+    pn.token_row.set_text(TOKEN); pn.connect_account(); pump(lambda: pn._connected())
+    pn.upload(); pump(lambda: not pn.busy and w.project.buzz.get("chapters_sent") and not pn.status_row.get_visible())
+    w.project.chapters = []                                   # the user deleted them all
+    S["calls"].clear(); S["polls"] = 0
+    pn.upload(); pump(lambda: not pn.busy and S["polls"] >= 3)
+    puts = [json.loads(c[3]) for c in S["calls"] if c[0] == "PUT" and c[1].endswith("/chapters")]
+    assert puts == [{"chapters": []}] and w.project.buzz["chapters_sent"] is False
