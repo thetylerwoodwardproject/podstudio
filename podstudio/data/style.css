@@ -1,183 +1,177 @@
-/* PodStudio: crisp, flat, dark. Built on libadwaita; palette lives in these variables. */
-@define-color vd_bg      #0c0e11;
-@define-color vd_panel   #13171c;
-@define-color vd_raised  #1a2028;
-@define-color vd_line    #232b35;
-@define-color vd_text    #e8ecf2;
-@define-color vd_dim     #8591a3;
-@define-color vd_accent  #ff4d6d;
-@define-color vd_ok      #3ddc97;
-@define-color vd_warn    #ffc857;
+/* PodStudio: shadcn-style dark theme (zinc). Flat surfaces, hairline borders, small radii, sentence-case type. */
 
-window.podstudio, window.podstudio toolbarview, window.podstudio .vd-page { background: @vd_bg; color: @vd_text; }
-window.podstudio headerbar { background: @vd_bg; box-shadow: inset 0 -1px @vd_line; min-height: 48px; }
+/* ---- tokens (shadcn "zinc", dark) ---- */
+@define-color vd_bg      #09090b;   /* background / card */
+@define-color vd_raised  #18181b;   /* zinc-900: secondary surfaces */
+@define-color vd_muted   #27272a;   /* muted / secondary / accent */
+@define-color vd_line    #27272a;   /* border / input */
+@define-color vd_text    #fafafa;   /* foreground / primary */
+@define-color vd_dim     #a1a1aa;   /* muted-foreground */
+@define-color vd_ring    #d4d4d8;
+@define-color vd_accent  #ef4444;   /* destructive / record */
+@define-color vd_ok      #22c55e;
+@define-color vd_warn    #f59e0b;
 
-.mono, .readout {
-  font-family: "JetBrains Mono", "Fira Mono", "DejaVu Sans Mono", monospace;
-  font-feature-settings: "tnum" 1, "zero" 1;
+/* ---- make stock libadwaita widgets follow the tokens ---- */
+@define-color window_bg_color #09090b;   @define-color window_fg_color #fafafa;
+@define-color view_bg_color #09090b;     @define-color view_fg_color #fafafa;
+@define-color headerbar_bg_color #09090b; @define-color headerbar_fg_color #fafafa;
+@define-color headerbar_border_color #27272a; @define-color headerbar_backdrop_color #09090b;
+@define-color card_bg_color #09090b;     @define-color card_fg_color #fafafa;
+@define-color popover_bg_color #09090b;  @define-color popover_fg_color #fafafa;
+@define-color dialog_bg_color #09090b;   @define-color dialog_fg_color #fafafa;
+@define-color sidebar_bg_color #09090b;  @define-color sidebar_fg_color #fafafa;
+@define-color accent_bg_color #fafafa;   @define-color accent_fg_color #18181b;  @define-color accent_color #fafafa;
+@define-color destructive_bg_color #dc2626; @define-color destructive_fg_color #fafafa; @define-color destructive_color #ef4444;
+@define-color success_bg_color #16a34a;  @define-color success_color #22c55e;
+@define-color warning_bg_color #d97706;  @define-color warning_color #f59e0b;
+
+window.podstudio, window.podstudio toolbarview, window.podstudio .vd-page {
+  background: @vd_bg; color: @vd_text;
+  font-family: "Geist", "Inter", "Fira Sans", "Cantarell", sans-serif; font-size: 14px;
 }
+.mono, .readout { font-family: "Geist Mono", "JetBrains Mono", "Fira Mono", "DejaVu Sans Mono", monospace; font-feature-settings: "tnum" 1, "zero" 1; }
 
-/* ---------- panels ---------- */
-.vd-panel { background: @vd_panel; border: 1px solid @vd_line; border-radius: 14px; }
-.vd-title { font-size: 10px; font-weight: 800; letter-spacing: 2.4px; color: @vd_dim; }
-.vd-sub   { font-size: 11px; color: @vd_dim; }
-.vd-h1    { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+/* ---- header + tabs (shadcn Tabs) ---- */
+window.podstudio headerbar { background: @vd_bg; box-shadow: inset 0 -1px @vd_line; min-height: 52px; border: none; }
+viewswitcher { background: @vd_raised; border-radius: 8px; padding: 3px; border: none; }
+viewswitcher button { background: transparent; color: @vd_dim; border-radius: 6px; padding: 4px 14px; font-weight: 500; font-size: 13px; min-height: 0; box-shadow: none; border: none; }
+viewswitcher button:hover { color: @vd_text; background: transparent; }
+viewswitcher button:checked { background: @vd_bg; color: @vd_text; box-shadow: 0 1px 2px rgba(0,0,0,.5), inset 0 0 0 1px @vd_line; }
 
-/* ---------- transport ---------- */
-.rec-btn {
-  background: @vd_accent; color: white; font-weight: 800; letter-spacing: 1.6px; font-size: 12px;
-  border-radius: 999px; padding: 7px 18px; min-height: 0; border: none; box-shadow: none;
+/* ---- type ---- */
+.vd-title, .card-title { font-size: 14px; font-weight: 600; letter-spacing: -0.2px; color: @vd_text; }
+.vd-sub, .disp-sub { font-size: 12px; color: @vd_dim; }
+.stat-label, .unit { font-size: 12px; color: @vd_dim; }
+.vd-h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+.param-name { font-size: 13px; color: @vd_dim; }
+.param-val { font-size: 12px; color: @vd_text; }
+
+/* ---- cards ---- */
+.vd-panel, .console, .display, .card-pad { background: @vd_bg; border: 1px solid @vd_line; border-radius: 12px; box-shadow: none; }
+.card-pad { padding: 18px; }
+.console { padding: 6px 4px; }
+.console separator { background: @vd_line; min-width: 1px; margin: 16px 0; }
+.display { padding: 16px 20px; }
+
+/* ---- buttons (shadcn variants) ---- */
+button.chip-btn, .mute-btn, .mix-btn {
+  background: transparent; color: @vd_text; border: 1px solid @vd_line; border-radius: 8px; box-shadow: none;
+  min-height: 0; padding: 6px 12px; font-size: 13px; font-weight: 500; letter-spacing: 0;
 }
-.rec-btn:hover { background: shade(@vd_accent, 1.08); }
-.rec-btn.recording { background: transparent; color: @vd_accent; box-shadow: inset 0 0 0 2px @vd_accent; }
-.rec-dot { min-width: 9px; min-height: 9px; border-radius: 99px; background: currentColor; }
+button.chip-btn:hover, .mute-btn:hover { background: @vd_muted; }
+button.chip-btn:checked, button.chip-btn.chip-ok:checked { background: @vd_muted; color: @vd_text; border-color: @vd_muted; box-shadow: none; }
+.mute-btn { min-width: 64px; padding: 5px 10px; }
+.mute-btn:checked { background: alpha(@vd_accent, .15); color: @vd_accent; border-color: alpha(@vd_accent, .5); box-shadow: none; }
+.mix-btn { background: @vd_text; color: #18181b; border-color: @vd_text; min-width: 64px; padding: 5px 10px; }   /* default / primary */
+.mix-btn:hover { background: alpha(@vd_text, .9); }
+.rec-btn { background: @vd_accent; color: #fafafa; border: 1px solid @vd_accent; border-radius: 8px; box-shadow: none; padding: 6px 14px; min-height: 0; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.rec-btn:hover { background: shade(@vd_accent, .92); }
+.rec-btn.recording { background: transparent; color: @vd_accent; border-color: alpha(@vd_accent, .6); }
+.rec-dot { min-width: 8px; min-height: 8px; border-radius: 99px; background: currentColor; }
 .rec-btn.recording .rec-dot { animation: vd-pulse 1s ease-in-out infinite alternate; }
-@keyframes vd-pulse { from { opacity: 1; } to { opacity: 0.25; } }
-.timecode { font-size: 20px; font-weight: 700; color: @vd_text; }
+@keyframes vd-pulse { from { opacity: 1; } to { opacity: .25; } }
+.seg button.chip-btn:checked { background: @vd_muted; color: @vd_text; }
+.linked > .chip-btn { border-radius: 0; }
+.linked > .chip-btn:first-child { border-radius: 8px 0 0 8px; }
+.linked > .chip-btn:last-child  { border-radius: 0 8px 8px 0; }
+button.suggested-action { background: @vd_text; color: #18181b; border: none; border-radius: 8px; box-shadow: none; font-weight: 500; }
+button.destructive-action { background: #dc2626; color: #fafafa; border: none; border-radius: 8px; box-shadow: none; }
+
+/* ---- badges ---- */
+.pill, .strip-name { border-radius: 99px; padding: 2px 10px; font-size: 12px; font-weight: 600; letter-spacing: 0; background: transparent; color: @vd_text; border: 1px solid @vd_line; }
+.pill.ok   { color: @vd_ok;   border-color: alpha(@vd_ok, .35);   background: alpha(@vd_ok, .08); }
+.pill.warn { color: @vd_warn; border-color: alpha(@vd_warn, .35); background: alpha(@vd_warn, .08); }
+.ch-mic .strip-name    { color: #22c55e; border-color: alpha(#22c55e, .35); background: alpha(#22c55e, .08); }
+.ch-hk .strip-name     { color: #f59e0b; border-color: alpha(#f59e0b, .35); background: alpha(#f59e0b, .08); }
+.ch-master .strip-name { color: #3b82f6; border-color: alpha(#3b82f6, .35); background: alpha(#3b82f6, .08); }
+
+/* ---- display ---- */
+.display .timecode, .timecode { font-size: 36px; font-weight: 600; letter-spacing: -1px; color: @vd_text; }
 .timecode.live { color: @vd_accent; }
+.disp-state { font-size: 12px; font-weight: 500; color: @vd_ok; }
+.disp-state.live { color: @vd_accent; }
+.disp-lufs { font-size: 30px; font-weight: 600; letter-spacing: -1px; color: @vd_text; }
+.big-number { font-size: 32px; font-weight: 600; letter-spacing: -1px; }
+.big-number.good { color: @vd_ok; }
 
-/* ---------- channel strips ---------- */
-.strip { padding: 14px 12px 12px 12px; }
-.strip .readout { font-size: 13px; font-weight: 700; }
-.strip .readout.clip { color: @vd_accent; }
-.strip .unit { font-size: 10px; color: @vd_dim; letter-spacing: 1px; }
+/* ---- channel strips ---- */
+.strip { padding: 16px 12px 14px 12px; background: transparent; }
+.strip .readout { font-size: 13px; font-weight: 600; }
+.strip .readout.clip, .peak.clip { color: @vd_accent; }
+.strip .readout.unity { color: @vd_text; text-shadow: none; }
+.dbfs { font-family: "Geist Mono", "JetBrains Mono", "Fira Mono", monospace; font-size: 9px; color: #71717a; }
+.peak { font-family: "Geist Mono", "JetBrains Mono", "Fira Mono", monospace; font-size: 10px; color: @vd_dim; }
 
-levelbar.meter trough { background: @vd_bg; border: 1px solid @vd_line; border-radius: 3px; min-width: 10px; padding: 1px; }
-levelbar.meter block.filled { border-radius: 1px; border: none; min-width: 8px; }
-levelbar.meter block.filled.low  { background: @vd_ok; }
-levelbar.meter block.filled.high { background: @vd_warn; }
-levelbar.meter block.filled.full { background: @vd_accent; }
-levelbar.meter block.empty { background: transparent; border: none; }
+/* LED segment meters */
+levelbar.meter trough { background: transparent; border: 1px solid @vd_line; border-radius: 4px; min-width: 10px; padding: 2px; }
+levelbar.meter block.filled, levelbar.meter block.empty { margin: 1px 0; min-height: 3px; border-radius: 1px; border: none; }
+levelbar.meter block.filled.low  { background: #22c55e; }
+levelbar.meter block.filled.high { background: #f59e0b; }
+levelbar.meter block.filled.full { background: #ef4444; }
+levelbar.meter block.empty { background: #18181b; }
+levelbar.hmeter trough { min-height: 10px; }
+levelbar.hmeter block.filled, levelbar.hmeter block.empty { min-width: 3px; margin: 0 1px; }
 
-scale.fader trough { background: @vd_line; min-width: 4px; border-radius: 2px; border: none; }
-scale.fader highlight { background: @vd_dim; border-radius: 2px; border: none; }
-/* libadwaita turns the slider into a 45-degree arrow when marks sit on one side; keep ours square. */
+/* ---- sliders (shadcn Slider) ---- */
 window.podstudio scale > trough > slider { transform: none; }
-scale.fader slider {
-  min-width: 34px; min-height: 16px; border-radius: 4px; border: none;
-  background: linear-gradient(@vd_text, #c9d0da); box-shadow: 0 1px 0 rgba(0,0,0,.6), 0 4px 10px rgba(0,0,0,.45);
-}
-scale.fader slider:hover { background: white; }
-scale.fader mark indicator { background: @vd_dim; min-width: 6px; min-height: 1px; }
-scale.fader mark label { font-size: 9px; color: @vd_dim; }
+scale trough { background: @vd_muted; border: none; border-radius: 99px; }
+scale highlight { background: @vd_text; border: none; border-radius: 99px; }
+scale.param trough { min-height: 6px; }
+scale.param slider { min-width: 16px; min-height: 16px; margin: -5px; border-radius: 99px; background: @vd_bg; border: 2px solid @vd_text; box-shadow: none; }
+scale.param slider:hover { background: @vd_muted; }
+scale.fader trough { min-width: 6px; }
+scale.fader highlight { background: @vd_dim; }
+scale.fader slider { min-width: 40px; min-height: 22px; margin: -8px; border-radius: 6px; border: 1px solid #d4d4d8; background: @vd_text; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+scale.fader slider:hover { background: #ffffff; }
+.ch-mic scale.fader slider    { box-shadow: inset 0 -3px 0 #22c55e, 0 1px 3px rgba(0,0,0,.5); }
+.ch-hk scale.fader slider     { box-shadow: inset 0 -3px 0 #f59e0b, 0 1px 3px rgba(0,0,0,.5); }
+.ch-master scale.fader slider { box-shadow: inset 0 -3px 0 #3b82f6, 0 1px 3px rgba(0,0,0,.5); }
+.ch-mic scale.fader highlight    { background: alpha(#22c55e, .6); }
+.ch-hk scale.fader highlight     { background: alpha(#f59e0b, .6); }
+.ch-master scale.fader highlight { background: alpha(#3b82f6, .6); }
+scale.fader mark indicator { background: #3f3f46; min-width: 6px; min-height: 1px; }
+scale.fader mark label { font-family: "Geist Mono", "JetBrains Mono", "Fira Mono", monospace; font-size: 9px; margin-left: 4px; }
+.ch-mic scale.param highlight    { background: #22c55e; }
+.ch-hk scale.param highlight     { background: #f59e0b; }
+.fx-comp scale.param highlight   { background: #f59e0b; }
+.fx-gate scale.param highlight   { background: #06b6d4; }
+.fx-exciter scale.param highlight{ background: #8b5cf6; }
+.fx-bottom scale.param highlight { background: #ec4899; }
+.fx-comp > .card-title, .fx-gate > .card-title, .fx-exciter > .card-title, .fx-bottom > .card-title,
+.fx-comp box > .card-title, .fx-gate box > .card-title, .fx-exciter box > .card-title, .fx-bottom box > .card-title { color: @vd_text; }
+.fx-comp, .fx-gate, .fx-exciter, .fx-bottom { box-shadow: none; }
+.fx-comp { border-top: 2px solid #f59e0b; } .fx-gate { border-top: 2px solid #06b6d4; }
+.fx-exciter { border-top: 2px solid #8b5cf6; } .fx-bottom { border-top: 2px solid #ec4899; }
+.curve-frame { background: #09090b; border: 1px solid @vd_line; border-radius: 8px; padding: 0; }
 
-.chip-btn { background: @vd_raised; color: @vd_dim; border-radius: 8px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; padding: 4px 10px; min-height: 0; border: none; box-shadow: none; }
-.chip-btn:hover { color: @vd_text; }
-.chip-btn:checked { background: @vd_accent; color: white; }
-.chip-btn.suggested { background: @vd_text; color: @vd_bg; }
-
-/* ---------- pads ---------- */
-.pad {
-  background: @vd_raised; border: 1px solid @vd_line; border-radius: 14px; min-height: 92px; min-width: 112px;
-  padding: 0; box-shadow: none; transition: background 90ms, border-color 90ms;
-}
-.pad:hover { background: #212a35; }
-.pad.hit { background: alpha(@vd_text, 0.18); border-color: @vd_text; }
-.pad.empty .pad-label { color: @vd_dim; font-weight: 500; }
-.pad-label { font-weight: 700; font-size: 14px; }
-.pad-clip  { font-size: 10px; color: @vd_dim; }
-.keycap {
-  font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 12px; font-weight: 800; color: @vd_text;
-  background: @vd_bg; border: 1px solid @vd_line; border-bottom-width: 2px; border-radius: 6px; padding: 1px 8px; min-width: 14px;
-}
-.pad-edit { opacity: 0; min-width: 24px; min-height: 24px; padding: 0; border-radius: 8px; background: transparent; box-shadow: none; }
+/* ---- pads ---- */
+.pad { background: @vd_raised; border: 1px solid @vd_line; border-radius: 12px; min-height: 84px; min-width: 112px; padding: 0; box-shadow: none; transition: background 90ms, border-color 90ms; }
+.pad:hover { background: #1f1f23; border-color: #3f3f46; }
+.pad.hit { background: @vd_muted; border-color: @vd_ring; }
+.pad.empty .pad-label { color: @vd_dim; font-weight: 400; }
+.pad-label { font-weight: 600; font-size: 14px; letter-spacing: -0.2px; }
+.pad-clip  { font-size: 12px; color: @vd_dim; }
+.keycap { font-family: "Geist Mono", "JetBrains Mono", "Fira Mono", monospace; font-size: 11px; font-weight: 600; color: @vd_dim; background: @vd_bg; border: 1px solid @vd_line; border-radius: 6px; padding: 1px 7px; min-width: 14px; }
+.pad-edit { opacity: 0; min-width: 24px; min-height: 24px; padding: 0; border-radius: 6px; background: transparent; box-shadow: none; }
 .pad-wrap:hover .pad-edit, .pad-edit:checked { opacity: 1; }
 .swatch { min-width: 22px; min-height: 22px; border-radius: 99px; padding: 0; border: 2px solid transparent; box-shadow: none; }
 .swatch:checked { border-color: @vd_text; }
 
-/* ---------- status / banners ---------- */
-.pill { border-radius: 99px; padding: 2px 10px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; background: @vd_raised; color: @vd_dim; }
-.pill.ok { background: alpha(@vd_ok, .15); color: @vd_ok; }
-.pill.warn { background: alpha(@vd_warn, .15); color: @vd_warn; }
-.big-number { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
-.big-number.good { color: @vd_ok; }
-.stat-label { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: @vd_dim; }
-code.cmd { background: @vd_bg; border: 1px solid @vd_line; border-radius: 8px; padding: 8px 10px; font-family: monospace; font-size: 12px; }
+/* ---- inputs, popovers, toasts, banners ---- */
+entry, dropdown > button { background: transparent; border: 1px solid @vd_line; border-radius: 8px; box-shadow: none; min-height: 34px; color: @vd_text; }
+entry:focus-within, dropdown > button:focus { border-color: @vd_ring; box-shadow: 0 0 0 2px alpha(@vd_ring, .25); outline: none; }
+popover > contents { background: @vd_bg; border: 1px solid @vd_line; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.6); }
+toast { background: @vd_bg; border: 1px solid @vd_line; border-radius: 10px; color: @vd_text; }
+banner > revealer > widget { background: alpha(@vd_warn, .08); color: @vd_text; border: 1px solid alpha(@vd_warn, .35); border-radius: 10px; margin: 0 0 4px 0; }
+banner button { border-radius: 8px; }
 
-/* preferences-style groups on the DSP page */
-window.podstudio preferencesgroup > box > box > list, window.podstudio .boxed-list { background: @vd_panel; border: 1px solid @vd_line; }
+/* ---- list groups (Mix page) ---- */
+window.podstudio preferencesgroup > box > box > list, window.podstudio .boxed-list { background: @vd_bg; border: 1px solid @vd_line; border-radius: 12px; box-shadow: none; }
 window.podstudio row { background: transparent; }
-window.podstudio row.expander > box > list > row { background: alpha(@vd_bg, .35); }
-
-/* =================== console look (fader bank, display, LED pads) =================== */
-.console { background: linear-gradient(#161b22, #11151a); border: 1px solid @vd_line; border-radius: 16px; padding: 6px 4px; }
-.console separator { background: @vd_line; min-width: 1px; margin: 14px 0; }
-.strip { padding: 14px 12px 12px 12px; background: transparent; }
-.strip-name { font-size: 11px; font-weight: 800; letter-spacing: 2.2px; color: #0c0e11; border-radius: 6px; padding: 3px 12px; background: @vd_dim; }
-.ch-mic .strip-name    { background: #3ddc97; }
-.ch-hk .strip-name     { background: #ffb454; }
-.ch-master .strip-name { background: #6ea8ff; }
-.strip .readout.unity  { color: @vd_text; text-shadow: 0 0 10px alpha(@vd_text, .35); }
-.dbfs { font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 8px; color: #6b7686; }
-.peak { font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 9px; color: @vd_dim; letter-spacing: .5px; }
-.peak.clip { color: @vd_accent; }
-
-/* LED segment meter */
-levelbar.meter trough { padding: 2px; }
-levelbar.meter block.filled, levelbar.meter block.empty { margin: 1px 0; min-height: 3px; border-radius: 1px; }
-levelbar.meter block.empty { background: #1c232c; border: none; }
-
-/* fader caps: dark with a channel-colour line */
-scale.fader slider { background: linear-gradient(#323b47, #1d242d); box-shadow: 0 1px 0 rgba(0,0,0,.7), 0 5px 12px rgba(0,0,0,.5); min-width: 40px; min-height: 22px; }
-scale.fader slider:hover { background: linear-gradient(#3b4552, #232b35); }
-.ch-mic scale.fader slider    { border-top: 2px solid transparent; box-shadow: inset 0 -3px 0 #3ddc97, 0 5px 12px rgba(0,0,0,.5); }
-.ch-hk scale.fader slider     { box-shadow: inset 0 -3px 0 #ffb454, 0 5px 12px rgba(0,0,0,.5); }
-.ch-master scale.fader slider { box-shadow: inset 0 -3px 0 #6ea8ff, 0 5px 12px rgba(0,0,0,.5); }
-.ch-mic scale.fader highlight    { background: alpha(#3ddc97, .55); }
-.ch-hk scale.fader highlight     { background: alpha(#ffb454, .55); }
-.ch-master scale.fader highlight { background: alpha(#6ea8ff, .55); }
-scale.fader mark indicator { background: #3a4452; min-width: 7px; }
-scale.fader mark label { font-family: "JetBrains Mono", "Fira Mono", monospace; font-size: 9px; margin-left: 4px; }
-
-/* illuminated mute */
-.mute-btn { background: #1a2028; color: @vd_dim; border: 1px solid @vd_line; border-radius: 8px; min-width: 64px; min-height: 26px; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; box-shadow: none; padding: 0; }
-.mute-btn:hover { color: @vd_text; }
-.mute-btn:checked { background: alpha(@vd_accent, .22); color: @vd_accent; border-color: @vd_accent; box-shadow: 0 0 12px alpha(@vd_accent, .45); }
-.mix-btn { background: @vd_text; color: @vd_bg; border-radius: 8px; min-width: 64px; min-height: 26px; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; border: none; box-shadow: none; padding: 0; }
-
-/* display */
-.display { background: #07090c; border: 1px solid @vd_line; border-radius: 14px; padding: 14px 20px; box-shadow: inset 0 0 24px rgba(0,0,0,.6); }
-.display .timecode { font-size: 38px; font-weight: 700; letter-spacing: 1px; }
-.disp-state { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: @vd_ok; }
-.disp-state.live { color: @vd_accent; }
-.disp-sub { font-size: 10px; color: @vd_dim; letter-spacing: 1px; }
-.disp-lufs { font-size: 30px; font-weight: 800; color: @vd_ok; }
-
-/* pads as backlit rubber keys */
-.pad { background: #151a21; border: 1px solid #202833; border-radius: 12px; min-height: 84px; }
-.pad:hover { background: #1b222b; }
-.pad.hit { background: alpha(@vd_text, .22); }
-
-/* =================== mic page cards =================== */
-.card-pad { padding: 16px 18px 16px 18px; }
-.card-title { font-size: 10px; font-weight: 800; letter-spacing: 2.2px; color: @vd_dim; }
-.ch-mic > .card-title  { color: #3ddc97; }
-.ch-hk > .card-title   { color: #ffb454; }
-.fx-comp > .card-title, .fx-comp box > .card-title       { color: #ffb454; }
-.fx-gate > .card-title, .fx-gate box > .card-title       { color: #4fd8eb; }
-.fx-exciter > .card-title, .fx-exciter box > .card-title { color: #b48bff; }
-.fx-bottom > .card-title, .fx-bottom box > .card-title   { color: #ff7ad9; }
-.fx-comp   { box-shadow: inset 0 2px 0 #ffb454; }
-.fx-gate   { box-shadow: inset 0 2px 0 #4fd8eb; }
-.fx-exciter{ box-shadow: inset 0 2px 0 #b48bff; }
-.fx-bottom { box-shadow: inset 0 2px 0 #ff7ad9; }
-.param-name { font-size: 11px; color: @vd_dim; }
-.param-val  { font-size: 11px; color: @vd_text; }
-scale.param trough { background: @vd_line; min-height: 4px; border-radius: 2px; border: none; }
-scale.param highlight { background: @vd_dim; border-radius: 2px; border: none; }
-scale.param slider { min-width: 14px; min-height: 14px; border-radius: 99px; background: @vd_text; border: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
-.fx-comp scale.param highlight   { background: #ffb454; }
-.fx-gate scale.param highlight   { background: #4fd8eb; }
-.fx-exciter scale.param highlight{ background: #b48bff; }
-.fx-bottom scale.param highlight { background: #ff7ad9; }
-.ch-mic scale.param highlight    { background: #3ddc97; }
-.ch-hk scale.param highlight     { background: #ffb454; }
-.curve-frame { background: #0b0e12; border: 1px solid @vd_line; border-radius: 8px; padding: 0; }
-levelbar.hmeter trough { min-height: 10px; }
-levelbar.hmeter block.filled, levelbar.hmeter block.empty { min-width: 3px; margin: 0 1px; }
-.linked > .chip-btn { border-radius: 0; }
-.linked > .chip-btn:first-child { border-radius: 8px 0 0 8px; }
-.linked > .chip-btn:last-child  { border-radius: 0 8px 8px 0; }
-.chip-btn.chip-ok:checked { background: alpha(@vd_ok, .16); color: @vd_ok; box-shadow: inset 0 0 0 1px alpha(@vd_ok, .55); }
-.seg .chip-btn:checked { background: @vd_text; color: @vd_bg; box-shadow: none; }
-scale.param slider { margin: -5px; }
+window.podstudio row.activatable:hover { background: @vd_raised; }
+window.podstudio preferencesgroup > box > label.heading, window.podstudio preferencesgroup .title { font-weight: 600; letter-spacing: -0.2px; }
+window.podstudio switch { background: @vd_muted; border: none; }
+window.podstudio switch:checked { background: @vd_text; }
+window.podstudio switch slider { background: @vd_bg; }
+window.podstudio switch:checked slider { background: @vd_bg; }

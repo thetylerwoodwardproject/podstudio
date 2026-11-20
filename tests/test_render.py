@@ -81,3 +81,37 @@ def test_mp3_export_meets_podcast_spec(tmp_path):
     r = export_mp3(p)
     assert p.mp3_path.exists() and p.mp3_path.stat().st_size > 10_000
     assert abs(r.lufs + 16) < 1.0 and r.true_peak_db <= -0.9
+
+
+def test_repair_wav_header_recovers_unfinished_take(tmp_path):
+    import struct
+    from podstudio.audio import repair_wav_header
+    p = tmp_path / "mic.wav"
+    sf.write(p, _tone(2, 220, 0.2), SAMPLE_RATE, subtype="PCM_24")
+    raw = bytearray(p.read_bytes())
+    raw[4:8] = struct.pack("<I", 0)                     # sizes as left by a writer that never finished
+    di = raw.index(b"data") + 4
+    raw[di:di + 4] = struct.pack("<I", 0)
+    raw += b"\x01"                                      # plus a torn final sample
+    p.write_bytes(bytes(raw))
+    dur = repair_wav_header(p)
+    assert abs(dur - 2.0) < 0.01
+    data, sr = sf.read(p)
+    assert sr == SAMPLE_RATE and abs(len(data) / sr - 2.0) < 0.01
+
+
+def test_podmic_source_detection(monkeypatch):
+    import json, subprocess
+    from podstudio import audio
+    sources = [
+        {"name": "alsa_input.pci-0000_64_00.6.HiFi__Mic1__source", "properties": {}},
+        {"name": "alsa_output.usb-X.monitor", "properties": {"device.vendor.id": "0x19f7", "device.product.id": "0x004a"}},
+        {"name": "alsa_input.usb-Other_Mic-00.mono-fallback", "properties": {"device.vendor.id": "0x1234", "device.product.id": "0x0001"}},
+        {"name": "alsa_input.usb-R__DE_R__DE_PodMic_USB_XXXX-00.mono-fallback",
+         "properties": {"device.vendor.id": "0x19f7", "device.product.id": "0x004a"}},
+    ]
+    fake = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=json.dumps(sources))
+    monkeypatch.setattr(subprocess, "run", fake)
+    assert audio.find_podmic_source().endswith("PodMic_USB_XXXX-00.mono-fallback")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=json.dumps(sources[:3])))
+    assert audio.find_podmic_source() is None            # other mics and monitors are never picked

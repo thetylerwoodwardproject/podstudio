@@ -15,47 +15,60 @@ from .project import SAMPLE_RATE  # noqa: E402
 Gst.init(None)
 
 
-def list_sources() -> list[tuple[str, str]]:
-    """(pulse source name, human description) for every real input."""
+PODMIC_VENDOR, PODMIC_PRODUCT = "0x19f7", "0x004a"
+
+
+def find_podmic_source() -> str | None:
+    """PulseAudio/PipeWire source name of the RØDE PodMic USB, or None. PodStudio supports no other input."""
+    import json
     try:
         out = subprocess.run(["pactl", "-f", "json", "list", "sources"],
                              capture_output=True, text=True, timeout=4).stdout
-        import json
         items = json.loads(out)
     except Exception:
-        return []
-    res = []
+        return None
     for s in items:
         name = s.get("name", "")
         if name.endswith(".monitor"):
             continue
-        desc = s.get("description")
-        if not desc or desc == "(null)":          # non-ASCII names (RØDE) come back as a literal "(null)"
-            desc = pretty_name(name)
-        res.append((name, desc))
-    return res
-
-
-def pretty_name(node: str) -> str:
-    """alsa_input.usb-R__DE_R__DE_PodMic_USB_XXXXXXXX-00.mono-fallback -> 'RØDE PodMic USB'."""
-    import re
-    n = re.sub(r"^alsa_(input|output)\.", "", node)
-    n = re.sub(r"^(usb|pci)-", "", n)
-    n = re.sub(r"-\d\d\..*$", "", n)                 # profile suffix
-    n = re.sub(r"_[0-9A-Fa-f]{8,}$", "", n)           # serial number
-    n = n.replace("R__DE", "RØDE").replace("_", " ")
-    words, out = n.split(), []
-    for w in words:
-        if not out or out[-1] != w:                    # "RØDE RØDE PodMic" -> "RØDE PodMic"
-            out.append(w)
-    return " ".join(out) or node
-
-
-def default_source(sources: list[tuple[str, str]]) -> str | None:
-    for name, desc in sources:
-        if "podmic" in name.lower() or "podmic" in desc.lower():
+        props = s.get("properties") or {}
+        ids = (str(props.get("device.vendor.id", "")).lower(), str(props.get("device.product.id", "")).lower())
+        if ids == (PODMIC_VENDOR, PODMIC_PRODUCT) or "podmic" in name.lower():
             return name
-    return sources[0][0] if sources else None
+    return None
+
+
+def repair_wav_header(path: Path) -> float:
+    """Fix the sizes of a WAV whose writer never finished (unplugged mic, crash). Returns duration in seconds."""
+    import struct
+    with open(path, "r+b") as f:
+        head = f.read(12)
+        if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+            raise ValueError("not a WAV file")
+        total = f.seek(0, 2)
+        f.seek(12)
+        rate, block, data_at = SAMPLE_RATE, 3, None
+        while f.tell() + 8 <= total:
+            pos = f.tell()
+            cid, size = struct.unpack("<4sI", f.read(8))
+            if cid == b"fmt ":
+                fmt = f.read(min(size, 16))
+                _, ch, rate, _, block, _ = struct.unpack("<HHIIHH", fmt)
+                f.seek(pos + 8 + size + (size & 1))
+            elif cid == b"data":
+                data_at = pos
+                break
+            else:
+                f.seek(pos + 8 + size + (size & 1))
+        if data_at is None:
+            raise ValueError("no audio data")
+        nbytes = (total - (data_at + 8)) // block * block      # whole sample frames only
+        f.seek(data_at + 4)
+        f.write(struct.pack("<I", nbytes))
+        f.seek(4)
+        f.write(struct.pack("<I", data_at + 8 + nbytes - 8))
+        f.truncate(data_at + 8 + nbytes)
+        return nbytes / block / rate
 
 
 def _level_db(structure, key="rms") -> list[float]:
@@ -80,15 +93,18 @@ class MicEngine:
         self._first_pts: int | None = None
         self._eos_cb = None
         self._source: str | None = None
+        self.gain_db = 0.0            # mic fader: applied to the meter (post-fader); recorded audio stays clean
 
     # -- control ------------------------------------------------------------
     def start_meter(self, source: str | None):
         self.stop()
         self._source = source
+        if not source:
+            return
         desc = (
-            f"pulsesrc {'device=' + source if source else ''} ! "
-            f"audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! "
-            "level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! fakesink sync=false"
+            f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! "
+            "volume name=vol ! level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! "
+            "fakesink sync=false"
         )
         self._launch(desc)
 
@@ -96,17 +112,33 @@ class MicEngine:
         self.stop()
         self._source = source
         self._first_pts = None
+        if not source:
+            return
+        # tee: the file gets the raw mic; the meter branch goes through the fader
         desc = (
-            f"pulsesrc {'device=' + source if source else ''} ! "
-            f"audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! "
-            "level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! "
-            f"audioconvert ! audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=1 ! "
+            f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! tee name=t "
+            "t. ! queue ! volume name=vol ! level name=lvl interval=50000000 post-messages=true "
+            "peak-ttl=300000000 ! fakesink sync=false "
+            f"t. ! queue ! audioconvert ! audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=1 ! "
             f"wavenc name=enc ! filesink location=\"{path}\""
         )
         self._launch(desc)
+        if self.pipeline is None:
+            return
         enc = self.pipeline.get_by_name("enc")
         enc.get_static_pad("sink").add_probe(Gst.PadProbeType.BUFFER, self._first_buffer)
         self.recording = True
+
+    def set_gain_db(self, db: float):
+        """Mic fader. Takes effect immediately on the running pipeline and on every later one."""
+        self.gain_db = db
+        self._apply_gain()
+
+    def _apply_gain(self):
+        if self.pipeline is not None:
+            vol = self.pipeline.get_by_name("vol")
+            if vol is not None:
+                vol.set_property("volume", 0.0 if self.gain_db <= -60 else 10 ** (self.gain_db / 20))
 
     def stop_recording(self, done=None):
         """Finalise the WAV header via EOS, then call done()."""
@@ -153,6 +185,7 @@ class MicEngine:
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self._on_message)
+        self._apply_gain()
         self.pipeline.set_state(Gst.State.PLAYING)
 
     def _on_message(self, bus, msg):
@@ -170,9 +203,10 @@ class MicEngine:
                 cb()
         elif t == Gst.MessageType.ERROR:
             err, dbg = msg.parse_error()
+            was_recording = self.recording
             self.stop()
             if self.on_error:
-                self.on_error(err.message)
+                self.on_error(err.message, was_recording)
 
 
 class ClipPlayer:

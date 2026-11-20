@@ -45,6 +45,25 @@ def fmt_time(s: float) -> str:
     return f"{s // 3600:02d}:{(s // 60) % 60:02d}:{s % 60:02d}"
 
 
+def ignore_scroll(scale: Gtk.Scale) -> Gtk.Scale:
+    """Wheel and trackpad scrolling over a slider must not move it: faders get nudged by accident, and the
+    Mic page sliders write to real hardware. Where the slider sits in a scrolled page, scroll that instead."""
+    ctrl = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.BOTH_AXES)
+    ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+
+    def on_scroll(_c, _dx, dy):
+        sw = scale.get_ancestor(Gtk.ScrolledWindow)
+        if sw is not None:
+            adj = sw.get_vadjustment()
+            top = adj.get_upper() - adj.get_page_size()
+            adj.set_value(min(max(adj.get_value() + dy * 48, adj.get_lower()), max(top, adj.get_lower())))
+        return True
+
+    ctrl.connect("scroll", on_scroll)
+    scale.add_controller(ctrl)
+    return scale
+
+
 def make_label(text="", css=(), xalign=0.5, **kw) -> Gtk.Label:
     lb = Gtk.Label(label=text, xalign=xalign, **kw)
     for c in css:
@@ -106,7 +125,7 @@ class Strip(Gtk.Box):
     """Colour-coded console channel: name tag, dB readout, dBFS ruler + LED meter, fader, mute."""
 
     def __init__(self, title: str, lo: float, hi: float, value: float, on_change, *, channel="mic", step=0.5,
-                 marks=(0,), fmt=fmt_db, unit="dB", meter=True, tooltip="", unity_label="UNITY"):
+                 marks=(0,), fmt=fmt_db, unit="dB", meter=True, tooltip="", unity_label="Unity"):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.add_css_class("strip")
         self.add_css_class(f"ch-{channel}")
@@ -154,6 +173,7 @@ class Strip(Gtk.Box):
         self.fader.add_css_class("fader")
         self.fader.set_inverted(True)
         self.fader.set_draw_value(False)
+        ignore_scroll(self.fader)
         self.fader.set_size_request(52, METER_H)
         self.fader.set_vexpand(True)
         col = CHANNEL_COLORS.get(channel, "#e8ecf2")
@@ -172,7 +192,7 @@ class Strip(Gtk.Box):
         self.peak_label = make_label("", ["peak", "mono"])
         self.peak_label.set_visible(meter)
         self.append(self.peak_label)
-        self.mute = Gtk.ToggleButton(label="MUTE", halign=Gtk.Align.CENTER)
+        self.mute = Gtk.ToggleButton(label="Mute", halign=Gtk.Align.CENTER)
         self.mute.add_css_class("mute-btn")
         self.append(self.mute)
         self.footer = Gtk.Box(halign=Gtk.Align.CENTER, spacing=6)
@@ -200,7 +220,7 @@ class Strip(Gtk.Box):
         self.on_change(v)
 
     def _show_peak(self):
-        self.peak_label.set_text("PEAK  —" if self._peak <= -60 else f"PEAK {self._peak:5.1f} dBFS")
+        self.peak_label.set_text("Peak  —" if self._peak <= -60 else f"Peak {self._peak:5.1f} dBFS")
 
     def set_level(self, peak_db: float):
         self.meter.set_value(audio.meter_fraction(peak_db) * METER_BLOCKS)
@@ -293,8 +313,9 @@ class PadWidget(Gtk.Overlay):
         row.append(sound)
         box.append(row)
 
-        box.append(make_label("LEVEL", ["vd-title"], xalign=0))
+        box.append(make_label("Level", ["vd-title"], xalign=0))
         g = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -24, 12, 0.5)
+        ignore_scroll(g)
         g.set_value(p.gain_db)
         g.add_mark(0, Gtk.PositionType.BOTTOM, "0 dB")
         g.connect("value-changed", lambda s: (setattr(self.pad, "gain_db", s.get_value()), self.win.project.save()))
@@ -356,7 +377,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.project = self._blank_project()
 
         self._build()
-        self._load_sources()
+        self._refresh_source()
         self._apply_pad_css()
         self._show_mix_stats()
         GLib.timeout_add(100, self._tick)
@@ -418,7 +439,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.rec_btn.add_css_class("rec-btn")
         rb = Gtk.Box(spacing=8)
         rb.append(Gtk.Box(css_classes=["rec-dot"], valign=Gtk.Align.CENTER))
-        self.rec_label = Gtk.Label(label="REC")
+        self.rec_label = Gtk.Label(label="Record")
         rb.append(self.rec_label)
         self.rec_btn.set_child(rb)
         self.rec_btn.set_tooltip_text("Record (Ctrl+R)")
@@ -461,19 +482,20 @@ class PodStudioWindow(Adw.ApplicationWindow):
         pr = self.project
         bank = Gtk.Box(spacing=0)
         bank.add_css_class("console")
-        self.mic_strip = Strip("MIC", -60, 12, pr.mic_db, self._set_mic_db, channel="mic", marks=(0, 6, -6, -12, -24, -48),
-                               tooltip="Applied when the master is mixed. The mic stem is always recorded clean.")
-        self.hk_strip = Strip("HOTKEYS", -60, 12, pr.hotkeys_db, self._set_hk_db, channel="hk", marks=(0, 6, -6, -12, -24, -48),
+        self.mic_strip = Strip("Mic", -60, 12, pr.mic_db, self._set_mic_db, channel="mic", marks=(0, 6, -6, -12, -24, -48),
+                               tooltip="Mic level: moves the meter now and sets the mic-vs-hotkeys balance in the master. "
+                                       "The master is normalized to the loudness target and the mic stem is always recorded clean.")
+        self.hk_strip = Strip("Hotkeys", -60, 12, pr.hotkeys_db, self._set_hk_db, channel="hk", marks=(0, 6, -6, -12, -24, -48),
                               tooltip="Hotkey volume: live playback and master mix.")
-        self.master_strip = Strip("MASTER", -30, -6, pr.target_lufs, self._set_target, channel="master", marks=(-16, -12, -20, -24), unity_label="TARGET",
-                                  fmt=lambda v: f"{v:.1f}", unit="LUFS TARGET", meter=False,
+        self.master_strip = Strip("Master", -30, -6, pr.target_lufs, self._set_target, channel="master", marks=(-16, -12, -20, -24), unity_label="Target",
+                                  fmt=lambda v: f"{v:.1f}", unit="LUFS target", meter=False,
                                   tooltip="Integrated loudness the master is normalized to.")
         self.mute_btn = self.mic_strip.mute                      # hardware mute (needs mic control)
         self.mute_btn.connect("toggled", self._on_mute_toggled)
         self.hk_strip.mute.set_active(pr.hotkeys_muted)
         self.hk_strip.mute.connect("toggled", self._on_hk_mute)
         self.master_strip.mute.set_visible(False)
-        self.mix_btn = Gtk.Button(label="MIX")
+        self.mix_btn = Gtk.Button(label="Mix")
         self.mix_btn.add_css_class("mix-btn")
         self.mix_btn.connect("clicked", lambda *_: self.mix_now())
         self.master_strip.footer.append(self.mix_btn)
@@ -489,7 +511,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         disp = Gtk.Box(spacing=18)
         disp.add_css_class("display")
         left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
-        self.state_label = make_label("● READY", ["disp-state"], xalign=0)
+        self.state_label = make_label("Ready", ["disp-state"], xalign=0)
         self.timecode = make_label("00:00:00", ["timecode", "mono"], xalign=0)
         self.source_label = make_label("", ["disp-sub"], xalign=0)
         for w in (self.state_label, self.timecode, self.source_label):
@@ -498,20 +520,18 @@ class PodStudioWindow(Adw.ApplicationWindow):
         stats = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.END, valign=Gtk.Align.CENTER)
         self.disp_lufs = make_label("—", ["disp-lufs", "mono"], xalign=1)
         stats.append(self.disp_lufs)
-        stats.append(make_label("LAST MASTER  LUFS", ["disp-sub"], xalign=1))
+        stats.append(make_label("Last master · LUFS", ["disp-sub"], xalign=1))
         disp.append(stats)
         right.append(disp)
 
         top = Gtk.Box(spacing=8)
-        top.append(make_label("PADS", ["vd-title"], hexpand=True, xalign=0))
-        stop_btn = Gtk.Button(label="■  STOP SOUNDS")
+        top.append(make_label("Pads", ["vd-title"], hexpand=True, xalign=0))
+        stop_btn = Gtk.Button(label="Stop sounds")
         stop_btn.add_css_class("chip-btn")
         stop_btn.connect("clicked", lambda *_: self.player.stop_all())
         top.append(stop_btn)
-        top.append(make_label("INPUT", ["vd-title"], margin_start=10))
-        self.source_drop = Gtk.DropDown()
-        self.source_drop.connect("notify::selected", self._on_source_changed)
-        top.append(self.source_drop)
+        self.mic_pill = make_label("", ["pill"], margin_start=6)
+        top.append(self.mic_pill)
         right.append(top)
         self.grid = Gtk.Grid(row_spacing=10, column_spacing=10, column_homogeneous=True, row_homogeneous=True,
                              vexpand=True)
@@ -545,6 +565,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
     def _make_scale(self, key, lo, hi, step, value, fmt, apply, *, hid=True, basic=False, redraw=None):
         scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
         scale.add_css_class("param")
+        ignore_scroll(scale)
         scale.set_draw_value(False)
         scale.set_hexpand(True)
         scale.set_value(value)
@@ -610,11 +631,11 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.dsp_box.append(top)
 
         # -- input
-        inp = self._card("INPUT", "ch-mic")
+        inp = self._card("Input", "ch-mic")
         gain_row = Gtk.Box(spacing=10)
         self.gain_big = make_label("—", ["big-number", "mono"], xalign=0, hexpand=True)
         gain_row.append(self.gain_big)
-        gain_row.append(make_label("GAIN", ["stat-label"], valign=Gtk.Align.END, margin_bottom=8))
+        gain_row.append(make_label("Gain", ["stat-label"], valign=Gtk.Align.END, margin_bottom=8))
         inp.append(gain_row)
         gscale, gval = self._make_scale("gain", 22, 63, 0.5, 57, lambda v: f"{v:.1f} dB",
                                         lambda v: podmic.set_gain_db(v), hid=False)
@@ -631,8 +652,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.in_meter.add_offset_value("full", 40)
         inp.append(self.in_meter)
         chips = Gtk.Box(spacing=8)
-        chips.append(self._chip("mute", "MUTE", lambda on: self.mic.set_mute(on)))
-        chips.append(self._chip("hpf", "HIGH-PASS", lambda on: self.mic.set_hpf(on)))
+        chips.append(self._chip("mute", "Mute", lambda on: self.mic.set_mute(on)))
+        chips.append(self._chip("hpf", "High-pass", lambda on: self.mic.set_hpf(on)))
         inp.append(chips)
         inp.append(make_label("Mute is not remembered when the mic is unplugged. High-pass cuts below about 54 Hz.",
                               ["vd-sub"], xalign=0, wrap=True))
@@ -640,12 +661,12 @@ class PodStudioWindow(Adw.ApplicationWindow):
         top.append(inp)
 
         # -- headphones
-        ph = self._card("HEADPHONES", "ch-hk")
-        ph.append(make_label("MONITOR MIX", ["stat-label"], xalign=0))
+        ph = self._card("Headphones", "ch-hk")
+        ph.append(make_label("Monitor mix", ["stat-label"], xalign=0))
         mscale, mval = self._make_scale("monitor_mix", 0, 100, 1, 91, lambda v: f"{v * 66 / 100 - 60:+.0f} dB",
                                         lambda v: self.mic.set_monitor_mix(int(v)))
         ph.append(self._row("Mic level", mscale, mval))
-        mon = self._chip("monitoring", "DIRECT MONITORING", lambda on: self.mic.set_monitoring(on))
+        mon = self._chip("monitoring", "Direct monitoring", lambda on: self.mic.set_monitoring(on))
         mon.set_halign(Gtk.Align.START)
         ph.append(mon)
         ph.append(make_label("Direct monitoring plays your mic in the headphone jack with no delay. "
@@ -654,12 +675,12 @@ class PodStudioWindow(Adw.ApplicationWindow):
 
         # -- processing header
         head = Gtk.Box(spacing=12, margin_top=6)
-        head.append(make_label("PROCESSING", ["vd-title"], xalign=0, hexpand=True))
+        head.append(make_label("Processing", ["vd-title"], xalign=0, hexpand=True))
         head.append(make_label("Runs inside the mic, so every app hears it.", ["vd-sub"]))
-        head.append(self._chip("processing", "ON", lambda on: self.mic.set_processing(on)))
+        head.append(self._chip("processing", "On", lambda on: self.mic.set_processing(on)))
         seg = Gtk.Box(css_classes=["linked", "seg"])
-        basic_btn = Gtk.ToggleButton(label="BASIC", active=True)
-        adv_btn = Gtk.ToggleButton(label="ADVANCED", group=basic_btn)
+        basic_btn = Gtk.ToggleButton(label="Basic", active=True)
+        adv_btn = Gtk.ToggleButton(label="Advanced", group=basic_btn)
         for b in (basic_btn, adv_btn):
             b.add_css_class("chip-btn")
             seg.append(b)
@@ -671,9 +692,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
 
         # -- basic: three big cards
         self.basic_box = Gtk.Box(spacing=14, homogeneous=True)
-        for key, title, sub, css in (("depth", "DEPTH", "Low-end weight (Big Bottom)", "fx-bottom"),
-                                     ("sparkle", "SPARKLE", "Air and presence (Aural Exciter)", "fx-exciter"),
-                                     ("punch", "PUNCH", "Dynamics (compressor and gate)", "fx-comp")):
+        for key, title, sub, css in (("depth", "Depth", "Low-end weight (Big Bottom)", "fx-bottom"),
+                                     ("sparkle", "Sparkle", "Air and presence (Aural Exciter)", "fx-exciter"),
+                                     ("punch", "Punch", "Dynamics (compressor and gate)", "fx-comp")):
             c = self._card(title, css)
             sc, val = self._make_scale(key, 0, 100, 1, 50, lambda v: f"{v:.0f}", lambda v: None, basic=True)
             val.remove_css_class("param-val")
@@ -693,18 +714,18 @@ class PodStudioWindow(Adw.ApplicationWindow):
                                 + val("comp.gain"))
         gate_curve = lambda x: x if x >= val("gate.threshold") else x + val("gate.range")
         spec = [
-            ("comp", "COMPRESSOR", "fx-comp", "#ffb454", 0, 0,
+            ("comp", "Compressor", "fx-comp", "#ffb454", 0, 0,
              [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"), ("ratio", "Ratio", 1.5, 4.5, 0.05, "{:.2f} : 1"),
               ("attack", "Attack", 0.1, 10, 0.1, "{:.1f} ms"), ("release", "Release", 5, 200, 1, "{:.0f} ms"),
               ("gain", "Make-up gain", 0, 9, 0.1, "{:.1f} dB")], comp_curve, lambda: val("comp.threshold")),
-            ("gate", "NOISE GATE", "fx-gate", "#4fd8eb", 0, 1,
+            ("gate", "Noise gate", "fx-gate", "#4fd8eb", 0, 1,
              [("threshold", "Threshold", -60, 0, 0.5, "{:.1f} dB"), ("range", "Range", -100, 0, 1, "{:.0f} dB"),
               ("attack", "Attack", 0.1, 1000, 1, "{:.0f} ms"), ("hold", "Hold", 0.05, 2, 0.01, "{:.2f} s"),
               ("release", "Release", 0.05, 2, 0.01, "{:.2f} s"), ("hysteresis", "Hysteresis", 0, 100, 1, "{:.0f} %")],
              gate_curve, lambda: val("gate.threshold")),
-            ("exciter", "AURAL EXCITER", "fx-exciter", "#b48bff", 1, 0,
+            ("exciter", "Aural Exciter", "fx-exciter", "#b48bff", 1, 0,
              [("harmonics", "Harmonics", 0, 100, 1, "{:.0f} %"), ("tune", "Tune", 600, 5000, 10, "{:.0f} Hz")], None, None),
-            ("bottom", "BIG BOTTOM", "fx-bottom", "#ff7ad9", 1, 1,
+            ("bottom", "Big Bottom", "fx-bottom", "#ff7ad9", 1, 1,
              [("drive", "Drive", 0, 100, 1, "{:.0f} %"), ("tune", "Tune", 60, 312, 1, "{:.0f} Hz")], None, None),
         ]
         for block, title, css, color, row, col, fields, curve, marker in spec:
@@ -713,7 +734,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
                 card.add_css_class(c)
             hd = Gtk.Box(spacing=8)
             hd.append(make_label(title, ["card-title"], xalign=0, hexpand=True))
-            en = self._chip(f"{block}_on", "ON", lambda on, b=block: self.mic.set_enabled(b, on))
+            en = self._chip(f"{block}_on", "On", lambda on, b=block: self.mic.set_enabled(b, on))
             self.fx_enable[block] = en
             hd.append(en)
             card.append(hd)
@@ -777,6 +798,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.toast("Command copied. Paste it into a terminal and run it.")
 
     def _poll_mic(self):
+        self._refresh_source()
         present = podmic.PodMic.present()
         if not present:
             self._dsp_set_state("absent")
@@ -862,7 +884,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         card = Gtk.Box(spacing=0, homogeneous=True)
         card.add_css_class("vd-panel")
         self.stat = {}
-        for key, title in (("before", "MEASURED"), ("after", "MASTER"), ("gain", "GAIN APPLIED"), ("tp", "TRUE PEAK  dBTP")):
+        for key, title in (("before", "Measured"), ("after", "Master"), ("gain", "Gain applied"), ("tp", "True peak · dBTP")):
             c = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_top=18, margin_bottom=18)
             lb = make_label("—", ["big-number", "mono"])
             c.append(lb)
@@ -931,6 +953,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
     def _set_mic_db(self, v):
         if self.project:
             self.project.mic_db = v
+        self.engine.set_gain_db(v)
 
     def _set_hk_db(self, v):
         if self.project:
@@ -959,42 +982,52 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self._syncing = False
 
     # ------------------------------------------------------------------ input source / metering
-    def _load_sources(self):
-        self.sources = audio.list_sources()
-        want = self.cfg.get("source") or audio.default_source(self.sources)
-        # a saved device that is no longer plugged in falls back to the PodMic / first input
-        if not any(n == want for n, _ in self.sources):
-            want = audio.default_source(self.sources)
-        idx = next((i for i, (n, _) in enumerate(self.sources) if n == want), 0)
-        self._loading_sources = True
-        self.source_drop.set_model(Gtk.StringList.new([d for _, d in self.sources] or ["No input found"]))
-        self.source_drop.set_selected(idx)
-        self._loading_sources = False
-        self.source = self.sources[idx][0] if self.sources else None
-        self.engine.start_meter(self.source)
+    def _refresh_source(self):
+        """PodStudio only works with the RØDE PodMic USB: find it, follow it being plugged and unplugged."""
+        present = podmic.PodMic.present()
+        src = audio.find_podmic_source() if present else None
+        if src == self.source:
+            return
+        self.source = src
         self._update_source_label()
+        if not self.engine.recording:
+            if src:
+                self.engine.start_meter(src)
+            else:
+                self.engine.stop()
+                self.mic_strip.set_level(-90.0)
+                self.in_meter.set_value(0)
+        self.rec_btn.set_sensitive(bool(src) or self.engine.recording)
 
     def _update_source_label(self):
-        d = next((d for n, d in self.sources if n == self.source), "No input")
-        self.source_label.set_text(f"{d}  ·  48 kHz  ·  24-bit")
-
-    def _on_source_changed(self, drop, _p):
-        i = drop.get_selected()
-        if getattr(self, "_loading_sources", False) or not self.sources or i >= len(self.sources) or self.engine.recording:
-            return
-        self.source = self.sources[i][0]
-        self.cfg["source"] = self.source
-        save_config(self.cfg)
-        self.engine.start_meter(self.source)
-        self._update_source_label()
+        ok = bool(self.source)
+        self.source_label.set_text("RØDE PodMic USB  ·  48 kHz  ·  24-bit" if ok else "PodMic USB not connected")
+        self.mic_pill.set_text("PodMic USB connected" if ok else "PodMic USB not connected")
+        (self.mic_pill.add_css_class if ok else self.mic_pill.remove_css_class)("ok")
+        (self.mic_pill.remove_css_class if ok else self.mic_pill.add_css_class)("warn")
+        if not self.engine.recording:
+            self.state_label.set_text("Ready" if ok else "Plug in your PodMic USB")
 
     def _on_level(self, rms, peak):
         self.mic_strip.set_level(peak)
         self.in_meter.set_value(audio.meter_fraction(peak) * 40)
 
-    def _on_audio_error(self, msg):
-        self.toast(f"Audio error: {msg}")
+    def _on_audio_error(self, msg, was_recording=False):
         self._set_recording_ui(False)
+        if not was_recording:
+            self.toast(f"Audio error: {msg}")
+            return
+        # The mic went away mid-take (unplugged, USB reset). The WAV never got its final header: repair it and keep the take.
+        try:
+            self.project.mic_duration = audio.repair_wav_header(self.project.mic_path)
+        except Exception:
+            self.project.mic_duration = 0.0
+        self.project.save()
+        self._refresh_files()
+        self.toast(f"The PodMic disconnected. Kept {fmt_time(self.project.mic_duration)} of the take.")
+        self._refresh_source()
+        if self.project.mic_duration > 0:
+            self.mix_now()
 
     def _tick(self):
         if self.engine.recording:
@@ -1011,7 +1044,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.engine.stop_recording(self._after_stop)
             return
         if not self.source:
-            self.toast("No input device found.")
+            self.toast("Plug in your PodMic USB to record.")
             return
         if self.project.created and self.project.has_recording():
             self._fork_for_take()
@@ -1029,11 +1062,10 @@ class PodStudioWindow(Adw.ApplicationWindow):
         for w in (self.rec_btn,):
             (w.add_css_class if rec else w.remove_css_class)("recording")
         (self.timecode.add_css_class if rec else self.timecode.remove_css_class)("live")
-        self.rec_label.set_text("STOP" if rec else "REC")
-        self.state_label.set_text("● RECORDING" if rec else "● READY")
+        self.rec_label.set_text("Stop" if rec else "Record")
+        self.state_label.set_text("Recording" if rec else "Ready")
         (self.state_label.add_css_class if rec else self.state_label.remove_css_class)("live")
-        self.rec_btn.set_sensitive(True)
-        self.source_drop.set_sensitive(not rec)
+        self.rec_btn.set_sensitive(bool(self.source) or rec)
 
     def _after_stop(self):
         import soundfile as sf
