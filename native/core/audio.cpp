@@ -4,7 +4,22 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <chrono>
 #include <filesystem>
+#include <thread>
+
+namespace {
+// rename() does not overwrite on Windows, and a file another program still has open (a player, a virus scanner) cannot be
+// removed for a moment: try a few times before giving up.
+bool replace_file(const std::string& tmp, const std::string& path) {
+    for (int attempt = 0; attempt < 20; attempt++) {
+        std::remove(path.c_str());
+        if (std::rename(tmp.c_str(), path.c_str()) == 0) return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return false;
+}
+}  // namespace
 
 namespace ps {
 namespace {
@@ -93,8 +108,7 @@ bool write_wav24(const std::string& path, const Audio& a, std::string& err) {
     }
     ok = (std::fclose(f) == 0) && ok;
     if (!ok) { err = "write failed"; std::remove(tmp.c_str()); return false; }
-    std::remove(path.c_str());                       // rename() does not overwrite on Windows
-    if (std::rename(tmp.c_str(), path.c_str()) != 0) { err = "cannot replace " + path; return false; }
+    if (!replace_file(tmp, path)) { err = "cannot replace " + path; return false; }
     return true;
 }
 
@@ -147,8 +161,7 @@ bool write_wav_float(const std::string& path, const Audio& a, std::string& err) 
     bool ok = std::fwrite(h, 1, 44, f) == 44 && std::fwrite(a.data.data(), 4, a.data.size(), f) == a.data.size();
     ok = (std::fclose(f) == 0) && ok;
     if (!ok) { err = "write failed"; std::remove(tmp.c_str()); return false; }
-    std::remove(path.c_str());
-    if (std::rename(tmp.c_str(), path.c_str()) != 0) { err = "cannot replace " + path; return false; }
+    if (!replace_file(tmp, path)) { err = "cannot replace " + path; return false; }
     return true;
 }
 

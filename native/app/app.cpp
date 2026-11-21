@@ -372,6 +372,7 @@ void App::render_async() {
     if (render_thread_.joinable()) render_thread_.join();
     if (!file_exists(proj_.mic_path())) { toast("Record something first."); return; }
     rendering_ = true; have_render_result_ = false;
+    engine_.preview_close();                             // the Recordings player may hold the old master open; Windows can't replace an open file
     Project snap = proj_;
     { std::lock_guard<std::mutex> l(render_mu_); render_progress_ = "Starting"; }
     render_thread_ = std::thread([this, snap]() mutable {
@@ -468,6 +469,7 @@ void App::frame(float dt, ImVec2 display) {
             toast(b);
             peaks_for_.clear();
         }
+        if (sel_session_ >= 0 && size_t(sel_session_) < sessions_.size()) select_session(sel_session_);   // reopen the player on the new master
     }
     if (!mp3_busy_ && mp3_done_) {
         mp3_done_ = false;
