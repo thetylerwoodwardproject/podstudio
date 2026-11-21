@@ -3,7 +3,7 @@ __version__ = "2026.11.20"      # calendar version, shown as v2026.11.20
 
 
 def _make_library_lookup_work_in_bundles():
-    """ctypes.util.find_library asks ldconfig or gcc, which a Flatpak, Snap or AppImage may not have. Without this,
+    """ctypes.util.find_library asks ldconfig or gcc, which a Flatpak or AppImage may not have. Without this,
     soundfile can't find libsndfile and the ALSA gain control can't find libasound. If the normal lookup comes
     back empty, look in the directories the bundle puts on LD_LIBRARY_PATH, then the usual multiarch locations."""
     import ctypes.util

@@ -57,7 +57,7 @@ the notes, download with progress, ask for your password, and offer **Restart no
    For a second build on the same date, keep the date and raise `packaging/revision` instead.
 2. `.venv/bin/python -m pytest` must pass, then `./packaging/build-deb.sh`, then commit, tag, push and `gh release create` as above.
 
-## Packaging: four formats, unequal proof (see `packaging/README.md`)
+## Packaging: three formats (see `packaging/README.md`)
 
 - **.deb**: verified (full suite against the extracted package, installed and run on a real machine).
 - **Flatpak**: built and installed from the single-file bundle; `--self-test` passes inside the sandbox and the window
@@ -67,14 +67,12 @@ the notes, download with progress, ask for your password, and offer **Restart no
   `./packaging/build-appimage.sh`, which pins `appimagetool` 1.9.1 by checksum. The finished file passes `--self-test`, passes
   inside a bare Freedesktop runtime that has no GTK or libadwaita, and worked against a real PodMic. It is assembled from
   Ubuntu 24.04 libraries, so it runs on that release and newer, not on older distributions.
-- **Snap**: `snap/snapcraft.yaml` was written but never built (needs snapd plus LXD or Multipass and root). Expect to fix
-  the first build. Whether `raw-usb` reaches `/dev/hidraw` is a guess.
-- **CI** (`.github/workflows/packages.yml`) builds all four on a tag. It has never run, and pushing a workflow file needs a
+- **CI** (`.github/workflows/packages.yml`) builds all three on a tag. It has never run, and pushing a workflow file needs a
   token with the `workflow` scope.
 - To rebuild the Flatpak: `packaging/flatpak/gen-wheels.py --python 3.13 > packaging/flatpak/python-deps.json` re-pins its
   Python wheels (whole tree, with checksums), then see the command in `packaging/README.md`.
-- The in-app updater is switched off for Flatpak and Snap (their stores update them) and only offers a link on AppImage.
-- Still unproven: the Snap (never built), and any of these formats on a machine that isn't this one.
+- The in-app updater is switched off for Flatpak (its store updates it) and only offers a link on AppImage.
+- Still unproven: any of these formats on a machine that isn't this one. Snap was dropped on purpose; don't reintroduce it without a way to build and test it.
 
 ## Known gaps (not bugs: things never exercised)
 
@@ -102,7 +100,7 @@ the notes, download with progress, ask for your password, and offer **Restart no
 | `podstudio/recovery.py` | Crash recovery: hit journal, backup restore, rebuild |
 | `podstudio/runtime.py`, `alsa_gain.py`, `selftest.py` | Which package format is running; ALSA gain without `amixer`; `--self-test` |
 | `podstudio/updates.py`, `update_ui.py` | Update check, verified download, authorized install |
-| `packaging/` | `build-deb.sh`, `build-appimage.sh`, `flatpak/`, `appimage/`, `fetch-deepfilter.sh` (checksum-pinned), `revision`; `snap/` has the Snap recipe |
+| `packaging/` | `build-deb.sh`, `build-appimage.sh`, `flatpak/`, `appimage/`, `fetch-deepfilter.sh` (checksum-pinned), `revision` |
 | `tests/` | About 117 tests; GTK ones skip without a display |
 
 Run the app from source: `.venv/bin/python -m podstudio`. If a packaged copy is already open, add a second instance

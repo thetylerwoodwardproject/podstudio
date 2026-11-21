@@ -52,7 +52,7 @@ def find_podmic_source() -> str | None:
                              capture_output=True, text=True, timeout=4).stdout
         items = json.loads(out)
     except (OSError, subprocess.SubprocessError, ValueError):
-        return _gst_source_name(_is_podmic)                    # no pactl here (Flatpak, Snap): ask GStreamer instead
+        return _gst_source_name(_is_podmic)                    # no pactl here (Flatpak): ask GStreamer instead
     for s in items:
         name = s.get("name", "")
         if name.endswith(".monitor"):

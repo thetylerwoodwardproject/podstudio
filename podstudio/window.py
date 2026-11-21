@@ -547,7 +547,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         menu.append("New Session", "win.new")
         menu.append("Open Session…", "win.open")
         menu.append("Show Session Folder", "win.folder")
-        if runtime.updates_enabled():                       # Flatpak and Snap are updated by their own stores
+        if runtime.updates_enabled():                       # Flatpak is updated by its own store
             upd = Gio.Menu()
             upd.append("Check for Updates…", "win.check-updates")
             upd.append("Check automatically", "win.auto-updates")

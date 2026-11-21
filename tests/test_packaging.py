@@ -11,7 +11,7 @@ from podstudio import alsa_gain, audio, denoise, podmic, runtime
 
 # ------------------------------------------------------------------ which package format is running
 def test_each_format_is_recognised(monkeypatch, tmp_path):
-    for k in ("FLATPAK_ID", "SNAP", "SNAP_NAME", "APPIMAGE", "APPDIR"):
+    for k in ("FLATPAK_ID", "APPIMAGE", "APPDIR"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setattr(runtime, "PACKAGE_ROOT", tmp_path)
     assert runtime.kind() == "source" and runtime.updates_enabled() and not runtime.sandboxed()
@@ -19,13 +19,10 @@ def test_each_format_is_recognised(monkeypatch, tmp_path):
     assert runtime.kind() == "deb" and runtime.updates_enabled()
     monkeypatch.setenv("APPIMAGE", "/x/PodStudio.AppImage"); monkeypatch.setenv("APPDIR", "/tmp/.mount_x")
     assert runtime.kind() == "appimage" and runtime.updates_enabled()
-    monkeypatch.setenv("SNAP", "/snap/podstudio/1"); monkeypatch.setenv("SNAP_NAME", "podstudio")
-    assert runtime.kind() == "snap" and not runtime.updates_enabled() and runtime.sandboxed()
     monkeypatch.setenv("FLATPAK_ID", "io.github.thetylerwoodwardproject.PodStudio")
-    assert runtime.kind() == "flatpak" and not runtime.updates_enabled()          # Flatpak wins: it is the strictest sandbox
-    monkeypatch.setenv("SNAP_NAME", "someone-elses-snap")
+    assert runtime.kind() == "flatpak" and not runtime.updates_enabled() and runtime.sandboxed()   # Flatpak wins: it is the strictest sandbox
     monkeypatch.delenv("FLATPAK_ID")
-    assert runtime.kind() != "snap"                                                # another snap's variables don't count
+    assert runtime.kind() == "appimage"                                           # back to the next one down
 
 
 def test_the_bundled_denoiser_is_found_next_to_the_app_in_any_layout(monkeypatch, tmp_path):

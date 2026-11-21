@@ -1,6 +1,6 @@
 """`podstudio --self-test`: checks that this install has everything it needs, without opening a window.
 
-Used to verify each package format (deb, Flatpak, Snap, AppImage), and handy in a bug report.
+Used to verify each package format (deb, Flatpak, AppImage), and handy in a bug report.
 Exit status 0 means every required check passed. The microphone is reported but never required.
 """
 from __future__ import annotations

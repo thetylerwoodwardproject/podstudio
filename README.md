@@ -44,8 +44,7 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 
 ## Install
 
-PodStudio comes as a `.deb`, a Flatpak, an AppImage and a Snap. They are not equally proven, so see [packaging/README.md](packaging/README.md)
-for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
+PodStudio comes as a `.deb`, a Flatpak and an AppImage. See [packaging/README.md](packaging/README.md) for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
 
 **Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb** (the most tested)
 
@@ -63,9 +62,9 @@ flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-bui
 flatpak run io.github.thetylerwoodwardproject.PodStudio
 ```
 
-**AppImage** (built and tested with a real PodMic; needs Ubuntu 24.04 or newer): `./packaging/build-appimage.sh`, then `./dist/PodStudio-*.AppImage`. **Snap** (`snapcraft`, recipe in `snap/`) has not been built. See [packaging/README.md](packaging/README.md).
+**AppImage** (built and tested with a real PodMic; needs Ubuntu 24.04 or newer): `./packaging/build-appimage.sh`, then `./dist/PodStudio-*.AppImage`. See [packaging/README.md](packaging/README.md).
 
-For the Mic tab's on-board controls, the Flatpak, AppImage and Snap need the udev rule installed on the host (the app shows the
+For the Mic tab's on-board controls, the Flatpak and AppImage need the udev rule installed on the host (the app shows the
 command). Everything else works without it.
 
 **Per-user, no sudo**
