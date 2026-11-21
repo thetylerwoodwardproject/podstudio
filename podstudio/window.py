@@ -658,7 +658,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
 
     def _tab_text_for_width(self, *_):
         """Same rule as the Windows app: icons only, with tooltips, until the window is wide enough for labels."""
-        wide = self.get_width() >= 1300
+        wide = False                       # icons only, with tooltips (what the Windows app shows at normal window sizes)
         for lab in self._tab_labels:
             if lab.get_visible() != wide:
                 lab.set_visible(wide)
