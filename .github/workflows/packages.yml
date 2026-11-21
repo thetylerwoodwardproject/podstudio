@@ -186,10 +186,13 @@ jobs:
             for ($i = 0; $i -lt $b64.Length; $i += 2000) { Write-Host $b64.Substring($i, [Math]::Min(2000, $b64.Length - $i)) }
             Write-Host "SCREENSHOT-END page0"
           }
-      - name: Publish to the GitHub release (on a version tag)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish to the GitHub release (on a version tag, or a push whose commit message contains [release])
+        if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.ver.outputs.full) }}
+          target_commitish: ${{ github.sha }}
+          name: PodStudio v${{ steps.ver.outputs.full }} for Windows
           files: |
             dist/PodStudio-*-x64-setup.exe
             dist/PodStudio-*-x64-setup.exe.sha256
