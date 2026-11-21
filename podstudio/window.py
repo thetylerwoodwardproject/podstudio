@@ -567,11 +567,16 @@ class PodStudioWindow(Adw.ApplicationWindow):
         brand.append(logo)
         brand.append(make_label("PodStudio", ["brand"]))
         header.pack_start(brand)
+        self.rec_btn.set_valign(Gtk.Align.CENTER)
         header.pack_start(self.rec_btn)
         self.mic_pill = make_label("", ["pill"], margin_end=8)
 
         self.stack = Adw.ViewStack()
-        header.set_title_widget(self._tab_bar())
+        tabs = self._tab_bar()
+        tabs.set_margin_start(12)
+        tabs.set_valign(Gtk.Align.CENTER)
+        header.pack_start(tabs)
+        header.set_title_widget(Gtk.Box())
 
         menu = Gio.Menu()
         menu.append("New Session", "win.new")

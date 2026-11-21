@@ -290,3 +290,8 @@ scale.fader slider, .ch-mic scale.fader slider, .ch-hk scale.fader slider, .ch-m
 /* pads */
 .pad { background: #0f0f12; border-radius: 12px; min-height: 96px; }
 .pad:hover { background: #151519; }
+
+/* record button and tab bar share one height */
+.rec-btn { min-height: 38px; padding: 0 22px; }
+.tab-bar { min-height: 38px; padding: 0 3px; }
+.tab-bar .tab-btn { min-height: 30px; padding: 0 14px; }
