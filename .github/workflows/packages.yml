@@ -92,6 +92,20 @@ jobs:
         run: python -m pytest -q tests/test_windows.py tests/test_podmic.py tests/test_updates.py tests/test_buzzsprout.py
       - name: Build the app folder and the portable zip (runs --self-test on the result)
         run: ./packaging/windows/build.sh
+      - name: Smoke test - open the window (it must stay up for 20 s)
+        shell: pwsh
+        run: |
+          $full = (Get-Content build\windows\version.txt).Trim()
+          $exe = "$PWD\dist\PodStudio-$full\bin\PodStudio-console.exe"
+          $out = "$PWD\smoke.out"; $err = "$PWD\smoke.err"
+          $p = Start-Process $exe -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          Start-Sleep -Seconds 20
+          $alive = -not $p.HasExited
+          Write-Host "--- stdout"; Get-Content $out -ErrorAction SilentlyContinue
+          Write-Host "--- stderr"; Get-Content $err -ErrorAction SilentlyContinue
+          Write-Host "--- log"; Get-Content "$env:LOCALAPPDATA\PodStudio\podstudio.log" -ErrorAction SilentlyContinue
+          if ($alive) { Write-Host "window process still running after 20 s: OK"; Stop-Process -Id $p.Id -Force }
+          else { Write-Host "PodStudio exited early with code $($p.ExitCode)"; exit 1 }
       - name: Installer (Inno Setup is preinstalled on the runner) and its checksum
         shell: pwsh
         run: |

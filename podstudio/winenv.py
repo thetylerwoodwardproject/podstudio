@@ -90,6 +90,11 @@ def prepare() -> None:
         cache = Path(os.environ.get("TEMP", "."))
     if sys.stderr is None or sys.stdout is None:
         _log_to_file(cache)
+    try:                                                   # a native crash (graphics driver, a DLL) leaves a stack here
+        import faulthandler
+        faulthandler.enable(file=sys.stderr, all_threads=True)
+    except (OSError, ValueError, RuntimeError, AttributeError):
+        pass
     for k, v in environment(home, cache).items():
         os.environ.setdefault(k, v)
     cache_file = _loaders_cache(home, cache)
@@ -101,4 +106,23 @@ def prepare() -> None:
     try:
         os.add_dll_directory(bin_dir)                      # ctypes and cffi look DLLs up through this on Python 3.8+
     except (AttributeError, OSError):
+        pass
+
+
+def report_startup_failure(exc: BaseException) -> None:
+    """The window never opened, and with no console nobody would see why: log it and show a message box."""
+    import traceback
+    text = "".join(traceback.format_exception(exc))
+    try:
+        sys.stderr.write("\nPodStudio failed to start:\n" + text)
+        sys.stderr.flush()
+    except (OSError, AttributeError, ValueError):
+        pass
+    try:
+        import ctypes
+        log = Path(os.environ.get("LOCALAPPDATA") or ".") / "PodStudio" / LOG_NAME
+        ctypes.windll.user32.MessageBoxW(
+            None, f"PodStudio could not start.\n\n{type(exc).__name__}: {exc}\n\nDetails are in:\n{log}",
+            "PodStudio", 0x10)
+    except (OSError, AttributeError):
         pass

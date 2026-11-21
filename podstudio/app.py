@@ -20,7 +20,7 @@ APP_ID = "io.github.thetylerwoodwardproject.PodStudio"
 class PodStudioApp(Adw.Application):
     def __init__(self):
         flags = Gio.ApplicationFlags.DEFAULT_FLAGS
-        if os.environ.get("PODSTUDIO_NON_UNIQUE"):                  # run beside an already-open copy (testing)
+        if os.environ.get("PODSTUDIO_NON_UNIQUE") or sys.platform == "win32":      # Windows has no session D-Bus to register on                  # run beside an already-open copy (testing)
             flags |= Gio.ApplicationFlags.NON_UNIQUE
         super().__init__(application_id=APP_ID, flags=flags)
         self.win = None
