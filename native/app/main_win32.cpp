@@ -94,6 +94,15 @@ LRESULT WINAPI wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
+    // One copy at a time: two would fight over the microphone. A second launch brings the first window forward.
+    HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\PodStudio.SingleInstance");
+    if (single && GetLastError() == ERROR_ALREADY_EXISTS && !_wgetenv(L"PODSTUDIO_NON_UNIQUE")) {
+        if (HWND other = FindWindowW(L"PodStudioWindow", nullptr)) {
+            if (IsIconic(other)) ShowWindow(other, SW_RESTORE);
+            SetForegroundWindow(other);
+        }
+        return 0;
+    }
     ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEXW wc{sizeof wc, CS_CLASSDC, wnd_proc, 0, 0, inst, nullptr, LoadCursor(nullptr, IDC_ARROW), nullptr, nullptr,
                    L"PodStudioWindow", nullptr};
