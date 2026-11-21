@@ -617,12 +617,15 @@ class PodStudioWindow(Adw.ApplicationWindow):
         """Icon-only page switcher. The names live in tooltips and in the accessible labels."""
         bar = Gtk.Box(css_classes=["tab-bar"], valign=Gtk.Align.CENTER)
         self._tab_buttons, first = {}, None
+        self._tab_labels = []
         for name, label, icon in self.TABS:
             b = Gtk.ToggleButton(tooltip_text=label, css_classes=["tab-btn"])
             inner = Gtk.Box(spacing=7)
             inner.append(Gtk.Image.new_from_icon_name(icon))
-            inner.append(Gtk.Label(label=label))
+            lab = Gtk.Label(label=label)
+            inner.append(lab)
             b.set_child(inner)
+            self._tab_labels.append(lab)
             b.update_property([Gtk.AccessibleProperty.LABEL], [label])
             if first:
                 b.set_group(first)
@@ -631,7 +634,16 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self._tab_buttons[name] = b
             bar.append(b)
         self.stack.connect("notify::visible-child-name", self._sync_tab_bar)
+        self.add_tick_callback(self._tab_text_for_width)
         return bar
+
+    def _tab_text_for_width(self, *_):
+        """Same rule as the Windows app: icons only, with tooltips, until the window is wide enough for labels."""
+        wide = self.get_width() >= 1300
+        for lab in self._tab_labels:
+            if lab.get_visible() != wide:
+                lab.set_visible(wide)
+        return GLib.SOURCE_CONTINUE
 
     def _sync_tab_bar(self, *_):
         b = self._tab_buttons.get(self.stack.get_visible_child_name())
