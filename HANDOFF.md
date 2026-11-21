@@ -61,7 +61,8 @@ the notes, download with progress, ask for your password, and offer **Restart no
 
 - **.deb**: verified (full suite against the extracted package, installed and run on a real machine).
 - **Flatpak**: built and installed from the single-file bundle; `--self-test` passes inside the sandbox and the window
-  renders on GNOME 49. **Not tested with the PodMic plugged in**, so sandboxed USB/ALSA access is unproven.
+  renders on GNOME 49. **Tested with a real PodMic inside the sandbox** (discovery, ALSA gain, HID read and write-back,
+  a 3 s recording, live Mic tab). This needs the host udev rule, which the `.deb` installs and Flatpak cannot.
 - **AppImage**: `packaging/build-appimage.sh` builds the app directory and runs its self-test, and the contents were verified
   inside a bare Freedesktop runtime (no GTK/libadwaita) where they passed using the bundled libraries. **The final
   `.AppImage` was not built here**: the last step downloads and runs `appimagetool`, which was blocked in the build session.
@@ -74,8 +75,7 @@ the notes, download with progress, ask for your password, and offer **Restart no
 - To rebuild the Flatpak: `packaging/flatpak/gen-wheels.py --python 3.13 > packaging/flatpak/python-deps.json` re-pins its
   Python wheels (whole tree, with checksums), then see the command in `packaging/README.md`.
 - The in-app updater is switched off for Flatpak and Snap (their stores update them) and only offers a link on AppImage.
-- Next time the PodMic is plugged in, run `--self-test` in each format and open the Mic tab in the Flatpak: that is the
-  one thing none of the sandboxed builds has been proven against.
+- Still to do with the mic attached: the same hardware run for the AppImage once its final file exists, and the Snap.
 
 ## Known gaps (not bugs: things never exercised)
 

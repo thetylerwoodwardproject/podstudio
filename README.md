@@ -56,7 +56,7 @@ sudo apt install ./dist/podstudio_*_amd64.deb      # or ./podstudio_<version>_am
 It pulls in its dependencies, bundles DeepFilterNet, and installs the udev rule so the mic controls work straight away.
 Build it yourself with `./packaging/build-deb.sh` (output in `dist/`).
 
-**Flatpak** (built and self-tested; the mic itself is untested in the sandbox)
+**Flatpak** (built and tested with a real PodMic inside the sandbox)
 
 ```bash
 flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-build packaging/flatpak/io.github.thetylerwoodwardproject.PodStudio.yml
