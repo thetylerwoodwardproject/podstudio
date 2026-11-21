@@ -28,6 +28,32 @@ int main(int argc, char** argv) {
     CHECK(e.mic_peak_db() < before - 6.f || before < -60.f, "fader -12 dB moved the meter %.1f -> %.1f", before, e.mic_peak_db());
     e.set_mic_fader_db(0.f);
 
+    // ---- live loudness (LUFS-M): follows the mic fader, and hotkeys add to it
+    {
+        // The demo voice has a slow on/off phrase pattern (about 3.2 s), so compare the loudest reading over a full cycle.
+        auto loudest = [&] { float m = -90.f; for (int i = 0; i < 70; i++) { m = std::max(m, e.master_lufs()); std::this_thread::sleep_for(std::chrono::milliseconds(50)); } return m; };
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
+        const float l1 = loudest();
+        CHECK(l1 > -60.f && l1 < 0.f, "mic loudness %.1f LUFS", l1);
+        e.set_mic_fader_db(-12.f);
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
+        const float l2 = loudest();
+        CHECK(std::fabs((l1 - l2) - 12.f) < 2.5f, "fader -12 dB moved the loudness %.1f -> %.1f LUFS", l1, l2);
+        e.set_mic_fader_db(-60.f);                                       // mic fully down: only hotkeys remain
+        std::this_thread::sleep_for(std::chrono::milliseconds(900));
+        CHECK(e.master_lufs() < -50.f, "mic down reads %.1f", e.master_lufs());
+        Clip tone; tone.data.resize(size_t(kRate) * 2 * 2);
+        for (size_t i = 0; i < size_t(kRate) * 2; i++) { float v = 0.5f * float(std::sin(2 * 3.14159265358979 * 997.0 * double(i) / kRate)); tone.data[i * 2] = v; tone.data[i * 2 + 1] = v; }
+        std::vector<float> blk(480 * 2);
+        e.play(&tone, 0.0, true, false, 20);
+        for (int i = 0; i < 100; i++) e.on_playback(blk.data(), 480);     // 1 s of the hotkey
+        const float lh = e.master_lufs();
+        CHECK(lh > -12.f && lh < -6.f, "a 0.5 sine in both channels reads %.2f LUFS (expect about -9)", lh);
+        e.stop_all();
+        for (int i = 0; i < 10; i++) e.on_playback(blk.data(), 480);
+        e.set_mic_fader_db(0.f);
+    }
+
     // ---- record 2 seconds
     CHECK(e.start_recording(dir + "/engine_rec.wav", err), "%s", err.c_str());
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));

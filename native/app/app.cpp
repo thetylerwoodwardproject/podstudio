@@ -14,6 +14,13 @@
 #include "platform.h"
 #include "theme.h"
 
+#ifndef PS_VERSION
+#define PS_VERSION "dev"
+#endif
+#ifndef PS_REVISION
+#define PS_REVISION "1"
+#endif
+
 namespace fs = std::filesystem;
 using namespace theme;
 
@@ -69,6 +76,11 @@ void App::init() {
     for (auto& si : sessions_) if (si.needs_recovery && recover_path_.empty()) { recover_path_ = si.path; recover_name_ = si.name; open_recover_popup_ = true; }
     if (!sessions_.empty()) open_session(sessions_.front().path);
     else new_session("Session " + stamp());
+    if (std::getenv("PODSTUDIO_DEMO_UPDATE")) {                                         // previews: pretend a newer release exists
+        updates::UpdateInfo u; u.version = "2026.12.01-1"; u.notes = "Faster rendering and a live loudness meter."; u.page = "https://github.com/thetylerwoodwardproject/podstudio/releases";
+        update_info_ = u;
+    }
+    if (std::getenv("PODSTUDIO_DEMO_ABOUT")) open_about_popup_ = true;
     if (std::getenv("PODSTUDIO_DEMO_RENDER") && have_proj_) render_async();      // previews: show a finished render
     if (demo_ && engine_ok_) { std::string e; engine_.open_demo(e); source_name_ = "Demo signal"; have_cur_input_ = true; }
 }
@@ -471,6 +483,7 @@ void App::frame(float dt, ImVec2 display) {
         float a = std::pow(10.f, std::max(engine_.mic_peak_db(), -90.f) / 20.f) + std::pow(10.f, engine_.hotkeys_peak_db() / 20.f);
         master_m_.update(20.f * std::log10(a + 1e-9f), dt);
     }
+    lufs_m_.update(engine_.input_open() || engine_.hotkeys_peak_db() > -89.f ? engine_.master_lufs() : -90.f, dt);
     for (float& f : flash_) f = std::max(0.f, f - dt * 3.5f);
 
     // global shortcuts
@@ -478,7 +491,7 @@ void App::frame(float dt, ImVec2 display) {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { engine_.recording() ? stop_record() : start_record(); }
     handle_keys();
     mic_poll();
-    if (!update_checked_ && now_ > 8.0 && !demo_) { update_checked_ = true; update_check_async(); }
+    if (now_ > update_next_check_ && now_ > 8.0 && !demo_ && !update_busy_) { update_next_check_ = now_ + 6 * 3600.0; update_check_async(); }
     if (update_done_.exchange(false)) {
         if (update_thread_.joinable()) update_thread_.join();
         if (update_after_) { auto f = std::move(update_after_); update_after_ = nullptr; f(); }
@@ -496,7 +509,20 @@ void App::frame(float dt, ImVec2 display) {
     ImGui::Begin("##main", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                     ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     header(display);
-    const float top = px(68);
+    float top = px(68);
+    if (update_info_ && !update_banner_dismissed_) {                      // impossible to miss: a bar across the top of the page
+        const float bh = px(42);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(ImVec2(0, top), ImVec2(display.x, top + bh), hex(0x172554));
+        dl->AddLine(ImVec2(0, top + bh), ImVec2(display.x, top + bh), hex(0x1e3a8a));
+        const std::string msg = "PodStudio v" + update_info_->version + " is available.";
+        ui::text_at(dl, fonts.semibold, ImVec2(px(24), top + (bh - ui::text_size(fonts.semibold, msg.c_str()).y) / 2), hex(0xbfdbfe), msg.c_str());
+        ImGui::SetCursorPos(ImVec2(display.x - px(24) - px(32) - px(8) - px(120), top + px(6)));
+        if (ImGui::Button("See what's new", ImVec2(px(120), px(30)))) open_update_popup_ = true;
+        ImGui::SetCursorPos(ImVec2(display.x - px(24) - px(32), top + px(6)));
+        if (ImGui::Button("X", ImVec2(px(32), px(30)))) update_banner_dismissed_ = true;
+        top += bh;
+    }
     ImGui::SetCursorPos(ImVec2(0, top));
     ImVec2 avail(display.x, display.y - top);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(24), px(20)));
@@ -518,6 +544,7 @@ void App::frame(float dt, ImVec2 display) {
     if (settings_dirty_ && !ImGui::IsMouseDown(0)) { settings_dirty_ = false; save(); }
     pad_editor();
     session_popup();
+    about_popup();
     recovery_popup();
     update_popup();
     draw_toast(display);
@@ -527,38 +554,62 @@ void App::frame(float dt, ImVec2 display) {
 void App::header(ImVec2 display) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float h = px(68);
+    const bool narrow = display.x < 1300;                // shorter labels on narrower windows
     dl->AddLine(ImVec2(0, h), ImVec2(display.x, h), hex(kLine));
     // logo
     ImVec2 lp(px(24), px(16));
     dl->AddRectFilled(lp, ImVec2(lp.x + px(36), lp.y + px(36)), hex(kAccent), px(10));
     dl->AddCircleFilled(ImVec2(lp.x + px(18), lp.y + px(18)), px(7), hex(0xffffff), 24);
     ui::text_at(dl, fonts.title, ImVec2(lp.x + px(48), lp.y + px(5)), hex(kText), "PodStudio");
-    // tabs
-    static const char* tabs[] = {"Session", "Mic", "Mix", "Recordings", "Script", "Publish"};
-    const float each = px(84);
-    ImGui::SetCursorPos(ImVec2(px(216), px(16)));
-    int sel = int(page_);
-    if (ui::pill_tabs(tabs, 6, &sel, each)) page_ = Page(sel);
-    if (update_info_) {                                                 // "Update available"
-        const char* t = "Update available";
-        ImVec2 ts = ui::text_size(fonts.semibold, t);
-        const float bw = ts.x + px(34);
-        ImGui::SetCursorPos(ImVec2(display.x - px(24) - px(210) - px(12) - px(170) - px(12) - bw, px(15)));
-        ImVec2 bp = ImGui::GetCursorScreenPos();
-        if (ImGui::InvisibleButton("##upd", ImVec2(bw, px(38)))) open_update_popup_ = true;
-        const bool hv = ImGui::IsItemHovered();
-        dl->AddRectFilled(bp, ImVec2(bp.x + bw, bp.y + px(38)), hex(hv ? 0x1e3a8a : 0x172554), px(19));
-        dl->AddRect(bp, ImVec2(bp.x + bw, bp.y + px(38)), hex(0x3b82f6), px(19));
-        ui::text_at(dl, fonts.semibold, ImVec2(bp.x + px(17), bp.y + (px(38) - ts.y) / 2), hex(0x93c5fd), t);
+
+    // record button: always visible, so you can see it armed or recording from any tab
+    {
+        const bool rec = engine_.recording();
+        const bool ready = engine_.input_open() && !rendering_.load();
+        const float rw = px(124), rh = px(38);
+        ImGui::SetCursorPos(ImVec2(px(196), px(15)));
+        ImVec2 rp = ImGui::GetCursorScreenPos();
+        if (ImGui::InvisibleButton("##hdrrec", ImVec2(rw, rh)) && (ready || rec)) { rec ? stop_record() : start_record(); }
+        const bool hov = ImGui::IsItemHovered() && (ready || rec);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip(rec ? "Stop recording (Ctrl+R)" : ready ? "Start recording (Ctrl+R)" : "Connect your PodMic to record");
+        const float pulse = rec ? 0.5f + 0.5f * std::sin(float(ImGui::GetTime()) * 5.f) : 0.f;
+        const ImVec2 rq(rp.x + rw, rp.y + rh);
+        if (rec) {
+            dl->AddRectFilled(rp, rq, hex(hov ? 0xef4444 : 0xdc2626), px(10));
+            dl->AddCircleFilled(ImVec2(rp.x + px(20), rp.y + rh / 2), px(5.5f), hex(0xffffff, 0.45f + 0.55f * pulse), 20);
+            const std::string t = ui::fmt_time(engine_.rec_seconds());
+            ui::text_at(dl, fonts.mono, ImVec2(rp.x + px(36), rp.y + (rh - ui::text_size(fonts.mono, t.c_str()).y) / 2), hex(0xffffff), t.c_str());
+            const char* st = "Stop";
+            ui::text_at(dl, fonts.sm, ImVec2(rq.x - px(12) - ui::text_size(fonts.sm, st).x, rp.y + (rh - ui::text_size(fonts.sm, st).y) / 2), hex(0xffffff, 0.85f), st);
+        } else {
+            const ImU32 edge = ready ? hex(kAccent, hov ? 1.f : 0.8f) : hex(kLine);
+            dl->AddRectFilled(rp, rq, ready ? hex(kAccent, hov ? 0.18f : 0.10f) : hex(kRaised), px(10));
+            dl->AddRect(rp, rq, edge, px(10), 0, 1.5f);
+            dl->AddCircleFilled(ImVec2(rp.x + px(20), rp.y + rh / 2), px(5.5f), ready ? hex(kAccent) : hex(kFaint), 20);
+            const char* t = "Record";
+            ui::text_at(dl, fonts.semibold, ImVec2(rp.x + px(36), rp.y + (rh - ui::text_size(fonts.semibold, t).y) / 2), ready ? hex(kText) : hex(kFaint), t);
+        }
     }
-    // right side: mic pill + session button
+
+    // tabs, after the record button
+    static const char* tabs[] = {"Session", "Mic", "Mix", "Recordings", "Script", "Publish"};
+    const float tabs_x = px(196 + 124 + 14);
+    ImGui::SetCursorPos(ImVec2(tabs_x, px(16)));
+    int sel = int(page_);
+    float tabs_w = 0;
+    if (ui::icon_tabs(tabs, 6, &sel, /*with_labels=*/!narrow, &tabs_w)) page_ = Page(sel);
+    const float tabs_end = tabs_x + tabs_w;
+
+    // right side: session button and mic pill (shorter on narrow windows)
     const bool ok = engine_.input_open();
-    const char* mic_text = ok ? (demo_ ? "Demo signal" : "PodMic connected") : "PodMic not connected";
+    const char* mic_text = ok ? (demo_ ? "Demo" : (narrow ? "PodMic" : "PodMic connected")) : (narrow ? "No mic" : "PodMic not connected");
     ImVec2 ms = ui::text_size(fonts.body, mic_text);
+    const float pw = ms.x + px(40);
+    const float max_sbw = std::max(px(140), std::min(px(260), display.x - px(24) - tabs_end - px(16) - pw - px(10)));
     std::string sname = have_proj_ ? proj_.name : "No session";
-    if (sname.size() > 22) sname = sname.substr(0, 21) + "...";
+    sname = ui::fit_text(fonts.semibold, sname, max_sbw - px(44));
     ImVec2 ss = ui::text_size(fonts.semibold, sname.c_str());
-    const float sbw = ss.x + px(44), pw = ms.x + px(40);
+    const float sbw = ss.x + px(44);
     float x = display.x - px(24) - sbw;
     ImGui::SetCursorPos(ImVec2(x, px(15)));
     ImVec2 bp = ImGui::GetCursorScreenPos();
@@ -569,11 +620,79 @@ void App::header(ImVec2 display) {
     ui::text_at(dl, fonts.semibold, ImVec2(bp.x + px(14), bp.y + (px(38) - ss.y) / 2), hex(kText), sname.c_str());
     dl->AddTriangleFilled(ImVec2(bp.x + sbw - px(22), bp.y + px(16)), ImVec2(bp.x + sbw - px(12), bp.y + px(16)),
                           ImVec2(bp.x + sbw - px(17), bp.y + px(22)), hex(kDim));
-    ImVec2 pp(x - px(12) - pw, bp.y);
+    ImVec2 pp(x - px(10) - pw, bp.y);
     dl->AddRectFilled(pp, ImVec2(pp.x + pw, pp.y + px(38)), hex(ok ? 0x0f2a1a : 0x2a1f0a), px(19));
     dl->AddRect(pp, ImVec2(pp.x + pw, pp.y + px(38)), hex(ok ? 0x14532d : 0x713f12), px(19));
     dl->AddCircleFilled(ImVec2(pp.x + px(17), pp.y + px(19)), px(4), hex(ok ? kOk : kWarn), 16);
     ui::text_at(dl, fonts.body, ImVec2(pp.x + px(30), pp.y + (px(38) - ms.y) / 2), hex(ok ? 0x86efac : 0xfcd34d), mic_text);
+
+    if (update_info_) {                                                  // "Update available", if there is room; else a dot
+        const char* t = "Update available";
+        ImVec2 ts = ui::text_size(fonts.semibold, t);
+        const float bw = ts.x + px(34), ux = pp.x - px(10) - bw;
+        if (ux > tabs_end + px(10)) {
+            ImGui::SetCursorPos(ImVec2(ux, px(15)));
+            ImVec2 ub = ImGui::GetCursorScreenPos();
+            if (ImGui::InvisibleButton("##upd", ImVec2(bw, px(38)))) open_update_popup_ = true;
+            const bool hv = ImGui::IsItemHovered();
+            dl->AddRectFilled(ub, ImVec2(ub.x + bw, ub.y + px(38)), hex(hv ? 0x1e3a8a : 0x172554), px(19));
+            dl->AddRect(ub, ImVec2(ub.x + bw, ub.y + px(38)), hex(0x3b82f6), px(19));
+            ui::text_at(dl, fonts.semibold, ImVec2(ub.x + px(17), ub.y + (px(38) - ts.y) / 2), hex(0x93c5fd), t);
+        } else {
+            dl->AddCircleFilled(ImVec2(bp.x + sbw - px(4), bp.y + px(4)), px(5), hex(0x3b82f6), 16);
+            if (ImGui::IsMouseClicked(0) && hov) open_update_popup_ = true;
+        }
+    }
+}
+
+void App::about_popup() {
+    if (open_about_popup_) { ImGui::OpenPopup("About PodStudio"); open_about_popup_ = false; }
+    ImGui::SetNextWindowSize(ImVec2(px(700), 0));
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.45f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(26), px(22)));
+    if (ImGui::BeginPopupModal("About PodStudio", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::PushFont(fonts.title); ImGui::TextUnformatted("PodStudio"); ImGui::PopFont();
+        ui::label_dim((std::string("Version ") + PS_VERSION + "-" + PS_REVISION + "  -  The Tyler Woodward Project").c_str());
+        ImGui::Dummy(ImVec2(0, px(8)));
+        ImGui::PushTextWrapPos(px(648));
+        ImGui::TextWrapped("A recording console for the RODE PodMic USB: record, fire hotkey sounds on their own track, clean up the noise, "
+                           "master to -16 LUFS and send it to Buzzsprout.");
+        ImGui::Dummy(ImVec2(0, px(6)));
+        ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
+        ImGui::TextWrapped("PodStudio is an independent project. It is not affiliated with, endorsed by, or sponsored by RODE Microphones. "
+                           "\"RODE\", \"PodMic\" and \"RODE Central\" are trademarks of their owner and are used only to describe the hardware "
+                           "this software works with. PodStudio works with the PodMic USB only.");
+        ImGui::PopStyleColor();
+        ImGui::PopTextWrapPos();
+        ImGui::Dummy(ImVec2(0, px(10)));
+        ImGui::PushFont(fonts.semibold); ImGui::TextUnformatted("Credits"); ImGui::PopFont();
+        static const char* credits[][2] = {
+            {"PodMic control protocol and tables", "podmicusb-doctor by rumkit (MIT)"},
+            {"Noise reduction", "DeepFilterNet by Hendrik Schroter (MIT or Apache-2.0)"},
+            {"Loudness", "ITU-R BS.1770-4"},
+            {"Interface", "Dear ImGui by Omar Cornut (MIT)"},
+            {"Audio", "miniaudio by David Reid (public domain / MIT-0)"},
+            {"Project files", "nlohmann/json by Niels Lohmann (MIT)"},
+            {"Typefaces", "Inter (SIL OFL), Cousine (Apache-2.0)"},
+        };
+        for (auto& c : credits) {                                            // one line each: what, then who
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddText(fonts.sm, fonts.sm->FontSize, p, hex(kDim), c[0]);
+            ImGui::SetCursorScreenPos(ImVec2(p.x + px(190), p.y - px(1)));
+            ImGui::TextUnformatted(c[1]);
+            ImGui::Dummy(ImVec2(0, px(1)));
+        }
+        ImGui::Dummy(ImVec2(0, px(6)));
+        ui::label_dim("Copyright 2026 The Tyler Woodward Project. MIT licensed.");
+        ImGui::Dummy(ImVec2(0, px(10)));
+        if (ui::primary_button("Close", px(100), px(38)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+        ImGui::SameLine();
+        if (ImGui::Button("Project page", ImVec2(px(130), px(38)))) platform::open_url("https://github.com/thetylerwoodwardproject/podstudio");
+        ImGui::SameLine();
+        if (ImGui::Button("Releases", ImVec2(px(100), px(38)))) platform::open_url("https://github.com/thetylerwoodwardproject/podstudio/releases");
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar();
 }
 
 void App::session_popup() {
@@ -615,18 +734,13 @@ void App::session_popup() {
         ImGui::SameLine();
         if (ImGui::Button("Check for updates")) { update_manual_ = true; update_check_async(); ImGui::CloseCurrentPopup(); }
         ImGui::SameLine();
+        if (ImGui::Button("About")) { open_about_popup_ = true; ImGui::CloseCurrentPopup(); }
+        ImGui::SameLine();
         if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
     ImGui::PopStyleVar();
 }
-
-#ifndef PS_VERSION
-#define PS_VERSION "dev"
-#endif
-#ifndef PS_REVISION
-#define PS_REVISION "1"
-#endif
 
 void App::update_check_async() {
     if (update_busy_ || !http_) return;

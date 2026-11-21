@@ -140,6 +140,28 @@ int main(int argc, char** argv) {
         Project again; CHECK(Project::load(p.root, again, e) && again.events.size() == 5 && again.pads.size() == 2, "round trip");
     }
 
+    // --- live loudness meter: a steady signal reads the same as the batch BS.1770 measurement
+    {
+        for (double amp : {1.0, 0.25, 0.03}) {
+            Audio t; t.channels = 1; t.data.resize(size_t(2 * kRate));
+            for (size_t i = 0; i < t.data.size(); i++) t.data[i] = float(amp * std::sin(2 * 3.14159265358979323846 * 997.0 * double(i) / kRate));
+            LoudnessMeter lm(1);
+            const float* p = t.data.data();
+            for (size_t off = 0; off < t.data.size(); off += 480) lm.process(p + off, 480);          // as the audio callback delivers it
+            const double live = LoudnessMeter::to_lufs(lm.mean_square());
+            const double batch = *integrated_loudness(t);
+            char name[48]; std::snprintf(name, sizeof name, "live meter at amplitude %.2f", amp);
+            near(name, live, batch, 0.05);
+        }
+        LoudnessMeter lm(2); std::vector<float> silence(960, 0.f);
+        for (int i = 0; i < 400; i++) lm.process(silence.data(), 480);
+        CHECK(LoudnessMeter::to_lufs(lm.mean_square()) <= -90.0, "silence reads -90");
+        std::vector<float> loud(960, 0.5f);
+        for (int i = 0; i < 100; i++) lm.process(loud.data(), 480);                                  // 1 s of loud signal
+        for (int i = 0; i < 200; i++) lm.process(silence.data(), 480);                               // then 2 s of silence: the 400 ms window empties
+        CHECK(LoudnessMeter::to_lufs(lm.mean_square()) <= -80.0, "the window forgets old audio: %.1f", LoudnessMeter::to_lufs(lm.mean_square()));
+    }
+
     // --- crash recovery: a recording that never got its final header, and a journal with a torn last line
     {
         std::string e;

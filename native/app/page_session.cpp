@@ -108,9 +108,34 @@ void App::page_session(ImVec2 avail) {
         ImGui::SetCursorScreenPos(ImVec2(start.x + col_w, start.y));
         strip("Hotkeys", 0xb48bff, hk_m_, &hk, true, meter_h, "", col_w);
         ImGui::SetCursorScreenPos(ImVec2(start.x + col_w * 2, start.y));
-        char note[32]; std::snprintf(note, sizeof note, "%.0f LUFS target", proj_.target_lufs);
-        float dummy = 0;
-        strip("Master", 0xfafafa, master_m_, &dummy, false, meter_h, note, col_w);
+        // Master: a real loudness meter. Click it to switch between LUFS (momentary, K-weighted) and dBFS (peak).
+        {
+            ImGui::SetCursorScreenPos(ImVec2(start.x + col_w * 2, start.y));
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            const bool lufs = master_mode_ == 0;
+            const ui::MeterState& mm = lufs ? lufs_m_ : master_m_;
+            char val[40], cap[48];
+            if (lufs) std::snprintf(val, sizeof val, mm.level > -70.f ? "%.1f LUFS" : "-- LUFS", double(mm.level));
+            else std::snprintf(val, sizeof val, mm.level > -89.f ? "%.1f dBFS" : "-- dBFS", double(mm.level));
+            if (lufs) std::snprintf(cap, sizeof cap, "momentary, target %.0f", proj_.target_lufs); else std::snprintf(cap, sizeof cap, "peak");
+            const ImVec2 ns = ui::text_size(fonts.semibold, "Master"), vs = ui::text_size(fonts.mono, val), cs = ui::text_size(fonts.sm, cap);
+            const float cx = p.x + col_w / 2, title_w = px(14) + ns.x;
+            dl->AddCircleFilled(ImVec2(cx - title_w / 2 + px(5), p.y + px(10)), px(4.5f), hex(0xfafafa), 16);
+            ui::text_at(dl, fonts.semibold, ImVec2(cx - title_w / 2 + px(14), p.y), hex(kText), "Master");
+            ui::text_at(dl, fonts.mono, ImVec2(cx - vs.x / 2, p.y + px(24)), hex(kText), val);
+            ui::text_at(dl, fonts.sm, ImVec2(cx - cs.x / 2, p.y + px(42)), hex(kDim), cap);
+            const float meter_w = px(14 + 30);
+            ImGui::SetCursorScreenPos(ImVec2(cx - meter_w / 2, p.y + px(58)));
+            ImVec2 mp = ImGui::GetCursorScreenPos();
+            ui::meter_vertical("Master", mm, meter_h, true, lufs ? float(proj_.target_lufs) : -1000.f);
+            // the whole column is the switch
+            ImGui::SetCursorScreenPos(ImVec2(p.x + px(8), p.y));
+            ImGui::InvisibleButton("##mastermode", ImVec2(col_w - px(16), px(58) + meter_h));
+            if (ImGui::IsItemClicked()) master_mode_ = 1 - master_mode_;
+            if (ImGui::IsItemHovered()) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); ImGui::SetTooltip("Click to switch between LUFS (loudness) and dBFS (peak)"); }
+            (void)mp;
+        }
         if (mic != float(proj_.mic_db)) { proj_.mic_db = mic; engine_.set_mic_fader_db(mic); settings_dirty_ = true; }
         if (hk != float(proj_.hotkeys_db)) { proj_.hotkeys_db = hk; engine_.set_hotkeys_fader_db(hk); settings_dirty_ = true; }
     }

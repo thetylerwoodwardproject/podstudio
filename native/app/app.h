@@ -89,6 +89,7 @@ private:
     void pad_editor();
     void recovery_popup();
     void update_popup();
+    void about_popup();
     void update_check_async();
     void update_download_async();
     void recover(const std::string& path);
@@ -119,7 +120,8 @@ public:
     std::string audio_error_;
 
     // meters
-    ui::MeterState mic_m_, hk_m_, master_m_;
+    ui::MeterState mic_m_, hk_m_, master_m_, lufs_m_;
+    int master_mode_ = 0;                                 // Master meter: 0 = LUFS (momentary), 1 = dBFS (peak); click to switch
 
     // pads
     std::map<std::string, std::unique_ptr<Clip>> clips_;
@@ -199,7 +201,8 @@ public:
     std::optional<updates::UpdateInfo> update_info_;
     std::string update_error_, update_path_, update_status_;
     std::atomic<float> update_frac_{-1.f};
-    bool update_checked_ = false, open_update_popup_ = false, update_manual_ = false;
+    bool update_checked_ = false, open_update_popup_ = false, update_manual_ = false, open_about_popup_ = false, update_banner_dismissed_ = false;
+    double update_next_check_ = 0;
     std::function<void()> update_after_;
 
     // crash recovery

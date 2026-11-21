@@ -58,7 +58,12 @@ struct Engine::Ring {
     }
 };
 
-Engine::Engine() = default;
+Engine::Engine() { scratch_.resize(4096); }
+
+float Engine::master_lufs() const {
+    const double e = 2.0 * mic_lm_.mean_square() + hk_lm_.mean_square();
+    return float(LoudnessMeter::to_lufs(e));
+}
 
 Engine::~Engine() {
     close_input();
@@ -155,6 +160,7 @@ void Engine::close_input() {
     if (demo_) { demo_ = false; if (demo_thread_.joinable()) demo_thread_.join(); }
     if (cap_) { ma_device_uninit(cap_); delete cap_; cap_ = nullptr; }
     input_open_ = false; lost_ = false;
+    mic_lm_.reset();
     mic_rms_ = mic_peak_ = voice_rms_ = -90.f;
 }
 
@@ -169,6 +175,11 @@ void Engine::on_capture(const float* in, unsigned frames) {
         const float y = x * g;
         sq_post += double(y) * y;
         pk = std::max(pk, std::fabs(y));
+    }
+    for (unsigned at = 0; at < frames; at += unsigned(scratch_.size())) {          // loudness of the mic as the master will hear it
+        const unsigned n = std::min<unsigned>(unsigned(scratch_.size()), frames - at);
+        for (unsigned i = 0; i < n; i++) scratch_[i] = in[at + i] * g;
+        mic_lm_.process(scratch_.data(), n);
     }
     const float voice = to_db(sq / frames);
     voice_rms_.store(voice);
@@ -287,6 +298,7 @@ void Engine::on_playback(float* out, unsigned frames) {
         }
         if (done) { v.fade_step = 0.f; v.active.store(false, std::memory_order_release); }
     }
+    hk_lm_.process(out, frames);
     hk_peak_.store(peak_to_db(hk_peak));
 
     // preview of a recorded file, after the hotkeys so it isn't ducked

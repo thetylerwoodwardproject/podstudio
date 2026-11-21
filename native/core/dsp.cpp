@@ -65,6 +65,48 @@ std::optional<double> integrated_loudness(const Audio& a) {
     return lk(acc / double(cnt));
 }
 
+// ------------------------------------------------------------------------------------------------ live meter
+LoudnessMeter::LoudnessMeter(int channels) : channels_(channels < 1 ? 1 : channels), st_(size_t(channels_)) {}
+
+void LoudnessMeter::reset() {
+    for (auto& s : st_) s = State();
+    acc_ = 0; n_ = 0; filled_ = 0; idx_ = 0;
+    for (double& h : hops_) h = 0;
+    ms_.store(0.0, std::memory_order_relaxed);
+}
+
+void LoudnessMeter::process(const float* x, size_t frames) {
+    static const Biquad shelf_c = shelf(), rlb_c = rlb();
+    const size_t hop = 4800;                            // 100 ms at 48 kHz
+    for (size_t i = 0; i < frames; i++) {
+        for (int c = 0; c < channels_; c++) {
+            State& st = st_[size_t(c)];
+            const double in = x[i * size_t(channels_) + size_t(c)];
+            // direct form II transposed, same coefficients as integrated_loudness()
+            double y1 = shelf_c.b0 * in + st.sz1[0];
+            st.sz1[0] = shelf_c.b1 * in - shelf_c.a1 * y1 + st.sz1[1];
+            st.sz1[1] = shelf_c.b2 * in - shelf_c.a2 * y1;
+            double y2 = rlb_c.b0 * y1 + st.sz2[0];
+            st.sz2[0] = rlb_c.b1 * y1 - rlb_c.a1 * y2 + st.sz2[1];
+            st.sz2[1] = rlb_c.b2 * y1 - rlb_c.a2 * y2;
+            acc_ += y2 * y2;
+        }
+        if (++n_ == hop) {
+            hops_[idx_] = acc_;
+            idx_ = (idx_ + 1) % 4;
+            if (filled_ < 4) filled_++;
+            double sum = 0;
+            for (int k = 0; k < filled_; k++) sum += hops_[k];
+            ms_.store(sum / (double(filled_) * double(hop)), std::memory_order_relaxed);
+            acc_ = 0; n_ = 0;
+        }
+    }
+}
+
+double LoudnessMeter::mean_square() const { return ms_.load(std::memory_order_relaxed); }
+
+double LoudnessMeter::to_lufs(double ms) { return ms < 1e-9 ? -90.0 : std::max(-90.0, -0.691 + 10.0 * std::log10(ms)); }
+
 // ------------------------------------------------------------------------------------------------ true peak
 namespace {
 
