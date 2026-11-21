@@ -16,7 +16,7 @@ $env:PODSTUDIO_DEMO = "1"
 foreach ($page in $Pages) {
   $p = Start-Process $Exe -ArgumentList @("--page", "$page") -PassThru
   Start-Sleep -Seconds 8
-  if ($p.HasExited) { Write-Host "page $page: exited early with code $($p.ExitCode)"; continue }
+  if ($p.HasExited) { Write-Host "page ${page}: exited early with code $($p.ExitCode)"; continue }
   try {
     $h = $p.MainWindowHandle
     [Win]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, 0, 0, 0x0041) | Out-Null      # move to 0,0, keep size, show
