@@ -97,6 +97,26 @@ bool write_wav24(const std::string& path, const Audio& a, std::string& err) {
     return true;
 }
 
+bool write_wav_float(const std::string& path, const Audio& a, std::string& err) {
+    std::string tmp = path + ".part";
+    FILE* f = std::fopen(tmp.c_str(), "wb");
+    if (!f) { err = "cannot write " + tmp; return false; }
+    uint8_t h[44];
+    uint32_t bytes = uint32_t(a.data.size() * 4);
+    std::memcpy(h, "RIFF", 4);          wr32(h + 4, 36 + bytes);
+    std::memcpy(h + 8, "WAVEfmt ", 8);  wr32(h + 16, 16);
+    wr16(h + 20, 3);                    wr16(h + 22, uint16_t(a.channels));
+    wr32(h + 24, uint32_t(a.rate));     wr32(h + 28, uint32_t(a.rate * a.channels * 4));
+    wr16(h + 32, uint16_t(a.channels * 4)); wr16(h + 34, 32);
+    std::memcpy(h + 36, "data", 4);     wr32(h + 40, bytes);
+    bool ok = std::fwrite(h, 1, 44, f) == 44 && std::fwrite(a.data.data(), 4, a.data.size(), f) == a.data.size();
+    ok = (std::fclose(f) == 0) && ok;
+    if (!ok) { err = "write failed"; std::remove(tmp.c_str()); return false; }
+    std::remove(path.c_str());
+    if (std::rename(tmp.c_str(), path.c_str()) != 0) { err = "cannot replace " + path; return false; }
+    return true;
+}
+
 WavWriter::~WavWriter() { close(); }
 
 bool WavWriter::open(const std::string& path, int channels, int rate, std::string& err) {

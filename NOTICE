@@ -49,3 +49,7 @@ https://creativecommons.org/licenses/by/4.0/
 Nothing in this repository is RØDE code or data. RØDE, PodMic and RØDE Central
 are trademarks of their respective owner. This project is not affiliated with,
 endorsed by, or supported by RØDE.
+
+Native (C++) build, native/:
+- Dear ImGui (MIT) (c) Omar Cornut; miniaudio (public domain / MIT-0) by David Reid; nlohmann/json (MIT) (c) Niels Lohmann.
+- Inter typeface (SIL Open Font License 1.1), (c) The Inter Project Authors; Cousine (Apache License 2.0), (c) Steve Matteson.

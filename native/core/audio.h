@@ -28,6 +28,9 @@ bool read_wav(const std::string& path, Audio& out, std::string& err);
 // Writes 24-bit PCM atomically (to path + ".part", then renamed), so a reader never sees a half-written file.
 bool write_wav24(const std::string& path, const Audio& audio, std::string& err);
 
+// 32-bit float WAV (atomic like write_wav24). DeepFilterNet's reader rejects 24-bit files, so it is handed this.
+bool write_wav_float(const std::string& path, const Audio& audio, std::string& err);
+
 // Streaming 24-bit mono/stereo WAV writer for recording. The header is rewritten every second or so, so a crash
 // or power cut leaves a file that read_wav() can still open and whose length is right to within a second.
 class WavWriter {
