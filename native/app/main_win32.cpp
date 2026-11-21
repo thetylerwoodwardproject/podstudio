@@ -67,7 +67,7 @@ LRESULT WINAPI wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_GETMINMAXINFO: {
             auto* mm = reinterpret_cast<MINMAXINFO*>(lp);
             const float s = ImGui_ImplWin32_GetDpiScaleForHwnd(hwnd);
-            mm->ptMinTrackSize.x = LONG(980 * s); mm->ptMinTrackSize.y = LONG(640 * s);
+            mm->ptMinTrackSize.x = LONG(1180 * s); mm->ptMinTrackSize.y = LONG(700 * s);
             return 0;
         }
         case WM_DPICHANGED: {

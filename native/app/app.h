@@ -1,6 +1,7 @@
 // Application state and the pages of the UI.
 #pragma once
 #include <atomic>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -13,6 +14,7 @@
 #include "../core/project.h"
 #include "../core/render.h"
 #include "engine.h"
+#include "micctl.h"
 #include "widgets.h"
 
 namespace ps {
@@ -23,7 +25,7 @@ struct SessionInfo {
     bool has_master = false, has_mic = false;
 };
 
-enum Page { kSession = 0, kMix, kRecordings, kScript, kPageCount };
+enum Page { kSession = 0, kMic, kMix, kRecordings, kScript, kPageCount };
 
 class App {
 public:
@@ -46,6 +48,10 @@ private:
     void save();
     // ---- input
     void poll_inputs();
+    void mic_poll();
+    void mic_sync();
+    void mic_write(const char* what, const std::function<void(podmic::Mic&)>& fn);
+    void mic_queue(const std::string& key, std::function<void(podmic::Mic&)> fn);
     // ---- recording and pads
     void start_record();
     void stop_record();
@@ -62,6 +68,7 @@ private:
     // ---- ui
     void header(ImVec2 display);
     void page_session(ImVec2 avail);
+    void page_mic(ImVec2 avail);
     void page_mix(ImVec2 avail);
     void page_recordings(ImVec2 avail);
     void page_script(ImVec2 avail);
@@ -149,6 +156,19 @@ public:
     bool open_session_popup_ = false;
     char new_name_[96] = {};
 
+    // PodMic on-board controls
+    InputInfo cur_input_;
+    bool have_cur_input_ = false;
+    std::unique_ptr<MicLink> mic_link_, mic_new_link_;
+    std::thread mic_thread_;
+    std::atomic<int> mic_state_{0};                      // 0 absent, 1 connecting, 2 ready, 3 failed
+    std::mutex mic_mu_;
+    std::string mic_error_, mic_desc_;
+    double mic_next_try_ = 0, gain_next_ = 0;
+    std::map<std::string, float> mic_vals_;              // "comp.threshold", "depth", "monitor_mix", ...
+    std::map<std::string, bool> mic_flags_;              // "hpf", "mute", "monitoring", "processing", "advanced", "comp_on", ...
+    std::map<std::string, std::pair<double, std::function<void(podmic::Mic&)>>> mic_pending_;   // debounced writes
+    float gain_db_ = 0; GainRange gain_range_; bool gain_ok_ = false;
     bool settings_dirty_ = false;
     double now_ = 0;
 };

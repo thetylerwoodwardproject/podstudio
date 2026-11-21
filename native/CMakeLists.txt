@@ -35,17 +35,17 @@ if(PODSTUDIO_BUILD_APP)
   target_include_directories(imgui_lib PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/misc/cpp)
 
   set(APP_SOURCES app/app.cpp app/engine.cpp app/theme.cpp app/widgets.cpp app/denoise.cpp
-      app/page_session.cpp app/page_mix.cpp app/page_recordings.cpp app/page_script.cpp)
+      app/page_session.cpp app/page_mic.cpp app/page_mix.cpp app/page_recordings.cpp app/page_script.cpp)
   if(WIN32)
-    list(APPEND APP_SOURCES app/mp3_win32.cpp)
+    list(APPEND APP_SOURCES app/mp3_win32.cpp app/micctl_win32.cpp)
   else()
-    list(APPEND APP_SOURCES app/mp3_stub.cpp)
+    list(APPEND APP_SOURCES app/mp3_stub.cpp app/micctl_demo.cpp)
   endif()
 
   if(WIN32)
     add_executable(PodStudio WIN32 ${APP_SOURCES} app/platform_win32.cpp app/main_win32.cpp app/podstudio.rc
       ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
-    target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid mfplat mfreadwrite mfuuid)
+    target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid mfplat mfreadwrite mfuuid setupapi hid)
     if(MSVC)
       set_property(TARGET PodStudio PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")      # static CRT: one self-contained .exe
       target_compile_definitions(PodStudio PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX UNICODE _UNICODE)

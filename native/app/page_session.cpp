@@ -79,7 +79,7 @@ void App::connect_overlay(ImVec2 pos, ImVec2 size) {
         for (size_t i = 0; i < inputs_.size(); i++) {
             if (ImGui::Selectable(inputs_[i].name.c_str(), false, 0, ImVec2(0, px(28)))) {
                 std::string e;
-                if (engine_.open_input(inputs_[i], e)) { source_name_ = inputs_[i].name; show_other_inputs_ = false; }
+                if (engine_.open_input(inputs_[i], e)) { source_name_ = inputs_[i].name; cur_input_ = inputs_[i]; have_cur_input_ = true; show_other_inputs_ = false; }
                 else audio_error_ = e;
             }
         }

@@ -49,6 +49,7 @@ App::~App() {
         size_t frames = engine_.stop_recording();
         if (have_proj_) { proj_.mic_duration = double(frames) / kRate; proj_.recording = false; std::string e; proj_.save(e); }
     }
+    if (mic_thread_.joinable()) mic_thread_.join();
     if (render_thread_.joinable()) render_thread_.join();
     if (mp3_thread_.joinable()) mp3_thread_.join();
     if (peaks_thread_.joinable()) peaks_thread_.join();
@@ -63,7 +64,7 @@ void App::init() {
     refresh_sessions();
     if (!sessions_.empty()) open_session(sessions_.front().path);
     else new_session("Session " + stamp());
-    if (demo_ && engine_ok_) { std::string e; engine_.open_demo(e); source_name_ = "Demo signal"; }
+    if (demo_ && engine_ok_) { std::string e; engine_.open_demo(e); source_name_ = "Demo signal"; have_cur_input_ = true; }
 }
 
 void App::toast(const std::string& m) { toast_msg_ = m; toast_until_ = now_ + 3.2; }
@@ -140,10 +141,85 @@ void App::poll_inputs() {
     podmic_idx_ = idx;
     if (idx >= 0 && !engine_.input_open()) {
         std::string e;
-        if (engine_.open_input(inputs_[size_t(idx)], e)) source_name_ = inputs_[size_t(idx)].name;
+        if (engine_.open_input(inputs_[size_t(idx)], e)) { source_name_ = inputs_[size_t(idx)].name; cur_input_ = inputs_[size_t(idx)]; have_cur_input_ = true; }
         else audio_error_ = e;
     } else if (idx < 0 && engine_.input_open() && !engine_.recording() && source_name_.find("PodMic") != std::string::npos) {
         engine_.close_input(); source_name_.clear();
+    }
+}
+
+// ------------------------------------------------------------------------------------------------ PodMic controls
+void App::mic_write(const char* what, const std::function<void(podmic::Mic&)>& fn) {
+    if (mic_state_ != 2 || !mic_link_) return;
+    try { fn(mic_link_->mic()); }
+    catch (const podmic::Error& e) {
+        toast(std::string("Mic control: ") + e.what());
+        (void)what;
+        mic_link_.reset(); mic_state_ = 3; mic_next_try_ = now_ + 3.0;
+    }
+}
+
+void App::mic_queue(const std::string& key, std::function<void(podmic::Mic&)> fn) {
+    mic_pending_[key] = {now_ + 0.15, std::move(fn)};         // slider drags send one write after they settle
+}
+
+void App::mic_sync() {
+    if (mic_state_ != 2 || !mic_link_) return;
+    mic_write("read", [&](podmic::Mic& m) {
+        auto st = m.read_state();
+        auto flag = [&](const char* k, const std::optional<bool>& v) { if (v) mic_flags_[k] = *v; };
+        flag("hpf", st.hpf); flag("mute", st.mute); flag("monitoring", st.monitoring); flag("processing", st.processing);
+        flag("advanced", st.advanced); flag("comp_on", st.comp_on); flag("gate_on", st.gate_on);
+        flag("exciter_on", st.exciter_on); flag("bottom_on", st.bottom_on);
+        if (st.monitor_mix) mic_vals_["monitor_mix"] = float(*st.monitor_mix);
+        if (st.depth) mic_vals_["depth"] = float(*st.depth);
+        if (st.sparkle) mic_vals_["sparkle"] = float(*st.sparkle);
+        if (st.punch) mic_vals_["punch"] = float(*st.punch);
+        static const char* fields[][2] = {{"comp", "threshold"}, {"comp", "ratio"}, {"comp", "attack"}, {"comp", "release"}, {"comp", "gain"},
+            {"gate", "threshold"}, {"gate", "range"}, {"gate", "attack"}, {"gate", "hold"}, {"gate", "release"}, {"gate", "hysteresis"},
+            {"exciter", "harmonics"}, {"exciter", "tune"}, {"bottom", "drive"}, {"bottom", "tune"}};
+        for (auto& f : fields) {
+            auto v = m.read_field(f[0], f[1]);
+            mic_vals_[std::string(f[0]) + "." + f[1]] = v ? float(*v) : float(podmic::default_value(f[0], f[1]));
+        }
+    });
+}
+
+void App::mic_poll() {
+    // a connection attempt finished?
+    if (mic_state_ == 1 && !mic_thread_.joinable()) mic_state_ = 0;
+    if (mic_thread_.joinable() && mic_state_ != 1) {
+        mic_thread_.join();
+    }
+    {
+        std::lock_guard<std::mutex> l(mic_mu_);
+        if (mic_new_link_) { mic_link_ = std::move(mic_new_link_); mic_state_ = 2; mic_sync(); }
+    }
+    const bool audio_present = engine_.input_open() && have_cur_input_ ? true : (engine_.input_open() && demo_);
+    const bool want = audio_present || mic_hid_present();
+    if (!want && mic_state_ != 1) { if (mic_link_) { mic_link_.reset(); } mic_state_ = 0; }
+    if (want && (mic_state_ == 0 || mic_state_ == 3) && !mic_link_ && now_ >= mic_next_try_ && !mic_thread_.joinable()) {
+        mic_state_ = 1;
+        mic_next_try_ = now_ + 3.0;
+        mic_thread_ = std::thread([this] {
+            std::string err;
+            auto link = connect_mic(err);
+            std::lock_guard<std::mutex> l(mic_mu_);
+            if (link) { mic_new_link_ = std::move(link); mic_error_.clear(); }
+            else { mic_error_ = err; mic_state_ = 3; }
+        });
+    }
+    // debounced writes
+    for (auto it = mic_pending_.begin(); it != mic_pending_.end();) {
+        if (now_ >= it->second.first) { auto fn = std::move(it->second.second); it = mic_pending_.erase(it); mic_write("write", fn); }
+        else ++it;
+    }
+    // input gain follows the system mixer
+    if (have_cur_input_ && engine_.input_open() && now_ >= gain_next_ && mic_pending_.find("gain") == mic_pending_.end()) {
+        gain_next_ = now_ + 2.0;
+        GainRange r; float db;
+        gain_ok_ = gain_range(cur_input_, r) && gain_get(cur_input_, db);
+        if (gain_ok_) { gain_range_ = r; gain_db_ = db; }
     }
 }
 
@@ -386,6 +462,7 @@ void App::frame(float dt, ImVec2 display) {
     ImGuiIO& io = ImGui::GetIO();
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { engine_.recording() ? stop_record() : start_record(); }
     handle_keys();
+    mic_poll();
 
     // script autosave
     if (script_dirty_ && now_ > script_save_at_) script_save();
@@ -403,6 +480,7 @@ void App::frame(float dt, ImVec2 display) {
     ImVec2 inner(avail.x - px(48), avail.y - px(40));
     switch (page_) {
         case kSession: page_session(inner); break;
+        case kMic: page_mic(inner); break;
         case kMix: page_mix(inner); break;
         case kRecordings: page_recordings(inner); break;
         case kScript: page_script(inner); break;
@@ -429,17 +507,17 @@ void App::header(ImVec2 display) {
     dl->AddCircleFilled(ImVec2(lp.x + px(18), lp.y + px(18)), px(7), hex(0xffffff), 24);
     ui::text_at(dl, fonts.title, ImVec2(lp.x + px(48), lp.y + px(5)), hex(kText), "PodStudio");
     // tabs
-    static const char* tabs[] = {"Session", "Mix", "Recordings", "Script"};
-    const float each = px(104);
-    ImGui::SetCursorPos(ImVec2((display.x - each * 4) / 2, px(16)));
+    static const char* tabs[] = {"Session", "Mic", "Mix", "Recordings", "Script"};
+    const float each = px(96);
+    ImGui::SetCursorPos(ImVec2(px(232), px(16)));
     int sel = int(page_);
-    if (ui::pill_tabs(tabs, 4, &sel, each)) page_ = Page(sel);
+    if (ui::pill_tabs(tabs, 5, &sel, each)) page_ = Page(sel);
     // right side: mic pill + session button
     const bool ok = engine_.input_open();
-    const char* mic_text = ok ? (demo_ ? "Demo signal" : "PodMic USB connected") : "PodMic USB not connected";
+    const char* mic_text = ok ? (demo_ ? "Demo signal" : "PodMic connected") : "PodMic not connected";
     ImVec2 ms = ui::text_size(fonts.body, mic_text);
     std::string sname = have_proj_ ? proj_.name : "No session";
-    if (sname.size() > 26) sname = sname.substr(0, 25) + "...";
+    if (sname.size() > 22) sname = sname.substr(0, 21) + "...";
     ImVec2 ss = ui::text_size(fonts.semibold, sname.c_str());
     const float sbw = ss.x + px(44), pw = ms.x + px(40);
     float x = display.x - px(24) - sbw;
