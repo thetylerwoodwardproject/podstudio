@@ -12,6 +12,7 @@
 #include <imgui.h>
 
 #include "../core/project.h"
+#include "../core/recovery.h"
 #include "../core/render.h"
 #include "engine.h"
 #include "micctl.h"
@@ -22,7 +23,7 @@ namespace ps {
 struct SessionInfo {
     std::string path, name, created;
     double duration = 0;
-    bool has_master = false, has_mic = false;
+    bool has_master = false, has_mic = false, needs_recovery = false;
 };
 
 enum Page { kSession = 0, kMic, kMix, kRecordings, kScript, kPageCount };
@@ -74,6 +75,8 @@ private:
     void page_script(ImVec2 avail);
     void connect_overlay(ImVec2 pos, ImVec2 size);
     void pad_editor();
+    void recovery_popup();
+    void recover(const std::string& path);
     void session_popup();
     void toast(const std::string& msg);
     void draw_toast(ImVec2 display);
@@ -151,6 +154,11 @@ public:
     double script_save_at_ = 0;
     bool prompter_ = false, prompter_run_ = false, prompter_with_rec_ = false;
     float prompter_speed_ = 4.0f, prompter_scroll_ = 0.f, prompter_size_ = 1.0f;
+
+    // crash recovery
+    Journal journal_;
+    std::string recover_path_, recover_name_;
+    bool open_recover_popup_ = false;
 
     // new session popup
     bool open_session_popup_ = false;

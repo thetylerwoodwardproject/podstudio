@@ -21,7 +21,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(json imgui miniaudio)
 
 # ---- core: no operating-system code, tested on every platform
-add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp)
+add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp core/recovery.cpp)
 target_link_libraries(pscore PUBLIC nlohmann_json::nlohmann_json)
 target_include_directories(pscore PUBLIC core)
 

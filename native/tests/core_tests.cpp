@@ -2,6 +2,7 @@
 // Checks the C++ core against the Python implementation, plus some properties that need no reference.
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <cstdlib>
 #include <fstream>
 #include <map>
@@ -12,8 +13,10 @@
 #include "../core/dsp.h"
 #include "../core/render.h"
 #include "../core/podmic.h"
+#include "../core/recovery.h"
 
 using namespace ps;
+namespace fs = std::filesystem;
 
 static int failures = 0, checks = 0;
 #define CHECK(cond, ...) do { checks++; if (!(cond)) { failures++; std::printf("FAIL %s:%d  %s  ", __FILE__, __LINE__, #cond); std::printf(__VA_ARGS__); std::printf("\n"); } } while (0)
@@ -32,7 +35,10 @@ int main(int argc, char** argv) {
         std::string line;
         while (std::getline(in, line)) { std::istringstream s(line); std::string k; double v; if (s >> k >> v) want[k] = v; }
     }
-    CHECK(!want.empty(), "expected.txt missing in %s", dir.c_str());
+    if (want.empty()) {
+        std::printf("No reference data in '%s'. Create it first:\n  python3 native/tests/make_reference.py <dir>\nthen run:  core_tests <dir>\n", dir.c_str());
+        return 2;
+    }
 
     Audio a; std::string err;
     CHECK(read_wav(dir + "/fixture.wav", a, err), "%s", err.c_str());
@@ -132,6 +138,39 @@ int main(int argc, char** argv) {
         // and the project this app saves must load back in unchanged
         CHECK(p.save(e), "save: %s", e.c_str());
         Project again; CHECK(Project::load(p.root, again, e) && again.events.size() == 5 && again.pads.size() == 2, "round trip");
+    }
+
+    // --- crash recovery: a recording that never got its final header, and a journal with a torn last line
+    {
+        std::string e;
+        // a "killed" recording: the writer's last header patch is stale
+        std::string q = dir + "/killed.wav";
+        { WavWriter w; w.open(q, 1, kRate, e); std::vector<float> c(kRate, 0.2f); for (int i = 0; i < 3; i++) w.write(c.data(), c.size()); w.close(); }
+        FILE* f = std::fopen(q.c_str(), "r+b"); std::fseek(f, 40, SEEK_SET); unsigned char stale[4] = {0x10, 0x00, 0x00, 0x00}; std::fwrite(stale, 1, 4, f);
+        std::fseek(f, 4, SEEK_SET); unsigned char riff[4] = {0x24, 0, 0, 0}; std::fwrite(riff, 1, 4, f); std::fseek(f, 0, SEEK_END);
+        unsigned char junk[2] = {1, 2}; std::fwrite(junk, 1, 2, f);                      // a torn partial sample at the end
+        std::fclose(f);
+        double secs = repair_wav_header(q);
+        near("repaired duration", secs, 3.0, 1e-6);
+        Audio r2; CHECK(read_wav(q, r2, e) && r2.frames() == size_t(3 * kRate), "repaired file reads %zu frames", r2.frames());
+
+        // journal: hits, an end, and a half-written last line
+        std::string jp = dir + "/events.jsonl";
+        { Journal j; CHECK(j.start(jp), "journal"); Event a; a.t = 1.5; a.pad = 2; a.clip = "a.wav"; a.gain_db = -3; a.loop = true; j.hit(0, a);
+          Event b; b.t = 4.0; b.pad = 1; b.clip = "b.wav"; j.hit(1, b); j.end(0, 2.25); }
+        { FILE* jf = std::fopen(jp.c_str(), "ab"); std::fputs("{\"op\": \"hit\", \"i\": 2, \"t\": 9.", jf); std::fclose(jf); }
+        auto ev = replay_journal(jp);
+        CHECK(ev.size() == 2 && ev[0].dur && std::fabs(*ev[0].dur - 2.25) < 1e-9 && ev[0].loop && ev[1].clip == "b.wav" && !ev[1].dur, "journal replay: %zu events", ev.size());
+
+        // whole-session recovery
+        Project rp = Project::create("recover me", dir);
+        rp.recording = true; rp.save(e);
+        fs::copy_file(q, rp.mic_path(), fs::copy_options::overwrite_existing);
+        fs::copy_file(jp, rp.journal_path(), fs::copy_options::overwrite_existing);
+        Recovery rec = recover_session(rp.root);
+        CHECK(rec.ok && std::fabs(rec.seconds - 3.0) < 1e-6, "recover: %s", rec.error.c_str());
+        Project back; CHECK(Project::load(rp.root, back, e) && !back.recording && back.events.size() == 2 && std::fabs(back.mic_duration - 3.0) < 1e-6, "recovered project");
+        CHECK(!file_exists(rp.journal_path()), "journal removed once its hits are saved");
     }
 
     // --- PodMic protocol: same bytes as the Python implementation

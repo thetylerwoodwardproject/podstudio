@@ -103,7 +103,8 @@ void App::page_recordings(ImVec2 avail) {
             std::string sub = s.created + (s.duration > 0 ? "  -  " + ui::fmt_time(s.duration) : "");
             ui::text_at(dl, fonts.sm, ImVec2(p.x + px(12), p.y + px(31)), hex(kDim), sub.c_str());
             ImGui::PopClipRect();
-            if (s.has_master) dl->AddCircleFilled(ImVec2(p.x + w - px(14), p.y + px(16)), px(4), hex(kOk), 12);
+            if (s.needs_recovery) dl->AddCircleFilled(ImVec2(p.x + w - px(14), p.y + px(16)), px(4), hex(kWarn), 12);
+            else if (s.has_master) dl->AddCircleFilled(ImVec2(p.x + w - px(14), p.y + px(16)), px(4), hex(kOk), 12);
             ImGui::PopID();
         }
         if (sessions_.empty()) ui::label_dim("No sessions yet. Record one on the Session tab.");
@@ -119,6 +120,13 @@ void App::page_recordings(ImVec2 avail) {
         return;
     }
     if (ui::card_begin("##player", ImVec2(rw, avail.y), view_.name.c_str(), view_.created.c_str())) {
+        if (view_.recording) {
+            ImGui::PushStyleColor(ImGuiCol_Text, hexv(kWarn));
+            ui::label_dim("This session didn't finish recording.");
+            ImGui::PopStyleColor();
+            if (ui::primary_button("Recover", px(110), px(34))) recover(sessions_[size_t(sel_session_)].path);
+            ImGui::Dummy(ImVec2(0, px(6)));
+        }
         // stem chips
         static const char* names[] = {"Master", "Mic", "Cleaned mic", "Hotkeys", "MP3"};
         for (int k = 0; k < 5; k++) {

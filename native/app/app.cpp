@@ -62,6 +62,7 @@ void App::init() {
     root_ = default_root();
     make_dirs(root_);
     refresh_sessions();
+    for (auto& si : sessions_) if (si.needs_recovery && recover_path_.empty()) { recover_path_ = si.path; recover_name_ = si.name; open_recover_popup_ = true; }
     if (!sessions_.empty()) open_session(sessions_.front().path);
     else new_session("Session " + stamp());
     if (demo_ && engine_ok_) { std::string e; engine_.open_demo(e); source_name_ = "Demo signal"; have_cur_input_ = true; }
@@ -83,7 +84,7 @@ void App::refresh_sessions() {
         if (!Project::load(path, p, e)) continue;
         SessionInfo s;
         s.path = path; s.name = p.name; s.created = p.created; s.duration = p.mic_duration;
-        s.has_master = file_exists(p.master_path()); s.has_mic = file_exists(p.mic_path());
+        s.has_master = file_exists(p.master_path()); s.has_mic = file_exists(p.mic_path()); s.needs_recovery = p.recording;
         sessions_.push_back(s);
     }
 }
@@ -279,6 +280,7 @@ void App::pad_press(int i) {
         Event ev;
         ev.t = engine_.rec_seconds(); ev.pad = i; ev.clip = pad.clip; ev.gain_db = gain; ev.duck = pad.duck; ev.loop = pad.mode == "loop";
         proj_.events.push_back(ev);
+        journal_.hit(proj_.events.size() - 1, ev);
         if (pad.mode != "once") open_events_[i] = proj_.events.size() - 1;      // its length is known when it ends
     }
 }
@@ -295,6 +297,7 @@ void App::stop_pad(int i) {
         if (engine_.recording() && it->second < proj_.events.size()) {
             Event& ev = proj_.events[it->second];
             ev.dur = std::max(0.0, engine_.rec_seconds() - ev.t);
+            journal_.end(it->second, *ev.dur);
         }
         open_events_.erase(it);
     }
@@ -323,6 +326,7 @@ void App::start_record() {
     std::string e;
     if (!engine_.start_recording(proj_.mic_path(), e)) { proj_.recording = false; toast(e); return; }
     rec_start_wall_ = now_;
+    journal_.start(proj_.journal_path());
     if (prompter_with_rec_) { prompter_ = true; prompter_run_ = true; prompter_scroll_ = 0; }
 }
 
@@ -335,6 +339,7 @@ void App::stop_record() {
     open_events_.clear();
     proj_.mic_duration = t_end; proj_.recording = false;
     save();
+    journal_.discard();                                  // the take finished normally: its hits are in project.json
     prompter_run_ = false;
     refresh_sessions();
     if (t_end < 0.5) { toast("That take was too short to keep."); return; }
@@ -493,6 +498,7 @@ void App::frame(float dt, ImVec2 display) {
     if (settings_dirty_ && !ImGui::IsMouseDown(0)) { settings_dirty_ = false; save(); }
     pad_editor();
     session_popup();
+    recovery_popup();
     draw_toast(display);
 }
 
@@ -575,6 +581,38 @@ void App::session_popup() {
         if (ImGui::Button("Show the sessions folder")) platform::reveal(root_);
         ImGui::SameLine();
         if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar();
+}
+
+void App::recover(const std::string& path) {
+    Recovery r = recover_session(path);
+    if (!r.ok) { toast("Couldn't recover: " + r.error); return; }
+    char b[96]; std::snprintf(b, sizeof b, "Recovered %s of audio.", ui::fmt_time(r.seconds).c_str());
+    toast(b);
+    refresh_sessions();
+    open_session(path);
+    sel_session_ = -1;
+    render_async();                                      // the master was never made for this take
+}
+
+void App::recovery_popup() {
+    if (open_recover_popup_) { ImGui::OpenPopup("Recover"); open_recover_popup_ = false; }
+    ImGui::SetNextWindowSize(ImVec2(px(470), 0));
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.4f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(24), px(22)));
+    if (ImGui::BeginPopupModal("Recover", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::PushFont(fonts.title); ImGui::TextUnformatted("A recording didn't finish"); ImGui::PopFont();
+        ImGui::Dummy(ImVec2(0, px(4)));
+        ImGui::PushTextWrapPos(px(420));
+        ImGui::TextWrapped("PodStudio closed while \"%s\" was recording. The audio is on disk and your hotkey hits were journaled as you pressed them, "
+                           "so the take can be repaired. Nothing is deleted.", recover_name_.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::Dummy(ImVec2(0, px(10)));
+        if (ui::primary_button("Recover it", px(130), px(38))) { recover(recover_path_); ImGui::CloseCurrentPopup(); }
+        ImGui::SameLine();
+        if (ImGui::Button("Not now", ImVec2(px(100), px(38)))) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
     ImGui::PopStyleVar();

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 
 namespace ps {
 namespace {
@@ -95,6 +96,40 @@ bool write_wav24(const std::string& path, const Audio& a, std::string& err) {
     std::remove(path.c_str());                       // rename() does not overwrite on Windows
     if (std::rename(tmp.c_str(), path.c_str()) != 0) { err = "cannot replace " + path; return false; }
     return true;
+}
+
+double repair_wav_header(const std::string& path) {
+    FILE* f = std::fopen(path.c_str(), "r+b");
+    if (!f) return -1;
+    uint8_t head[12];
+    if (std::fread(head, 1, 12, f) != 12 || std::memcmp(head, "RIFF", 4) || std::memcmp(head + 8, "WAVE", 4)) { std::fclose(f); return -1; }
+    std::fseek(f, 0, SEEK_END);
+    const long total = std::ftell(f);
+    std::fseek(f, 12, SEEK_SET);
+    int channels = 1, rate = kRate, block = 3;
+    long data_at = -1;
+    while (std::ftell(f) + 8 <= total) {
+        const long pos = std::ftell(f);
+        uint8_t ch[8];
+        if (std::fread(ch, 1, 8, f) != 8) break;
+        const uint32_t size = rd32(ch + 4);
+        if (!std::memcmp(ch, "fmt ", 4)) {
+            uint8_t fmt[16];
+            if (std::fread(fmt, 1, 16, f) != 16) break;
+            channels = rd16(fmt + 2); rate = int(rd32(fmt + 4)); block = rd16(fmt + 12);
+            std::fseek(f, pos + 8 + long(size) + long(size & 1), SEEK_SET);
+        } else if (!std::memcmp(ch, "data", 4)) { data_at = pos; break; }
+        else std::fseek(f, pos + 8 + long(size) + long(size & 1), SEEK_SET);
+    }
+    if (data_at < 0 || block <= 0 || channels <= 0) { std::fclose(f); return -1; }
+    const long nbytes = (total - (data_at + 8)) / block * block;               // whole sample frames only
+    uint8_t w[4];
+    wr32(w, uint32_t(nbytes));              std::fseek(f, data_at + 4, SEEK_SET); std::fwrite(w, 1, 4, f);
+    wr32(w, uint32_t(data_at + 8 + nbytes - 8)); std::fseek(f, 4, SEEK_SET);      std::fwrite(w, 1, 4, f);
+    std::fclose(f);
+    std::error_code ec;
+    std::filesystem::resize_file(path, uintmax_t(data_at + 8 + nbytes), ec);
+    return double(nbytes) / block / rate;
 }
 
 bool write_wav_float(const std::string& path, const Audio& a, std::string& err) {
