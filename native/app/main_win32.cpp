@@ -8,6 +8,8 @@
 #include <dwmapi.h>
 #include <dxgi1_3.h>
 
+#include <cstdlib>
+#include <cwchar>
 #include <imgui.h>
 #include <backends/imgui_impl_dx11.h>
 #include <backends/imgui_impl_win32.h>
@@ -121,6 +123,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
 
     ps::App app;
     app.init();
+    for (int i = 1; i + 1 < __argc; i++)                  // --page N opens a tab directly (used by the CI screenshots)
+        if (std::wcscmp(__wargv[i], L"--page") == 0) app.debug_set_page(_wtoi(__wargv[i + 1]));
 
     LARGE_INTEGER freq, last;
     QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&last);
