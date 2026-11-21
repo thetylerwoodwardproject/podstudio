@@ -7,9 +7,10 @@
 **A recording console for the RØDE PodMic USB.**<br>
 Record the mic, fire hotkey sounds from pads onto their own track, clean up the noise, and export a podcast-loudness master. Then send it to Buzzsprout as a private draft.
 
-![Version](https://img.shields.io/badge/version-v2026.11.20-informational?style=flat-square)
+![Version](https://img.shields.io/badge/version-v2026.11.20--8-informational?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-informational?style=flat-square)
-![GTK4 + libadwaita](https://img.shields.io/badge/GTK4-libadwaita-4a86cf?style=flat-square)
+![Windows: native C++](https://img.shields.io/badge/Windows-native%20C%2B%2B-4a86cf?style=flat-square)
+![Linux: GTK4 + libadwaita](https://img.shields.io/badge/Linux-GTK4%20%2B%20libadwaita-4a86cf?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
 <img src="docs/screenshots/session.png" width="760" alt="Fader bank with dBFS meters, a display, and eight hotkey pads">
@@ -45,41 +46,43 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 
 ## Install
 
-PodStudio comes as a `.deb`, a Flatpak and an AppImage on Linux, and as an installer `.exe` on Windows. See [packaging/README.md](packaging/README.md) for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
+Download the installer for your system from the **[Releases page](https://github.com/thetylerwoodwardproject/podstudio/releases)**.
 
-**Windows 10 / 11 (64-bit): the native installer** (new: a C++ rewrite, about 15 MB, no Python or GTK; see [native/README.md](native/README.md))
+| System | Download | Notes |
+|---|---|---|
+| **Windows 10 / 11** (64-bit) | **[Latest Windows release](https://github.com/thetylerwoodwardproject/podstudio/releases/tag/v2026.11.20-8)**: `PodStudio-<version>-x64-setup.exe` | About 15 MB. Installs for your user (no administrator prompt) and upgrades over the earlier Python build. A portable `.zip` is there too. |
+| **Debian / Ubuntu / Pop!_OS** (24.04 or newer, amd64) | **[Linux release](https://github.com/thetylerwoodwardproject/podstudio/releases/tag/v2026.11.20-7)**: the `.deb`, the Flatpak or the AppImage | The `.deb` is the most tested. |
 
-Download `PodStudio-<version>-x64-setup.exe` from the release page and run it. It installs for your user (no administrator prompt) and
-upgrades over the earlier Python build if you have it. Your sessions in `Music\PodStudio` are never touched. It reads and writes the same
-session folders as the Linux app. The installer isn't code-signed, so Windows SmartScreen will warn the first time: choose *More info*,
-then *Run anyway*, and check the download against the `.sha256` file if you want to be sure. A portable `.zip` is published too.
-**Status:** built and tested on Windows in CI (the maths matches the Python app exactly, the app starts and renders), but **not yet used with a real
-PodMic on Windows**: see "Not done yet" in [native/README.md](native/README.md).
+Every file has a `.sha256` next to it, so you can check the download.
 
-(The earlier Python/GTK build for Windows is still in `packaging/windows/`. It is 218 MB and is superseded by the native one.)
+**Windows.** Run the setup file. The installer isn't code-signed, so Windows SmartScreen says "Windows protected your PC" the first
+time: choose *More info*, then *Run anyway*. Your sessions in `Music\PodStudio` are never touched, and they open in the Linux app too. This is a
+native C++ app (see [native/README.md](native/README.md)). It is built and tested on Windows for every release, but it has **not yet been used with a
+real PodMic on Windows**: see "Not done yet" in that file.
 
-**Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb** (the most tested)
+**Linux.**
 
 ```bash
-sudo apt install ./dist/podstudio_*_amd64.deb      # or ./podstudio_<version>_amd64.deb
+sudo apt install ./podstudio_<version>_amd64.deb            # the .deb pulls in its dependencies and the mic permission rule
+flatpak install --user PodStudio-<version>.flatpak          # or the Flatpak
+chmod +x PodStudio-<version>-x86_64.AppImage && ./PodStudio-<version>-x86_64.AppImage     # or the AppImage
 ```
 
-It pulls in its dependencies, bundles DeepFilterNet, and installs the udev rule so the mic controls work straight away.
-Build it yourself with `./packaging/build-deb.sh` (output in `dist/`).
+For the Mic tab's on-board controls, the Flatpak and AppImage need a one-time udev rule on the host (the app shows the command).
+Everything else works without it. To check any Linux install, run `podstudio --self-test`.
 
-**Flatpak** (built and tested with a real PodMic inside the sandbox)
+Sessions are saved in `~/Music/PodStudio/` (`Music\PodStudio` on Windows). Versions are dates: **v2026.11.20** is the 20th of November 2026, and a
+rebuild of the same date gets a revision (`2026.11.20-8`).
+
+<details><summary>Build it yourself</summary>
 
 ```bash
+./packaging/build-deb.sh            # Debian-family .deb, output in dist/
+./packaging/build-appimage.sh       # AppImage
 flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-build packaging/flatpak/io.github.thetylerwoodwardproject.PodStudio.yml
-flatpak run io.github.thetylerwoodwardproject.PodStudio
 ```
 
-**AppImage** (built and tested with a real PodMic; needs Ubuntu 24.04 or newer): `./packaging/build-appimage.sh`, then `./dist/PodStudio-*.AppImage`. See [packaging/README.md](packaging/README.md).
-
-For the Mic tab's on-board controls, the Flatpak and AppImage need the udev rule installed on the host (the app shows the
-command). Everything else works without it.
-
-**Per-user, no sudo**
+Per-user install from a source checkout, no sudo:
 
 ```bash
 sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir1.2-secret-1 \
@@ -88,7 +91,9 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir
 ./install.sh --uninstall  # remove it again (do this after installing the .deb)
 ```
 
-Sessions are saved in `~/Music/PodStudio/` (`Music\PodStudio` in your user folder on Windows). Versions are dates: **v2026.11.20** is the 20th of November 2026. A rebuilt package for the same date gets a revision (`2026.11.20-2`) so `apt` treats it as an upgrade.
+The Windows app is built with CMake: see [native/README.md](native/README.md). What was tested for each Linux format is in
+[packaging/README.md](packaging/README.md).
+</details>
 
 ## Using it
 
@@ -125,16 +130,21 @@ PodStudio checks GitHub for a newer release about once a day and shows an **Upda
 - An update is only installed if the release publishes a SHA-256 checksum and the download matches it. Downloads must come from GitHub's own hosts over HTTPS, and redirects anywhere else are refused.
 - Installing goes through your system's normal password prompt. It never happens silently, and never while you are recording.
 - A copy that wasn't installed from the .deb just links to the release page.
+- **Windows:** the app checks a few seconds after it starts, and you can check any time from the session menu (top right, then **Check for updates**). It downloads the setup file, checks it against its published checksum, then closes, updates and reopens itself. This only works for a copy installed with the setup program (not the portable zip).
 
 <details><summary>Publishing a release</summary>
 
-Build, then upload the package **and its checksum**. The tag is `v` plus the package version, which is how installed copies tell a release is newer:
+Installers live on the Releases page. The tag is `v` plus the version and revision (`v2026.11.20-8`), which is how installed copies tell that a release is newer.
+
+- **Windows** is published by CI. Push a commit whose message contains `[release]`, or push a `v*` tag, and the `native-windows` job builds the app, runs the tests, and attaches `PodStudio-<version>-x64-setup.exe`, the portable zip and their `.sha256` files to the release (it creates the release if needed). To ship a new build, raise `packaging/revision` (or the date in `podstudio/__init__.py`) first.
+- **Linux** packages are built with `./packaging/build-deb.sh` (and the AppImage and Flatpak scripts) and attached by hand, or by the same workflow on a tag:
 
 ```bash
-./packaging/build-deb.sh            # writes dist/podstudio_<version>_amd64.deb and a .sha256 next to it
-gh release create "v$(dpkg-deb -f dist/podstudio_*.deb Version)" dist/podstudio_*_amd64.deb dist/podstudio_*_amd64.deb.sha256 \
+gh release create "v<version>" dist/podstudio_<version>_amd64.deb dist/podstudio_<version>_amd64.deb.sha256 \
   --title "PodStudio v<version>" --notes "What changed"
 ```
+
+Don't mark a release as a pre-release or draft: installed copies deliberately ignore those. Each installer needs its `.sha256` beside it, or the updater won't install it.
 </details>
 
 ## If something goes wrong: recovering a session
