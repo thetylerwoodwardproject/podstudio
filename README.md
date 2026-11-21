@@ -5,6 +5,8 @@
 **A recording console for the RØDE PodMic USB, for Windows.**<br>
 Record, add hotkey sounds, clean up the noise, export a podcast master, and send it to Buzzsprout.
 
+<img src="docs/screenshot.png" width="760" alt="PodStudio">
+
 </div>
 
 > **Unofficial.** Not affiliated with or endorsed by RØDE Microphones. Works with the PodMic USB only.

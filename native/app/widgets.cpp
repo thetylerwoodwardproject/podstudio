@@ -356,9 +356,8 @@ bool pad_button(const char* id, ImVec2 size, const char* key, const char* label,
         ImVec2 ds = text_size(fonts.sm, d);
         text_at(dl, fonts.sm, ImVec2(q.x - px(12) - ds.x, k0.y + kh + px(4)), hex(kFaint), d);
     }
-    ImGui::PushClipRect(ImVec2(p.x + px(10), p.y), ImVec2(q.x - px(10), q.y), true);
-    text_at(dl, fonts.semibold, ImVec2(p.x + px(12), q.y - px(14) - text_size(fonts.semibold, label).y), hex(kText), label);
-    ImGui::PopClipRect();
+    const std::string shown = fit_text(fonts.semibold, label, size.x - px(24));        // "name…" instead of a hard cut
+    text_at(dl, fonts.semibold, ImVec2(p.x + px(12), q.y - px(14) - text_size(fonts.semibold, shown.c_str()).y), hex(kText), shown.c_str());
     return pressed;
 }
 
