@@ -1,12 +1,12 @@
 # PodStudio handoff
 
-State as of **v2026.11.20** (package revision 6). Read this first when picking the project back up.
+State as of **v2026.11.20** (package revision 7). Read this first when picking the project back up.
 
 ## Where things stand
 
 - Source is on GitHub: <https://github.com/thetylerwoodwardproject/podstudio> (`main`, tag `v2026.11.20`).
 - **No GitHub release has been published yet.** The built packages are on this machine only, in `dist/`:
-  `podstudio_2026.11.20-6_amd64.deb`, `PodStudio-2026.11.20.flatpak` and `PodStudio-2026.11.20-x86_64.AppImage`, each with a `.sha256`.
+  `podstudio_2026.11.20-7_amd64.deb`, `PodStudio-2026.11.20.flatpak` and `PodStudio-2026.11.20-x86_64.AppImage`, each with a `.sha256`.
   Until a release exists, the in-app updater finds nothing, which is expected and silent.
 - The repo previously held a different project (a TypeScript web "Podstudio"). It was replaced on 2026-11-20.
   A full backup is in `~/Backups/` (`podstudio-previous-contents.git` mirror, the `.bundle`, and
