@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 
 namespace ps {
 
@@ -103,10 +104,20 @@ MasterResult mix_master(Project& p, const DenoiseFn& denoise, const std::functio
     tick("Rendering hotkey track");
     Audio plain, duck;
     if (!render_hotkeys(p, double(mic.frames()) / kRate, plain, duck, err)) { r.error = err; return r; }
-    {
-        Audio stem = plain;                                                         // the stem stays un-ducked
-        for (size_t i = 0; i < stem.data.size(); i++) stem.data[i] += duck.data[i];
-        if (!write_wav24(p.hotkeys_path(), stem, err)) { r.error = err; return r; }
+    {   // the un-ducked hotkey stem, written in chunks so a second full-length copy never exists in memory
+        WavWriter w; std::string part = p.hotkeys_path() + ".part";
+        if (!w.open(part, 2, kRate, err)) { r.error = err; return r; }
+        std::vector<float> chunk(size_t(1) << 17);
+        bool ok = true;
+        for (size_t i = 0; i < plain.data.size() && ok; i += chunk.size()) {
+            const size_t n = std::min(chunk.size(), plain.data.size() - i);
+            for (size_t k = 0; k < n; k++) chunk[k] = plain.data[i + k] + duck.data[i + k];
+            ok = w.write(chunk.data(), n / 2);
+        }
+        ok = w.close() && ok;
+        std::error_code ec;
+        if (ok) { std::filesystem::remove(p.hotkeys_path(), ec); std::filesystem::rename(part, p.hotkeys_path(), ec); }
+        if (!ok || ec) { r.error = "couldn't write hotkeys.wav"; return r; }
     }
     r.ducked = std::any_of(duck.data.begin(), duck.data.end(), [](float v) { return v != 0.0f; });
     if (r.ducked) {
@@ -114,12 +125,13 @@ MasterResult mix_master(Project& p, const DenoiseFn& denoise, const std::functio
         auto g = voice_duck_gain(mic, p.duck_amount_db, p.duck_threshold_db, p.duck_release_ms);
         for (size_t i = 0; i < duck.frames() && i < g.size(); i++) { duck.data[i * 2] *= float(g[i]); duck.data[i * 2 + 1] *= float(g[i]); }
     }
-    const size_t n = std::max(mic.frames(), plain.frames());
-    Audio mix; mix.channels = 2; mix.data.assign(n * 2, 0.0f);
+    // The mic buffer becomes the mix (no separate full-length allocation), then the hotkeys are added to it.
     const float mg = float(db_to_lin(p.mic_db)), hg = float(db_to_lin(p.hotkeys_db));
-    for (size_t i = 0; i < mic.data.size(); i++) mix.data[i] += mic.data[i] * mg;
+    Audio mix = std::move(mic);
+    mix.data.resize(std::max(mix.data.size(), plain.data.size()), 0.0f);
+    for (size_t i = 0; i < mix.data.size(); i++) mix.data[i] *= mg;
     if (!p.hotkeys_muted) for (size_t i = 0; i < plain.data.size(); i++) mix.data[i] += (plain.data[i] + duck.data[i]) * hg;
-    plain = Audio(); duck = Audio(); mic = Audio();
+    plain = Audio(); duck = Audio();
     tick("Normalizing loudness and true peak");
     NormalizeResult nr = normalize(mix, p.target_lufs);
     tick("Writing master");
