@@ -544,7 +544,14 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.rec_btn.set_child(rb)
         self.rec_btn.set_tooltip_text("Record (Ctrl+R)")
         self.rec_btn.connect("clicked", lambda *_: self.toggle_record())
+        logo = Gtk.Image.new_from_icon_name("io.github.thetylerwoodwardproject.PodStudio")
+        logo.set_pixel_size(22)
+        brand = Gtk.Box(spacing=8, margin_end=10)
+        brand.append(logo)
+        brand.append(make_label("PodStudio", ["brand"]))
+        header.pack_start(brand)
         header.pack_start(self.rec_btn)
+        self.mic_pill = make_label("", ["pill"], margin_end=8)
 
         self.stack = Adw.ViewStack()
         header.set_title_widget(self._tab_bar())
@@ -565,6 +572,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         header.pack_end(mb)
         self.title_label = make_label(self.project.name or "New session", ["vd-sub"], margin_end=8)
         header.pack_end(self.title_label)
+        header.pack_end(self.mic_pill)
         self.update_btn = Gtk.Button(label="Update available", visible=False, valign=Gtk.Align.CENTER,
                                      tooltip_text="A newer version of PodStudio is available")
         self.update_btn.add_css_class("update-pill")
@@ -605,7 +613,11 @@ class PodStudioWindow(Adw.ApplicationWindow):
         bar = Gtk.Box(css_classes=["tab-bar"], valign=Gtk.Align.CENTER)
         self._tab_buttons, first = {}, None
         for name, label, icon in self.TABS:
-            b = Gtk.ToggleButton(icon_name=icon, tooltip_text=label, css_classes=["tab-btn"])
+            b = Gtk.ToggleButton(tooltip_text=label, css_classes=["tab-btn"])
+            inner = Gtk.Box(spacing=7)
+            inner.append(Gtk.Image.new_from_icon_name(icon))
+            inner.append(Gtk.Label(label=label))
+            b.set_child(inner)
             b.update_property([Gtk.AccessibleProperty.LABEL], [label])
             if first:
                 b.set_group(first)
@@ -687,8 +699,6 @@ class PodStudioWindow(Adw.ApplicationWindow):
         stop_btn.add_css_class("chip-btn")
         stop_btn.connect("clicked", lambda *_: self.player.stop_all())
         top.append(stop_btn)
-        self.mic_pill = make_label("", ["pill"], margin_start=6)
-        top.append(self.mic_pill)
         right.append(top)
         self.grid = Gtk.Grid(row_spacing=10, column_spacing=10, column_homogeneous=True, row_homogeneous=True,
                              vexpand=True)
