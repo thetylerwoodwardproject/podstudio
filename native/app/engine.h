@@ -48,6 +48,8 @@ public:
     bool open_demo(std::string& err);                // a synthetic "voice", for screenshots and testing without a mic
     void close_input();
     bool input_open() const { return input_open_.load(); }
+    bool device_lost() const { return lost_.load(); }       // the open input stopped by itself (unplugged, or taken by another app)
+    void on_notification(int type);
     // Levels are measured per block in the audio thread. mic_* are after the mic fader; voice is before it.
     float mic_rms_db() const { return mic_rms_.load(); }
     float mic_peak_db() const { return mic_peak_.load(); }
@@ -108,7 +110,7 @@ private:
     ma_context* ctx_ = nullptr;
     ma_device* cap_ = nullptr;
     ma_device* play_ = nullptr;
-    std::atomic<bool> input_open_{false}, demo_{false};
+    std::atomic<bool> input_open_{false}, demo_{false}, lost_{false};
     std::thread demo_thread_;
     std::atomic<float> mic_rms_{-90.f}, mic_peak_{-90.f}, voice_rms_{-90.f}, mic_fader_db_{0.f};
 

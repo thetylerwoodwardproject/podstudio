@@ -16,6 +16,7 @@
 #include "../core/chapters.h"
 #include "../core/imageinfo.h"
 #include "../core/recovery.h"
+#include "../core/updates.h"
 #include "../core/render.h"
 #include "engine.h"
 #include "http_factory.h"
@@ -87,6 +88,9 @@ private:
     void connect_overlay(ImVec2 pos, ImVec2 size);
     void pad_editor();
     void recovery_popup();
+    void update_popup();
+    void update_check_async();
+    void update_download_async();
     void recover(const std::string& path);
     void session_popup();
     void toast(const std::string& msg);
@@ -187,6 +191,16 @@ public:
     bool ep_explicit_ = false, ep_loaded_ = false;
     std::string ep_loaded_for_;
     std::vector<std::string> chapter_notes_;
+
+    // updates
+    std::thread update_thread_;
+    std::atomic<bool> update_busy_{false}, update_done_{false};
+    std::mutex update_mu_;
+    std::optional<updates::UpdateInfo> update_info_;
+    std::string update_error_, update_path_, update_status_;
+    std::atomic<float> update_frac_{-1.f};
+    bool update_checked_ = false, open_update_popup_ = false, update_manual_ = false;
+    std::function<void()> update_after_;
 
     // crash recovery
     Journal journal_;

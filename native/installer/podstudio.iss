@@ -64,3 +64,11 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\PodStudio.exe"; WorkingDir: "
 
 [Run]
 Filename: "{app}\PodStudio.exe"; Description: "Open PodStudio"; Flags: nowait postinstall skipifsilent
+; in-app update: the app passes /RELAUNCH=1 and runs this silently, so PodStudio comes back by itself
+Filename: "{app}\PodStudio.exe"; Flags: nowait runasoriginaluser skipifnotsilent; Check: ShouldRelaunch
+
+[Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;

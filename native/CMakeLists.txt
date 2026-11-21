@@ -32,7 +32,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(json imgui miniaudio)
 
 # ---- core: no operating-system code, tested on every platform
-add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp core/recovery.cpp core/buzzsprout.cpp core/chapters.cpp core/imageinfo.cpp)
+add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp core/recovery.cpp core/buzzsprout.cpp core/chapters.cpp core/imageinfo.cpp core/sha256.cpp core/updates.cpp)
 target_link_libraries(pscore PUBLIC nlohmann_json::nlohmann_json)
 target_include_directories(pscore PUBLIC core)
 
@@ -43,6 +43,9 @@ add_test(NAME core_tests COMMAND core_tests ${CMAKE_BINARY_DIR}/reference)
 add_executable(buzz_tests tests/buzz_tests.cpp)
 target_link_libraries(buzz_tests PRIVATE pscore)
 add_test(NAME buzz_tests COMMAND buzz_tests ${CMAKE_BINARY_DIR})
+add_executable(update_tests tests/update_tests.cpp)
+target_link_libraries(update_tests PRIVATE pscore)
+add_test(NAME update_tests COMMAND update_tests ${CMAKE_BINARY_DIR})
 
 # ---- the app
 option(PODSTUDIO_BUILD_APP "Build the PodStudio application" ON)

@@ -51,6 +51,7 @@ App::~App() {
     }
     if (mic_thread_.joinable()) mic_thread_.join();
     if (buzz_thread_.joinable()) buzz_thread_.join();
+    if (update_thread_.joinable()) update_thread_.join();
     if (render_thread_.joinable()) render_thread_.join();
     if (mp3_thread_.joinable()) mp3_thread_.join();
     if (peaks_thread_.joinable()) peaks_thread_.join();
@@ -432,6 +433,11 @@ void App::draw_toast(ImVec2 d) {
 void App::frame(float dt, ImVec2 display) {
     now_ = ImGui::GetTime();
     poll_inputs();
+    if (engine_.input_open() && engine_.device_lost() && !demo_) {           // unplugged mid-session
+        if (engine_.recording()) { stop_record(); toast("The mic was disconnected. Your take so far was kept."); }
+        else { engine_.close_input(); source_name_.clear(); have_cur_input_ = false; }
+        next_poll_ = 0;                                                      // look for it again straight away
+    }
 
     // finished render?
     if (!rendering_ && render_thread_.joinable()) {
@@ -471,6 +477,11 @@ void App::frame(float dt, ImVec2 display) {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { engine_.recording() ? stop_record() : start_record(); }
     handle_keys();
     mic_poll();
+    if (!update_checked_ && now_ > 8.0 && !demo_) { update_checked_ = true; update_check_async(); }
+    if (update_done_.exchange(false)) {
+        if (update_thread_.joinable()) update_thread_.join();
+        if (update_after_) { auto f = std::move(update_after_); update_after_ = nullptr; f(); }
+    }
     if (buzz_done_.exchange(false)) {
         if (buzz_thread_.joinable()) buzz_thread_.join();
         if (buzz_after_) { auto f = std::move(buzz_after_); buzz_after_ = nullptr; f(); }
@@ -507,6 +518,7 @@ void App::frame(float dt, ImVec2 display) {
     pad_editor();
     session_popup();
     recovery_popup();
+    update_popup();
     draw_toast(display);
 }
 
@@ -526,6 +538,18 @@ void App::header(ImVec2 display) {
     ImGui::SetCursorPos(ImVec2(px(232), px(16)));
     int sel = int(page_);
     if (ui::pill_tabs(tabs, 6, &sel, each)) page_ = Page(sel);
+    if (update_info_) {                                                 // "Update available"
+        const char* t = "Update available";
+        ImVec2 ts = ui::text_size(fonts.semibold, t);
+        const float bw = ts.x + px(34);
+        ImGui::SetCursorPos(ImVec2(display.x - px(24) - px(210) - px(12) - px(170) - px(12) - bw, px(15)));
+        ImVec2 bp = ImGui::GetCursorScreenPos();
+        if (ImGui::InvisibleButton("##upd", ImVec2(bw, px(38)))) open_update_popup_ = true;
+        const bool hv = ImGui::IsItemHovered();
+        dl->AddRectFilled(bp, ImVec2(bp.x + bw, bp.y + px(38)), hex(hv ? 0x1e3a8a : 0x172554), px(19));
+        dl->AddRect(bp, ImVec2(bp.x + bw, bp.y + px(38)), hex(0x3b82f6), px(19));
+        ui::text_at(dl, fonts.semibold, ImVec2(bp.x + px(17), bp.y + (px(38) - ts.y) / 2), hex(0x93c5fd), t);
+    }
     // right side: mic pill + session button
     const bool ok = engine_.input_open();
     const char* mic_text = ok ? (demo_ ? "Demo signal" : "PodMic connected") : "PodMic not connected";
@@ -588,7 +612,110 @@ void App::session_popup() {
         ImGui::EndChild();
         if (ImGui::Button("Show the sessions folder")) platform::reveal(root_);
         ImGui::SameLine();
+        if (ImGui::Button("Check for updates")) { update_manual_ = true; update_check_async(); ImGui::CloseCurrentPopup(); }
+        ImGui::SameLine();
         if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar();
+}
+
+#ifndef PS_VERSION
+#define PS_VERSION "dev"
+#endif
+#ifndef PS_REVISION
+#define PS_REVISION "1"
+#endif
+
+void App::update_check_async() {
+    if (update_busy_ || !http_) return;
+    if (update_thread_.joinable()) update_thread_.join();
+    update_busy_ = true;
+    update_thread_ = std::thread([this] {
+        std::optional<updates::UpdateInfo> info; std::string err;
+        try { info = updates::check(*http_, std::string(PS_VERSION) + "-" + PS_REVISION, std::string("PodStudio/") + PS_VERSION + " (Windows desktop app)"); }
+        catch (const std::exception& e) { err = e.what(); }
+        std::lock_guard<std::mutex> l(update_mu_);
+        update_error_ = err;
+        update_after_ = [this, info] {
+            update_info_ = info;
+            if (update_manual_) {
+                update_manual_ = false;
+                if (!info && update_error_.empty()) toast(std::string("You're up to date (v") + PS_VERSION + ")."); 
+                else if (!update_error_.empty()) toast("Couldn't check for updates. " + update_error_);
+                else open_update_popup_ = true;
+            }
+        };
+        update_busy_ = false; update_done_ = true;
+    });
+}
+
+void App::update_download_async() {
+    if (update_busy_ || !update_info_) return;
+    if (update_thread_.joinable()) update_thread_.join();
+    update_busy_ = true; update_frac_ = 0.f;
+    const updates::UpdateInfo info = *update_info_;
+    { std::lock_guard<std::mutex> l(update_mu_); update_error_.clear(); update_status_ = "Downloading..."; }
+    update_thread_ = std::thread([this, info] {
+        std::string path, err;
+        try {
+            path = updates::download(*http_, info, platform::exe_dir() + "/../update-cache", std::string("PodStudio/") + PS_VERSION + " (Windows desktop app)",
+                                     [this](uint64_t a, uint64_t b) { update_frac_ = b ? float(double(a) / double(b)) : -1.f; });
+        } catch (const std::exception& e) { err = e.what(); }
+        std::lock_guard<std::mutex> l(update_mu_);
+        update_error_ = err; update_path_ = path; update_status_ = err.empty() ? "Downloaded and verified. PodStudio will close, update, and open again." : "";
+        update_busy_ = false; update_done_ = true; update_frac_ = -1.f;
+    });
+}
+
+void App::update_popup() {
+    if (open_update_popup_) { ImGui::OpenPopup("Update available"); open_update_popup_ = false; }
+    ImGui::SetNextWindowSize(ImVec2(px(500), 0));
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.4f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(24), px(22)));
+    if (ImGui::BeginPopupModal("Update available", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (!update_info_) { ImGui::CloseCurrentPopup(); ImGui::EndPopup(); ImGui::PopStyleVar(); return; }
+        const updates::UpdateInfo& u = *update_info_;
+        ImGui::PushFont(fonts.title); ImGui::Text("PodStudio v%s is available", u.version.c_str()); ImGui::PopFont();
+        ui::label_dim((std::string("You have v") + PS_VERSION + "-" + PS_REVISION + ".").c_str());
+        ImGui::Dummy(ImVec2(0, px(6)));
+        ImGui::BeginChild("##notes", ImVec2(px(452), px(130)), ImGuiChildFlags_Borders);
+        ImGui::PushTextWrapPos(px(430));
+        ImGui::TextUnformatted(u.notes.empty() ? "No release notes." : u.notes.substr(0, 1800).c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::EndChild();
+        std::string status, error, path;
+        { std::lock_guard<std::mutex> l(update_mu_); status = update_status_; error = update_error_; path = update_path_; }
+        ImGui::Dummy(ImVec2(0, px(4)));
+        const bool can = u.can_install() && platform::installed_by_setup();
+        if (!u.problems.empty()) { ImGui::PushStyleColor(ImGuiCol_Text, hexv(kWarn)); for (auto& p : u.problems) ui::label_dim(p.c_str()); ImGui::PopStyleColor(); }
+        else if (!platform::installed_by_setup()) ui::label_dim("This copy wasn't installed with the setup program, so install the new version the same way. The release page has the download.");
+        else ui::label_dim("The download is checked against the checksum published with the release.");
+        if (update_busy_) {
+            ui::label_dim(status.c_str());
+            ImVec2 p = ImGui::GetCursorScreenPos(); const float w = px(452), f = update_frac_.load();
+            ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x, p.y + px(4)), ImVec2(p.x + w, p.y + px(8)), hex(kMuted), px(2));
+            if (f >= 0) ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x, p.y + px(4)), ImVec2(p.x + w * f, p.y + px(8)), hex(kText), px(2));
+            ImGui::Dummy(ImVec2(0, px(12)));
+        } else if (!error.empty()) { ImGui::PushStyleColor(ImGuiCol_Text, hexv(0xfca5a5)); ImGui::TextWrapped("%s", error.c_str()); ImGui::PopStyleColor(); }
+        else if (!status.empty()) ui::label_dim(status.c_str());
+        ImGui::Dummy(ImVec2(0, px(8)));
+        const bool ready = !path.empty() && error.empty() && !update_busy_;
+        if (ready) {
+            if (ui::primary_button("Install and restart", px(190), px(38))) {
+                if (engine_.recording()) toast("Finish your recording first.");
+                else if (platform::start_detached(path, {"/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/RELAUNCH=1"})) quit_ = true;
+                else toast("Couldn't start the installer. You can run it yourself: " + path);
+            }
+        } else {
+            if (!can || update_busy_) ImGui::BeginDisabled();
+            if (ui::primary_button("Download and install", px(200), px(38))) update_download_async();
+            if (!can || update_busy_) ImGui::EndDisabled();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("View release", ImVec2(px(120), px(38)))) platform::open_url(u.page);
+        ImGui::SameLine();
+        if (ImGui::Button("Later", ImVec2(px(80), px(38))) && !update_busy_) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
     ImGui::PopStyleVar();

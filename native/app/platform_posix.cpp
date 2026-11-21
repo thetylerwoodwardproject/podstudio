@@ -42,6 +42,9 @@ std::string save_file_dialog(const char* title, const char*, const char*, const 
 void reveal(const std::string& path) { if (std::system(("xdg-open " + shell_quote(path) + " >/dev/null 2>&1 &").c_str())) {} }
 void open_url(const std::string& url) { reveal(url); }
 
+bool start_detached(const std::string&, const std::vector<std::string>&) { return false; }
+bool installed_by_setup() { return false; }
+
 int run_process(const std::vector<std::string>& args, std::string& output, int) {
     std::string cmd;
     for (auto& a : args) cmd += shell_quote(a) + " ";

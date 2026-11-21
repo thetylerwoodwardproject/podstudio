@@ -121,6 +121,8 @@ public:
                 }
             }
         }
+        uint64_t expect = 0;
+        { auto it = out.headers.find("content-length"); if (it != out.headers.end()) { try { expect = std::stoull(it->second); } catch (...) {} } }
         for (;;) {
             DWORD avail = 0;
             if (!WinHttpQueryDataAvailable(r, &avail) || !avail) break;
@@ -128,7 +130,8 @@ public:
             DWORD got = 0;
             if (!WinHttpReadData(r, chunk.data(), avail, &got) || !got) break;
             out.body.append(chunk.data(), got);
-            if (out.body.size() > (64u << 20)) break;                   // API replies are small; don't buffer something huge
+            if (req.on_receive) req.on_receive(out.body.size(), expect);
+            if (out.body.size() > req.max_response_bytes) { out.status = 0; out.error = "the response was larger than expected"; out.body.clear(); break; }
         }
         return out;
     }

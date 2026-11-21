@@ -80,6 +80,22 @@ std::string save_file_dialog(const char* title, const char* description, const c
 void reveal(const std::string& path) { ShellExecuteW(nullptr, L"open", widen(path).c_str(), nullptr, nullptr, SW_SHOWNORMAL); }
 void open_url(const std::string& url) { ShellExecuteW(nullptr, L"open", widen(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL); }
 
+bool start_detached(const std::string& exe, const std::vector<std::string>& args) {
+    std::string cmd = quote(exe);
+    for (auto& a : args) cmd += " " + quote(a);
+    std::wstring wcmd = widen(cmd);
+    STARTUPINFOW si{}; si.cb = sizeof si;
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, wcmd.data(), nullptr, nullptr, FALSE, DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, nullptr, nullptr, &si, &pi)) return false;
+    CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+    return true;
+}
+
+bool installed_by_setup() {
+    const std::wstring p = widen(exe_dir()) + L"\\unins000.exe";
+    return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES;
+}
+
 int run_process(const std::vector<std::string>& args, std::string& output, int timeout_seconds) {
     SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
     HANDLE rd = nullptr, wr = nullptr;

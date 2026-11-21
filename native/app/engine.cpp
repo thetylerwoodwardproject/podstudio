@@ -27,6 +27,10 @@ std::string lower(std::string s) { for (char& c : s) c = char(std::tolower((unsi
 void capture_cb(ma_device* d, void*, const void* in, ma_uint32 frames) {
     static_cast<Engine*>(d->pUserData)->on_capture(static_cast<const float*>(in), frames);
 }
+void notify_cb(const ma_device_notification* n) {
+    auto* e = static_cast<Engine*>(n->pDevice->pUserData);
+    if (n->type == ma_device_notification_type_stopped) e->on_notification(1);
+}
 void playback_cb(ma_device* d, void* out, const void*, ma_uint32 frames) {
     static_cast<Engine*>(d->pUserData)->on_playback(static_cast<float*>(out), frames);
 }
@@ -106,7 +110,9 @@ bool Engine::open_input(const InputInfo& in, std::string& err) {
     std::memcpy(&id, in.id.data(), std::min(sizeof id, in.id.size()));
     c.capture.pDeviceID = &id;
     c.dataCallback = capture_cb; c.pUserData = this;
+    c.notificationCallback = notify_cb;
     c.periodSizeInFrames = 480;
+    lost_ = false;
     if (ma_device_init(ctx_, &c, cap_) != MA_SUCCESS || ma_device_start(cap_) != MA_SUCCESS) {
         delete cap_; cap_ = nullptr; err = "couldn't open " + in.name; return false;
     }
@@ -142,11 +148,13 @@ bool Engine::open_demo(std::string&) {
     return true;
 }
 
+void Engine::on_notification(int type) { if (type == 1) lost_ = true; }
+
 void Engine::close_input() {
     if (recording_) stop_recording();
     if (demo_) { demo_ = false; if (demo_thread_.joinable()) demo_thread_.join(); }
     if (cap_) { ma_device_uninit(cap_); delete cap_; cap_ = nullptr; }
-    input_open_ = false;
+    input_open_ = false; lost_ = false;
     mic_rms_ = mic_peak_ = voice_rms_ = -90.f;
 }
 
