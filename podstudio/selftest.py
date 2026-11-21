@@ -10,6 +10,22 @@ import tempfile
 from pathlib import Path
 
 
+def load_errors(Gst) -> str:
+    """Why a plugin isn't available: try loading each plugin file and report the loader's own complaint (typically
+    a DLL that wasn't bundled). Only used to make a failure explain itself."""
+    import os
+    problems = []
+    for d in filter(None, os.environ.get("GST_PLUGIN_PATH", "").split(os.pathsep)):
+        for f in sorted(Path(d).glob("*gst*.*")):
+            if f.suffix.lower() not in (".dll", ".so"):
+                continue
+            try:
+                Gst.Plugin.load_file(str(f))
+            except Exception as e:
+                problems.append(f"{f.name}: {e}")
+    return ("\n    plugins that would not load:\n    " + "\n    ".join(problems)) if problems else ""
+
+
 def run(out=print) -> int:
     from . import __version__, runtime
     results: list[tuple[str, str, str]] = []             # (PASS | FAIL | INFO, check, detail)
@@ -54,7 +70,7 @@ def run(out=print) -> int:
                 "filesrc", "decodebin", "playbin", "lamemp3enc", "id3v2mux", "autoaudiosink", "fakesink"]
         missing = [e for e in need if Gst.ElementFactory.find(e) is None]
         if missing:
-            raise RuntimeError("missing GStreamer elements: " + ", ".join(missing))
+            raise RuntimeError("missing GStreamer elements: " + ", ".join(missing) + load_errors(Gst))
         return f"all {len(need)} needed elements present"
     check("GStreamer elements", elements)
 

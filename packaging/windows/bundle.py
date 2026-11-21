@@ -37,9 +37,16 @@ GST_REQUIRED = ["coreelements", "audioconvert", "audioresample", "volume", "leve
 GST_OPTIONAL = ["wasapi", "app", "audiofx", "flac", "ogg", "vorbis", "opus", "mpg123", "id3demux", "isomp4", "apetag",
                 "audiotestsrc", "gio"]
 
-# Packages copied from site-packages (the rest of an MSYS2 install is build tooling).
-SITE_PACKAGES = ["gi", "numpy", "scipy", "soundfile.py", "_soundfile*", "cffi", "_cffi_backend*", "pycparser",
-                 "comtypes", "pycaw"]
+# Everything in site-packages is copied except build and test tooling. (An allowlist kept missing small helper modules
+# such as typing_extensions that the real packages import.)
+SITE_SKIP = {"pip", "setuptools", "pkg_resources", "wheel", "_distutils_hack", "pytest", "_pytest", "pluggy", "iniconfig",
+             "pygments", "__pycache__", "tests", "test", "_pyinstaller", "distutils-precedence.pth", "py.py", "pyproject_hooks"}
+SITE_SKIP_PREFIX = ("pip-", "setuptools-", "wheel-", "pytest-", "pluggy-", "iniconfig-", "pygments-", "pyproject_hooks-")
+
+# GObject typelibs to ship (by file-name prefix): GTK 4, libadwaita, GStreamer and what they depend on.
+TYPELIBS = ("GLib-", "GObject-", "Gio-", "GModule-", "GioWin32-", "Gtk-4", "Gdk-4", "GdkWin32-", "Gsk-", "Adw-", "Graphene-",
+            "Pango-", "PangoCairo-", "PangoWin32-", "cairo-", "freetype2-", "HarfBuzz-", "GdkPixbuf-", "Gst-", "GstBase-",
+            "GstAudio-", "GstPbutils-", "GstTag-", "GstApp-", "GstVideo-", "GstNet-", "GstController-", "GstCheck-")
 
 PY_SKIP_DIRS = {"test", "tests", "idlelib", "tkinter", "turtledemo", "lib2to3", "ensurepip", "__pycache__",
                 "site-packages", "pydoc_data", "distutils"}
@@ -127,13 +134,14 @@ class Bundle:
     def site_packages(self, extra_dirs: list[Path]) -> None:
         sources = [PREFIX / "lib" / f"python{PYVER}" / "site-packages", *extra_dirs]
         for src in sources:
-            for pattern in SITE_PACKAGES:
-                for item in src.glob(pattern):
-                    dst = self.site / item.name
-                    if item.is_dir():
-                        copytree(item, dst, {"tests", "test", "__pycache__", "_pyinstaller"})
-                    else:
-                        shutil.copy2(item, dst)
+            for item in src.iterdir():
+                if item.name in SITE_SKIP or item.name.startswith(SITE_SKIP_PREFIX):
+                    continue
+                dst = self.site / item.name
+                if item.is_dir():
+                    copytree(item, dst, SITE_SKIP)
+                else:
+                    shutil.copy2(item, dst)
         for ext in self.site.rglob("*"):
             if ext.suffix.lower() in (".pyd", ".dll"):
                 self.add_root(ext)
@@ -161,7 +169,20 @@ class Bundle:
             self.add_root(scanner)
 
     def gobject(self) -> None:
-        copytree(need(PREFIX / "lib" / "girepository-1.0", "GObject typelibs"), self.lib / "girepository-1.0")
+        src = need(PREFIX / "lib" / "girepository-1.0", "GObject typelibs")
+        dst = self.lib / "girepository-1.0"
+        dst.mkdir(parents=True, exist_ok=True)
+        for tl in sorted(src.glob("*.typelib")):
+            if tl.name.startswith(TYPELIBS):
+                shutil.copy2(tl, dst / tl.name)
+        # A typelib names the DLL it wraps (libgtk-4-1.dll, ...) and GObject Introspection loads it at run time, so no
+        # executable links to it and ntldd can't see it. Read the names out of the typelibs and treat them as roots.
+        for tl in dst.glob("*.typelib"):
+            for name in re.findall(rb"lib[A-Za-z0-9_.+-]*\.dll", tl.read_bytes()):
+                dll = PREFIX / "bin" / name.decode()
+                if dll.exists():
+                    self.add_root(dll)
+                    self.dlls.add(dll)
         loaders = PREFIX / "lib" / "gdk-pixbuf-2.0"
         if loaders.exists():
             copytree(loaders, self.lib / "gdk-pixbuf-2.0", skip_suffix=(".pyc", ".cache"))   # winenv makes its own cache
