@@ -31,4 +31,4 @@ packages = ["podstudio"]
 version = { attr = "podstudio.__version__" }
 
 [tool.setuptools.package-data]
-podstudio = ["data/*"]
+podstudio = ["data/*", "data/icons-theme/hicolor/scalable/actions/*.svg"]

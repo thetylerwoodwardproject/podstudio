@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from importlib import resources
 import shutil
 import threading
 import time
@@ -444,6 +445,17 @@ class PadWidget(Gtk.Overlay):
 # ===================================================================== window
 
 
+def tab_icon(name: str) -> Gtk.Image:
+    """Thin line icons for the tab bar (bundled symbolic SVGs, recoloured by the theme like any other icon)."""
+    theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+    path = str(resources.files("podstudio").joinpath("data/icons-theme"))
+    if path not in (theme.get_search_path() or []):
+        theme.add_search_path(path)
+    img = Gtk.Image.new_from_icon_name(f"ps-tab-{name}-symbolic")
+    img.set_pixel_size(18)
+    return img
+
+
 class PodStudioWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="PodStudio", default_width=1120, default_height=720)
@@ -549,9 +561,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.rec_btn.set_child(rb)
         self.rec_btn.set_tooltip_text("Record (Ctrl+R)")
         self.rec_btn.connect("clicked", lambda *_: self.toggle_record())
-        logo = Gtk.Image.new_from_icon_name("io.github.thetylerwoodwardproject.PodStudio")
-        logo.set_pixel_size(22)
-        brand = Gtk.Box(spacing=8, margin_end=10)
+        logo = Gtk.Box(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER, css_classes=["logo-tile"])
+        logo.append(Gtk.Box(css_classes=["logo-dot"], halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER, hexpand=True, vexpand=True))
+        brand = Gtk.Box(spacing=12, margin_end=14)
         brand.append(logo)
         brand.append(make_label("PodStudio", ["brand"]))
         header.pack_start(brand)
@@ -575,7 +587,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         menu.append_section(None, about)
         mb = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
         header.pack_end(mb)
-        self.title_label = make_label(self.project.name or "New session", ["vd-sub"], margin_end=8)
+        self.title_label = make_label(self.project.name or "New session", ["session-pill"], margin_end=8, ellipsize=Pango.EllipsizeMode.END, max_width_chars=22)
         header.pack_end(self.title_label)
         header.pack_end(self.mic_pill)
         self.update_btn = Gtk.Button(label="Update available", visible=False, valign=Gtk.Align.CENTER,
@@ -609,9 +621,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.toasts.set_child(tv)
         self.set_content(self.toasts)
 
-    TABS = (("session", "Session", "media-record-symbolic"), ("mic", "Mic", "audio-input-microphone-symbolic"),
-            ("script", "Script", "document-edit-symbolic"), ("mix", "Mix", "multimedia-equalizer-symbolic"), ("recordings", "Recordings", "folder-music-symbolic"),
-            ("publish", "Publish", "mail-send-symbolic"))
+    TABS = (("session", "Session", ""), ("mic", "Mic", ""), ("mix", "Mix", ""), ("recordings", "Recordings", ""),
+            ("script", "Script", ""), ("publish", "Publish", ""))
 
     def _tab_bar(self):
         """Icon-only page switcher. The names live in tooltips and in the accessible labels."""
@@ -621,7 +632,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         for name, label, icon in self.TABS:
             b = Gtk.ToggleButton(tooltip_text=label, css_classes=["tab-btn"])
             inner = Gtk.Box(spacing=7)
-            inner.append(Gtk.Image.new_from_icon_name(icon))
+            inner.append(tab_icon(name))
             lab = Gtk.Label(label=label)
             inner.append(lab)
             b.set_child(inner)
