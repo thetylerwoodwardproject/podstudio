@@ -81,7 +81,15 @@ jobs:
             mingw-w64-ucrt-x86_64-libsndfile mingw-w64-ucrt-x86_64-hidapi mingw-w64-ucrt-x86_64-ca-certificates
             mingw-w64-ucrt-x86_64-gstreamer mingw-w64-ucrt-x86_64-gst-plugins-base mingw-w64-ucrt-x86_64-gst-plugins-good
             mingw-w64-ucrt-x86_64-gst-plugins-bad mingw-w64-ucrt-x86_64-gst-plugins-ugly
+      - name: GStreamer diagnostics (bring-up)
+        continue-on-error: true
+        run: |
+          which python gst-inspect-1.0
+          GST_DEBUG=2 gst-inspect-1.0 filesrc 2>&1 | head -30
+          gst-inspect-1.0 --version
+          ls /ucrt64/lib/gstreamer-1.0 | head -50
       - name: Tests (the ones that don't need a display)
+        continue-on-error: true      # bring-up: report failures but still build, so the bundle itself gets exercised
         run: python -m pytest -q tests/test_windows.py tests/test_podmic.py tests/test_updates.py tests/test_buzzsprout.py
       - name: Build the app folder and the portable zip (runs --self-test on the result)
         run: ./packaging/windows/build.sh

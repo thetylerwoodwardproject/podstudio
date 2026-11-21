@@ -5,7 +5,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from podstudio import updates as up
+from podstudio import runtime, updates as up
+
+
+@pytest.fixture(autouse=True)
+def _linux_package_path(monkeypatch):
+    """These tests cover the .deb path; the Windows installer path is tested in test_windows.py."""
+    monkeypatch.setattr(runtime, "IS_WINDOWS", False)
 
 DEB = b"!<arch>\ndebian-binary   fake package bytes " + bytes(range(256)) * 100
 DEB_SHA = hashlib.sha256(DEB).hexdigest()

@@ -87,10 +87,11 @@ def test_optional_files_are_used_when_they_are_bundled(tmp_path):
 
 
 def test_prepare_does_nothing_off_windows(monkeypatch, tmp_path):
+    import os
+    monkeypatch.setattr(winenv.sys, "platform", "linux")           # (a real Windows runner would otherwise run it)
     monkeypatch.setenv("PODSTUDIO_HOME", str(tmp_path))
     monkeypatch.delenv("GI_TYPELIB_PATH", raising=False)
     winenv.prepare()
-    import os
     assert "GI_TYPELIB_PATH" not in os.environ
 
 
