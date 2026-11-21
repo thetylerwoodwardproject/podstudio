@@ -69,6 +69,9 @@ button.chip-btn:checked, button.chip-btn.chip-ok:checked { background: @vd_muted
 .rec-btn { background: @vd_accent; color: #fafafa; border: 1px solid @vd_accent; border-radius: 8px; box-shadow: none; padding: 6px 14px; min-height: 0; font-size: 13px; font-weight: 500; letter-spacing: 0; }
 .rec-btn:hover { background: shade(@vd_accent, .92); }
 .rec-btn.recording { background: transparent; color: @vd_accent; border-color: alpha(@vd_accent, .6); }
+.rec-btn.armed { box-shadow: 0 0 0 2px alpha(@vd_accent, .35); }
+.rec-btn.armed .rec-dot { background: #fafafa; }
+.rec-btn:disabled { background: alpha(@vd_accent, .35); border-color: transparent; }
 .rec-dot { min-width: 8px; min-height: 8px; border-radius: 99px; background: currentColor; }
 .rec-btn.recording .rec-dot { animation: vd-pulse 1s ease-in-out infinite alternate; }
 @keyframes vd-pulse { from { opacity: 1; } to { opacity: .25; } }

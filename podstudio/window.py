@@ -164,6 +164,7 @@ class Strip(Gtk.Box):
         self.fmt, self.on_change, self._clip_until = fmt, on_change, 0.0
         self.unity = marks[0] if marks else 0.0          # first mark is the reference point (0 dB / target)
         self._peak, self._peak_until = -90.0, 0.0
+        self.peak_text = None                              # set by the master strip: live LUFS / dBFS readout
         self.set_hexpand(True)
         if tooltip:
             self.set_tooltip_text(tooltip)
@@ -252,6 +253,9 @@ class Strip(Gtk.Box):
         self.on_change(v)
 
     def _show_peak(self):
+        if self.peak_text is not None:
+            self.peak_label.set_text(self.peak_text)
+            return
         self.peak_label.set_text("Peak  —" if self._peak <= -60 else f"Peak {self._peak:5.1f} dBFS")
 
     def set_level(self, peak_db: float):
@@ -451,6 +455,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.engine = audio.MicEngine(on_level=self._on_level, on_error=self._on_audio_error, on_voice=self._on_voice)
         self._duck_db = 0.0
         self.hk_level = -90.0
+        self.mic_level = -90.0
         self.rec_started = 0.0
         self.mix_busy = False
         self._pad_css = Gtk.CssProvider()
@@ -630,8 +635,16 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.hk_strip = Strip("Hotkeys", -60, 12, pr.hotkeys_db, self._set_hk_db, channel="hk", marks=(0, 6, -6, -12, -24, -48),
                               tooltip="Hotkey volume: live playback and master mix.")
         self.master_strip = Strip("Master", -30, -6, pr.target_lufs, self._set_target, channel="master", marks=(-16, -12, -20, -24), unity_label="Target",
-                                  fmt=lambda v: f"{v:.1f}", unit="LUFS target", meter=False,
-                                  tooltip="Integrated loudness the master is normalized to.")
+                                  fmt=lambda v: f"{v:.1f}", unit="LUFS target", meter=True,
+                                  tooltip="Fader: the integrated loudness the master is normalized to.\n"
+                                          "Meter: live momentary loudness. Click it to switch between LUFS (loudness) and dBFS (peak).")
+        self.master_mode = self.cfg.get("master_meter", "lufs")
+        self.master_strip.peak_text = "Loudness  —"
+        for w in (self.master_strip.meter, self.master_strip.ruler, self.master_strip.peak_label):
+            g = Gtk.GestureClick()
+            g.connect("pressed", lambda *_: self._toggle_master_mode())
+            w.add_controller(g)
+            w.set_cursor_from_name("pointer")
         self.mute_btn = self.mic_strip.mute                      # hardware mute (needs mic control)
         self.mute_btn.connect("toggled", self._on_mute_toggled)
         self.hk_strip.mute.set_active(pr.hotkeys_muted)
@@ -1450,6 +1463,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
                 self.mic_strip.set_level(-90.0)
                 self.in_meter.set_value(0)
         self.rec_btn.set_sensitive(bool(src) or self.engine.recording)
+        getattr(self, "_update_armed", lambda: None)()
         self._update_gate()
 
     def _update_source_label(self):
@@ -1477,7 +1491,32 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.player.set_duck_db(self._duck_db)
         self.duck_label.set_text(f"Ducking {self._duck_db:.1f} dB" if self._duck_db <= -0.5 else "")
 
+    def _toggle_master_mode(self):
+        self.master_mode = "dbfs" if self.master_mode == "lufs" else "lufs"
+        try:
+            self.cfg["master_meter"] = self.master_mode
+            save_config(self.cfg)
+        except Exception:
+            pass
+        self._update_master_meter()
+
+    def _update_master_meter(self):
+        """Master meter: momentary LUFS (K-weighted, mic ×2 + hotkeys, as the render mixes them) or the mixed peak."""
+        mic_ms, hk_ms = self.engine.k_ms, self.player.k_ms()
+        have_k = mic_ms is not None
+        if self.master_mode == "lufs" and have_k:
+            live = self.engine.recording or self.source
+            v = audio.lufs_from_ms(2 * mic_ms + hk_ms) if live else -90.0
+            self.master_strip.set_level(v)
+            self.master_strip.peak_text = "Loudness  —" if v <= -60 else f"{v:5.1f} LUFS  (m)"
+        else:
+            v = max(self.mic_level + self.project.mic_db, self.hk_level)
+            self.master_strip.set_level(v)
+            self.master_strip.peak_text = None
+        self.master_strip._show_peak()
+
     def _on_level(self, rms, peak):
+        self.mic_level = peak
         self.mic_strip.set_level(peak)
         self.in_meter.set_value(audio.meter_fraction(peak) * 40)
 
@@ -1504,9 +1543,11 @@ class PodStudioWindow(Adw.ApplicationWindow):
         if self.engine.recording:
             pos = self.engine.position() or 0.0
             self.timecode.set_text(fmt_time(pos))
+            self.rec_label.set_text(f"Stop  {fmt_time(pos)}")
         if time.monotonic() - self._clip_level_t > 0.15:        # nothing reporting: let the peak fall away
             self.hk_level -= 4.0
         self.hk_strip.set_level(self.hk_level)
+        self._update_master_meter()
         for i, w in enumerate(self.pads):
             w.set_playing(self.player.is_active(i))
         return True
@@ -1542,13 +1583,21 @@ class PodStudioWindow(Adw.ApplicationWindow):
         for w in (self.rec_btn,):
             (w.add_css_class if rec else w.remove_css_class)("recording")
         (self.timecode.add_css_class if rec else self.timecode.remove_css_class)("live")
-        self.rec_label.set_text("Stop" if rec else "Record")
+        self.rec_label.set_text("Stop  00:00:00" if rec else "Record")
+        self._update_armed()
         self.state_label.set_text("Recording" if rec else "Ready")
         (self.state_label.add_css_class if rec else self.state_label.remove_css_class)("live")
         self.rec_btn.set_sensitive(bool(self.source) or rec)
         self._update_gate()
         if getattr(self, "script", None):
             self.script.recording_changed(rec)
+
+    def _update_armed(self):
+        """Ready to record (PodMic present, not recording) is shown in the header on every tab."""
+        armed = bool(self.source) and not self.engine.recording
+        (self.rec_btn.add_css_class if armed else self.rec_btn.remove_css_class)("armed")
+        self.rec_btn.set_tooltip_text("Stop recording (Ctrl+R)" if self.engine.recording else
+                                      "Armed: PodMic ready. Record (Ctrl+R)" if armed else "Plug in the PodMic USB to record")
 
     def _after_stop(self):
         import soundfile as sf

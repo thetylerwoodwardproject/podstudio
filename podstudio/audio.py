@@ -124,6 +124,47 @@ def repair_wav_header(path: Path) -> float:
         return nbytes / block / rate
 
 
+# BS.1770-4 K-weighting at 48 kHz: stage 1 high shelf, stage 2 high-pass (same coefficients as loudness.py)
+_K_SHELF = ((1.0, -1.69065929318241, 0.73248077421585), (1.53512485958697, -2.69169618940638, 1.19839281085285))
+_K_RLB = ((1.0, -1.99004745483398, 0.99007225036621), (1.0, -2.0, 1.0))
+# a side branch that measures K-weighted loudness: two IIR filters, then a level meter every 100 ms
+K_BRANCH = ("audioconvert ! audioresample ! audio/x-raw,rate=48000 ! audioiirfilter name={p}1 ! audioiirfilter name={p}2 ! level name={p}lvl interval=100000000 post-messages=true ! "
+            "fakesink sync=false async=false")
+
+
+def set_k_filters(pipeline, prefix: str = "kf") -> bool:
+    """Load the K-weighting coefficients into the two audioiirfilter elements named <prefix>1 and <prefix>2."""
+    from gi.repository import GObject
+
+    def va(vals):
+        arr = GObject.ValueArray()
+        for x in vals:
+            g = GObject.Value()
+            g.init(GObject.TYPE_DOUBLE)
+            g.set_double(float(x))
+            arr.append(g)
+        return arr
+    try:
+        for name, (a, b) in ((f"{prefix}1", _K_SHELF), (f"{prefix}2", _K_RLB)):
+            el = pipeline.get_by_name(name)
+            el.set_property("a", va(a))
+            el.set_property("b", va(b))
+        return True
+    except Exception:
+        return False
+
+
+def k_mean_square(structure) -> float | None:
+    """Channel-summed mean square from a K-weighted `level` message (None if it carries no usable values)."""
+    vals = [10 ** (v / 10) for v in _level_db(structure, "rms") if v == v and v > -200]
+    return sum(vals) if vals else None
+
+
+def lufs_from_ms(ms: float) -> float:
+    """-0.691 + 10 log10(mean square); -90 for silence."""
+    return -90.0 if ms < 1e-9 else max(-90.0, -0.691 + 10 * math.log10(ms))
+
+
 def _level_db(structure, key="rms") -> list[float]:
     try:
         arr = structure.get_value(key)
@@ -148,6 +189,8 @@ class MicEngine:
         self._eos_cb = None
         self._source: str | None = None
         self.gain_db = 0.0            # mic fader: applied to the meter (post-fader); recorded audio stays clean
+        self._k_hist: list[float] = []
+        self.k_ms = 0.0               # K-weighted mean square of the mic after its fader, over the last ~400 ms
 
     # -- control ------------------------------------------------------------
     def start_meter(self, source: str | None):
@@ -158,8 +201,9 @@ class MicEngine:
         desc = (
             f"{_capture(source)} ! "
             "level name=pre interval=50000000 post-messages=true ! "
-            "volume name=vol ! level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! "
-            "fakesink sync=false"
+            "volume name=vol ! tee name=vt "
+            "vt. ! level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! fakesink sync=false "
+            "vt. ! queue ! " + K_BRANCH.format(p="kf")
         )
         self._launch(desc)
 
@@ -172,8 +216,9 @@ class MicEngine:
         # tee: the file gets the raw mic; the meter branch goes through the fader
         desc = (
             f"{_capture(source)} ! tee name=t "
-            "t. ! queue ! level name=pre interval=50000000 post-messages=true ! volume name=vol ! level name=lvl interval=50000000 post-messages=true "
-            "peak-ttl=300000000 ! fakesink sync=false "
+            "t. ! queue ! level name=pre interval=50000000 post-messages=true ! volume name=vol ! tee name=vt "
+            "vt. ! level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! fakesink sync=false "
+            "vt. ! queue ! " + K_BRANCH.format(p="kf") + " "
             f"t. ! queue ! audioconvert ! audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=1 ! "
             f"wavenc name=enc ! filesink location=\"{_loc(path)}\""
         )
@@ -241,6 +286,10 @@ class MicEngine:
         bus.add_signal_watch()
         bus.connect("message", self._on_message)
         self._apply_gain()
+        self._k_hist = []
+        self.k_ms = 0.0
+        if not set_k_filters(self.pipeline, "kf"):
+            self.k_ms = None          # no K-weighting available: the UI falls back to dBFS
         self.pipeline.set_state(Gst.State.PLAYING)
 
     def _on_message(self, bus, msg):
@@ -248,6 +297,12 @@ class MicEngine:
         if t == Gst.MessageType.ELEMENT:
             s = msg.get_structure()
             if s and s.get_name() == "level":
+                if msg.src is not None and msg.src.get_name() == "kflvl":
+                    ms = k_mean_square(s)
+                    if ms is not None and self.k_ms is not None:
+                        self._k_hist = (self._k_hist + [ms])[-4:]      # 400 ms momentary window
+                        self.k_ms = sum(self._k_hist) / len(self._k_hist)
+                    return
                 rms, peak = _level_db(s, "rms"), _level_db(s, "peak")
                 if msg.src is not None and msg.src.get_name() == "pre":
                     if self.on_voice and rms:
@@ -304,14 +359,16 @@ class ClipPlayer:
     def play(self, path: Path, gain_db: float = 0.0, duck: bool = False, loop: bool = False, handle=None,
              sink: str | None = None):
         sink = sink or default_sink()
-        desc = (f"filesrc location=\"{_loc(path)}\" ! decodebin ! audioconvert ! audioresample ! volume name=vol ! "
-                f"level name=lvl interval=50000000 post-messages=true ! {sink}")
+        desc = (f"filesrc location=\"{_loc(path)}\" ! decodebin ! audioconvert ! audioresample ! volume name=vol ! tee name=vt "
+                f"vt. ! level name=lvl interval=50000000 post-messages=true ! {sink} "
+                "vt. ! queue ! " + K_BRANCH.format(p="kf"))
         try:
             pipe = Gst.parse_launch(desc)
         except GLib.Error:
             return None
         c = {"vol": pipe.get_by_name("vol"), "base": 10 ** (gain_db / 20), "duck": duck, "handle": handle,
-             "loop": loop, "peak": -90.0}
+             "loop": loop, "peak": -90.0, "k_hist": [], "k_ms": 0.0}
+        set_k_filters(pipe, "kf")
         c["vol"].set_property("volume", min(self._gain(c), 10.0))
         self._live[pipe] = c
         bus = pipe.get_bus()
@@ -335,12 +392,22 @@ class ClipPlayer:
         elif t == Gst.MessageType.ELEMENT:
             st = msg.get_structure()
             if st and st.get_name() == "level":
+                if msg.src is not None and msg.src.get_name() == "kflvl":
+                    ms = k_mean_square(st)
+                    if ms is not None:
+                        c["k_hist"] = (c["k_hist"] + [ms])[-4:]
+                        c["k_ms"] = sum(c["k_hist"]) / len(c["k_hist"])
+                    return
                 peaks = _level_db(st, "peak")
                 if peaks:
                     c["peak"] = max(peaks)
                     self._report()
         elif t in (Gst.MessageType.EOS, Gst.MessageType.ERROR):
             self._end(pipe)
+
+    def k_ms(self) -> float:
+        """Summed K-weighted mean square of every clip currently playing (after its fader and ducking)."""
+        return sum(c["k_ms"] for c in self._live.values())
 
     def _report(self):
         if self.on_level:
