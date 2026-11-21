@@ -99,7 +99,7 @@ void App::page_recordings(ImVec2 avail) {
             const bool sel = int(i) == sel_session_;
             dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), hex(sel ? kMuted : ImGui::IsItemHovered() ? kRaised : 0x0c0c0e), px(10));
             ImGui::PushClipRect(p, ImVec2(p.x + w - px(8), p.y + h), true);
-            ui::text_at(dl, fonts.semibold, ImVec2(p.x + px(12), p.y + px(9)), hex(kText), s.name.c_str());
+            ui::text_at(dl, fonts.semibold, ImVec2(p.x + px(12), p.y + px(9)), hex(kText), ui::fit_text(fonts.semibold, s.name, w - px(36)).c_str());
             std::string sub = s.created + (s.duration > 0 ? "  -  " + ui::fmt_time(s.duration) : "");
             ui::text_at(dl, fonts.sm, ImVec2(p.x + px(12), p.y + px(31)), hex(kDim), sub.c_str());
             ImGui::PopClipRect();

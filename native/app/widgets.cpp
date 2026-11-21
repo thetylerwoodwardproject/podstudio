@@ -371,13 +371,14 @@ bool card_begin(const char* id, ImVec2 size, const char* title, const char* subt
     bool open = ImGui::BeginChild(id, size, ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
                                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     if (open && title) {
+        const float room = ImGui::GetContentRegionAvail().x;         // a long session name is shortened, never cut off
         ImGui::PushFont(fonts.semibold);
-        ImGui::TextUnformatted(title);
+        ImGui::TextUnformatted(fit_text(fonts.semibold, title, room).c_str());
         ImGui::PopFont();
         if (subtitle) {
             ImGui::PushFont(fonts.sm);
             ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
-            ImGui::TextUnformatted(subtitle);
+            ImGui::TextUnformatted(fit_text(fonts.sm, subtitle, room).c_str());
             ImGui::PopStyleColor();
             ImGui::PopFont();
         }

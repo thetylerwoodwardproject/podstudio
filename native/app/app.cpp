@@ -135,7 +135,10 @@ void App::next_take() {
     Project old = proj_;
     script_save();
     std::string script = script_;
-    Project np = Project::create(old.name + " (next take)", root_);
+    std::string base = old.name;
+    for (const std::string suffix = " (next take)"; base.size() > suffix.size() && base.compare(base.size() - suffix.size(), suffix.size(), suffix) == 0;)
+        base.erase(base.size() - suffix.size());                  // "X (next take) (next take)" -> "X (next take)"
+    Project np = Project::create(base + " (next take)", root_);
     np.pads = old.pads;
     np.mic_db = old.mic_db; np.hotkeys_db = old.hotkeys_db; np.hotkeys_muted = old.hotkeys_muted; np.target_lufs = old.target_lufs;
     np.denoise = old.denoise; np.denoise_atten_db = old.denoise_atten_db;
@@ -696,7 +699,7 @@ void App::about_popup() {
 
 void App::session_popup() {
     if (open_session_popup_) { ImGui::OpenPopup("Sessions"); open_session_popup_ = false; new_name_[0] = 0; }
-    ImGui::SetNextWindowSize(ImVec2(px(460), 0));
+    ImGui::SetNextWindowSize(ImVec2(px(540), 0));
     ImVec2 c = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(c, ImGuiCond_Appearing, ImVec2(0.5f, 0.4f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(22), px(20)));
@@ -704,7 +707,7 @@ void App::session_popup() {
         ImGui::PushFont(fonts.title); ImGui::TextUnformatted("Sessions"); ImGui::PopFont();
         ui::label_dim("Each session is a folder with its mic take, sounds and master.");
         ImGui::Dummy(ImVec2(0, px(6)));
-        ImGui::SetNextItemWidth(px(300));
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - px(96) - ImGui::GetStyle().ItemSpacing.x);
         ImGui::InputTextWithHint("##nn", "Name a new session", new_name_, sizeof new_name_);
         ImGui::SameLine();
         if (ui::primary_button("Create", px(96), px(38)) ) {
@@ -722,14 +725,14 @@ void App::session_popup() {
             if (ImGui::InvisibleButton("##row", ImVec2(w, h)) && !cur) { open_session(s.path); ImGui::CloseCurrentPopup(); }
             ImDrawList* dl = ImGui::GetWindowDrawList();
             dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), hex(cur ? kMuted : ImGui::IsItemHovered() ? kRaised : kBg), px(10));
-            ui::text_at(dl, fonts.semibold, ImVec2(p.x + px(14), p.y + px(8)), hex(kText), s.name.c_str());
+            ui::text_at(dl, fonts.semibold, ImVec2(p.x + px(14), p.y + px(8)), hex(kText), ui::fit_text(fonts.semibold, s.name, w - px(28)).c_str());
             std::string sub = s.created + (s.duration > 0 ? "  -  " + ui::fmt_time(s.duration) : "") + (s.has_master ? "  -  mastered" : "");
             ui::text_at(dl, fonts.sm, ImVec2(p.x + px(14), p.y + px(29)), hex(kDim), sub.c_str());
             ImGui::PopID();
         }
         if (sessions_.empty()) ui::label_dim("No sessions yet.");
         ImGui::EndChild();
-        if (ImGui::Button("Show the sessions folder")) platform::reveal(root_);
+        if (ImGui::Button("Show folder")) platform::reveal(root_);
         ImGui::SameLine();
         if (ImGui::Button("Check for updates")) { update_manual_ = true; update_check_async(); ImGui::CloseCurrentPopup(); }
         ImGui::SameLine();
