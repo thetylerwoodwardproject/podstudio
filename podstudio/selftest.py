@@ -10,6 +10,22 @@ import tempfile
 from pathlib import Path
 
 
+def load_errors(Gst) -> str:
+    """Why a plugin isn't available: try loading each plugin file and report the loader's own complaint (typically
+    a DLL that wasn't bundled). Only used to make a failure explain itself."""
+    import os
+    problems = []
+    for d in filter(None, os.environ.get("GST_PLUGIN_PATH", "").split(os.pathsep)):
+        for f in sorted(Path(d).glob("*gst*.*")):
+            if f.suffix.lower() not in (".dll", ".so"):
+                continue
+            try:
+                Gst.Plugin.load_file(str(f))
+            except Exception as e:
+                problems.append(f"{f.name}: {e}")
+    return ("\n    plugins that would not load:\n    " + "\n    ".join(problems)) if problems else ""
+
+
 def run(out=print) -> int:
     from . import __version__, runtime
     results: list[tuple[str, str, str]] = []             # (PASS | FAIL | INFO, check, detail)
@@ -34,7 +50,9 @@ def run(out=print) -> int:
     def gi_libs():
         import gi
         gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1"); gi.require_version("Gst", "1.0")
-        gi.require_version("Secret", "1"); gi.require_version("GdkPixbuf", "2.0")
+        gi.require_version("GdkPixbuf", "2.0")
+        if sys.platform != "win32":                       # Windows keeps the token in Credential Manager instead
+            gi.require_version("Secret", "1")
         from gi.repository import Adw, Gst, Gtk
         if (Adw.get_major_version(), Adw.get_minor_version()) < (1, 5):
             raise RuntimeError(f"libadwaita {Adw.get_major_version()}.{Adw.get_minor_version()} is older than 1.5")
@@ -47,11 +65,12 @@ def run(out=print) -> int:
         gi.require_version("Gst", "1.0")
         from gi.repository import Gst
         Gst.init(None)
-        need = ["pulsesrc", "level", "volume", "tee", "queue", "audioconvert", "audioresample", "wavenc", "filesink",
+        source = "wasapi2src" if sys.platform == "win32" else "pulsesrc"
+        need = [source, "level", "volume", "tee", "queue", "audioconvert", "audioresample", "wavenc", "filesink",
                 "filesrc", "decodebin", "playbin", "lamemp3enc", "id3v2mux", "autoaudiosink", "fakesink"]
         missing = [e for e in need if Gst.ElementFactory.find(e) is None]
         if missing:
-            raise RuntimeError("missing GStreamer elements: " + ", ".join(missing))
+            raise RuntimeError("missing GStreamer elements: " + ", ".join(missing) + load_errors(Gst))
         return f"all {len(need)} needed elements present"
     check("GStreamer elements", elements)
 
@@ -100,14 +119,33 @@ def run(out=print) -> int:
         return "created, saved and reloaded a session"
     check("Session files", project_io)
 
+    if sys.platform == "win32":
+        def win_libs():
+            from . import hidapi
+            hidapi.library()
+            from . import credentials
+            return f"hidapi loaded, Credential Manager {'reachable' if credentials.available() else 'unavailable'}"
+        check("Windows components", win_libs)
+
+        def win_gain_libs():
+            import comtypes  # noqa: F401
+            from pycaw.api.endpointvolume import IAudioEndpointVolume  # noqa: F401
+            return "comtypes and the audio endpoint interfaces import"
+        check("Windows input gain", win_gain_libs)
+
     # the microphone is informational: a build is fine without one plugged in
     try:
         from . import audio, podmic
         hid = podmic.find_hidraw()
         src = audio.find_podmic_source()
-        card = podmic.find_alsa_card()
+        card = podmic.find_gain_device()
+        gain = podmic.get_gain_db(card)
+        extra = ""
+        if sys.platform == "win32" and src:
+            from . import winaudio
+            extra = f" ({winaudio.describe(src)})"
         info("PodMic USB", f"control channel {'found' if hid else 'not found'}, audio input {'found' if src else 'not found'}, "
-                           f"gain control {'reachable' if podmic.get_gain_db(card) is not None else 'not reachable'}"
+                           f"gain control {'reachable' if gain is not None else 'not reachable'}{extra}"
                            + ("" if hid or src else " (plug it in to test)"))
     except Exception as e:
         info("PodMic USB", f"could not be checked ({type(e).__name__})")

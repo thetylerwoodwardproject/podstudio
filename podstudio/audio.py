@@ -10,9 +10,34 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import GLib, Gst  # noqa: E402
 
+from . import runtime  # noqa: E402
 from .project import SAMPLE_RATE  # noqa: E402
 
 Gst.init(None)
+
+
+def _loc(path) -> str:
+    """A file path as it must appear inside a gst-launch description. Windows paths use forward slashes there:
+    a backslash would be read as an escape character."""
+    text = str(path)
+    if runtime.IS_WINDOWS:
+        text = text.replace("\\", "/")
+    return text.replace('"', '\\"')
+
+
+def default_sink() -> str:
+    """The audio output element: PulseAudio/PipeWire on Linux, whatever Windows prefers (WASAPI) on Windows."""
+    return "autoaudiosink" if runtime.IS_WINDOWS else "pulsesink"
+
+
+def _capture(source: str) -> str:
+    """The start of every capture pipeline, up to a mono 48 kHz stream, for the named input device."""
+    if runtime.IS_WINDOWS:
+        el = "wasapi2src" if Gst.ElementFactory.find("wasapi2src") else "wasapisrc"
+        # WASAPI hands over whatever the device runs at, so convert and resample here instead of relying on the driver
+        return (f'{el} device="{source}" ! audioconvert ! audioresample ! '
+                f"audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert")
+    return f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert"
 
 
 PODMIC_VENDOR, PODMIC_PRODUCT = "0x19f7", "0x004a"
@@ -45,8 +70,10 @@ def _is_podmic(name: str, text: str) -> bool:
 
 
 def find_podmic_source() -> str | None:
-    """PulseAudio/PipeWire source name of the RØDE PodMic USB, or None. PodStudio supports no other input."""
+    """Input device name of the RØDE PodMic USB (a PulseAudio/PipeWire source, or a WASAPI endpoint id), or None. PodStudio supports no other input."""
     import json
+    if runtime.IS_WINDOWS:                                     # the name is the WASAPI endpoint id, which GStreamer knows
+        return _gst_source_name(_is_podmic)
     try:
         out = subprocess.run(["pactl", "-f", "json", "list", "sources"],
                              capture_output=True, text=True, timeout=4).stdout
@@ -129,7 +156,7 @@ class MicEngine:
         if not source:
             return
         desc = (
-            f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! "
+            f"{_capture(source)} ! "
             "level name=pre interval=50000000 post-messages=true ! "
             "volume name=vol ! level name=lvl interval=50000000 post-messages=true peak-ttl=300000000 ! "
             "fakesink sync=false"
@@ -144,11 +171,11 @@ class MicEngine:
             return
         # tee: the file gets the raw mic; the meter branch goes through the fader
         desc = (
-            f"pulsesrc device={source} ! audio/x-raw,rate={SAMPLE_RATE},channels=1 ! audioconvert ! tee name=t "
+            f"{_capture(source)} ! tee name=t "
             "t. ! queue ! level name=pre interval=50000000 post-messages=true ! volume name=vol ! level name=lvl interval=50000000 post-messages=true "
             "peak-ttl=300000000 ! fakesink sync=false "
             f"t. ! queue ! audioconvert ! audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=1 ! "
-            f"wavenc name=enc ! filesink location=\"{path}\""
+            f"wavenc name=enc ! filesink location=\"{_loc(path)}\""
         )
         self._launch(desc)
         if self.pipeline is None:
@@ -275,8 +302,9 @@ class ClipPlayer:
 
     # -- playback
     def play(self, path: Path, gain_db: float = 0.0, duck: bool = False, loop: bool = False, handle=None,
-             sink: str = "pulsesink"):
-        desc = (f"filesrc location=\"{path}\" ! decodebin ! audioconvert ! audioresample ! volume name=vol ! "
+             sink: str | None = None):
+        sink = sink or default_sink()
+        desc = (f"filesrc location=\"{_loc(path)}\" ! decodebin ! audioconvert ! audioresample ! volume name=vol ! "
                 f"level name=lvl interval=50000000 post-messages=true ! {sink}")
         try:
             pipe = Gst.parse_launch(desc)
@@ -450,8 +478,8 @@ def read_audio(path: Path):
         pass
     with tempfile.TemporaryDirectory(prefix="podstudio-decode-") as td:
         wav = Path(td) / "decoded.wav"
-        desc = (f'filesrc location="{path}" ! decodebin ! audioconvert ! audio/x-raw,format=F32LE,channels=2 ! '
-                f'wavenc ! filesink location="{wav}"')
+        desc = (f'filesrc location="{_loc(path)}" ! decodebin ! audioconvert ! audio/x-raw,format=F32LE,channels=2 ! '
+                f'wavenc ! filesink location="{_loc(wav)}"')
         pipe = Gst.parse_launch(desc)
         pipe.set_state(Gst.State.PLAYING)
         msg = pipe.get_bus().timed_pop_filtered(300 * Gst.SECOND, Gst.MessageType.EOS | Gst.MessageType.ERROR)
@@ -512,8 +540,8 @@ def compute_peaks(path: Path, bins: int = 1600):
 
 def import_clip(src: Path, dst: Path, timeout_s: float = 60.0) -> None:
     """Convert any playable audio file to a 48 kHz stereo 24-bit WAV (blocking)."""
-    desc = (f"filesrc location=\"{src}\" ! decodebin ! audioconvert ! audioresample ! "
-            f"audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=2 ! wavenc ! filesink location=\"{dst}\"")
+    desc = (f"filesrc location=\"{_loc(src)}\" ! decodebin ! audioconvert ! audioresample ! "
+            f"audio/x-raw,format=S24LE,rate={SAMPLE_RATE},channels=2 ! wavenc ! filesink location=\"{_loc(dst)}\"")
     pipe = Gst.parse_launch(desc)
     pipe.set_state(Gst.State.PLAYING)
     bus = pipe.get_bus()
@@ -527,9 +555,9 @@ def import_clip(src: Path, dst: Path, timeout_s: float = 60.0) -> None:
 
 def encode_mp3(src_wav: Path, dst: Path, title: str = "", bitrate: int = 128, timeout_s: float = 600.0) -> None:
     """Encode a WAV to a constant-bitrate stereo MP3 at the source sample rate (blocking)."""
-    desc = (f"filesrc location=\"{src_wav}\" ! decodebin ! audioconvert ! audioresample ! "
+    desc = (f"filesrc location=\"{_loc(src_wav)}\" ! decodebin ! audioconvert ! audioresample ! "
             f"audio/x-raw,channels=2 ! lamemp3enc name=enc target=bitrate cbr=true bitrate={bitrate} ! "
-            f"id3v2mux name=tags ! filesink location=\"{dst}\"")
+            f"id3v2mux name=tags ! filesink location=\"{_loc(dst)}\"")
     pipe = Gst.parse_launch(desc)
     if title:
         tl = Gst.TagList.new_empty()

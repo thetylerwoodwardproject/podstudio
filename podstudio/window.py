@@ -1000,13 +1000,14 @@ class PodStudioWindow(Adw.ApplicationWindow):
                 self._dsp_set_state("denied")
             except podmic.PodMicError:
                 self._dsp_set_state("absent")
-        if present:                                       # gain goes through ALSA, so it needs no HID permission
+        have_mic = present or getattr(self, "source", None) is not None
+        if have_mic:                                      # gain goes through the system mixer, so it needs no HID access
             g = podmic.get_gain_db()
             if g is not None and "gain" not in self._dsp_timers:
                 self._syncing = True
                 self.dsp_rows["gain"].set_value(g)
                 self._syncing = False
-        self.dsp_rows["gain"].set_sensitive(present)
+        self.dsp_rows["gain"].set_sensitive(have_mic and podmic.gain_supported())
         return True
 
     def _dsp_set_state(self, state):
@@ -1024,7 +1025,11 @@ class PodStudioWindow(Adw.ApplicationWindow):
             b.set_button_label("Copy command")
             b.set_revealed(True)
         elif state == "absent":
-            b.set_title("PodMic USB not detected. Plug it in to control its on-board processing.")
+            if runtime.IS_WINDOWS and getattr(self, "source", None):
+                b.set_title("The mic is connected, but its on-board controls didn't answer. Close any other app that "
+                            "controls it (RØDE Central), then unplug and replug the mic.")
+            else:
+                b.set_title("PodMic USB not detected. Plug it in to control its on-board processing.")
             b.set_button_label("")
             b.set_revealed(True)
         else:
@@ -1227,7 +1232,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
             self.denoise_chip.set_active(pr.denoise and have)
             self.denoise_chip.set_label("On" if self.denoise_chip.get_active() else "Off")
             self.denoise_note.set_text("DeepFilterNet removes steady background noise when the master is rendered." if have else
-                                       "DeepFilterNet isn't installed. The .deb package includes it.")
+                                       "DeepFilterNet isn't installed. The packaged builds include it.")
             for sc in [self.strength_scale] + self.duck_scales:
                 sc.set_value(getattr(pr, sc._attr))
                 sc._val.set_text(sc._fmt(sc.get_value()))
@@ -1430,7 +1435,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
     def _refresh_source(self):
         """PodStudio only works with the RØDE PodMic USB: find it, follow it being plugged and unplugged."""
         present = podmic.PodMic.present()
-        src = audio.find_podmic_source() if present else None
+        src = audio.find_podmic_source() if (present or runtime.IS_WINDOWS) else None
         first = not getattr(self, "_source_checked", False)       # the very first look must always set the labels,
         self._source_checked = True                               # even when "no mic" is also what we started with
         if src == self.source and not first:

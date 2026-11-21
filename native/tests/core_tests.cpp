@@ -1,0 +1,241 @@
+// Run:  core_tests <dir containing fixture.wav and expected.txt from make_reference.py>
+// Checks the C++ core against the Python implementation, plus some properties that need no reference.
+#include <cmath>
+#include <cstdio>
+#include <filesystem>
+#include <cstdlib>
+#include <fstream>
+#include <map>
+#include <sstream>
+#include <string>
+
+#include "../core/audio.h"
+#include "../core/dsp.h"
+#include "../core/render.h"
+#include "../core/podmic.h"
+#include "../core/recovery.h"
+
+using namespace ps;
+namespace fs = std::filesystem;
+
+static int failures = 0, checks = 0;
+#define CHECK(cond, ...) do { checks++; if (!(cond)) { failures++; std::printf("FAIL %s:%d  %s  ", __FILE__, __LINE__, #cond); std::printf(__VA_ARGS__); std::printf("\n"); } } while (0)
+static void near(const char* what, double got, double want, double tol) {
+    checks++;
+    bool ok = std::fabs(got - want) <= tol;
+    if (!ok) { failures++; std::printf("FAIL %-22s got %.10f want %.10f (tol %g)\n", what, got, want, tol); }
+    else std::printf("ok   %-22s %.8f  (python %.8f)\n", what, got, want);
+}
+
+int main(int argc, char** argv) {
+    std::string dir = argc > 1 ? argv[1] : ".";
+    std::map<std::string, double> want;
+    {
+        std::ifstream in(dir + "/expected.txt");
+        std::string line;
+        while (std::getline(in, line)) { std::istringstream s(line); std::string k; double v; if (s >> k >> v) want[k] = v; }
+    }
+    if (want.empty()) {
+        std::printf("No reference data in '%s'. Create it first:\n  python3 native/tests/make_reference.py <dir>\nthen run:  core_tests <dir>\n", dir.c_str());
+        return 2;
+    }
+
+    Audio a; std::string err;
+    CHECK(read_wav(dir + "/fixture.wav", a, err), "%s", err.c_str());
+    CHECK(a.frames() == size_t(want["frames"]), "frames %zu", a.frames());
+
+    // --- calibration point from BS.1770: a full-scale 997 Hz sine in one channel reads -3.01 LUFS
+    {
+        Audio s; s.channels = 2; s.data.assign(10 * kRate * 2, 0.0f);
+        for (int i = 0; i < 10 * kRate; i++) s.data[i * 2] = float(std::sin(2 * 3.14159265358979323846 * 997.0 * i / kRate));
+        near("calibration lufs", *integrated_loudness(s), -3.01, 0.05);
+    }
+    near("lufs", *integrated_loudness(a), want["lufs"], 0.003);
+    near("true_peak_db", true_peak_db(a), want["true_peak_db"], 0.003);
+    {
+        double sp = 0; for (float v : a.data) sp = std::max(sp, double(std::fabs(v)));
+        near("sample_peak", sp, want["sample_peak"], 1e-9);
+        CHECK(true_peak_db(a) >= lin_to_db(sp) - 1e-9, "true peak is never below the sample peak");
+    }
+    {
+        Audio l = a; limit(l, -6.0);
+        double mx = 0, ma = 0, sum = 0;
+        for (float v : l.data) { mx = std::max(mx, double(std::fabs(v))); ma += std::fabs(v); sum += v; }
+        near("limit_max", mx, want["limit_max"], 2e-4);
+        near("limit_mean_abs", ma / l.data.size(), want["limit_mean_abs"], 2e-6);
+        near("limit_sum", sum, want["limit_sum"], std::max(0.5, std::fabs(want["limit_sum"]) * 1e-4));
+    }
+    {
+        auto g = voice_duck_gain(a, 12.0, -40.0, 400.0);
+        double mean = 0, mn = 1e9; for (double v : g) { mean += v; mn = std::min(mn, v); }
+        near("duck_mean", mean / g.size(), want["duck_mean"], 1e-6);
+        near("duck_min", mn, want["duck_min"], 1e-6);
+        for (size_t i : {size_t(0), size_t(1000), size_t(120000), size_t(400000), size_t(700000), g.size() - 1}) {
+            char k[40]; std::snprintf(k, sizeof k, "duck_at_%zu", i);
+            near(k, g[i], want[k], 1e-6);
+        }
+    }
+    {
+        Audio n = a; NormalizeResult r = normalize(n, -16.0);
+        near("norm_measured", *r.measured_lufs, want["norm_measured"], 0.003);
+        near("norm_gain_db", r.gain_db, want["norm_gain_db"], 0.003);
+        near("norm_final_lufs", *r.final_lufs, want["norm_final_lufs"], 0.02);
+        near("norm_true_peak", r.true_peak_db, want["norm_true_peak"], 0.02);
+        CHECK(int(r.limited) == int(want["norm_limited"]), "limited flag");
+        CHECK(r.true_peak_db <= kTrueCeilingDb + 1e-6, "ends under the ceiling: %.4f", r.true_peak_db);
+    }
+
+    // --- WAV round trip and crash-tolerant recording
+    {
+        std::string p = dir + "/roundtrip.wav";
+        Audio w; w.channels = 2; w.data = {0.0f, 0.5f, -0.5f, 1.0f, -1.0f, 0.25f};
+        CHECK(write_wav24(p, w, err), "%s", err.c_str());
+        Audio r; CHECK(read_wav(p, r, err), "%s", err.c_str());
+        CHECK(r.channels == 2 && r.frames() == 3, "shape");
+        for (size_t i = 0; i < w.data.size() && i < r.data.size(); i++) CHECK(std::fabs(r.data[i] - w.data[i]) < 2e-7, "sample %zu", i);
+
+        std::string q = dir + "/rec.wav";
+        WavWriter ww; CHECK(ww.open(q, 1, kRate, err), "%s", err.c_str());
+        std::vector<float> chunk(kRate / 2, 0.1f);
+        for (int i = 0; i < 5; i++) ww.write(chunk.data(), chunk.size());           // 2.5 s; header is patched each second
+        Audio mid; CHECK(read_wav(q, mid, err), "mid-recording read: %s", err.c_str());   // the file is readable while still open
+        CHECK(mid.frames() >= size_t(2 * kRate) && mid.frames() <= size_t(5 * kRate / 2), "mid frames %zu", mid.frames());
+        ww.close();
+        Audio fin; CHECK(read_wav(q, fin, err), "%s", err.c_str());
+        CHECK(fin.frames() == size_t(5 * kRate / 2) && fin.channels == 1, "final frames %zu", fin.frames());
+    }
+    {   // a header that was never finalised (size 0) still reads, taking the data to the end of the file
+        std::string p = dir + "/unfinished.wav";
+        Audio w; w.channels = 1; w.data.assign(1000, 0.2f);
+        std::string e; write_wav24(p, w, e);
+        FILE* f = std::fopen(p.c_str(), "r+b"); std::fseek(f, 40, SEEK_SET); unsigned char z[4] = {0, 0, 0, 0}; std::fwrite(z, 1, 4, f); std::fclose(f);
+        Audio r; CHECK(read_wav(p, r, err) && r.frames() == 1000, "unfinished header");
+    }
+    {   Audio tiny; tiny.data.assign(100, 0.1f); CHECK(!integrated_loudness(tiny), "too short -> none");
+        Audio sil; sil.data.assign(kRate * 2 * 2, 0.0f); CHECK(!integrated_loudness(sil), "silence -> none"); }
+
+    // --- a whole session: project.json written by the Python app, rendered here, compared with Python's own master.wav
+    {
+        Project p; std::string e;
+        CHECK(Project::load(dir + "/sess_cpp", p, e), "load: %s", e.c_str());
+        CHECK(p.pads.size() == 2 && p.events.size() == 5 && p.pads[1].mode == "loop" && p.events[1].dur && !p.events[0].dur, "project fields");
+        near("project mic_db", p.mic_db, -2.0, 1e-9);
+        MasterResult r = mix_master(p, nullptr, nullptr);
+        CHECK(r.ok, "render: %s", r.error.c_str());
+        near("sess_measured", *r.measured_lufs, want["sess_measured"], 0.003);
+        near("sess_final", *r.final_lufs, want["sess_final"], 0.02);
+        near("sess_true_peak", r.true_peak_db, want["sess_true_peak"], 0.02);
+        near("sess_gain_db", r.gain_db, want["sess_gain_db"], 0.003);
+        CHECK(int(r.ducked) == int(want["sess_ducked"]) && int(r.limited) == int(want["sess_limited"]), "flags");
+        Audio mine, theirs;
+        CHECK(read_wav(p.master_path(), mine, e), "%s", e.c_str());
+        CHECK(read_wav(dir + "/sess_py/audio/master.wav", theirs, e), "%s", e.c_str());
+        CHECK(mine.frames() == theirs.frames(), "master length %zu vs %zu", mine.frames(), theirs.frames());
+        double worst = 0; size_t n = std::min(mine.data.size(), theirs.data.size());
+        for (size_t i = 0; i < n; i++) worst = std::max(worst, double(std::fabs(mine.data[i] - theirs.data[i])));
+        std::printf("%s master.wav worst sample difference vs Python: %.2e\n", worst < 2e-4 ? "ok  " : "FAIL", worst);
+        checks++; if (worst >= 2e-4) failures++;
+        // and the project this app saves must load back in unchanged
+        CHECK(p.save(e), "save: %s", e.c_str());
+        Project again; CHECK(Project::load(p.root, again, e) && again.events.size() == 5 && again.pads.size() == 2, "round trip");
+    }
+
+    // --- crash recovery: a recording that never got its final header, and a journal with a torn last line
+    {
+        std::string e;
+        // a "killed" recording: the writer's last header patch is stale
+        std::string q = dir + "/killed.wav";
+        { WavWriter w; w.open(q, 1, kRate, e); std::vector<float> c(kRate, 0.2f); for (int i = 0; i < 3; i++) w.write(c.data(), c.size()); w.close(); }
+        FILE* f = std::fopen(q.c_str(), "r+b"); std::fseek(f, 40, SEEK_SET); unsigned char stale[4] = {0x10, 0x00, 0x00, 0x00}; std::fwrite(stale, 1, 4, f);
+        std::fseek(f, 4, SEEK_SET); unsigned char riff[4] = {0x24, 0, 0, 0}; std::fwrite(riff, 1, 4, f); std::fseek(f, 0, SEEK_END);
+        unsigned char junk[2] = {1, 2}; std::fwrite(junk, 1, 2, f);                      // a torn partial sample at the end
+        std::fclose(f);
+        double secs = repair_wav_header(q);
+        near("repaired duration", secs, 3.0, 1e-6);
+        Audio r2; CHECK(read_wav(q, r2, e) && r2.frames() == size_t(3 * kRate), "repaired file reads %zu frames", r2.frames());
+
+        // journal: hits, an end, and a half-written last line
+        std::string jp = dir + "/events.jsonl";
+        { Journal j; CHECK(j.start(jp), "journal"); Event a; a.t = 1.5; a.pad = 2; a.clip = "a.wav"; a.gain_db = -3; a.loop = true; j.hit(0, a);
+          Event b; b.t = 4.0; b.pad = 1; b.clip = "b.wav"; j.hit(1, b); j.end(0, 2.25); }
+        { FILE* jf = std::fopen(jp.c_str(), "ab"); std::fputs("{\"op\": \"hit\", \"i\": 2, \"t\": 9.", jf); std::fclose(jf); }
+        auto ev = replay_journal(jp);
+        CHECK(ev.size() == 2 && ev[0].dur && std::fabs(*ev[0].dur - 2.25) < 1e-9 && ev[0].loop && ev[1].clip == "b.wav" && !ev[1].dur, "journal replay: %zu events", ev.size());
+
+        // whole-session recovery
+        Project rp = Project::create("recover me", dir);
+        rp.recording = true; rp.save(e);
+        fs::copy_file(q, rp.mic_path(), fs::copy_options::overwrite_existing);
+        fs::copy_file(jp, rp.journal_path(), fs::copy_options::overwrite_existing);
+        Recovery rec = recover_session(rp.root);
+        CHECK(rec.ok && std::fabs(rec.seconds - 3.0) < 1e-6, "recover: %s", rec.error.c_str());
+        Project back; CHECK(Project::load(rp.root, back, e) && !back.recording && back.events.size() == 2 && std::fabs(back.mic_duration - 3.0) < 1e-6, "recovered project");
+        CHECK(!file_exists(rp.journal_path()), "journal removed once its hits are saved");
+    }
+
+    // --- PodMic protocol: same bytes as the Python implementation
+    {
+        auto hexs = [](const std::vector<uint8_t>& v) { static const char* h = "0123456789abcdef"; std::string o; for (uint8_t b : v) { o += h[b >> 4]; o += h[b & 15]; } return o; };
+        auto unhex = [](const std::string& s) { std::vector<uint8_t> o; for (size_t i = 0; i + 1 < s.size(); i += 2) o.push_back(uint8_t(std::stoi(s.substr(i, 2), nullptr, 16))); return o; };
+        std::ifstream in(dir + "/podmic.txt");
+        std::string line;
+        int enc = 0, par = 0, basic = 0, bad = 0;
+        while (std::getline(in, line)) {
+            std::istringstream ls(line);
+            std::string kind; ls >> kind;
+            if (kind == "enc") {
+                std::string b, f, rep_hex, pay_hex, dec; double v;
+                ls >> b >> f >> v >> rep_hex >> pay_hex >> dec;
+                int target, sub; std::vector<uint8_t> payload;
+                bool ok = podmic::encode_field(b, f, v, target, sub, payload);
+                std::string got = ok ? hexs(podmic::dsp_report(target, 0x02, sub, payload)) : "";
+                if (got != rep_hex) { bad++; std::printf("FAIL encode %s.%s(%g)\n  got  %s\n  want %s\n", b.c_str(), f.c_str(), v, got.c_str(), rep_hex.c_str()); }
+                auto d = podmic::decode_field(b, f, unhex(pay_hex));
+                double want_d = dec == "None" ? 0 : std::stod(dec);
+                double tol = std::max(0.011, std::fabs(want_d) * 0.002);
+                if (dec == "None" ? d.has_value() : (!d || std::fabs(*d - want_d) > tol)) { bad++; std::printf("FAIL decode %s.%s payload %s: got %g want %s\n", b.c_str(), f.c_str(), pay_hex.c_str(), d ? *d : -999, dec.c_str()); }
+                enc++;
+            } else if (kind == "par") {
+                int param, op; std::string args, rep_hex; ls >> param >> op >> args >> rep_hex;
+                std::vector<int> av;
+                if (args != "-") { std::istringstream as(args); std::string t; while (std::getline(as, t, ',')) av.push_back(std::stoi(t)); }
+                std::vector<uint8_t> got;
+                switch (av.size()) { case 0: got = podmic::param_report(param, op); break; case 1: got = podmic::param_report(param, op, {av[0]}); break; default: got = podmic::param_report(param, op, {av[0], av[1]}); }
+                if (hexs(got) != rep_hex) { bad++; std::printf("FAIL param report %d %d\n", param, op); }
+                par++;
+            } else if (kind == "basic") {
+                double d, s2, p; std::string b, f; double want;
+                ls >> d >> s2 >> p >> b >> f >> want;
+                bool found = false;
+                for (auto& w : podmic::basic_to_advanced(d, s2, p)) if (w.block == b && w.field == f) { found = true; if (std::fabs(w.value - want) > 1e-9) { bad++; std::printf("FAIL basic %s.%s\n", b.c_str(), f.c_str()); } }
+                if (!found) { bad++; std::printf("FAIL basic missing %s.%s\n", b.c_str(), f.c_str()); }
+                basic++;
+            }
+        }
+        checks++; if (bad) failures++;
+        std::printf("%s PodMic protocol: %d encoded fields, %d parameter reports, %d basic-mode writes compared with Python, %d mismatches\n", bad ? "FAIL" : "ok  ", enc, par, basic, bad);
+        CHECK(enc > 40 && par == 8 && basic == 24, "reference file looks short");
+
+        // request/reply through a fake transport
+        struct Fake : podmic::Transport {
+            std::vector<uint8_t> last; bool answer = true;
+            void drain() override {}
+            bool write(const uint8_t* d, size_t n) override { last.assign(d, d + n); return true; }
+            int read(uint8_t* buf, size_t, int) override {
+                if (!answer) return 0;
+                buf[0] = last[0] == 0x08 ? 0x07 : 0x03; buf[1] = 0; buf[2] = 'A'; buf[3] = 1; buf[4] = 77; return 5;
+            }
+        } fake;
+        podmic::Mic mic(&fake);
+        CHECK(mic.hpf() == true && mic.monitor_mix() == 1, "reply parsed");
+        mic.set_monitor_mix(250);
+        CHECK(fake.last[3] == 100, "monitor mix is clamped to 100");
+        fake.answer = false;
+        bool timed_out = false;
+        try { mic.xfer(podmic::param_report(podmic::P_HPF, 1), 30); } catch (const podmic::Error&) { timed_out = true; }
+        CHECK(timed_out, "no reply is a timeout, not a hang");
+    }
+
+    std::printf("\n%d checks, %d failed\n", checks, failures);
+    return failures ? 1 : 0;
+}

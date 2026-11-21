@@ -1,0 +1,218 @@
+# UNVERIFIED: this workflow has never run.
+# Expect to fix small things on the first run (the Windows job most of all: see packaging/windows/README.md).
+# It builds every package format and attaches them to the release
+# when a tag like v2026.11.20-5 is pushed. The tag should be "v" plus the .deb's version (see HANDOFF.md).
+name: Build packages
+
+on:
+  push:
+    tags: ['v*']
+    branches: ['claude/great-darwin-ko99r5']      # bring-up of the Windows build: branch pushes build only that job
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the .deb (also writes the .sha256 the in-app updater requires)
+        run: ./packaging/build-deb.sh
+      - uses: actions/upload-artifact@v4
+        with: {name: deb, path: "dist/podstudio_*"}
+
+  flatpak:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-49
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin the Python dependencies for the runtime's Python
+        run: |
+          python3 -m pip install --break-system-packages packaging
+          python3 packaging/flatpak/gen-wheels.py --python "$(flatpak run --command=python3 org.gnome.Sdk//49 -c 'import sys; print("%d.%d" % sys.version_info[:2])')" > packaging/flatpak/python-deps.json
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: PodStudio.flatpak
+          manifest-path: packaging/flatpak/io.github.thetylerwoodwardproject.PodStudio.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        with: {name: flatpak, path: PodStudio.flatpak}
+
+  appimage:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install what the AppImage bundles (it is assembled from this runner's libraries)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir1.2-secret-1 \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good python3-numpy python3-scipy python3-soundfile libsndfile1 \
+            libasound2t64 libfuse2t64 librsvg2-common shared-mime-info
+      - run: ./packaging/build-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with: {name: appimage, path: "dist/PodStudio-*.AppImage*"}
+
+  windows:
+    if: github.event_name == 'workflow_dispatch'      # the earlier Python/GTK build: superseded by native-windows, kept for manual runs
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            zip unzip
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-ntldd
+            mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-pip mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-python-cffi mingw-w64-ucrt-x86_64-python-numpy mingw-w64-ucrt-x86_64-python-scipy
+            mingw-w64-ucrt-x86_64-python-soundfile mingw-w64-ucrt-x86_64-python-pytest
+            mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme mingw-w64-ucrt-x86_64-hicolor-icon-theme
+            mingw-w64-ucrt-x86_64-libsndfile mingw-w64-ucrt-x86_64-hidapi mingw-w64-ucrt-x86_64-ca-certificates
+            mingw-w64-ucrt-x86_64-gstreamer mingw-w64-ucrt-x86_64-gst-plugins-base mingw-w64-ucrt-x86_64-gst-plugins-good
+            mingw-w64-ucrt-x86_64-gst-plugins-bad mingw-w64-ucrt-x86_64-gst-plugins-ugly
+      - name: GStreamer diagnostics (bring-up)
+        continue-on-error: true
+        run: |
+          which python gst-inspect-1.0
+          GST_DEBUG=2 gst-inspect-1.0 filesrc 2>&1 | head -30
+          gst-inspect-1.0 --version
+          ls /ucrt64/lib/gstreamer-1.0 | head -50
+      - name: Tests (the ones that don't need a display)
+        run: python -m pytest -q tests/test_windows.py tests/test_podmic.py tests/test_updates.py tests/test_buzzsprout.py
+      - name: Build the app folder and the portable zip (runs --self-test on the result)
+        run: ./packaging/windows/build.sh
+      - name: Smoke test - open the window (it must stay up for 20 s)
+        shell: pwsh
+        run: |
+          $full = (Get-Content build\windows\version.txt).Trim()
+          $exe = "$PWD\dist\PodStudio-$full\bin\PodStudio-console.exe"
+          $out = "$PWD\smoke.out"; $err = "$PWD\smoke.err"
+          $p = Start-Process $exe -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          Start-Sleep -Seconds 20
+          $alive = -not $p.HasExited
+          Write-Host "--- stdout"; Get-Content $out -ErrorAction SilentlyContinue
+          Write-Host "--- stderr"; Get-Content $err -ErrorAction SilentlyContinue
+          Write-Host "--- log"; Get-Content "$env:LOCALAPPDATA\PodStudio\podstudio.log" -ErrorAction SilentlyContinue
+          if ($alive) { Write-Host "window process still running after 20 s: OK"; Stop-Process -Id $p.Id -Force }
+          else { Write-Host "PodStudio exited early with code $($p.ExitCode)"; exit 1 }
+      - name: Installer (Inno Setup is preinstalled on the runner) and its checksum
+        shell: pwsh
+        run: |
+          $full = (Get-Content build\windows\version.txt).Trim()
+          iscc "/DVersion=$full" "/DSourceDir=$PWD\dist\PodStudio-$full" "/DOutputDir=$PWD\dist" packaging\windows\podstudio.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+          $setup = "dist\PodStudio-$full-x64-setup.exe"
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("$PWD\$setup.sha256", "$hash  PodStudio-$full-x64-setup.exe`n")
+      - uses: actions/upload-artifact@v4
+        with: {name: windows, path: "dist/PodStudio-*-x64-*"}
+
+  native-windows:
+    # The C++ rewrite: one self-contained PodStudio.exe (Direct3D 11 + miniaudio/WASAPI), no Python, GTK or GStreamer.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: ver
+        shell: bash
+        run: |
+          v="$(python -c 'import re; print(re.search(r"__version__ = \"([^\"]+)\"", open("podstudio/__init__.py").read()).group(1))')"
+          r="$(cat packaging/revision 2>/dev/null || echo 1)"
+          echo "full=$v-$r" >> "$GITHUB_OUTPUT"
+      - name: Configure and build
+        shell: pwsh
+        run: |
+          cmake -S native -B native/build -G "Visual Studio 17 2022" -A x64
+          cmake --build native/build --config Release --target PodStudio core_tests buzz_tests update_tests windows_tests engine_tests --parallel
+      - name: Core tests (the C++ must match the Python implementation)
+        shell: bash
+        run: |
+          python -m pip install --quiet numpy scipy soundfile
+          python native/tests/make_reference.py native/build/reference > /dev/null
+          native/build/Release/core_tests.exe native/build/reference
+          native/build/Release/buzz_tests.exe native/build
+          native/build/Release/update_tests.exe native/build
+          native/build/Release/engine_tests.exe native/build
+          native/build/Release/windows_tests.exe native/build
+      - name: DeepFilterNet (optional noise reduction)
+        shell: bash
+        run: |
+          mkdir -p dist/native
+          cp native/build/Release/PodStudio.exe dist/native/
+          ./packaging/windows/fetch-deepfilter.sh dist/native
+          mkdir -p dist/native/licenses
+          cp LICENSE NOTICE packaging/licenses/DeepFilterNet-LICENSE-* native/app/fonts/Inter-OFL.txt dist/native/licenses/
+      - name: Smoke test - start the app on each page and capture the window
+        shell: pwsh
+        run: |
+          $env:PODSTUDIO_DEMO = "1"
+          $p = Start-Process "$PWD\dist\native\PodStudio.exe" -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { Write-Host "PodStudio exited early with code $($p.ExitCode)"; exit 1 }
+          Write-Host "PodStudio is running (responding: $($p.Responding))"
+          Stop-Process -Id $p.Id -Force
+          ./native/tools/ci-screenshots.ps1 -Exe "$PWD\dist\native\PodStudio.exe" -Pages 0 -Width 600 -Quality 45 -OutDir "$PWD\shots" -NoPrint
+      - name: Installer and portable zip
+        shell: pwsh
+        run: |
+          $full = "${{ steps.ver.outputs.full }}"
+          iscc "/DVersion=$full" "/DSourceDir=$PWD\dist\native" "/DOutputDir=$PWD\dist" native\installer\podstudio.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+          Compress-Archive -Path dist\native\* -DestinationPath "dist\PodStudio-$full-x64-portable.zip"
+          foreach ($f in @("dist\PodStudio-$full-x64-setup.exe", "dist\PodStudio-$full-x64-portable.zip")) {
+            $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+            [IO.File]::WriteAllText("$PWD\$f.sha256", "$h  $(Split-Path $f -Leaf)`n")
+          }
+          Get-ChildItem dist | Format-Table Name, Length
+      - name: Show the screenshot (last, so it is at the end of the log)
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path shots\page0.jpg) {
+            $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("shots\page0.jpg"))
+            Write-Host "SCREENSHOT-BEGIN page0 $($b64.Length)"
+            for ($i = 0; $i -lt $b64.Length; $i += 2000) { Write-Host $b64.Substring($i, [Math]::Min(2000, $b64.Length - $i)) }
+            Write-Host "SCREENSHOT-END page0"
+          }
+      - name: Publish to the GitHub release (on a version tag, or a push whose commit message contains [release])
+        if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.ver.outputs.full) }}
+          target_commitish: ${{ github.sha }}
+          name: PodStudio v${{ steps.ver.outputs.full }} for Windows
+          files: |
+            dist/PodStudio-*-x64-setup.exe
+            dist/PodStudio-*-x64-setup.exe.sha256
+            dist/PodStudio-*-x64-portable.zip
+            dist/PodStudio-*-x64-portable.zip.sha256
+          body_path: native/RELEASE_NOTES.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-windows
+          path: |
+            dist/PodStudio-*-x64-*
+            shots/*.png
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb, flatpak, appimage]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: artifacts, merge-multiple: true}
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

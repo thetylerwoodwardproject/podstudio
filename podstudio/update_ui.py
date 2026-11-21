@@ -10,13 +10,14 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import updates
+from . import runtime, updates
 
 
 class UpdateDialog(Adw.Dialog):
     def __init__(self, win, info: updates.UpdateInfo):
         super().__init__(title="Update available", content_width=480)
         self.win, self.info, self.busy, self.done_ok = win, info, False, False
+        self.ready_setup = None                  # Windows: the verified setup program, waiting for "Install and restart"
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=20, margin_bottom=20, margin_start=24, margin_end=24)
 
         head = Gtk.Label(label=f"PodStudio v{info.version} is available", xalign=0, wrap=True)
@@ -42,9 +43,12 @@ class UpdateDialog(Adw.Dialog):
         if info.problems:
             self.note.set_text(" ".join(info.problems))
             self.note.add_css_class("art-warn")
-        elif not updates.installed_from_deb():
-            self.note.set_text("This copy wasn't installed from the .deb package, so install the new version the same way "
-                               "you installed this one. The release page has the download.")
+        elif not updates.can_self_install():
+            self.note.set_text(f"This copy wasn't installed from {updates.how_installed()}, so install the new version the "
+                               "same way you installed this one. The release page has the download.")
+        elif runtime.IS_WINDOWS:
+            self.note.set_text("The download is checked against the checksum published with the release. PodStudio "
+                               "closes while the installer runs, then opens again. Your sessions are not touched.")
         else:
             self.note.set_text("The download is checked against the checksum published with the release. "
                                "You'll be asked for your password to install it.")
@@ -63,7 +67,7 @@ class UpdateDialog(Adw.Dialog):
         for b in (self.view_btn, self.later_btn):
             b.add_css_class("chip-btn")
         self.go_btn.add_css_class("mix-btn")
-        self.go_btn.set_sensitive(info.can_install and updates.installed_from_deb())
+        self.go_btn.set_sensitive(info.can_install and updates.can_self_install())
         self.view_btn.connect("clicked", lambda *_: Gtk.UriLauncher.new(info.page).launch(win, None, None, None))
         self.later_btn.connect("clicked", lambda *_: self.close())
         self.go_btn.connect("clicked", lambda *_: self._primary())
@@ -87,7 +91,12 @@ class UpdateDialog(Adw.Dialog):
 
     def _primary(self):
         """One button, two phases: install, and once that has finished, restart. Never both."""
-        self._restart() if self.done_ok else self._go()
+        if self.ready_setup is not None:
+            self._install_and_quit()
+        elif self.done_ok:
+            self._restart()
+        else:
+            self._go()
 
     def _go(self):
         if self.busy or self.done_ok:
@@ -106,6 +115,8 @@ class UpdateDialog(Adw.Dialog):
             ui("Downloading…", 0.0)
             deb = updates.download(self.info, progress=lambda a, b: ui(
                 f"Downloading… {a / 1e6:.1f} of {b / 1e6:.1f} MB" if b else f"Downloading… {a / 1e6:.1f} MB", (a / b) if b else None))
+            if runtime.IS_WINDOWS:                    # setup can't replace files that are in use: it runs after we close
+                return deb
             ui("Verified. Waiting for you to authorize the installation…")
             return updates.install(deb)
 
@@ -115,6 +126,13 @@ class UpdateDialog(Adw.Dialog):
             if err:
                 self.go_btn.set_sensitive(True)
                 self._say(err, error=True)
+                return
+            if runtime.IS_WINDOWS:
+                self.ready_setup = _res
+                self.bar.set_visible(False)
+                self._say(f"Downloaded and verified v{self.info.version}. PodStudio will close, update, and open again.")
+                self.go_btn.set_label("Install and restart")
+                self.go_btn.set_sensitive(True)
                 return
             self.done_ok = True
             self.bar.set_visible(False)
@@ -134,6 +152,17 @@ class UpdateDialog(Adw.Dialog):
             GLib.idle_add(lambda: (finish(res, err), False)[1])
 
         threading.Thread(target=target, daemon=True).start()
+
+    def _install_and_quit(self):
+        if self.win.engine.recording:
+            self.win.toast("Finish your recording first, then install the update.")
+            return
+        try:
+            updates.start_windows_installer(self.ready_setup)
+        except updates.UpdateError as e:
+            self._say(str(e), error=True)
+            return
+        self.win.get_application().quit()
 
     def _restart(self):
         if not self.done_ok:

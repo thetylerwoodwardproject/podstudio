@@ -5,7 +5,8 @@ How an update is made trustworthy, since installing a package runs code as root:
   * downloads are only accepted from GitHub's own hosts, and redirects to anywhere else are refused;
   * a release without a published SHA-256 checksum is never auto-installed (the release page is offered instead);
   * the download is checked against that checksum before anything runs, and deleted if it doesn't match;
-  * installation goes through the system's own authorization prompt (pkexec), and the package name is validated.
+  * installation goes through the system's own authorization prompt (pkexec) on Linux, and the package name is validated.
+    On Windows the verified installer is started for the current user and PodStudio closes while it runs.
 Nothing identifying is sent: the check is an anonymous GET with a generic User-Agent.
 """
 from __future__ import annotations
@@ -24,16 +25,27 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import __version__
+from . import __version__, runtime
 
 REPO = "thetylerwoodwardproject/podstudio"
 API = "https://api.github.com"
-USER_AGENT = f"PodStudio/{__version__} (Linux desktop app)"
+USER_AGENT = f"PodStudio/{__version__} ({'Windows' if runtime.IS_WINDOWS else 'Linux'} desktop app)"
 CHECK_INTERVAL = 24 * 3600
 MAX_DEB_BYTES = 250 * 1000 * 1000
-CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "podstudio" / "updates"
+MAX_EXE_BYTES = 700 * 1000 * 1000                  # the Windows installer carries its own copy of GTK, GStreamer and Python
+CACHE_DIR = runtime.user_cache_dir() / "updates"
 ALLOWED_HOSTS = ("github.com", "api.github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
 DEB_NAME = re.compile(r"^podstudio_[0-9][0-9.]*(-[0-9]+)?_amd64\.deb$")
+EXE_NAME = re.compile(r"^PodStudio-[0-9][0-9.]*(-[0-9]+)?-x64-setup\.exe$")
+
+
+def package_name_pattern():
+    """Which release asset is ours: the installer on Windows, the .deb on Debian-family Linux."""
+    return EXE_NAME if runtime.IS_WINDOWS else DEB_NAME
+
+
+def max_package_bytes() -> int:
+    return MAX_EXE_BYTES if runtime.IS_WINDOWS else MAX_DEB_BYTES
 
 
 class UpdateError(Exception):
@@ -51,13 +63,27 @@ def version_key(v: str):
     return nums + (int(m.group(2) or 0),)
 
 
+def _asset_version(name: str) -> str:
+    """'podstudio_2026.11.20-3_amd64.deb' or 'PodStudio-2026.11.20-3-x64-setup.exe' -> '2026.11.20-3'."""
+    m = re.match(r"^(?:podstudio_|PodStudio-)([0-9][0-9.]*(?:-[0-9]+)?)(?:_amd64\.deb|-x64-setup\.exe)$", name)
+    return m.group(1) if m else ""
+
+
 def is_newer(candidate: str, current: str) -> bool:
     a, b = version_key(candidate), version_key(current)
     return a is not None and b is not None and a > b
 
 
 def installed_version() -> str | None:
-    """The package version dpkg has (e.g. 2026.11.20-3), or None when PodStudio wasn't installed from the .deb."""
+    """The package version dpkg has (e.g. 2026.11.20-3), or None when PodStudio wasn't installed from the .deb.
+    The Windows build records its own in a VERSION file (written when it is built), so rebuilds of the same date
+    aren't offered as updates to themselves."""
+    home = runtime.windows_home()
+    if home is not None:
+        try:
+            return (home / "VERSION").read_text(encoding="utf-8").strip() or None
+        except OSError:
+            return None
     try:
         out = subprocess.run(["dpkg-query", "-W", "-f=${Version}", "podstudio"], capture_output=True, text=True, timeout=5)
         return out.stdout.strip() or None if out.returncode == 0 else None
@@ -70,7 +96,22 @@ def current_version() -> str:
 
 
 def installed_from_deb() -> bool:
-    return installed_version() is not None and "/usr/lib/podstudio" in str(Path(__file__).resolve())
+    return not runtime.IS_WINDOWS and installed_version() is not None and "/usr/lib/podstudio" in str(Path(__file__).resolve())
+
+
+def installed_from_installer() -> bool:
+    """Windows: this copy was put there by the setup program (so it has an uninstaller), not unzipped by hand."""
+    home = runtime.windows_home()
+    return home is not None and (home / "unins000.exe").exists()
+
+
+def can_self_install() -> bool:
+    """Whether PodStudio can install an update itself: the .deb on Linux, the setup program on Windows."""
+    return installed_from_installer() if runtime.IS_WINDOWS else installed_from_deb()
+
+
+def how_installed() -> str:
+    return "the Windows installer" if runtime.IS_WINDOWS else "the .deb package"
 
 
 def should_check(last_check: float, now: float | None = None, interval: float = CHECK_INTERVAL) -> bool:
@@ -147,11 +188,12 @@ def check(current: str | None = None, base: str = API, repo: str = REPO, timeout
     info = UpdateInfo(version=tag.lstrip("v"), notes=(rel.get("body") or "").strip(), page=rel.get("html_url") or
                       f"https://github.com/{repo}/releases")
     assets = {a.get("name", ""): a for a in rel.get("assets", []) if isinstance(a, dict)}
-    debs = [n for n in assets if DEB_NAME.match(n)]
+    pattern = package_name_pattern()
+    debs = [n for n in assets if pattern.match(n)]
     if not debs:
         info.problems.append("This release has no installable package for your system.")
         return info
-    name = sorted(debs, key=lambda n: version_key(n.split("_")[1] if "_" in n else "") or ())[-1]
+    name = sorted(debs, key=lambda n: version_key(_asset_version(n)) or ())[-1]
     info.deb_name, info.deb_url, info.deb_size = name, assets[name].get("browser_download_url", ""), int(assets[name].get("size") or 0)
     sha = assets.get(name + ".sha256")
     if sha:
@@ -162,7 +204,7 @@ def check(current: str | None = None, base: str = API, repo: str = REPO, timeout
         if u and not _host_ok(u, local):
             info.problems.append("This release points at a download host that PodStudio doesn't trust.")
             break
-    if info.deb_size and info.deb_size > MAX_DEB_BYTES:
+    if info.deb_size and info.deb_size > max_package_bytes():
         info.problems.append("The package is much larger than expected.")
     return info
 
@@ -196,11 +238,11 @@ def download(info: UpdateInfo, progress=None, base: str = API, cache: Path = CAC
     try:
         with _fetch(info.deb_url, base) as r, open(part, "wb") as f:
             total = int(r.headers.get("Content-Length") or info.deb_size or 0)
-            if total > MAX_DEB_BYTES:
+            if total > max_package_bytes():
                 raise UpdateError("The package is much larger than expected.")
             while chunk := r.read(1 << 18):
                 got += len(chunk)
-                if got > MAX_DEB_BYTES:
+                if got > max_package_bytes():
                     raise UpdateError("The download is much larger than expected.")
                 h.update(chunk)
                 f.write(chunk)
@@ -219,13 +261,30 @@ def download(info: UpdateInfo, progress=None, base: str = API, cache: Path = CAC
 def install_command(deb: Path, cache: Path = CACHE_DIR) -> list[str]:
     """The exact command that is run with elevated rights. Only a verified package in our cache may be passed to it."""
     deb = Path(deb).resolve()
-    if deb.parent != Path(cache).resolve() or not DEB_NAME.match(deb.name):
+    if deb.parent != Path(cache).resolve() or not package_name_pattern().match(deb.name):
         raise UpdateError("That isn't a PodStudio package from the update cache.")
+    if runtime.IS_WINDOWS:                              # per-user setup: no administrator prompt, and PodStudio is closed
+        return [str(deb), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/RELAUNCH=1"]
     return ["pkexec", "apt-get", "install", "-y", str(deb)]
+
+
+def start_windows_installer(setup: Path, cache: Path = CACHE_DIR) -> None:
+    """Windows: start the verified setup program on its own and return at once. The caller then closes PodStudio,
+    because setup can't replace files that are in use; setup reopens PodStudio when it has finished."""
+    cmd = install_command(setup, cache)
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    try:
+        subprocess.Popen(cmd, creationflags=flags, close_fds=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as e:
+        raise UpdateError(f"Couldn't start the installer: {e}. You can run it yourself: {setup}") from None
 
 
 def install(deb: Path, cache: Path = CACHE_DIR, timeout: float = 900.0) -> str:
     """Install through the system's authorization prompt. Returns a short summary; raises UpdateError with advice."""
+    if runtime.IS_WINDOWS:
+        start_windows_installer(deb, cache)
+        return "Started."
     cmd = install_command(deb, cache)
     if shutil.which("pkexec") is None:
         raise UpdateError("Installing needs administrator rights and pkexec isn't available. Run:  sudo apt install " + str(deb))
