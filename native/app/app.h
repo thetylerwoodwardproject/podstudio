@@ -12,9 +12,13 @@
 #include <imgui.h>
 
 #include "../core/project.h"
+#include "../core/buzzsprout.h"
+#include "../core/chapters.h"
+#include "../core/imageinfo.h"
 #include "../core/recovery.h"
 #include "../core/render.h"
 #include "engine.h"
+#include "http_factory.h"
 #include "micctl.h"
 #include "widgets.h"
 
@@ -26,7 +30,7 @@ struct SessionInfo {
     bool has_master = false, has_mic = false, needs_recovery = false;
 };
 
-enum Page { kSession = 0, kMic, kMix, kRecordings, kScript, kPageCount };
+enum Page { kSession = 0, kMic, kMix, kRecordings, kScript, kPublish, kPageCount };
 
 class App {
 public:
@@ -73,6 +77,13 @@ private:
     void page_mix(ImVec2 avail);
     void page_recordings(ImVec2 avail);
     void page_script(ImVec2 avail);
+    void page_publish(ImVec2 avail);
+    void buzz_connect(const std::string& token, bool remember);
+    void buzz_upload();
+    void buzz_publish();
+    void buzz_run(std::function<void(buzz::Client&)> work);
+    void episode_load();
+    void episode_save();
     void connect_overlay(ImVec2 pos, ImVec2 size);
     void pad_editor();
     void recovery_popup();
@@ -154,6 +165,28 @@ public:
     double script_save_at_ = 0;
     bool prompter_ = false, prompter_run_ = false, prompter_with_rec_ = false;
     float prompter_speed_ = 4.0f, prompter_scroll_ = 0.f, prompter_size_ = 1.0f;
+
+    // Buzzsprout
+    std::unique_ptr<Http> http_;
+    std::thread buzz_thread_;
+    std::atomic<bool> buzz_busy_{false};
+    std::mutex buzz_mu_;
+    std::string buzz_status_, buzz_error_;
+    std::atomic<float> buzz_frac_{-1.f};
+    std::string buzz_token_;
+    char buzz_token_input_[160] = {};
+    std::vector<buzz::PodcastInfo> buzz_podcasts_;
+    int buzz_podcast_idx_ = 0;
+    bool buzz_connected_ = false, buzz_confirm_publish_ = false;
+    std::function<void()> buzz_after_;                    // applied on the UI thread when the worker finishes
+    std::atomic<bool> buzz_done_{false};
+    // episode form (mirrors project.episode)
+    char ep_title_[200] = {}, ep_tags_[200] = {};
+    std::string ep_desc_;
+    int ep_number_ = 0, season_number_ = 0;
+    bool ep_explicit_ = false, ep_loaded_ = false;
+    std::string ep_loaded_for_;
+    std::vector<std::string> chapter_notes_;
 
     // crash recovery
     Journal journal_;

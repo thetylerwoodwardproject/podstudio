@@ -135,13 +135,14 @@ jobs:
         shell: pwsh
         run: |
           cmake -S native -B native/build -G "Visual Studio 17 2022" -A x64
-          cmake --build native/build --config Release --target PodStudio core_tests --parallel
+          cmake --build native/build --config Release --target PodStudio core_tests buzz_tests --parallel
       - name: Core tests (the C++ must match the Python implementation)
         shell: bash
         run: |
           python -m pip install --quiet numpy scipy soundfile
           python native/tests/make_reference.py native/build/reference > /dev/null
           native/build/Release/core_tests.exe native/build/reference
+          native/build/Release/buzz_tests.exe native/build
       - name: DeepFilterNet (optional noise reduction)
         shell: bash
         run: |

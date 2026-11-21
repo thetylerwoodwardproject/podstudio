@@ -50,6 +50,7 @@ App::~App() {
         if (have_proj_) { proj_.mic_duration = double(frames) / kRate; proj_.recording = false; std::string e; proj_.save(e); }
     }
     if (mic_thread_.joinable()) mic_thread_.join();
+    if (buzz_thread_.joinable()) buzz_thread_.join();
     if (render_thread_.joinable()) render_thread_.join();
     if (mp3_thread_.joinable()) mp3_thread_.join();
     if (peaks_thread_.joinable()) peaks_thread_.join();
@@ -57,6 +58,8 @@ App::~App() {
 }
 
 void App::init() {
+    http_ = make_http();
+    buzz_token_ = credstore::load();
     engine_ok_ = engine_.init(audio_error_);
     demo_ = std::getenv("PODSTUDIO_DEMO") != nullptr;
     root_ = default_root();
@@ -468,6 +471,10 @@ void App::frame(float dt, ImVec2 display) {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { engine_.recording() ? stop_record() : start_record(); }
     handle_keys();
     mic_poll();
+    if (buzz_done_.exchange(false)) {
+        if (buzz_thread_.joinable()) buzz_thread_.join();
+        if (buzz_after_) { auto f = std::move(buzz_after_); buzz_after_ = nullptr; f(); }
+    }
 
     // script autosave
     if (script_dirty_ && now_ > script_save_at_) script_save();
@@ -489,6 +496,7 @@ void App::frame(float dt, ImVec2 display) {
         case kMix: page_mix(inner); break;
         case kRecordings: page_recordings(inner); break;
         case kScript: page_script(inner); break;
+        case kPublish: page_publish(inner); break;
         default: break;
     }
     ImGui::EndChild();
@@ -513,11 +521,11 @@ void App::header(ImVec2 display) {
     dl->AddCircleFilled(ImVec2(lp.x + px(18), lp.y + px(18)), px(7), hex(0xffffff), 24);
     ui::text_at(dl, fonts.title, ImVec2(lp.x + px(48), lp.y + px(5)), hex(kText), "PodStudio");
     // tabs
-    static const char* tabs[] = {"Session", "Mic", "Mix", "Recordings", "Script"};
-    const float each = px(96);
+    static const char* tabs[] = {"Session", "Mic", "Mix", "Recordings", "Script", "Publish"};
+    const float each = px(88);
     ImGui::SetCursorPos(ImVec2(px(232), px(16)));
     int sel = int(page_);
-    if (ui::pill_tabs(tabs, 5, &sel, each)) page_ = Page(sel);
+    if (ui::pill_tabs(tabs, 6, &sel, each)) page_ = Page(sel);
     // right side: mic pill + session button
     const bool ok = engine_.input_open();
     const char* mic_text = ok ? (demo_ ? "Demo signal" : "PodMic connected") : "PodMic not connected";

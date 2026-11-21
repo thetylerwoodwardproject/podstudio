@@ -21,7 +21,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(json imgui miniaudio)
 
 # ---- core: no operating-system code, tested on every platform
-add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp core/recovery.cpp)
+add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp core/recovery.cpp core/buzzsprout.cpp core/chapters.cpp core/imageinfo.cpp)
 target_link_libraries(pscore PUBLIC nlohmann_json::nlohmann_json)
 target_include_directories(pscore PUBLIC core)
 
@@ -29,6 +29,9 @@ enable_testing()
 add_executable(core_tests tests/core_tests.cpp)
 target_link_libraries(core_tests PRIVATE pscore)
 add_test(NAME core_tests COMMAND core_tests ${CMAKE_BINARY_DIR}/reference)
+add_executable(buzz_tests tests/buzz_tests.cpp)
+target_link_libraries(buzz_tests PRIVATE pscore)
+add_test(NAME buzz_tests COMMAND buzz_tests ${CMAKE_BINARY_DIR})
 
 # ---- the app
 option(PODSTUDIO_BUILD_APP "Build the PodStudio application" ON)
@@ -39,17 +42,17 @@ if(PODSTUDIO_BUILD_APP)
   target_include_directories(imgui_lib PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/misc/cpp)
 
   set(APP_SOURCES app/app.cpp app/engine.cpp app/theme.cpp app/widgets.cpp app/denoise.cpp
-      app/page_session.cpp app/page_mic.cpp app/page_mix.cpp app/page_recordings.cpp app/page_script.cpp)
+      app/page_session.cpp app/page_mic.cpp app/page_publish.cpp app/page_mix.cpp app/page_recordings.cpp app/page_script.cpp)
   if(WIN32)
-    list(APPEND APP_SOURCES app/mp3_win32.cpp app/micctl_win32.cpp)
+    list(APPEND APP_SOURCES app/mp3_win32.cpp app/micctl_win32.cpp app/http_win32.cpp app/cred_win32.cpp)
   else()
-    list(APPEND APP_SOURCES app/mp3_stub.cpp app/micctl_demo.cpp)
+    list(APPEND APP_SOURCES app/mp3_stub.cpp app/micctl_demo.cpp app/http_stub.cpp)
   endif()
 
   if(WIN32)
     add_executable(PodStudio WIN32 ${APP_SOURCES} app/platform_win32.cpp app/main_win32.cpp app/podstudio.rc
       ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
-    target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid mfplat mfreadwrite mfuuid setupapi hid)
+    target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid mfplat mfreadwrite mfuuid setupapi hid winhttp advapi32)
     if(MSVC)
       target_link_options(PodStudio PRIVATE /MANIFEST:NO)                              # the manifest is embedded by podstudio.rc
       target_compile_definitions(PodStudio PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX UNICODE _UNICODE)
