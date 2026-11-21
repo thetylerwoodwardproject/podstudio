@@ -32,6 +32,10 @@ def environment(home: Path, cache: Path) -> dict[str, str]:
     scanner = home / "libexec" / "gstreamer-1.0" / "gst-plugin-scanner.exe"
     if scanner.exists():
         env["GST_PLUGIN_SCANNER"] = str(scanner)
+    fonts = home / "etc" / "fonts" / "fonts.conf"
+    if fonts.exists():                                   # without this fontconfig can't find the Windows fonts
+        env["FONTCONFIG_PATH"] = str(fonts.parent)
+        env["FONTCONFIG_FILE"] = str(fonts)
     certs = home / "ssl" / "cacert.pem"
     if certs.exists():                                   # Python's ssl (GitHub, Buzzsprout) needs a list of trusted CAs
         env["SSL_CERT_FILE"] = str(certs)

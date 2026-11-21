@@ -220,6 +220,11 @@ class Bundle:
         shutil.copy2(ROOT / "data" / f"{APP_ID}.svg", scalable / f"{APP_ID}.svg")
         if (self.bin / "glib-compile-schemas.exe").exists():
             subprocess.run([str(self.bin / "glib-compile-schemas.exe"), str(share / "glib-2.0" / "schemas")], check=True)
+        fonts = PREFIX / "etc" / "fonts"
+        if fonts.exists():
+            copytree(fonts, self.out / "etc" / "fonts")
+        else:
+            print("note: no fontconfig configuration found; text may fall back to a poor font")
         for candidate in (PREFIX / "etc" / "ssl" / "certs" / "ca-bundle.crt", PREFIX / "ssl" / "certs" / "ca-bundle.crt"):
             if candidate.exists():                            # HTTPS to GitHub and Buzzsprout needs a CA list
                 (self.out / "ssl").mkdir(exist_ok=True)
