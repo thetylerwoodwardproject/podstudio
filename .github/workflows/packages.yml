@@ -1,5 +1,3 @@
-# NOT ACTIVE: this lives in packaging/ci/ because the token used to push could not create workflow files.
-# To enable it:  mkdir -p .github/workflows && git mv packaging/ci/packages.yml .github/workflows/  (pushing it needs a token with the `workflow` scope).
 # UNVERIFIED: this workflow has never run.
 # Expect to fix small things on the first run (the Windows job most of all: see packaging/windows/README.md).
 # It builds every package format and attaches them to the release
