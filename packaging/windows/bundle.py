@@ -33,8 +33,8 @@ APP_ID = "io.github.thetylerwoodwardproject.PodStudio"
 
 # GStreamer plugins PodStudio uses, by plugin name (file libgst<name>.dll). `required` ones fail the build if missing.
 GST_REQUIRED = ["coreelements", "audioconvert", "audioresample", "volume", "level", "wavenc", "wavparse", "playback",
-                "typefindfunctions", "audioparsers", "autodetect", "lame", "id3tag", "wasapi2"]
-GST_OPTIONAL = ["wasapi", "app", "audiofx", "flac", "ogg", "vorbis", "opus", "mpg123", "id3demux", "isomp4", "apetag",
+                "typefindfunctions", "audioparsers", "autodetect", "lame", "taglib", "wasapi2"]
+GST_OPTIONAL = ["id3tag", "wasapi", "app", "audiofx", "flac", "ogg", "vorbis", "opus", "mpg123", "id3demux", "isomp4", "apetag",
                 "audiotestsrc", "gio"]
 
 # Everything in site-packages is copied except build and test tooling. (An allowlist kept missing small helper modules
@@ -44,7 +44,7 @@ SITE_SKIP = {"pip", "setuptools", "pkg_resources", "wheel", "_distutils_hack", "
 SITE_SKIP_PREFIX = ("pip-", "setuptools-", "wheel-", "pytest-", "pluggy-", "iniconfig-", "pygments-", "pyproject_hooks-")
 
 # GObject typelibs to ship (by file-name prefix): GTK 4, libadwaita, GStreamer and what they depend on.
-TYPELIBS = ("GLib-", "GObject-", "Gio-", "GModule-", "GioWin32-", "Gtk-4", "Gdk-4", "GdkWin32-", "Gsk-", "Adw-", "Graphene-",
+TYPELIBS = ("GLib-", "GLibWin32-", "GObject-", "Gio-", "GModule-", "GioWin32-", "Gtk-4", "Gdk-4", "GdkWin32-", "Gsk-", "Adw-", "Graphene-",
             "Pango-", "PangoCairo-", "PangoWin32-", "cairo-", "freetype2-", "HarfBuzz-", "GdkPixbuf-", "Gst-", "GstBase-",
             "GstAudio-", "GstPbutils-", "GstTag-", "GstApp-", "GstVideo-", "GstNet-", "GstController-", "GstCheck-")
 

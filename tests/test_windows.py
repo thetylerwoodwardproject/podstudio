@@ -435,7 +435,7 @@ def test_every_gstreamer_element_the_app_needs_has_a_plugin_in_the_bundle():
                          "queue": "coreelements", "filesink": "coreelements", "filesrc": "coreelements",
                          "fakesink": "coreelements", "audioconvert": "audioconvert", "audioresample": "audioresample",
                          "wavenc": "wavenc", "decodebin": "playback", "playbin": "playback", "lamemp3enc": "lame",
-                         "id3v2mux": "id3tag", "autoaudiosink": "autodetect"}
+                         "id3v2mux": "taglib", "autoaudiosink": "autodetect"}
     assert {p for p in element_to_plugin.values()} <= set(b.GST_REQUIRED)
     assert set(element_to_plugin.values()) <= provided
 
