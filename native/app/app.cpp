@@ -534,8 +534,8 @@ void App::header(ImVec2 display) {
     ui::text_at(dl, fonts.title, ImVec2(lp.x + px(48), lp.y + px(5)), hex(kText), "PodStudio");
     // tabs
     static const char* tabs[] = {"Session", "Mic", "Mix", "Recordings", "Script", "Publish"};
-    const float each = px(88);
-    ImGui::SetCursorPos(ImVec2(px(232), px(16)));
+    const float each = px(84);
+    ImGui::SetCursorPos(ImVec2(px(216), px(16)));
     int sel = int(page_);
     if (ui::pill_tabs(tabs, 6, &sel, each)) page_ = Page(sel);
     if (update_info_) {                                                 // "Update available"

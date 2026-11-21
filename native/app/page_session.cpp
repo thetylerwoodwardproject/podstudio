@@ -92,13 +92,14 @@ void App::page_session(ImVec2 avail) {
     if (!have_proj_) return;
     const float gap = px(16);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
-    const float top_h = std::min(px(360), avail.y * 0.52f);
+    // The console takes what the pads don't need: two compact rows of pads fit in about 230 px.
+    const float top_h = std::max(px(250), std::min(px(360), avail.y - gap - px(236)));
     const float left_w = avail.x * 0.60f - gap / 2, right_w = avail.x - left_w - gap;
     const bool rec = engine_.recording();
 
     // ---- console
     if (ui::card_begin("##console", ImVec2(left_w, top_h), "Console", "Levels in dBFS. Double-click a fader for unity (0 dB).")) {
-        const float meter_h = top_h - px(158);
+        const float meter_h = std::max(px(90), top_h - px(158));
         const float col_w = (left_w - px(36)) / 3;
         ImVec2 start = ImGui::GetCursorScreenPos();
         float mic = float(proj_.mic_db), hk = float(proj_.hotkeys_db);
@@ -158,7 +159,7 @@ void App::page_session(ImVec2 avail) {
         const float pgap = px(12);
         ImVec2 inner = ImGui::GetContentRegionAvail();
         const float pw = (inner.x - pgap * (cols - 1)) / cols;
-        const float ph = std::max(px(84), (inner.y - pgap * (rows - 1)) / std::max(1, rows));
+        const float ph = std::max(px(64), (inner.y - pgap * (rows - 1)) / std::max(1, rows));
         ImVec2 base = ImGui::GetCursorScreenPos();
         for (int i = 0; i < n; i++) {
             Pad& pad = proj_.pads[size_t(i)];

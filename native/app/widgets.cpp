@@ -63,12 +63,17 @@ void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_rig
         dl->AddRectFilled(ImVec2(p.x - px(2), y - px(1.5f)), ImVec2(p.x + bar_w + px(2), y + px(1.5f)), hex(kText, 0.95f), px(1));
     }
     if (ruler_right) {
+        // Scale labels, skipping any that would land on the one above (small windows give the meter little height).
         const int marks[] = {0, -6, -12, -24, -36, -48};
+        float last_y = -1e9f;
+        const float th = text_size(fonts.sm, "-48").y;
         for (int db : marks) {
             float y = p.y + h - db_to_frac(float(db)) * h;
             char t[8]; std::snprintf(t, sizeof t, "%d", db);
             ImVec2 ts = text_size(fonts.sm, t);
             float ty = std::max(p.y, std::min(p.y + h - ts.y, y - ts.y / 2));
+            if (ty - last_y < th + px(2)) continue;
+            last_y = ty;
             text_at(dl, fonts.sm, ImVec2(p.x + bar_w + px(8), ty), db == 0 ? hex(kText) : hex(kFaint), t);
         }
     }

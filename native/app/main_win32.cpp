@@ -8,6 +8,7 @@
 #include <dwmapi.h>
 #include <dxgi1_3.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cwchar>
 #include <imgui.h>
@@ -74,7 +75,7 @@ LRESULT WINAPI wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_GETMINMAXINFO: {
             auto* mm = reinterpret_cast<MINMAXINFO*>(lp);
             const float s = ImGui_ImplWin32_GetDpiScaleForHwnd(hwnd);
-            mm->ptMinTrackSize.x = LONG(1180 * s); mm->ptMinTrackSize.y = LONG(700 * s);
+            mm->ptMinTrackSize.x = LONG(1100 * s); mm->ptMinTrackSize.y = LONG(620 * s);
             return 0;
         }
         case WM_DPICHANGED: {
@@ -113,8 +114,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     HMONITOR mon = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
     g_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(mon);
     g_new_scale = g_scale;
-    HWND hwnd = CreateWindowW(wc.lpszClassName, L"PodStudio", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-                              int(1240 * g_scale), int(800 * g_scale), nullptr, nullptr, inst, nullptr);
+    // Open at 1240x800 (at 100% scaling), but never larger than 92% of the usable screen, and centred.
+    RECT work{0, 0, 1920, 1080};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    const int work_w = int(work.right - work.left), work_h = int(work.bottom - work.top);
+    const int win_w = std::min(int(1240 * g_scale), int(work_w * 0.92)), win_h = std::min(int(800 * g_scale), int(work_h * 0.92));
+    HWND hwnd = CreateWindowW(wc.lpszClassName, L"PodStudio", WS_OVERLAPPEDWINDOW, int(work.left) + (work_w - win_w) / 2,
+                              int(work.top) + (work_h - win_h) / 2, win_w, win_h, nullptr, nullptr, inst, nullptr);
     const BOOL dark = TRUE;                              // dark title bar to match the interface
     DwmSetWindowAttribute(hwnd, 20, &dark, sizeof dark);
     const COLORREF caption = RGB(9, 9, 11), text = RGB(250, 250, 250);
