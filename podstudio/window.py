@@ -704,7 +704,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.mix_btn = Gtk.Button(label="Mix")
         self.mix_btn.add_css_class("mix-btn")
         self.mix_btn.connect("clicked", lambda *_: self.mix_now())
-        self.master_strip.footer.append(self.mix_btn)
+        self.mic_strip.peak_label.set_visible(False)             # the Windows app shows no peak text under these
+        self.hk_strip.peak_label.set_visible(False)
+        self.mix_btn.set_visible(False)                          # rendering lives on the Mix tab, as on Windows
         for i, st in enumerate((self.mic_strip, self.hk_strip, self.master_strip)):
             if i:
                 bank.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))

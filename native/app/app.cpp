@@ -554,7 +554,6 @@ void App::frame(float dt, ImVec2 display) {
 void App::header(ImVec2 display) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float h = px(68);
-    const bool narrow = display.x < 1300;                // shorter labels on narrower windows
     dl->AddLine(ImVec2(0, h), ImVec2(display.x, h), hex(kLine));
     // logo
     ImVec2 lp(px(24), px(16));
@@ -602,7 +601,7 @@ void App::header(ImVec2 display) {
 
     // right side: session button and mic pill (shorter on narrow windows)
     const bool ok = engine_.input_open();
-    const char* mic_text = ok ? (demo_ ? "Demo" : (narrow ? "PodMic" : "PodMic connected")) : (narrow ? "No mic" : "PodMic not connected");
+    const char* mic_text = ok ? (demo_ ? "Demo signal" : "PodMic USB connected") : "PodMic USB not connected";
     ImVec2 ms = ui::text_size(fonts.body, mic_text);
     const float pw = ms.x + px(40);
     const float max_sbw = std::max(px(140), std::min(px(260), display.x - px(24) - tabs_end - px(16) - pw - px(10)));
