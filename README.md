@@ -47,7 +47,7 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 
 PodStudio comes as a `.deb`, a Flatpak and an AppImage on Linux, and as an installer `.exe` on Windows. See [packaging/README.md](packaging/README.md) for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
 
-**Windows 10 / 11 (64-bit): the installer** (**new and not yet tested on Windows**, see [packaging/windows/README.md](packaging/windows/README.md))
+**Windows 10 / 11 (64-bit): the installer** (**new: builds and passes its self-test in CI, but not yet run with a PodMic on Windows**, see [packaging/windows/README.md](packaging/windows/README.md))
 
 Download `PodStudio-<version>-x64-setup.exe` from the release page and run it. It installs for your user (no administrator prompt).
 The installer isn't code-signed, so Windows SmartScreen will warn the first time: choose *More info*, then *Run anyway*, and check the

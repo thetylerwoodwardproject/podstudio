@@ -4,11 +4,12 @@
 menu entry. `PodStudio-<version>-x64-portable.zip` is the same folder to unzip anywhere and run `bin\PodStudio.exe`.
 Windows 10 or 11, 64-bit.
 
-> **Status: written and built for, but not yet run on Windows.** Everything here was developed on Linux. The platform-neutral
-> logic has tests (`tests/test_windows.py`, run on Linux against fakes), the launcher compiles, and the GStreamer pipeline
-> syntax was checked against a real GStreamer. **Nothing has been run on an actual Windows machine**, and the first CI build
-> has not happened. Treat the first build as a bring-up: expect to fix small things (package names, a missing plugin or DLL).
-> The checklist at the bottom says what to verify, in order.
+> **Status: builds in CI and passes its headless self-test; not yet run with a window or a PodMic.** On 2026-11-21 the `windows`
+> job in GitHub Actions built the app folder, ran `PodStudio-console.exe --self-test` on it with MSYS2 off `PATH` (GTK 4.24,
+> libadwaita 1.10, GStreamer 1.28, numpy/scipy/soundfile, MP3 export, DeepFilterNet, hidapi, Credential Manager and the
+> gain interfaces all passed), then built the installer and portable zip. The first Windows runs also caught several
+> bundler gaps, now fixed. **Never done: installing it, opening the window, or recording with a real PodMic on Windows.**
+> The checklist at the bottom says what to verify, in order. Steps 1 is done; start at 2.
 
 ## How it is built
 
@@ -61,7 +62,7 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\build-windows.ps1
 
 ## First-run checklist (nobody has done this yet)
 
-1. CI (or `build-windows.ps1`) gets through `build.sh`. Its last step is `--self-test` on the bundle with MSYS2 off `PATH`, which
+1. (Done in CI.) CI (or `build-windows.ps1`) gets through `build.sh`. Its last step is `--self-test` on the bundle with MSYS2 off `PATH`, which
    proves that the DLLs, typelibs, GStreamer plugins and DeepFilterNet were all bundled.
 2. The installer installs, the Start menu entry opens a window, and `podstudio.log` has no tracebacks.
 3. With a PodMic USB plugged in: the header says **PodMic USB connected** and the meter moves. Record 10 seconds; check

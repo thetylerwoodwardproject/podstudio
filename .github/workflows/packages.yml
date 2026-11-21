@@ -89,7 +89,6 @@ jobs:
           gst-inspect-1.0 --version
           ls /ucrt64/lib/gstreamer-1.0 | head -50
       - name: Tests (the ones that don't need a display)
-        continue-on-error: true      # bring-up: report failures but still build, so the bundle itself gets exercised
         run: python -m pytest -q tests/test_windows.py tests/test_podmic.py tests/test_updates.py tests/test_buzzsprout.py
       - name: Build the app folder and the portable zip (runs --self-test on the result)
         run: ./packaging/windows/build.sh
