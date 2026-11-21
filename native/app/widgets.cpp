@@ -296,16 +296,15 @@ void label_dim(const char* text) {
 }
 
 void label_value(const char* label, const char* value, ImU32 value_color) {
-    ImGui::PushFont(fonts.sm);
-    ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-    ImGui::PushFont(fonts.semibold);
-    if (value_color) ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(value_color));
-    ImGui::TextUnformatted(value);
-    if (value_color) ImGui::PopStyleColor();
-    ImGui::PopFont();
+    // Both lines are drawn at the cursor's x, so this works in a column placed with SetCursorScreenPos (a plain second
+    // Text() would start again at the window's left edge and overlap the other columns).
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 ls = text_size(fonts.sm, label);
+    text_at(dl, fonts.sm, p, hex(kDim), label);
+    const ImVec2 vs = text_size(fonts.semibold, value);
+    text_at(dl, fonts.semibold, ImVec2(p.x, p.y + ls.y + px(4)), value_color ? value_color : hex(kText), value);
+    ImGui::Dummy(ImVec2(std::max(ls.x, vs.x), ls.y + px(4) + vs.y));
 }
 
 bool slider_row(const char* label, float* v, float lo, float hi, const char* fmt, float w, const char* hint) {

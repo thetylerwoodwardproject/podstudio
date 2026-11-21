@@ -69,6 +69,7 @@ void App::init() {
     for (auto& si : sessions_) if (si.needs_recovery && recover_path_.empty()) { recover_path_ = si.path; recover_name_ = si.name; open_recover_popup_ = true; }
     if (!sessions_.empty()) open_session(sessions_.front().path);
     else new_session("Session " + stamp());
+    if (std::getenv("PODSTUDIO_DEMO_RENDER") && have_proj_) render_async();      // previews: show a finished render
     if (demo_ && engine_ok_) { std::string e; engine_.open_demo(e); source_name_ = "Demo signal"; have_cur_input_ = true; }
 }
 
