@@ -597,7 +597,7 @@ void App::header(ImVec2 display) {
     ImGui::SetCursorPos(ImVec2(tabs_x, px(16)));
     int sel = int(page_);
     float tabs_w = 0;
-    if (ui::icon_tabs(tabs, 6, &sel, /*with_labels=*/!narrow, &tabs_w)) page_ = Page(sel);
+    if (ui::icon_tabs(tabs, 6, &sel, /*with_labels=*/false, &tabs_w)) page_ = Page(sel);
     const float tabs_end = tabs_x + tabs_w;
 
     // right side: session button and mic pill (shorter on narrow windows)
