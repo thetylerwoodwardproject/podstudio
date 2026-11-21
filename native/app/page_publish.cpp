@@ -18,7 +18,10 @@ namespace ps {
 
 namespace {
 
-const char* kUserAgent = "PodStudio/2026 (Windows desktop app)";
+#ifndef PS_VERSION
+#define PS_VERSION "dev"
+#endif
+const std::string kUserAgent = std::string("PodStudio/") + PS_VERSION + " (Windows desktop app)";
 
 std::string str_of(const json& j, const char* k, const std::string& d = "") { return j.is_object() && j.contains(k) && j[k].is_string() ? j[k].get<std::string>() : d; }
 int int_of(const json& j, const char* k) { return j.is_object() && j.contains(k) && j[k].is_number() ? j[k].get<int>() : 0; }
