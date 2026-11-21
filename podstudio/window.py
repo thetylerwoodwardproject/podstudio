@@ -169,7 +169,12 @@ class Strip(Gtk.Box):
         if tooltip:
             self.set_tooltip_text(tooltip)
 
-        self.append(make_label(title, ["strip-name"], halign=Gtk.Align.CENTER))
+        name = Gtk.Box(spacing=7, halign=Gtk.Align.CENTER)
+        dot = Gtk.Box(valign=Gtk.Align.CENTER)
+        dot.add_css_class("ch-dot")
+        name.append(dot)
+        name.append(make_label(title, ["strip-name"]))
+        self.append(name)
         self.readout = make_label("", ["readout", "mono"])
         self.append(self.readout)
         self.append(make_label(unit, ["unit"]))
@@ -635,8 +640,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
 
     # ---- Session page: fader bank on the left, display + pads on the right
     def _session_page(self) -> Gtk.Widget:
-        page = Gtk.Box(spacing=14, margin_top=16, margin_bottom=16, margin_start=16, margin_end=16)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin_top=16, margin_bottom=16, margin_start=16, margin_end=16)
         page.add_css_class("vd-page")
+        top_row = Gtk.Box(spacing=14, vexpand=True)
 
         pr = self.project
         bank = Gtk.Box(spacing=0)
@@ -672,43 +678,53 @@ class PodStudioWindow(Adw.ApplicationWindow):
             if i:
                 bank.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
             bank.append(st)
-        bank.set_size_request(440, -1)
-        page.append(bank)
+        console = self._head_card("Console")
+        console.append(make_label("Levels in dBFS. Double-click a fader for unity (0 dB).", ["vd-sub"], xalign=0))
+        bank.set_vexpand(True)
+        console.append(bank)
+        top_row.append(console)
 
-        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, hexpand=True)
-        # display
-        disp = Gtk.Box(spacing=18)
-        disp.add_css_class("display")
-        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+        # recorder card: state, big time, big record button, last master loudness
+        rec = self._head_card("Recorder")
+        rec.set_size_request(380, -1)
+        rec.set_hexpand(False)
         self.state_label = make_label("Ready", ["disp-state"], xalign=0)
-        self.timecode = make_label("00:00:00", ["timecode", "mono"], xalign=0)
-        self.source_label = make_label("", ["disp-sub"], xalign=0)
-        for w in (self.state_label, self.timecode, self.source_label):
-            left.append(w)
-        disp.append(left)
-        stats = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.END, valign=Gtk.Align.CENTER)
-        self.disp_lufs = make_label("—", ["disp-lufs", "mono"], xalign=1)
+        self.timecode = make_label("00:00:00", ["timecode", "mono"], halign=Gtk.Align.CENTER)
+        self.source_label = make_label("", ["disp-sub"], halign=Gtk.Align.CENTER)
+        rec.append(self.state_label)
+        mid = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, vexpand=True, valign=Gtk.Align.CENTER)
+        mid.append(self.timecode)
+        self.big_rec = Gtk.Button(halign=Gtk.Align.CENTER, tooltip_text="Record (Ctrl+R)")
+        self.big_rec.add_css_class("big-rec")
+        self.big_rec.set_child(Gtk.Box(css_classes=["big-rec-dot"]))
+        self.big_rec.connect("clicked", lambda *_: self.toggle_record())
+        mid.append(self.big_rec)
+        self.big_rec_label = make_label("Record  (Ctrl+R)", ["disp-sub"], halign=Gtk.Align.CENTER)
+        mid.append(self.big_rec_label)
+        mid.append(self.source_label)
+        rec.append(mid)
+        stats = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        self.disp_lufs = make_label("—", ["disp-lufs-s", "mono"])
+        stats.append(make_label("Last master", ["disp-sub"]))
         stats.append(self.disp_lufs)
-        stats.append(make_label("Last master · LUFS", ["disp-sub"], xalign=1))
-        disp.append(stats)
-        right.append(disp)
+        stats.append(make_label("LUFS", ["disp-sub"]))
+        rec.append(stats)
+        top_row.append(rec)
+        page.append(top_row)
 
-        top = Gtk.Box(spacing=8)
-        top.append(make_label("Pads", ["vd-title"], hexpand=True, xalign=0))
+        # hotkeys card, full width underneath
         stop_btn = Gtk.Button(label="Stop sounds")
         stop_btn.add_css_class("chip-btn")
         stop_btn.connect("clicked", lambda *_: self.player.stop_all())
-        top.append(stop_btn)
-        right.append(top)
-        self.grid = Gtk.Grid(row_spacing=10, column_spacing=10, column_homogeneous=True, row_homogeneous=True,
-                             vexpand=True)
+        hot = self._head_card("Hotkeys", stop_btn)
+        self.hint = make_label("Press a pad's key or click it. Right-click a pad to edit it. Hits are saved on their own track.",
+                               ["vd-sub"], xalign=0, wrap=True)
+        hot.append(self.hint)
+        self.grid = Gtk.Grid(row_spacing=10, column_spacing=10, column_homogeneous=True, row_homogeneous=True)
         self.pads: list[PadWidget] = []
         self._fill_pads()
-        right.append(self.grid)
-        self.hint = make_label("Press a pad's key to fire its sound. Ctrl+R starts and stops recording. "
-                               "Hotkey hits are saved on their own track.", ["vd-sub"], xalign=0, wrap=True)
-        right.append(self.hint)
-        page.append(right)
+        hot.append(self.grid)
+        page.append(hot)
         self._session_inner = page
         self._gate = self._build_mic_gate()
         shell = Gtk.Overlay()
@@ -1473,6 +1489,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
                 self.mic_strip.set_level(-90.0)
                 self.in_meter.set_value(0)
         self.rec_btn.set_sensitive(bool(src) or self.engine.recording)
+        if hasattr(self, "big_rec"):
+            self.big_rec.set_sensitive(bool(src) or self.engine.recording)
         getattr(self, "_update_armed", lambda: None)()
         self._update_gate()
 
@@ -1592,6 +1610,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
     def _set_recording_ui(self, rec: bool):
         for w in (self.rec_btn,):
             (w.add_css_class if rec else w.remove_css_class)("recording")
+        (self.big_rec.add_css_class if rec else self.big_rec.remove_css_class)("recording")
+        self.big_rec_label.set_text("Stop  (Ctrl+R)" if rec else "Record  (Ctrl+R)")
         (self.timecode.add_css_class if rec else self.timecode.remove_css_class)("live")
         self.rec_label.set_text("Stop  00:00:00" if rec else "Record")
         self._update_armed()
@@ -1918,7 +1938,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.pads[i].refresh()
 
     def _apply_pad_css(self):
-        css = "".join(f".pad-{i} .keycap {{ color: {p.color}; border-color: alpha({p.color}, .45); }}\n.pad-{i}.hit, .pad-{i}.playing {{ border-color: {p.color}; }}\n" for i, p in enumerate(self.project.pads))
+        css = "".join(f".pad-{i} .keycap {{ color: {p.color}; border-color: alpha({p.color}, .45); }}\n.pad-{i}.hit, .pad-{i}.playing {{ border-color: {p.color}; }}\n.pad-{i}:not(.empty) {{ border-bottom: 3px solid {p.color}; }}\n" for i, p in enumerate(self.project.pads))
         self._pad_css.load_from_string(css)
 
     # ------------------------------------------------------------------ sessions

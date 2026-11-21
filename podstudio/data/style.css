@@ -150,7 +150,7 @@ scale.fader mark label { font-family: "Geist Mono", "JetBrains Mono", "Fira Mono
 .curve-frame { background: #09090b; border: 1px solid @vd_line; border-radius: 8px; padding: 0; }
 
 /* ---- pads ---- */
-.pad { background: @vd_raised; border: 1px solid @vd_line; border-radius: 12px; min-height: 84px; min-width: 112px; padding: 0; box-shadow: none; transition: background 90ms, border-color 90ms; }
+.pad { background: @vd_raised; border: 1px solid @vd_line; border-radius: 12px; min-height: 72px; min-width: 100px; padding: 0; box-shadow: none; transition: background 90ms, border-color 90ms; }
 .pad:hover { background: #1f1f23; border-color: #3f3f46; }
 .pad.hit { background: @vd_muted; border-color: @vd_ring; }
 .pad.empty .pad-label { color: @vd_dim; font-weight: 400; }
@@ -226,3 +226,19 @@ button.sw-btn:hover { border-color: @vd_text; }
 .mic-gate { background: alpha(@vd_bg, .96); }
 .mic-gate-card { padding: 34px 44px; background: @vd_raised; border: 1px solid @vd_line; border-radius: 16px; min-width: 380px; }
 .mic-gate-icon { color: @vd_dim; margin-bottom: 4px; }
+
+/* ---- session page cards (matches the Windows layout) */
+.ch-dot { min-width: 9px; min-height: 9px; border-radius: 99px; background: @vd_text; }
+.ch-mic .ch-dot { background: #3ddc97; }
+.ch-hk .ch-dot { background: #ffb454; }
+.ch-master .ch-dot { background: #6ea8ff; }
+.strip .strip-name { border: none; background: transparent; padding: 0; font-size: 13px; }
+.console { border: none; background: transparent; padding: 0; }
+.timecode { font-size: 48px; }
+.disp-lufs-s { font-size: 14px; font-weight: 600; color: @vd_text; }
+.big-rec { min-width: 84px; min-height: 84px; padding: 0; border-radius: 99px; background: transparent; border: 3px solid alpha(@vd_text, .55); box-shadow: none; }
+.big-rec:hover { border-color: @vd_text; }
+.big-rec-dot { min-width: 54px; min-height: 54px; border-radius: 99px; background: @vd_accent; }
+.big-rec.recording { border-color: @vd_accent; }
+.big-rec.recording .big-rec-dot { min-width: 30px; min-height: 30px; border-radius: 7px; }
+.big-rec:disabled { opacity: .4; }
