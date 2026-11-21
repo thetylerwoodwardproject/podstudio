@@ -163,7 +163,7 @@ jobs:
           if ($p.HasExited) { Write-Host "PodStudio exited early with code $($p.ExitCode)"; exit 1 }
           Write-Host "PodStudio is running (responding: $($p.Responding))"
           Stop-Process -Id $p.Id -Force
-          ./native/tools/ci-screenshots.ps1 -Exe "$PWD\dist\native\PodStudio.exe" -Pages 0 -Width 800 -Quality 55 -OutDir "$PWD\shots"
+          ./native/tools/ci-screenshots.ps1 -Exe "$PWD\dist\native\PodStudio.exe" -Pages 0 -Width 600 -Quality 45 -OutDir "$PWD\shots" -NoPrint
       - name: Installer and portable zip
         shell: pwsh
         run: |
@@ -176,6 +176,16 @@ jobs:
             [IO.File]::WriteAllText("$PWD\$f.sha256", "$h  $(Split-Path $f -Leaf)`n")
           }
           Get-ChildItem dist | Format-Table Name, Length
+      - name: Show the screenshot (last, so it is at the end of the log)
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path shots\page0.jpg) {
+            $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("shots\page0.jpg"))
+            Write-Host "SCREENSHOT-BEGIN page0 $($b64.Length)"
+            for ($i = 0; $i -lt $b64.Length; $i += 2000) { Write-Host $b64.Substring($i, [Math]::Min(2000, $b64.Length - $i)) }
+            Write-Host "SCREENSHOT-END page0"
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: native-windows

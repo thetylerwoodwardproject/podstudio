@@ -1,6 +1,6 @@
 # Launches PodStudio on each page with the demo signal, captures the app window, and prints a small JPEG of each as base64
 # between SCREENSHOT-BEGIN/END markers in the log (the CI network can't hand artifacts to every viewer).
-param([string]$Exe, [int[]]$Pages = @(0), [int]$Width = 900, [int]$Quality = 60, [string]$OutDir = "shots")
+param([string]$Exe, [int[]]$Pages = @(0), [int]$Width = 900, [int]$Quality = 60, [string]$OutDir = "shots", [switch]$NoPrint)
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System; using System.Runtime.InteropServices;
@@ -40,6 +40,7 @@ foreach ($page in $Pages) {
     $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), ([int64]$Quality)
     $jpg = "$OutDir\page$page.jpg"
     $small.Save($jpg, $codec, $ep)
+    if ($NoPrint) { Stop-Process -Id $p.Id -Force; continue }
     $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($jpg))
     Write-Host "SCREENSHOT-BEGIN page$page $($b64.Length)"
     for ($i = 0; $i -lt $b64.Length; $i += 3000) { Write-Host $b64.Substring($i, [Math]::Min(3000, $b64.Length - $i)) }
