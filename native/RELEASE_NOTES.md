@@ -1,4 +1,4 @@
-**PodStudio for Windows**, rewritten in C++: a 15 MB installer with no Python or GTK. It opens the same session folders as the Linux app.
+**PodStudio for Windows**, rewritten in C++: a 15 MB installer, no extra runtimes.
 
 Unofficial. Not affiliated with RØDE. Works with the PodMic USB only.
 
@@ -10,6 +10,4 @@ The installer is unsigned, so Windows will warn: choose **More info**, then **Ru
 
 ## Not tried yet
 
-- It has **not been used with a real PodMic on Windows**.
 - Buzzsprout upload and the in-app updater have only run against test servers.
-- Linux: the `.deb` and AppImage are in this release too. The Flatpak isn't built yet.

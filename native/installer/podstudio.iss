@@ -1,6 +1,6 @@
 ; Inno Setup script for the native PodStudio.
 ;   iscc podstudio.iss /DVersion=2026.11.20-8 /DSourceDir=<folder with PodStudio.exe> /DOutputDir=<where to write>
-; Installs for the current user (no administrator prompt). It also upgrades over the earlier Python/GTK build of
+; Installs for the current user (no administrator prompt). It also upgrades over the earlier Python build of
 ; PodStudio: that build's folders are removed, the sessions in your Music folder are never touched.
 
 #ifndef Version
@@ -30,7 +30,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#OutputDir}
 OutputBaseFilename=PodStudio-{#Version}-x64-setup
-SetupIconFile=..\..\packaging\windows\podstudio.ico
+SetupIconFile=..\assets\podstudio.ico
 UninstallDisplayIcon={app}\PodStudio.exe
 LicenseFile=..\..\LICENSE
 Compression=lzma2/max
@@ -46,7 +46,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [InstallDelete]
-; folders of the earlier Python/GTK build
+; folders of the earlier Python build
 Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\lib"
 Type: filesandordirs; Name: "{app}\libexec"

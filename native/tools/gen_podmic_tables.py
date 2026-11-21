@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Regenerates native/core/podmic_tables.inc from podstudio/data/podmic-dsp-tables.json (run from the repo root)."""
+"""Regenerates native/core/podmic_tables.inc from native/reference/podstudio/data/podmic-dsp-tables.json (run from the repo root)."""
 import json
 
-d = json.load(open("podstudio/data/podmic-dsp-tables.json"))
-out = ["// Generated from podstudio/data/podmic-dsp-tables.json by native/tools/gen_podmic_tables.py. Do not edit.",
+d = json.load(open("native/reference/podstudio/data/podmic-dsp-tables.json"))
+out = ["// Generated from native/reference/podstudio/data/podmic-dsp-tables.json by native/tools/gen_podmic_tables.py. Do not edit.",
        "// Encoder tables from the podmicusb-doctor project (MIT, (c) 2026 rumkit), https://github.com/rumkit/podmicusb-doctor", ""]
 for k, v in d["tables"].items():
     vals = [int(x, 16) for x in v["values"]]

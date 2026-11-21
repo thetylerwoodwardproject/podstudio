@@ -1,4 +1,4 @@
-// Linux preview build: the same UI on GLFW + OpenGL 3, used to look at the interface and take screenshots while
+// Preview build: the same UI on GLFW + OpenGL 3, used to look at the interface and take screenshots while
 // developing. The real app is main_win32.cpp.
 #include <GLFW/glfw3.h>
 #include <imgui.h>

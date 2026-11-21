@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reference"))
 from podstudio import loudness, render  # noqa: E402
 
 out = Path(sys.argv[1])

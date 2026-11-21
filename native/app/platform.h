@@ -1,4 +1,4 @@
-// The few things that differ between Windows and the Linux preview build.
+// The few things that differ between Windows and the preview build.
 #pragma once
 #include <string>
 #include <vector>

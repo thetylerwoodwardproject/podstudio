@@ -1,5 +1,5 @@
 #ifndef _WIN32
-// Stand-in for the PodMic on Linux (the preview build): answers like a mic and remembers what was set, so the Mic page
+// Stand-in for the PodMic (the preview build): answers like a mic and remembers what was set, so the Mic page
 // can be developed and photographed without hardware.
 #include "micctl.h"
 

@@ -1,5 +1,5 @@
 #ifndef _WIN32
-// Linux preview: no real network. With PODSTUDIO_DEMO set it answers like Buzzsprout so the Publish page can be previewed.
+// Preview build: no real network. With PODSTUDIO_DEMO set it answers like Buzzsprout so the Publish page can be previewed.
 #include <cstdlib>
 
 #include <nlohmann/json.hpp>
