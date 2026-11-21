@@ -6,7 +6,7 @@ State as of **v2026.11.20** (package revision 5). Read this first when picking t
 
 - Source is on GitHub: <https://github.com/thetylerwoodwardproject/podstudio> (`main`, tag `v2026.11.20`).
 - **No GitHub release has been published yet.** The built packages are on this machine only, in `dist/`:
-  `podstudio_2026.11.20-5_amd64.deb` (+ `.sha256`) and `PodStudio-2026.11.20.flatpak` (+ `.sha256`).
+  `podstudio_2026.11.20-5_amd64.deb`, `PodStudio-2026.11.20.flatpak` and `PodStudio-2026.11.20-x86_64.AppImage`, each with a `.sha256`.
   Until a release exists, the in-app updater finds nothing, which is expected and silent.
 - The repo previously held a different project (a TypeScript web "Podstudio"). It was replaced on 2026-11-20.
   A full backup is in `~/Backups/` (`podstudio-previous-contents.git` mirror, the `.bundle`, and
@@ -63,11 +63,10 @@ the notes, download with progress, ask for your password, and offer **Restart no
 - **Flatpak**: built and installed from the single-file bundle; `--self-test` passes inside the sandbox and the window
   renders on GNOME 49. **Tested with a real PodMic inside the sandbox** (discovery, ALSA gain, HID read and write-back,
   a 3 s recording, live Mic tab). This needs the host udev rule, which the `.deb` installs and Flatpak cannot.
-- **AppImage**: `packaging/build-appimage.sh` builds the app directory and runs its self-test, and the contents were verified
-  inside a bare Freedesktop runtime (no GTK/libadwaita) where they passed using the bundled libraries. **The final
-  `.AppImage` was not built here**: the last step downloads and runs `appimagetool`, which was blocked in the build session.
-  The script pins it to release 1.9.1 by checksum. Run `./packaging/build-appimage.sh` yourself, then
-  `./dist/PodStudio-*.AppImage --self-test`.
+- **AppImage**: built (`dist/PodStudio-2026.11.20-x86_64.AppImage`, 102 MB, with `.sha256`) by running
+  `./packaging/build-appimage.sh`, which pins `appimagetool` 1.9.1 by checksum. The finished file passes `--self-test`, passes
+  inside a bare Freedesktop runtime that has no GTK or libadwaita, and worked against a real PodMic. It is assembled from
+  Ubuntu 24.04 libraries, so it runs on that release and newer, not on older distributions.
 - **Snap**: `snap/snapcraft.yaml` was written but never built (needs snapd plus LXD or Multipass and root). Expect to fix
   the first build. Whether `raw-usb` reaches `/dev/hidraw` is a guess.
 - **CI** (`.github/workflows/packages.yml`) builds all four on a tag. It has never run, and pushing a workflow file needs a
@@ -75,7 +74,7 @@ the notes, download with progress, ask for your password, and offer **Restart no
 - To rebuild the Flatpak: `packaging/flatpak/gen-wheels.py --python 3.13 > packaging/flatpak/python-deps.json` re-pins its
   Python wheels (whole tree, with checksums), then see the command in `packaging/README.md`.
 - The in-app updater is switched off for Flatpak and Snap (their stores update them) and only offers a link on AppImage.
-- Still to do with the mic attached: the same hardware run for the AppImage once its final file exists, and the Snap.
+- Still unproven: the Snap (never built), and any of these formats on a machine that isn't this one.
 
 ## Known gaps (not bugs: things never exercised)
 

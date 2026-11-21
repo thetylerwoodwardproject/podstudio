@@ -63,7 +63,7 @@ flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-bui
 flatpak run io.github.thetylerwoodwardproject.PodStudio
 ```
 
-**AppImage** (`./packaging/build-appimage.sh`) and **Snap** (`snapcraft`, recipe in `snap/`) are described in [packaging/README.md](packaging/README.md).
+**AppImage** (built and tested with a real PodMic; needs Ubuntu 24.04 or newer): `./packaging/build-appimage.sh`, then `./dist/PodStudio-*.AppImage`. **Snap** (`snapcraft`, recipe in `snap/`) has not been built. See [packaging/README.md](packaging/README.md).
 
 For the Mic tab's on-board controls, the Flatpak, AppImage and Snap need the udev rule installed on the host (the app shows the
 command). Everything else works without it.
