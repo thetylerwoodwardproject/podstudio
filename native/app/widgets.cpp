@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 #include "theme.h"
 
@@ -42,7 +43,7 @@ void MeterState::update(float db, float dt) {
 }
 
 // ------------------------------------------------------------------------------------------------ meters
-void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_right) {
+void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_right, float target_db) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float bar_w = px(14), ruler_w = px(30);
     ImVec2 p = ImGui::GetCursorScreenPos();
@@ -62,17 +63,29 @@ void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_rig
         float y = p.y + h - db_to_frac(m.peak) * h;
         dl->AddRectFilled(ImVec2(p.x - px(2), y - px(1.5f)), ImVec2(p.x + bar_w + px(2), y + px(1.5f)), hex(kText, 0.95f), px(1));
     }
+    if (target_db > -999.f) {                                              // a marked level, drawn across the bar
+        const float y = p.y + h - db_to_frac(target_db) * h;
+        dl->AddLine(ImVec2(p.x - px(3), y), ImVec2(p.x + bar_w + px(3), y), hex(0x38bdf8), px(2));
+        if (ruler_right) {
+            char t[16]; std::snprintf(t, sizeof t, "%.0f", double(target_db));
+            ImVec2 ts = text_size(fonts.sm, t);
+            text_at(dl, fonts.sm, ImVec2(p.x + bar_w + px(8), y - ts.y / 2), hex(0x38bdf8), t);
+        }
+    }
     if (ruler_right) {
         // Scale labels, skipping any that would land on the one above (small windows give the meter little height).
         const int marks[] = {0, -6, -12, -24, -36, -48};
         float last_y = -1e9f;
         const float th = text_size(fonts.sm, "-48").y;
+        const bool has_target = target_db > -999.f;
+        const float target_y = has_target ? p.y + h - db_to_frac(target_db) * h : 0.f;
         for (int db : marks) {
             float y = p.y + h - db_to_frac(float(db)) * h;
             char t[8]; std::snprintf(t, sizeof t, "%d", db);
             ImVec2 ts = text_size(fonts.sm, t);
             float ty = std::max(p.y, std::min(p.y + h - ts.y, y - ts.y / 2));
             if (ty - last_y < th + px(2)) continue;
+            if (has_target && std::fabs(y - target_y) < th) continue;           // the target's own label takes this spot
             last_y = ty;
             text_at(dl, fonts.sm, ImVec2(p.x + bar_w + px(8), ty), db == 0 ? hex(kText) : hex(kFaint), t);
         }
@@ -129,6 +142,17 @@ bool fader(const char* id, float* db, float h, unsigned color) {
 }
 
 // ------------------------------------------------------------------------------------------------ small controls
+std::string fit_text(ImFont* f, const std::string& text, float max_w) {
+    if (text_size(f, text.c_str()).x <= max_w) return text;
+    std::string t = text;
+    while (!t.empty()) {
+        do t.pop_back(); while (!t.empty() && (static_cast<unsigned char>(t.back()) & 0xC0) == 0x80);      // whole UTF-8 characters
+        while (!t.empty() && t.back() == ' ') t.pop_back();
+        if (text_size(f, (t + "...").c_str()).x <= max_w) return t + "...";
+    }
+    return "...";
+}
+
 bool toggle(const char* id, bool* v) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float w = px(38), h = px(22);
@@ -174,6 +198,87 @@ bool pill_tabs(const char* const* labels, int n, int* sel, float w_each) {
         ImFont* f = on ? fonts.semibold : fonts.body;
         ImVec2 ts = text_size(f, labels[i]);
         text_at(dl, f, ImVec2(a.x + (w_each - ts.x) / 2, a.y + (b.y - a.y - ts.y) / 2), on ? hex(kText) : hex(kDim), labels[i]);
+    }
+    ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + h));
+    return changed;
+}
+
+// ---- tab icons, drawn with lines so no icon font is needed. `c` is the centre, `s` the size in pixels.
+static void tab_icon(ImDrawList* dl, int kind, ImVec2 c, float s, ImU32 col) {
+    const float r = s / 2, w = std::max(1.5f, s * 0.11f);
+    switch (kind) {
+        case 0:                                                                   // Session: the record symbol
+            dl->AddCircle(c, r * 0.95f, col, 24, w);
+            dl->AddCircleFilled(c, r * 0.42f, col, 20);
+            break;
+        case 1: {                                                                 // Mic: capsule, cradle and stand
+            dl->AddRect(ImVec2(c.x - r * 0.32f, c.y - r), ImVec2(c.x + r * 0.32f, c.y + r * 0.2f), col, r * 0.32f, 0, w);
+            dl->PathArcTo(ImVec2(c.x, c.y - r * 0.05f), r * 0.68f, 0.f, 3.14159f, 16);
+            dl->PathStroke(col, 0, w);
+            dl->AddLine(ImVec2(c.x, c.y + r * 0.63f), ImVec2(c.x, c.y + r), col, w);
+            dl->AddLine(ImVec2(c.x - r * 0.4f, c.y + r), ImVec2(c.x + r * 0.4f, c.y + r), col, w);
+            break; }
+        case 2:                                                                   // Mix: three sliders
+            for (int i = 0; i < 3; i++) {
+                const float x = c.x - r * 0.7f + i * r * 0.7f, k = (i == 0 ? 0.25f : i == 1 ? -0.3f : 0.1f);
+                dl->AddLine(ImVec2(x, c.y - r), ImVec2(x, c.y + r), col, w);
+                dl->AddRectFilled(ImVec2(x - r * 0.24f, c.y + r * k - r * 0.14f), ImVec2(x + r * 0.24f, c.y + r * k + r * 0.14f), col, 2.f);
+            }
+            break;
+        case 3: {                                                                 // Recordings: a music note
+            dl->AddCircleFilled(ImVec2(c.x - r * 0.4f, c.y + r * 0.62f), r * 0.34f, col, 16);
+            dl->AddLine(ImVec2(c.x - r * 0.07f, c.y + r * 0.62f), ImVec2(c.x - r * 0.07f, c.y - r * 0.85f), col, w);
+            dl->AddLine(ImVec2(c.x - r * 0.07f, c.y - r * 0.85f), ImVec2(c.x + r * 0.7f, c.y - r * 0.55f), col, w);
+            dl->AddLine(ImVec2(c.x + r * 0.7f, c.y - r * 0.55f), ImVec2(c.x + r * 0.7f, c.y - r * 0.15f), col, w);
+            break; }
+        case 4:                                                                   // Script: a page with lines
+            dl->AddRect(ImVec2(c.x - r * 0.72f, c.y - r), ImVec2(c.x + r * 0.72f, c.y + r), col, 2.5f, 0, w);
+            for (int i = 0; i < 3; i++)
+                dl->AddLine(ImVec2(c.x - r * 0.38f, c.y - r * 0.4f + i * r * 0.45f), ImVec2(c.x + r * (i == 2 ? 0.05f : 0.38f), c.y - r * 0.4f + i * r * 0.45f), col, w);
+            break;
+        default: {                                                                // Publish: a paper plane
+            const ImVec2 a(c.x - r, c.y - r * 0.05f), b(c.x + r, c.y - r), d(c.x + r * 0.15f, c.y + r), e(c.x + r * 0.05f, c.y + r * 0.1f);
+            dl->AddTriangle(a, b, d, col, w);
+            dl->AddLine(e, b, col, w);
+            break; }
+    }
+}
+
+bool icon_tabs(const char* const* labels, int n, int* sel, bool with_labels, float* out_w) {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float h = px(36), pad = px(3), isz = px(17), gap = px(8), side = px(14);
+    std::vector<float> w(static_cast<size_t>(n));
+    float total = pad * 2;
+    for (int i = 0; i < n; i++) {
+        w[size_t(i)] = with_labels ? side * 2 + isz + gap + text_size(fonts.body, labels[i]).x : px(46);
+        total += w[size_t(i)];
+    }
+    if (out_w) *out_w = total;
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImGui::Dummy(ImVec2(total, h));
+    dl->AddRectFilled(p, ImVec2(p.x + total, p.y + h), hex(kRaised), px(10));
+    dl->AddRect(p, ImVec2(p.x + total, p.y + h), hex(kLine), px(10));
+    bool changed = false;
+    float x = p.x + pad;
+    for (int i = 0; i < n; i++) {
+        ImVec2 a(x, p.y + pad), b(x + w[size_t(i)], p.y + h - pad);
+        ImGui::SetCursorScreenPos(a);
+        char id[24]; std::snprintf(id, sizeof id, "##itab%d", i);
+        if (ImGui::InvisibleButton(id, ImVec2(b.x - a.x, b.y - a.y)) && *sel != i) { *sel = i; changed = true; }
+        const bool hov = ImGui::IsItemHovered(), on = *sel == i;
+        if (hov && !with_labels) ImGui::SetTooltip("%s", labels[i]);
+        if (on) { dl->AddRectFilled(a, b, hex(kBg), px(8)); dl->AddRect(a, b, hex(kLine2), px(8)); }
+        else if (hov) dl->AddRectFilled(a, b, hex(kMuted, 0.6f), px(8));
+        const ImU32 col = on ? hex(kText) : hex(hov ? kText : kDim);
+        if (with_labels) {
+            tab_icon(dl, i, ImVec2(a.x + side + isz / 2, (a.y + b.y) / 2), isz, col);
+            ImFont* f = on ? fonts.semibold : fonts.body;
+            ImVec2 ts = text_size(f, labels[i]);
+            text_at(dl, f, ImVec2(a.x + side + isz + gap, a.y + (b.y - a.y - ts.y) / 2), col, labels[i]);
+        } else {
+            tab_icon(dl, i, ImVec2((a.x + b.x) / 2, (a.y + b.y) / 2), px(19), col);
+        }
+        x += w[size_t(i)];
     }
     ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + h));
     return changed;
@@ -251,9 +356,8 @@ bool pad_button(const char* id, ImVec2 size, const char* key, const char* label,
         ImVec2 ds = text_size(fonts.sm, d);
         text_at(dl, fonts.sm, ImVec2(q.x - px(12) - ds.x, k0.y + kh + px(4)), hex(kFaint), d);
     }
-    ImGui::PushClipRect(ImVec2(p.x + px(10), p.y), ImVec2(q.x - px(10), q.y), true);
-    text_at(dl, fonts.semibold, ImVec2(p.x + px(12), q.y - px(14) - text_size(fonts.semibold, label).y), hex(kText), label);
-    ImGui::PopClipRect();
+    const std::string shown = fit_text(fonts.semibold, label, size.x - px(24));        // "name…" instead of a hard cut
+    text_at(dl, fonts.semibold, ImVec2(p.x + px(12), q.y - px(14) - text_size(fonts.semibold, shown.c_str()).y), hex(kText), shown.c_str());
     return pressed;
 }
 
@@ -266,13 +370,14 @@ bool card_begin(const char* id, ImVec2 size, const char* title, const char* subt
     bool open = ImGui::BeginChild(id, size, ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
                                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     if (open && title) {
+        const float room = ImGui::GetContentRegionAvail().x;         // a long session name is shortened, never cut off
         ImGui::PushFont(fonts.semibold);
-        ImGui::TextUnformatted(title);
+        ImGui::TextUnformatted(fit_text(fonts.semibold, title, room).c_str());
         ImGui::PopFont();
         if (subtitle) {
             ImGui::PushFont(fonts.sm);
             ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
-            ImGui::TextUnformatted(subtitle);
+            ImGui::TextUnformatted(fit_text(fonts.sm, subtitle, room).c_str());
             ImGui::PopStyleColor();
             ImGui::PopFont();
         }
@@ -296,16 +401,15 @@ void label_dim(const char* text) {
 }
 
 void label_value(const char* label, const char* value, ImU32 value_color) {
-    ImGui::PushFont(fonts.sm);
-    ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-    ImGui::PushFont(fonts.semibold);
-    if (value_color) ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(value_color));
-    ImGui::TextUnformatted(value);
-    if (value_color) ImGui::PopStyleColor();
-    ImGui::PopFont();
+    // Both lines are drawn at the cursor's x, so this works in a column placed with SetCursorScreenPos (a plain second
+    // Text() would start again at the window's left edge and overlap the other columns).
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 ls = text_size(fonts.sm, label);
+    text_at(dl, fonts.sm, p, hex(kDim), label);
+    const ImVec2 vs = text_size(fonts.semibold, value);
+    text_at(dl, fonts.semibold, ImVec2(p.x, p.y + ls.y + px(4)), value_color ? value_color : hex(kText), value);
+    ImGui::Dummy(ImVec2(std::max(ls.x, vs.x), ls.y + px(4) + vs.y));
 }
 
 bool slider_row(const char* label, float* v, float lo, float hi, const char* fmt, float w, const char* hint) {

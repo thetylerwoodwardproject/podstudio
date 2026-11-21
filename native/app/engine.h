@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../core/audio.h"
+#include "../core/dsp.h"
 
 struct ma_device;
 struct ma_context;
@@ -74,6 +75,10 @@ public:
     float hotkeys_peak_db() const { return hk_peak_.load(); }
     float master_peak_db() const { return master_peak_.load(); }
     float duck_db() const { return duck_now_db_.load(); }
+    // Momentary loudness (400 ms, K-weighted) of what the master will contain: the mic after its fader plus the hotkeys
+    // after their fader and ducking. The mic is centred, so it counts on both channels. An estimate: the master is
+    // normalized when it is rendered.
+    float master_lufs() const;
 
     // -- preview of recorded files
     bool preview_open(const std::string& path, std::string& err);
@@ -112,6 +117,8 @@ private:
     ma_device* play_ = nullptr;
     std::atomic<bool> input_open_{false}, demo_{false}, lost_{false};
     std::thread demo_thread_;
+    LoudnessMeter mic_lm_{1}, hk_lm_{2};
+    std::vector<float> scratch_;
     std::atomic<float> mic_rms_{-90.f}, mic_peak_{-90.f}, voice_rms_{-90.f}, mic_fader_db_{0.f};
 
     // recording: callback -> ring -> writer thread -> disk

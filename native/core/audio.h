@@ -1,5 +1,5 @@
 // PodStudio native core: audio containers and file I/O. No operating-system code lives in core/, so everything
-// here builds and is tested on Linux as well as Windows.
+// here builds and is tested off Windows as well.
 #pragma once
 #include <cstddef>
 #include <cstdint>

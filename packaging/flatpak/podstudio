@@ -1,4 +1,0 @@
-#!/bin/sh
-# Flatpak launcher. The app is in /app/lib/podstudio; its Python dependencies were installed into /app by pip.
-export PYTHONPATH="/app/lib/podstudio${PYTHONPATH:+:$PYTHONPATH}"
-exec python3 -m podstudio "$@"

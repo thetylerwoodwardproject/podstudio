@@ -1,6 +1,7 @@
 // Loudness, true peak, limiting, ducking and normalisation. Ported from podstudio/loudness.py and render.py,
 // and checked against them (native/tests/).
 #pragma once
+#include <atomic>
 #include <cmath>
 #include <optional>
 #include <vector>
@@ -25,6 +26,26 @@ bool limit(Audio& a, double ceiling_db = kTrueCeilingDb, double lookahead_ms = 5
 // Per-sample linear gain that dips by amount_db while the mic's 10 ms RMS is above threshold_db, with look-ahead.
 std::vector<double> voice_duck_gain(const Audio& mic, double amount_db, double threshold_db, double release_ms,
                                     double attack_ms = 40.0);
+
+// Live loudness, for the Master meter: BS.1770 K-weighting over a sliding 400 ms window ("momentary" loudness),
+// updated every 100 ms. Real-time safe: no allocation or locking while processing; mean_square() may be read from
+// another thread. Feed it the samples of one stream; combine streams by adding their mean squares.
+class LoudnessMeter {
+public:
+    explicit LoudnessMeter(int channels);
+    void reset();
+    void process(const float* interleaved, size_t frames);
+    double mean_square() const;                         // channel-summed, K-weighted, over the last 400 ms (0 until 100 ms arrived)
+    static double to_lufs(double mean_square);          // -0.691 + 10 log10(ms); -90 for silence
+private:
+    struct State { double sz1[2] = {0, 0}, sz2[2] = {0, 0}; };    // [stage]: shelf, high-pass
+    int channels_;
+    std::vector<State> st_;
+    double acc_ = 0, hops_[4] = {0, 0, 0, 0};
+    size_t n_ = 0;
+    int filled_ = 0, idx_ = 0;
+    std::atomic<double> ms_{0.0};
+};
 
 struct NormalizeResult {
     std::optional<double> measured_lufs, final_lufs;

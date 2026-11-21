@@ -7,15 +7,15 @@ respective owner and are used only to describe compatible hardware.
 ----------------------------------------------------------------------------
 DeepFilterNet (https://github.com/Rikorose/DeepFilterNet), MIT or Apache-2.0
 
-The .deb package bundles the unmodified upstream `deep-filter` release binary for noise reduction.
-Licence texts: packaging/licenses/DeepFilterNet-LICENSE-MIT and DeepFilterNet-LICENSE-APACHE.
+The Windows installer bundles the unmodified upstream `deep-filter` release binary for noise reduction.
+Licence texts: native/licenses/DeepFilterNet-LICENSE-MIT and DeepFilterNet-LICENSE-APACHE.
 Shadcn/ui (MIT) inspired the visual style; no code is used.
 
 ----------------------------------------------------------------------------
 podmicusb-doctor (https://github.com/rumkit/podmicusb-doctor)
 
-The PodMic USB control protocol implemented in podstudio/podmic.py, and the
-encoder tables in podstudio/data/podmic-dsp-tables.json, come from the
+The PodMic USB control protocol implemented in native/core/podmic.cpp, and the
+encoder tables in native/reference/podstudio/data/podmic-dsp-tables.json, come from the
 reverse-engineering research published by that project:
 
 MIT License

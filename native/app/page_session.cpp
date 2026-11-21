@@ -99,7 +99,7 @@ void App::page_session(ImVec2 avail) {
 
     // ---- console
     if (ui::card_begin("##console", ImVec2(left_w, top_h), "Console", "Levels in dBFS. Double-click a fader for unity (0 dB).")) {
-        const float meter_h = std::max(px(90), top_h - px(158));
+        const float meter_h = std::max(px(90), top_h - px(196));
         const float col_w = (left_w - px(36)) / 3;
         ImVec2 start = ImGui::GetCursorScreenPos();
         float mic = float(proj_.mic_db), hk = float(proj_.hotkeys_db);
@@ -108,9 +108,62 @@ void App::page_session(ImVec2 avail) {
         ImGui::SetCursorScreenPos(ImVec2(start.x + col_w, start.y));
         strip("Hotkeys", 0xb48bff, hk_m_, &hk, true, meter_h, "", col_w);
         ImGui::SetCursorScreenPos(ImVec2(start.x + col_w * 2, start.y));
-        char note[32]; std::snprintf(note, sizeof note, "%.0f LUFS target", proj_.target_lufs);
-        float dummy = 0;
-        strip("Master", 0xfafafa, master_m_, &dummy, false, meter_h, note, col_w);
+        // Master: a real loudness meter. Click it to switch between LUFS (momentary, K-weighted) and dBFS (peak).
+        {
+            ImGui::SetCursorScreenPos(ImVec2(start.x + col_w * 2, start.y));
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            const bool lufs = master_mode_ == 0;
+            const ui::MeterState& mm = lufs ? lufs_m_ : master_m_;
+            char val[40], cap[48];
+            if (lufs) std::snprintf(val, sizeof val, mm.level > -70.f ? "%.1f LUFS" : "-- LUFS", double(mm.level));
+            else std::snprintf(val, sizeof val, mm.level > -89.f ? "%.1f dBFS" : "-- dBFS", double(mm.level));
+            if (lufs) std::snprintf(cap, sizeof cap, "momentary, target %.0f", proj_.target_lufs); else std::snprintf(cap, sizeof cap, "peak");
+            const ImVec2 ns = ui::text_size(fonts.semibold, "Master"), vs = ui::text_size(fonts.mono, val), cs = ui::text_size(fonts.sm, cap);
+            const float cx = p.x + col_w / 2, title_w = px(14) + ns.x;
+            dl->AddCircleFilled(ImVec2(cx - title_w / 2 + px(5), p.y + px(10)), px(4.5f), hex(0xfafafa), 16);
+            ui::text_at(dl, fonts.semibold, ImVec2(cx - title_w / 2 + px(14), p.y), hex(kText), "Master");
+            ui::text_at(dl, fonts.mono, ImVec2(cx - vs.x / 2, p.y + px(24)), hex(kText), val);
+            ui::text_at(dl, fonts.sm, ImVec2(cx - cs.x / 2, p.y + px(42)), hex(kDim), cap);
+            const float meter_w = px(14 + 30);
+            ImGui::SetCursorScreenPos(ImVec2(cx - meter_w / 2, p.y + px(58)));
+            ImVec2 mp = ImGui::GetCursorScreenPos();
+            ui::meter_vertical("Master", mm, meter_h, true, lufs ? float(proj_.target_lufs) : -1000.f);
+            // the whole column is the switch
+            ImGui::SetCursorScreenPos(ImVec2(p.x + px(8), p.y));
+            ImGui::InvisibleButton("##mastermode", ImVec2(col_w - px(16), px(58) + meter_h));
+            if (ImGui::IsItemClicked()) master_mode_ = 1 - master_mode_;
+            if (ImGui::IsItemHovered()) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); ImGui::SetTooltip("Click to switch between LUFS (loudness) and dBFS (peak)"); }
+            (void)mp;
+        }
+        // Mute under the Mic and Hotkeys strips (the same switches as on the Mic and Mix pages)
+        auto mute_btn = [&](const char* id, float col_x, bool on, bool enabled) -> bool {
+            const ImVec2 sz(px(76), px(28));
+            ImGui::SetCursorScreenPos(ImVec2(start.x + col_x + (col_w - sz.x) / 2, start.y + px(58) + meter_h + px(16)));
+            ImGui::PushStyleColor(ImGuiCol_Button, on ? ImGui::ColorConvertU32ToFloat4(hex(kAccent, 0.18f)) : ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::ColorConvertU32ToFloat4(hex(kMuted)));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::ColorConvertU32ToFloat4(hex(kMuted)));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(hex(on ? kAccent : kDim)));
+            ImGui::PushStyleColor(ImGuiCol_Border, ImGui::ColorConvertU32ToFloat4(on ? hex(kAccent, 0.5f) : hex(kLine)));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.f);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, px(8));
+            if (!enabled) ImGui::BeginDisabled();
+            const bool hit = ImGui::Button(id, sz);
+            if (!enabled) ImGui::EndDisabled();
+            ImGui::PopStyleVar(2); ImGui::PopStyleColor(5);
+            return hit;
+        };
+        {
+            auto it = mic_flags_.find("mute");
+            const bool mic_muted = it != mic_flags_.end() && it->second;
+            if (mute_btn("Mute##mic", 0, mic_muted, mic_state_.load() == 2)) {
+                const bool v = !mic_muted; mic_flags_["mute"] = v;
+                mic_write("toggle", [v](podmic::Mic& m) { m.set_mute(v); });
+            }
+            if (mute_btn("Mute##hk", col_w, proj_.hotkeys_muted, true)) {
+                proj_.hotkeys_muted = !proj_.hotkeys_muted; engine_.set_hotkeys_muted(proj_.hotkeys_muted); settings_dirty_ = true;
+            }
+        }
         if (mic != float(proj_.mic_db)) { proj_.mic_db = mic; engine_.set_mic_fader_db(mic); settings_dirty_ = true; }
         if (hk != float(proj_.hotkeys_db)) { proj_.hotkeys_db = hk; engine_.set_hotkeys_fader_db(hk); settings_dirty_ = true; }
     }

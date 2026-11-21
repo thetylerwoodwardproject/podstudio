@@ -37,21 +37,21 @@ int main(int argc, char** argv) {
     CHECK(updates::is_newer("v2026.12.05", "2026.11.20") && updates::is_newer("2026.11.20-3", "2026.11.20-2") && updates::is_newer("2026.11.20-2", "2026.11.20"), "newer");
     CHECK(!updates::is_newer("2026.11.20", "2026.11.20-3") && !updates::is_newer("2026.11.19", "2026.11.20") && !updates::is_newer("latest", "2026.11.20"), "not newer");
     CHECK(updates::is_installer_name("PodStudio-2026.12.05-x64-setup.exe") && updates::is_installer_name("PodStudio-2026.12.05-3-x64-setup.exe")
-          && !updates::is_installer_name("PodStudio-2026.12.05-x64-setup.exe.sha256") && !updates::is_installer_name("podstudio_2026.12.05_amd64.deb")
+          && !updates::is_installer_name("PodStudio-2026.12.05-x64-setup.exe.sha256") && !updates::is_installer_name("PodStudio-2026.12.05-arm64.dmg")
           && !updates::is_installer_name("PodStudio-1-x64-setup.exe; calc"), "installer names");
     CHECK(updates::host_allowed("https://github.com/o/r/x") && updates::host_allowed("https://objects.githubusercontent.com/a")
           && !updates::host_allowed("http://github.com/x") && !updates::host_allowed("https://evil.example.com/x") && !updates::host_allowed("https://github.com.evil.com/x"), "hosts");
 
     const std::string exe = std::string("MZ") + std::string(5000, 'x'), name = "PodStudio-2026.12.05-x64-setup.exe", sum = sha256_hex(exe);
     auto release = [&](bool with_sha, const std::string& url_host = "https://github.com/dl") {
-        json assets = json::array({{{"name", "podstudio_2026.12.05_amd64.deb"}, {"size", 5}, {"browser_download_url", url_host + "/d.deb"}},
+        json assets = json::array({{{"name", "PodStudio-2026.12.05-arm64.dmg"}, {"size", 5}, {"browser_download_url", url_host + "/d.dmg"}},
                                    {{"name", name}, {"size", int(exe.size())}, {"browser_download_url", url_host + "/" + name}}});
         if (with_sha) assets.push_back({{"name", name + ".sha256"}, {"size", 90}, {"browser_download_url", url_host + "/" + name + ".sha256"}});
         return ok(json({{"tag_name", "v2026.12.05"}, {"body", "Adds a thing."}, {"html_url", "https://github.com/o/r/releases/tag/x"}, {"assets", assets}}).dump());
     };
     { Fake f; f.script = {release(true)};
       auto i = updates::check(f, "2026.11.20", "UA");
-      CHECK(i && i->can_install() && i->installer_name == name && i->version == "2026.12.05" && i->notes == "Adds a thing.", "picks the installer, not the .deb"); }
+      CHECK(i && i->can_install() && i->installer_name == name && i->version == "2026.12.05" && i->notes == "Adds a thing.", "picks the installer, not the .dmg"); }
     { Fake f; f.script = {release(false)};
       auto i = updates::check(f, "2026.11.20", "UA");
       CHECK(i && !i->can_install() && i->problems.size() == 1 && i->problems[0].find("checksum") != std::string::npos, "no checksum, no auto-install"); }

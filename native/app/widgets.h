@@ -14,7 +14,7 @@ struct MeterState {
 };
 
 // Vertical LED meter with a dBFS ruler. `h` is the height in pixels; width is derived.
-void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_right = true);
+void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_right = true, float target_db = -1000.f);   // target_db: a marked level (e.g. -16 LUFS)
 // Horizontal thin meter, used in the Recordings player.
 void meter_horizontal(const MeterState& m, float w, float h);
 
@@ -22,7 +22,11 @@ void meter_horizontal(const MeterState& m, float w, float h);
 bool fader(const char* id, float* db, float h, unsigned color = 0xfafafa);
 
 bool toggle(const char* id, bool* v);
+std::string fit_text(ImFont* f, const std::string& text, float max_w);       // shortened with ... to fit a width
 bool chip(const char* label, bool selected, float min_w = 0);
+// Page tabs with an icon each (Session, Mic, Mix, Recordings, Script, Publish). With labels on wide windows; icon-only with
+// tooltips on narrow ones. Returns the total width through out_w.
+bool icon_tabs(const char* const* labels, int n, int* sel, bool with_labels, float* out_w);
 bool pill_tabs(const char* const* labels, int n, int* sel, float w_each);
 bool primary_button(const char* label, float w = 0, float h = 0);
 bool danger_button(const char* label, float w = 0, float h = 0);

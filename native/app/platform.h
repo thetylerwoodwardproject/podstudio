@@ -1,4 +1,4 @@
-// The few things that differ between Windows and the Linux preview build.
+// The few platform-specific helpers (opening folders and links, starting the installer).
 #pragma once
 #include <string>
 #include <vector>

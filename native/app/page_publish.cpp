@@ -167,7 +167,7 @@ void App::page_publish(ImVec2 avail) {
     ImGui::BeginChild("##pubscroll", avail, ImGuiChildFlags_None);
     const float W = avail.x - px(14), cw = (W - gap) / 2;
     (void)colw;
-    const float card_h = px(480);
+    const float card_h = px(540);
 
     // ---- episode
     if (ui::card_begin("##episode", ImVec2(cw, card_h), "Episode", "Saved with the session.")) {
@@ -181,20 +181,31 @@ void App::page_publish(ImVec2 avail) {
         ImGui::SetNextItemWidth(fw);
         if (ImGui::InputText("##tags", ep_tags_, sizeof ep_tags_)) episode_save();
         ImGui::Dummy(ImVec2(0, px(2)));
-        ui::label_dim("Episode number  (0 leaves it blank)");
-        ImGui::SetNextItemWidth(px(120));
-        if (ImGui::InputInt("##epn", &ep_number_, 1, 5)) { ep_number_ = std::max(0, ep_number_); episode_save(); }
-        ImGui::SameLine(0, px(18));
-        ImGui::BeginGroup();
-        ui::label_dim("Season");
-        ImGui::SetNextItemWidth(px(120));
-        if (ImGui::InputInt("##sn", &season_number_, 1, 5)) { season_number_ = std::max(0, season_number_); episode_save(); }
-        ImGui::EndGroup();
-        ImGui::Dummy(ImVec2(0, px(4)));
-        ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted("Explicit");
-        ImGui::SameLine(fw - px(38));
-        if (ui::toggle("##expl", &ep_explicit_)) episode_save();
-        ImGui::Dummy(ImVec2(0, px(4)));
+        // Episode number and Season side by side: labels on one line, inputs on the next, so they line up exactly.
+        {
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const float col2 = fw * 0.5f + px(8);
+            ImGui::SetCursorScreenPos(p);
+            ui::label_dim("Episode number");
+            ImGui::SetCursorScreenPos(ImVec2(p.x + col2, p.y));
+            ui::label_dim("Season");
+            const float y = p.y + px(20);
+            ImGui::SetCursorScreenPos(ImVec2(p.x, y));
+            ImGui::SetNextItemWidth(fw * 0.5f - px(8));
+            if (ImGui::InputInt("##epn", &ep_number_, 1, 5)) { ep_number_ = std::max(0, ep_number_); episode_save(); }
+            ImGui::SetCursorScreenPos(ImVec2(p.x + col2, y));
+            ImGui::SetNextItemWidth(fw * 0.5f - px(8));
+            if (ImGui::InputInt("##sn", &season_number_, 1, 5)) { season_number_ = std::max(0, season_number_); episode_save(); }
+            ui::label_dim("0 leaves a number blank.");
+        }
+        ImGui::Dummy(ImVec2(0, px(10)));
+        {
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted("Explicit");
+            ImGui::SetCursorScreenPos(ImVec2(p.x + fw - px(38), p.y));
+            if (ui::toggle("##expl", &ep_explicit_)) episode_save();
+        }
+        ImGui::Dummy(ImVec2(0, px(10)));
         char b[80]; std::snprintf(b, sizeof b, "%zu chapter(s) will be uploaded with the episode.", proj_.chapters.size());
         ui::label_dim(b);
     }
