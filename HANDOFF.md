@@ -57,7 +57,17 @@ the notes, download with progress, ask for your password, and offer **Restart no
    For a second build on the same date, keep the date and raise `packaging/revision` instead.
 2. `.venv/bin/python -m pytest` must pass, then `./packaging/build-deb.sh`, then commit, tag, push and `gh release create` as above.
 
-## Windows (added after v2026.11.20; read `packaging/windows/README.md`)
+## Windows, native C++ build (read `native/README.md`): the real Windows app now
+
+- `native/` is a C++17 rewrite (Dear ImGui + Direct3D 11, miniaudio/WASAPI, WinHTTP, Media Foundation MP3). One ~6 MB exe; installer ~15 MB.
+  Pages: Session, Mic, Mix, Recordings, Script, Publish. Crash recovery and an in-app updater are in. Same session folders as the Python app.
+- CI job `native-windows` builds it with MSVC, runs `core_tests` (matches the Python implementation), `buzz_tests` and `update_tests`, starts
+  the app, and builds the installer and zip. The first full green run was on 2026-11-21.
+- **Never run with a real PodMic.** Unknowns: which HID interface carries the controls on Windows, the gain range Windows reports, and how
+  the WASAPI input behaves with the real device. Do the checklist in `native/README.md` first.
+- The Linux `PodStudioPreview` build renders the identical UI under a virtual display; that is how the interface was designed and checked.
+
+## Windows, Python build (superseded; `packaging/windows/README.md`)
 
 - Code is written: WASAPI audio, hidapi for the mic's HID channel, endpoint-volume gain, Credential Manager, a Windows
   updater path, a launcher `.exe`, an MSYS2 bundler, an Inno Setup installer, a CI job and a portable zip.

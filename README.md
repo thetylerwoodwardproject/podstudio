@@ -47,13 +47,16 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 
 PodStudio comes as a `.deb`, a Flatpak and an AppImage on Linux, and as an installer `.exe` on Windows. See [packaging/README.md](packaging/README.md) for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
 
-**Windows 10 / 11 (64-bit): the installer** (**new: builds and passes its self-test in CI, but not yet run with a PodMic on Windows**, see [packaging/windows/README.md](packaging/windows/README.md))
+**Windows 10 / 11 (64-bit): the native installer** (new: a C++ rewrite, about 15 MB, no Python or GTK; see [native/README.md](native/README.md))
 
-Download `PodStudio-<version>-x64-setup.exe` from the release page and run it. It installs for your user (no administrator prompt).
-The installer isn't code-signed, so Windows SmartScreen will warn the first time: choose *More info*, then *Run anyway*, and check the
-download against the `.sha256` file if you want to be sure. A portable `.zip` is published too. To check an install:
-`"%LOCALAPPDATA%\Programs\PodStudio\bin\PodStudio-console.exe" --self-test`.
-Build it yourself with `packaging\windows\build-windows.ps1` (needs MSYS2 and Inno Setup).
+Download `PodStudio-<version>-x64-setup.exe` from the release page and run it. It installs for your user (no administrator prompt) and
+upgrades over the earlier Python build if you have it. Your sessions in `Music\PodStudio` are never touched. It reads and writes the same
+session folders as the Linux app. The installer isn't code-signed, so Windows SmartScreen will warn the first time: choose *More info*,
+then *Run anyway*, and check the download against the `.sha256` file if you want to be sure. A portable `.zip` is published too.
+**Status:** built and tested on Windows in CI (the maths matches the Python app exactly, the app starts and renders), but **not yet used with a real
+PodMic on Windows**: see "Not done yet" in [native/README.md](native/README.md).
+
+(The earlier Python/GTK build for Windows is still in `packaging/windows/`. It is 218 MB and is superseded by the native one.)
 
 **Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb** (the most tested)
 

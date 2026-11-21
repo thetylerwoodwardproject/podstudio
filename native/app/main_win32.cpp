@@ -27,7 +27,7 @@ IDXGISwapChain* g_swap = nullptr;
 ID3D11RenderTargetView* g_rtv = nullptr;
 UINT g_resize_w = 0, g_resize_h = 0;
 float g_scale = 1.0f, g_new_scale = 1.0f;
-bool g_scale_changed = false;
+bool g_scale_changed = false, g_occluded = false;
 
 void create_rtv() {
     ID3D11Texture2D* back = nullptr;
@@ -37,20 +37,25 @@ void create_rtv() {
 void release_rtv() { if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; } }
 
 bool create_device(HWND hwnd) {
-    DXGI_SWAP_CHAIN_DESC sd{};
-    sd.BufferCount = 2; sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; sd.OutputWindow = hwnd; sd.SampleDesc.Count = 1;
-    sd.Windowed = TRUE; sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
     const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
-    D3D_FEATURE_LEVEL got;
-    HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, levels, 2, D3D11_SDK_VERSION, &sd,
-                                               &g_swap, &g_dev, &got, &g_ctx);
-    if (FAILED(hr))                                      // no GPU driver (VM, remote desktop): the software rasteriser still works
-        hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0, levels, 2, D3D11_SDK_VERSION, &sd,
-                                           &g_swap, &g_dev, &got, &g_ctx);
-    if (FAILED(hr)) return false;
-    create_rtv();
-    return true;
+    // The flip model (Windows 10) paces frames more steadily and costs the compositor less than the older blit model;
+    // fall back to the older one if the driver won't take it. No GPU at all (a VM, remote desktop): WARP, the software rasteriser.
+    const DXGI_SWAP_EFFECT effects[] = {DXGI_SWAP_EFFECT_FLIP_DISCARD, DXGI_SWAP_EFFECT_DISCARD};
+    const D3D_DRIVER_TYPE drivers[] = {D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP};
+    for (D3D_DRIVER_TYPE drv : drivers) {
+        for (DXGI_SWAP_EFFECT fx : effects) {
+            DXGI_SWAP_CHAIN_DESC sd{};
+            sd.BufferCount = 2; sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; sd.OutputWindow = hwnd; sd.SampleDesc.Count = 1;
+            sd.Windowed = TRUE; sd.SwapEffect = fx;
+            D3D_FEATURE_LEVEL got;
+            if (SUCCEEDED(D3D11CreateDeviceAndSwapChain(nullptr, drv, nullptr, 0, levels, 2, D3D11_SDK_VERSION, &sd, &g_swap, &g_dev, &got, &g_ctx))) {
+                create_rtv();
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void cleanup_device() {
@@ -136,6 +141,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             if (msg.message == WM_QUIT) done = true;
         }
         if (done) break;
+        if (IsIconic(hwnd) || g_occluded) {                // minimised or hidden: don't spin the CPU and GPU for nothing
+            Sleep(60);
+            g_occluded = false;
+            if (IsIconic(hwnd)) continue;
+        }
         if (g_resize_w && g_resize_h) {
             release_rtv();
             g_swap->ResizeBuffers(0, g_resize_w, g_resize_h, DXGI_FORMAT_UNKNOWN, 0);
@@ -160,7 +170,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         g_ctx->OMSetRenderTargets(1, &g_rtv, nullptr);
         g_ctx->ClearRenderTargetView(g_rtv, clear);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-        g_swap->Present(1, 0);                           // vsync: no tearing, steady frame pacing
+        g_occluded = (g_swap->Present(1, 0) == DXGI_STATUS_OCCLUDED);       // vsync: no tearing, steady frame pacing
     }
     return 0;
 }
