@@ -12,4 +12,4 @@ The installer is unsigned, so Windows will warn: choose **More info**, then **Ru
 
 - It has **not been used with a real PodMic on Windows**.
 - Buzzsprout upload and the in-app updater have only run against test servers.
-- Linux packages are in the [earlier release](https://github.com/thetylerwoodwardproject/podstudio/releases/tag/v2026.11.20-7).
+- Linux: the `.deb`, Flatpak and AppImage are in this release too.

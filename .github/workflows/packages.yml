@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   deb:
-    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
         with: {name: deb, path: "dist/podstudio_*"}
 
   flatpak:
-    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-49
@@ -45,7 +45,7 @@ jobs:
         with: {name: flatpak, path: PodStudio.flatpak}
 
   appimage:
-    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -207,12 +207,21 @@ jobs:
             shots/*.png
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]')
     needs: [deb, flatpak, appimage]
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: ver
+        run: |
+          v="$(python3 -c 'import re; print(re.search(r"__version__ = \"([^\"]+)\"", open("podstudio/__init__.py").read()).group(1))')"
+          r="$(cat packaging/revision 2>/dev/null || echo 1)"
+          echo "full=$v-$r" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: {path: artifacts, merge-multiple: true}
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.ver.outputs.full) }}
+          target_commitish: ${{ github.sha }}
           files: artifacts/*
