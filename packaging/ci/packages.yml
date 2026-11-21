@@ -1,4 +1,6 @@
-# UNVERIFIED: this workflow has never run (no GitHub credentials were available when it was written).
+# NOT ACTIVE: this lives in packaging/ci/ because the token used to push could not create workflow files.
+# To enable it:  mkdir -p .github/workflows && git mv packaging/ci/packages.yml .github/workflows/  (pushing it needs a token with the `workflow` scope).
+# UNVERIFIED: this workflow has never run.
 # Expect to fix small things on the first run. It builds every package format and attaches them to the release
 # when a tag like v2026.11.20-5 is pushed. The tag should be "v" plus the .deb's version (see HANDOFF.md).
 name: Build packages

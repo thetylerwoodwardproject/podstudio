@@ -8,7 +8,7 @@ PodStudio ships as a `.deb`, a Flatpak and an AppImage. This table is what was a
 | **Flatpak** | `flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-build packaging/flatpak/io.github.thetylerwoodwardproject.PodStudio.yml` | Built from scratch and installed from the single-file bundle. `podstudio --self-test` passes inside the sandbox. **Tested with a real PodMic inside the sandbox**: it found the control channel, audio input and ALSA gain control, read and decoded the on-board settings over HID, wrote gain and monitoring back unchanged, recorded a clean 3 s take, and the Mic tab showed live values. The host udev rule is still needed. | Verified |
 | **AppImage** | `./packaging/build-appimage.sh` (102 MB output) | The finished file passes `--self-test`, also inside a bare Freedesktop runtime that has no GTK or libadwaita (it uses its own bundled libraries). With a real PodMic, through its own bundled Python, it found the control channel, ALSA gain and audio input, read and wrote settings back unchanged, and recorded a clean take. Built on Ubuntu 24.04, so it needs a distribution that new or newer. | Verified |
 
-`.github/workflows/packages.yml` builds all three on a release tag. It has never run.
+`packaging/ci/packages.yml` is a GitHub Actions workflow that builds all three on a release tag. It is **not active** and has never run: to enable it, move it to `.github/workflows/` (pushing a workflow file needs a token with the `workflow` scope).
 
 ## Checking any install
 

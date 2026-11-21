@@ -67,8 +67,9 @@ the notes, download with progress, ask for your password, and offer **Restart no
   `./packaging/build-appimage.sh`, which pins `appimagetool` 1.9.1 by checksum. The finished file passes `--self-test`, passes
   inside a bare Freedesktop runtime that has no GTK or libadwaita, and worked against a real PodMic. It is assembled from
   Ubuntu 24.04 libraries, so it runs on that release and newer, not on older distributions.
-- **CI** (`.github/workflows/packages.yml`) builds all three on a tag. It has never run, and pushing a workflow file needs a
-  token with the `workflow` scope.
+- **CI** is written but **not active**: `packaging/ci/packages.yml`. It sits there because the token used to push lacked the
+  `workflow` scope. To enable it: `mkdir -p .github/workflows && git mv packaging/ci/packages.yml .github/workflows/`, then push
+  with a token that has `workflow`. It has never run, so expect small fixes on the first run.
 - To rebuild the Flatpak: `packaging/flatpak/gen-wheels.py --python 3.13 > packaging/flatpak/python-deps.json` re-pins its
   Python wheels (whole tree, with checksums), then see the command in `packaging/README.md`.
 - The in-app updater is switched off for Flatpak (its store updates it) and only offers a link on AppImage.
