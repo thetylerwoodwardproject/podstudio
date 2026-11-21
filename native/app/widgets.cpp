@@ -67,9 +67,9 @@ void meter_vertical(const char* id, const MeterState& m, float h, bool ruler_rig
         for (int db : marks) {
             float y = p.y + h - db_to_frac(float(db)) * h;
             char t[8]; std::snprintf(t, sizeof t, "%d", db);
-            ImVec2 ts = text_size(fonts.small, t);
+            ImVec2 ts = text_size(fonts.sm, t);
             float ty = std::max(p.y, std::min(p.y + h - ts.y, y - ts.y / 2));
-            text_at(dl, fonts.small, ImVec2(p.x + bar_w + px(8), ty), db == 0 ? hex(kText) : hex(kFaint), t);
+            text_at(dl, fonts.sm, ImVec2(p.x + bar_w + px(8), ty), db == 0 ? hex(kText) : hex(kFaint), t);
         }
     }
 }
@@ -239,12 +239,12 @@ bool pad_button(const char* id, ImVec2 size, const char* key, const char* label,
         text_at(dl, fonts.body, ImVec2(p.x + (size.x - ts.x) / 2, p.y + size.y / 2 - ts.y / 2 + px(8)), hex(kFaint), "Add a sound");
         return pressed;
     }
-    ImVec2 ms = text_size(fonts.small, mode_text);
-    text_at(dl, fonts.small, ImVec2(q.x - px(12) - ms.x, k0.y + (kh - ms.y) / 2), hex(kDim), mode_text);
+    ImVec2 ms = text_size(fonts.sm, mode_text);
+    text_at(dl, fonts.sm, ImVec2(q.x - px(12) - ms.x, k0.y + (kh - ms.y) / 2), hex(kDim), mode_text);
     if (ducks) {
         const char* d = "duck";
-        ImVec2 ds = text_size(fonts.small, d);
-        text_at(dl, fonts.small, ImVec2(q.x - px(12) - ds.x, k0.y + kh + px(4)), hex(kFaint), d);
+        ImVec2 ds = text_size(fonts.sm, d);
+        text_at(dl, fonts.sm, ImVec2(q.x - px(12) - ds.x, k0.y + kh + px(4)), hex(kFaint), d);
     }
     ImGui::PushClipRect(ImVec2(p.x + px(10), p.y), ImVec2(q.x - px(10), q.y), true);
     text_at(dl, fonts.semibold, ImVec2(p.x + px(12), q.y - px(14) - text_size(fonts.semibold, label).y), hex(kText), label);
@@ -265,7 +265,7 @@ bool card_begin(const char* id, ImVec2 size, const char* title, const char* subt
         ImGui::TextUnformatted(title);
         ImGui::PopFont();
         if (subtitle) {
-            ImGui::PushFont(fonts.small);
+            ImGui::PushFont(fonts.sm);
             ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
             ImGui::TextUnformatted(subtitle);
             ImGui::PopStyleColor();
@@ -283,7 +283,7 @@ void card_end() {
 }
 
 void label_dim(const char* text) {
-    ImGui::PushFont(fonts.small);
+    ImGui::PushFont(fonts.sm);
     ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
     ImGui::TextUnformatted(text);
     ImGui::PopStyleColor();
@@ -291,7 +291,7 @@ void label_dim(const char* text) {
 }
 
 void label_value(const char* label, const char* value, ImU32 value_color) {
-    ImGui::PushFont(fonts.small);
+    ImGui::PushFont(fonts.sm);
     ImGui::PushStyleColor(ImGuiCol_Text, hexv(kDim));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();

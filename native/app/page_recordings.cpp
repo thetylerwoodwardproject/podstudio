@@ -101,7 +101,7 @@ void App::page_recordings(ImVec2 avail) {
             ImGui::PushClipRect(p, ImVec2(p.x + w - px(8), p.y + h), true);
             ui::text_at(dl, fonts.semibold, ImVec2(p.x + px(12), p.y + px(9)), hex(kText), s.name.c_str());
             std::string sub = s.created + (s.duration > 0 ? "  -  " + ui::fmt_time(s.duration) : "");
-            ui::text_at(dl, fonts.small, ImVec2(p.x + px(12), p.y + px(31)), hex(kDim), sub.c_str());
+            ui::text_at(dl, fonts.sm, ImVec2(p.x + px(12), p.y + px(31)), hex(kDim), sub.c_str());
             ImGui::PopClipRect();
             if (s.has_master) dl->AddCircleFilled(ImVec2(p.x + w - px(14), p.y + px(16)), px(4), hex(kOk), 12);
             ImGui::PopID();

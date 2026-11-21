@@ -16,7 +16,7 @@ constexpr unsigned kAccent = 0xef4444, kOk = 0x22c55e, kWarn = 0xf59e0b;
 
 struct Fonts {
     ImFont* body = nullptr;       // 15 px
-    ImFont* small = nullptr;      // 12.5 px
+    ImFont* sm = nullptr;         // 12.5 px
     ImFont* semibold = nullptr;   // 15 px
     ImFont* title = nullptr;      // 22 px semibold
     ImFont* mono = nullptr;       // 14 px, tabular digits

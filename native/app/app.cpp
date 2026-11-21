@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include "denoise.h"
+#include "mp3.h"
 #include "platform.h"
 #include "theme.h"
 
@@ -49,6 +50,7 @@ App::~App() {
         if (have_proj_) { proj_.mic_duration = double(frames) / kRate; proj_.recording = false; std::string e; proj_.save(e); }
     }
     if (render_thread_.joinable()) render_thread_.join();
+    if (mp3_thread_.joinable()) mp3_thread_.join();
     if (peaks_thread_.joinable()) peaks_thread_.join();
     if (have_proj_) { script_save(); }
 }
@@ -293,6 +295,40 @@ void App::render_async() {
     });
 }
 
+void App::export_mp3_async() {
+    if (mp3_busy_ || rendering_) return;
+    if (mp3_thread_.joinable()) mp3_thread_.join();
+    if (!file_exists(proj_.master_path())) { toast("Render the master first."); return; }
+    if (!mp3::available()) { toast("MP3 export isn't available in this build."); return; }
+    mp3_busy_ = true; mp3_done_ = false;
+    const Project snap = proj_;
+    mp3_thread_ = std::thread([this, snap] {
+        std::string err;
+        Audio master;
+        double lufs = 0, tp = 0; bool retried = false;
+        if (read_stereo(snap.master_path(), master, err)) {
+            // Lossy encoding can push true peaks up a little: check the decoded file and, if it lands above the ceiling,
+            // re-limit the master with extra headroom and encode once more.
+            for (int attempt = 0; attempt < 2 && err.empty(); attempt++) {
+                const std::string part = snap.mp3_path() + ".part";
+                err = mp3::encode(master, part, 128);
+                if (!err.empty()) break;
+                std::error_code ec; fs::remove(snap.mp3_path(), ec); fs::rename(part, snap.mp3_path(), ec);
+                Audio dec;
+                if (!decode_file(snap.mp3_path(), dec, err)) break;
+                tp = true_peak_db(dec);
+                auto l = integrated_loudness(dec);
+                lufs = l ? *l : 0.0;
+                if (tp <= kTrueCeilingDb + 0.05 || attempt == 1) break;
+                retried = true;
+                limit(master, kTrueCeilingDb - (tp - kTrueCeilingDb) - 0.2);
+            }
+        }
+        { std::lock_guard<std::mutex> l(mp3_mu_); mp3_error_ = err; mp3_lufs_ = lufs; mp3_tp_ = tp; mp3_retried_ = retried; }
+        mp3_busy_ = false; mp3_done_ = true;
+    });
+}
+
 // ------------------------------------------------------------------------------------------------ frame
 
 
@@ -326,6 +362,14 @@ void App::frame(float dt, ImVec2 display) {
             toast(b);
             peaks_for_.clear();
         }
+    }
+    if (!mp3_busy_ && mp3_done_) {
+        mp3_done_ = false;
+        if (mp3_thread_.joinable()) mp3_thread_.join();
+        std::lock_guard<std::mutex> l(mp3_mu_);
+        if (!mp3_error_.empty()) toast("MP3 export failed: " + mp3_error_);
+        else { char b[96]; std::snprintf(b, sizeof b, "MP3 ready: %.1f LUFS, %.1f dBTP", mp3_lufs_, mp3_tp_); toast(b); }
+        mp3_done_shown_ = true;
     }
     // meters
     if (engine_.input_open()) {
@@ -445,7 +489,7 @@ void App::session_popup() {
             dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), hex(cur ? kMuted : ImGui::IsItemHovered() ? kRaised : kBg), px(10));
             ui::text_at(dl, fonts.semibold, ImVec2(p.x + px(14), p.y + px(8)), hex(kText), s.name.c_str());
             std::string sub = s.created + (s.duration > 0 ? "  -  " + ui::fmt_time(s.duration) : "") + (s.has_master ? "  -  mastered" : "");
-            ui::text_at(dl, fonts.small, ImVec2(p.x + px(14), p.y + px(29)), hex(kDim), sub.c_str());
+            ui::text_at(dl, fonts.sm, ImVec2(p.x + px(14), p.y + px(29)), hex(kDim), sub.c_str());
             ImGui::PopID();
         }
         if (sessions_.empty()) ui::label_dim("No sessions yet.");

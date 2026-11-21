@@ -30,7 +30,7 @@ void setup(float s) {
         return io.Fonts->AddFontFromMemoryCompressedBase85TTF(b85, size * s, &cfg, ranges);
     };
     fonts.body = add(inter_regular_compressed_data_base85, 15.0f);
-    fonts.small = add(inter_regular_compressed_data_base85, 12.5f);
+    fonts.sm = add(inter_regular_compressed_data_base85, 12.5f);
     fonts.semibold = add(inter_semibold_compressed_data_base85, 15.0f);
     fonts.title = add(inter_semibold_compressed_data_base85, 22.0f);
     fonts.mono = add(cousine_compressed_data_base85, 14.0f);

@@ -58,6 +58,7 @@ private:
     void handle_keys();
     // ---- render
     void render_async();
+    void export_mp3_async();
     // ---- ui
     void header(ImVec2 display);
     void page_session(ImVec2 avail);
@@ -111,6 +112,13 @@ public:
     std::string render_progress_;
     MasterResult render_result_;
     bool have_render_result_ = false, render_just_done_ = false;
+    std::thread mp3_thread_;
+    std::atomic<bool> mp3_busy_{false};
+    std::mutex mp3_mu_;
+    std::string mp3_error_;
+    double mp3_lufs_ = 0, mp3_tp_ = 0;
+    bool mp3_retried_ = false, mp3_done_shown_ = false;
+    std::atomic<bool> mp3_done_{false};
     std::string toast_msg_;
     double toast_until_ = 0;
 

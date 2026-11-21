@@ -87,3 +87,30 @@ put("sess_measured", res.measured_lufs); put("sess_final", res.final_lufs); put(
 put("sess_gain_db", res.gain_db); put("sess_limited", int(res.limited)); put("sess_ducked", int(res.ducked))
 (out / "expected.txt").write_text("\n".join(lines) + "\n")
 print("\n".join(lines[-6:]))
+
+# ---- PodMic protocol: every encoder and decoder, over a spread of values ----
+from podstudio import podmic as pm  # noqa: E402
+
+pl = []
+cases = {("comp", "threshold"): [-60, -45.5, -24.9, -14, -3, 0], ("comp", "ratio"): [1.5, 1.99, 3, 4.5],
+         ("comp", "attack"): [0.1, 0.69, 5, 30, 10], ("comp", "release"): [5, 20.9, 100, 200],
+         ("comp", "gain"): [0, 1.98, 4.5, 9], ("gate", "threshold"): [-60, -38, -20, -3],
+         ("gate", "attack"): [0.5, 5, 30, 100], ("gate", "hold"): [0.01, 0.305, 1.0], ("gate", "release"): [0.05, 0.2, 2.0],
+         ("gate", "range"): [-60, -9, -1], ("gate", "hysteresis"): [0, 20, 55, 100],
+         ("exciter", "harmonics"): [0, 69.8, 100], ("exciter", "tune"): [600, 3499, 5000],
+         ("bottom", "drive"): [0, 64.7, 100], ("bottom", "tune"): [60, 90, 312]}
+for (b, f), vals in cases.items():
+    for v in vals:
+        target, sub, enc = pm.ENCODERS[(b, f)]
+        payload = enc(float(v))
+        rep = pm.dsp_report(target, pm.OP_SET, sub, payload)
+        dec = pm.decode_field(b, f, payload)
+        pl.append(f"enc {b} {f} {float(v)!r} {rep.hex()} {payload.hex()} {dec!r}")
+for param, op, args in [(pm.P_HPF, pm.P_SET, (1,)), (pm.P_HPF, pm.P_GET, ()), (pm.P_MUTE, pm.P_SET, (0,)), (pm.P_MONITOR, pm.P_SET, (1,)),
+                        (pm.P_MONMIX, pm.P_SET, (91,)), (pm.P_SLIDER, pm.P_GET, (2,)), (pm.P_SLIDER, pm.P_SET, (1, 55)), (pm.P_ADVANCED, pm.P_SET, (1,))]:
+    pl.append(f"par {param} {op} {','.join(map(str, args)) or '-'} {pm.param_report(param, op, *args).hex()}")
+for d, s, p in [(0, 0, 0), (50, 50, 50), (100, 80, 25), (33.3, 66.6, 99)]:
+    for b, f, v in pm.basic_to_advanced(d, s, p):
+        pl.append(f"basic {d!r} {s!r} {p!r} {b} {f} {v!r}")
+(out / "podmic.txt").write_text("\n".join(pl) + "\n")
+print(len(pl), "podmic reference lines")

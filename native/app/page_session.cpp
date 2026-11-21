@@ -124,7 +124,7 @@ void App::page_session(ImVec2 avail) {
         const char* state = rec ? "RECORDING" : busy ? "RENDERING MASTER" : engine_.input_open() ? "READY" : "NO MIC";
         const unsigned sc = rec ? kAccent : busy ? kWarn : engine_.input_open() ? kOk : kFaint;
         dl->AddCircleFilled(ImVec2(p.x + px(5), p.y + px(10)), px(4.5f), hex(sc), 16);
-        ui::text_at(dl, fonts.small, ImVec2(p.x + px(16), p.y + px(3)), hex(sc), state);
+        ui::text_at(dl, fonts.sm, ImVec2(p.x + px(16), p.y + px(3)), hex(sc), state);
         double secs = rec ? engine_.rec_seconds() : (proj_.mic_duration > 0 ? proj_.mic_duration : 0.0);
         std::string t = ui::fmt_time(secs, true);
         ImVec2 ts = ui::text_size(fonts.mono_big, t.c_str());

@@ -60,6 +60,7 @@ jobs:
         with: {name: appimage, path: "dist/PodStudio-*.AppImage*"}
 
   windows:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')      # the Python/GTK build; the native job below runs on every push
     runs-on: windows-2022
     defaults:
       run:

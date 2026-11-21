@@ -17,7 +17,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(json imgui miniaudio)
 
 # ---- core: no operating-system code, tested on every platform
-add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp)
+add_library(pscore STATIC core/audio.cpp core/dsp.cpp core/project.cpp core/render.cpp core/podmic.cpp)
 target_link_libraries(pscore PUBLIC nlohmann_json::nlohmann_json)
 target_include_directories(pscore PUBLIC core)
 
@@ -36,11 +36,16 @@ if(PODSTUDIO_BUILD_APP)
 
   set(APP_SOURCES app/app.cpp app/engine.cpp app/theme.cpp app/widgets.cpp app/denoise.cpp
       app/page_session.cpp app/page_mix.cpp app/page_recordings.cpp app/page_script.cpp)
+  if(WIN32)
+    list(APPEND APP_SOURCES app/mp3_win32.cpp)
+  else()
+    list(APPEND APP_SOURCES app/mp3_stub.cpp)
+  endif()
 
   if(WIN32)
     add_executable(PodStudio WIN32 ${APP_SOURCES} app/platform_win32.cpp app/main_win32.cpp app/podstudio.rc
       ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
-    target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid)
+    target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid mfplat mfreadwrite mfuuid)
     if(MSVC)
       set_property(TARGET PodStudio PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")      # static CRT: one self-contained .exe
       target_compile_definitions(PodStudio PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX UNICODE _UNICODE)

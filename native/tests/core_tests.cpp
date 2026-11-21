@@ -11,6 +11,7 @@
 #include "../core/audio.h"
 #include "../core/dsp.h"
 #include "../core/render.h"
+#include "../core/podmic.h"
 
 using namespace ps;
 
@@ -131,6 +132,69 @@ int main(int argc, char** argv) {
         // and the project this app saves must load back in unchanged
         CHECK(p.save(e), "save: %s", e.c_str());
         Project again; CHECK(Project::load(p.root, again, e) && again.events.size() == 5 && again.pads.size() == 2, "round trip");
+    }
+
+    // --- PodMic protocol: same bytes as the Python implementation
+    {
+        auto hexs = [](const std::vector<uint8_t>& v) { static const char* h = "0123456789abcdef"; std::string o; for (uint8_t b : v) { o += h[b >> 4]; o += h[b & 15]; } return o; };
+        auto unhex = [](const std::string& s) { std::vector<uint8_t> o; for (size_t i = 0; i + 1 < s.size(); i += 2) o.push_back(uint8_t(std::stoi(s.substr(i, 2), nullptr, 16))); return o; };
+        std::ifstream in(dir + "/podmic.txt");
+        std::string line;
+        int enc = 0, par = 0, basic = 0, bad = 0;
+        while (std::getline(in, line)) {
+            std::istringstream ls(line);
+            std::string kind; ls >> kind;
+            if (kind == "enc") {
+                std::string b, f, rep_hex, pay_hex, dec; double v;
+                ls >> b >> f >> v >> rep_hex >> pay_hex >> dec;
+                int target, sub; std::vector<uint8_t> payload;
+                bool ok = podmic::encode_field(b, f, v, target, sub, payload);
+                std::string got = ok ? hexs(podmic::dsp_report(target, 0x02, sub, payload)) : "";
+                if (got != rep_hex) { bad++; std::printf("FAIL encode %s.%s(%g)\n  got  %s\n  want %s\n", b.c_str(), f.c_str(), v, got.c_str(), rep_hex.c_str()); }
+                auto d = podmic::decode_field(b, f, unhex(pay_hex));
+                double want_d = dec == "None" ? 0 : std::stod(dec);
+                double tol = std::max(0.011, std::fabs(want_d) * 0.002);
+                if (dec == "None" ? d.has_value() : (!d || std::fabs(*d - want_d) > tol)) { bad++; std::printf("FAIL decode %s.%s payload %s: got %g want %s\n", b.c_str(), f.c_str(), pay_hex.c_str(), d ? *d : -999, dec.c_str()); }
+                enc++;
+            } else if (kind == "par") {
+                int param, op; std::string args, rep_hex; ls >> param >> op >> args >> rep_hex;
+                std::vector<int> av;
+                if (args != "-") { std::istringstream as(args); std::string t; while (std::getline(as, t, ',')) av.push_back(std::stoi(t)); }
+                std::vector<uint8_t> got;
+                switch (av.size()) { case 0: got = podmic::param_report(param, op); break; case 1: got = podmic::param_report(param, op, {av[0]}); break; default: got = podmic::param_report(param, op, {av[0], av[1]}); }
+                if (hexs(got) != rep_hex) { bad++; std::printf("FAIL param report %d %d\n", param, op); }
+                par++;
+            } else if (kind == "basic") {
+                double d, s2, p; std::string b, f; double want;
+                ls >> d >> s2 >> p >> b >> f >> want;
+                bool found = false;
+                for (auto& w : podmic::basic_to_advanced(d, s2, p)) if (w.block == b && w.field == f) { found = true; if (std::fabs(w.value - want) > 1e-9) { bad++; std::printf("FAIL basic %s.%s\n", b.c_str(), f.c_str()); } }
+                if (!found) { bad++; std::printf("FAIL basic missing %s.%s\n", b.c_str(), f.c_str()); }
+                basic++;
+            }
+        }
+        checks++; if (bad) failures++;
+        std::printf("%s PodMic protocol: %d encoded fields, %d parameter reports, %d basic-mode writes compared with Python, %d mismatches\n", bad ? "FAIL" : "ok  ", enc, par, basic, bad);
+        CHECK(enc > 40 && par == 8 && basic == 24, "reference file looks short");
+
+        // request/reply through a fake transport
+        struct Fake : podmic::Transport {
+            std::vector<uint8_t> last; bool answer = true;
+            void drain() override {}
+            bool write(const uint8_t* d, size_t n) override { last.assign(d, d + n); return true; }
+            int read(uint8_t* buf, size_t, int) override {
+                if (!answer) return 0;
+                buf[0] = last[0] == 0x08 ? 0x07 : 0x03; buf[1] = 0; buf[2] = 'A'; buf[3] = 1; buf[4] = 77; return 5;
+            }
+        } fake;
+        podmic::Mic mic(&fake);
+        CHECK(mic.hpf() == true && mic.monitor_mix() == 1, "reply parsed");
+        mic.set_monitor_mix(250);
+        CHECK(fake.last[3] == 100, "monitor mix is clamped to 100");
+        fake.answer = false;
+        bool timed_out = false;
+        try { mic.xfer(podmic::param_report(podmic::P_HPF, 1), 30); } catch (const podmic::Error&) { timed_out = true; }
+        CHECK(timed_out, "no reply is a timeout, not a hang");
     }
 
     std::printf("\n%d checks, %d failed\n", checks, failures);

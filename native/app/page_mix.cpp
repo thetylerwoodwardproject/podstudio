@@ -80,7 +80,14 @@ void App::page_mix(ImVec2 avail) {
         if (!have_take) ImGui::EndDisabled();
         if (busy) ImGui::EndDisabled();
         ImGui::SameLine();
-        if (file_exists(proj_.master_path()) && ImGui::Button("Show files", ImVec2(0, px(40)))) platform::reveal(proj_.audio_dir());
+        const bool have_master = file_exists(proj_.master_path());
+        if (have_master) {
+            if (mp3_busy_) ImGui::BeginDisabled();
+            if (ImGui::Button(mp3_busy_ ? "Encoding MP3..." : "Export MP3", ImVec2(0, px(40)))) export_mp3_async();
+            if (mp3_busy_) ImGui::EndDisabled();
+            ImGui::SameLine();
+            if (ImGui::Button("Show files", ImVec2(0, px(40)))) platform::reveal(proj_.audio_dir());
+        }
         ImGui::Dummy(ImVec2(0, px(6)));
         if (busy) {
             std::string pr; { std::lock_guard<std::mutex> l(render_mu_); pr = render_progress_; }
@@ -117,6 +124,10 @@ void App::page_mix(ImVec2 avail) {
             ui::label_dim(flags.c_str());
             ImGui::PopStyleColor();
             for (auto& n : r.notes) ui::label_dim(n.c_str());
+            if (mp3_done_shown_ && file_exists(proj_.mp3_path())) {
+                char mb[96]; { std::lock_guard<std::mutex> l(mp3_mu_); std::snprintf(mb, sizeof mb, "MP3: %.1f LUFS, %.1f dBTP%s", mp3_lufs_, mp3_tp_, mp3_retried_ ? " (re-limited)" : ""); }
+                ui::label_dim(mb);
+            }
         } else if (file_exists(proj_.master_path())) {
             ui::label_dim("A master already exists for this take. Render again after changing any setting.");
         }
