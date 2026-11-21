@@ -8,7 +8,7 @@
 Record the mic, fire hotkey sounds from pads onto their own track, clean up the noise, and export a podcast-loudness master. Then send it to Buzzsprout as a private draft.
 
 ![Version](https://img.shields.io/badge/version-v2026.11.20-informational?style=flat-square)
-![Platform](https://img.shields.io/badge/platform-Linux-informational?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-informational?style=flat-square)
 ![GTK4 + libadwaita](https://img.shields.io/badge/GTK4-libadwaita-4a86cf?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
@@ -45,7 +45,15 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 
 ## Install
 
-PodStudio comes as a `.deb`, a Flatpak and an AppImage. See [packaging/README.md](packaging/README.md) for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
+PodStudio comes as a `.deb`, a Flatpak and an AppImage on Linux, and as an installer `.exe` on Windows. See [packaging/README.md](packaging/README.md) for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
+
+**Windows 10 / 11 (64-bit): the installer** (**new and not yet tested on Windows**, see [packaging/windows/README.md](packaging/windows/README.md))
+
+Download `PodStudio-<version>-x64-setup.exe` from the release page and run it. It installs for your user (no administrator prompt).
+The installer isn't code-signed, so Windows SmartScreen will warn the first time: choose *More info*, then *Run anyway*, and check the
+download against the `.sha256` file if you want to be sure. A portable `.zip` is published too. To check an install:
+`"%LOCALAPPDATA%\Programs\PodStudio\bin\PodStudio-console.exe" --self-test`.
+Build it yourself with `packaging\windows\build-windows.ps1` (needs MSYS2 and Inno Setup).
 
 **Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb** (the most tested)
 
@@ -77,7 +85,7 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir
 ./install.sh --uninstall  # remove it again (do this after installing the .deb)
 ```
 
-Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** is the 20th of November 2026. A rebuilt package for the same date gets a revision (`2026.11.20-2`) so `apt` treats it as an upgrade.
+Sessions are saved in `~/Music/PodStudio/` (`Music\PodStudio` in your user folder on Windows). Versions are dates: **v2026.11.20** is the 20th of November 2026. A rebuilt package for the same date gets a revision (`2026.11.20-2`) so `apt` treats it as an upgrade.
 
 ## Using it
 

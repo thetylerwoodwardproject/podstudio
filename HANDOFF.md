@@ -57,7 +57,20 @@ the notes, download with progress, ask for your password, and offer **Restart no
    For a second build on the same date, keep the date and raise `packaging/revision` instead.
 2. `.venv/bin/python -m pytest` must pass, then `./packaging/build-deb.sh`, then commit, tag, push and `gh release create` as above.
 
-## Packaging: three formats (see `packaging/README.md`)
+## Windows (added after v2026.11.20; read `packaging/windows/README.md`)
+
+- Code is written: WASAPI audio, hidapi for the mic's HID channel, endpoint-volume gain, Credential Manager, a Windows
+  updater path, a launcher `.exe`, an MSYS2 bundler, an Inno Setup installer, a CI job and a portable zip.
+- **None of it has run on Windows.** The first real build will need fixes (MSYS2 package names, a plugin or DLL the bundler
+  missed). Its own last step is `--self-test`, so a bundle that gets that far has all its parts.
+- Unknowns that only hardware settles: which HID interface the PodMic's control channel is on under Windows, and the dB range
+  Windows reports for its gain. Both are in the checklist in `packaging/windows/README.md`.
+- The installer is not code-signed (SmartScreen will warn). The DeepFilterNet Windows checksum in `fetch-deepfilter.sh` was taken
+  from the download itself, not from an upstream-published value.
+- A release must now publish the Windows installer and its `.sha256` under the same `v<version>` tag as the `.deb`
+  (the CI `release` job does this once the workflow is active).
+
+## Packaging: Linux formats (see `packaging/README.md`)
 
 - **.deb**: verified (full suite against the extracted package, installed and run on a real machine).
 - **Flatpak**: built and installed from the single-file bundle; `--self-test` passes inside the sandbox and the window

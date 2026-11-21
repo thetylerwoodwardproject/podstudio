@@ -1,4 +1,4 @@
-"""RØDE PodMic USB control over USB HID (hidraw) plus the ALSA mixer for gain.
+"""RØDE PodMic USB control over USB HID (hidraw on Linux, hidapi on Windows) plus the system mixer for gain.
 
 The wire protocol is documented by the podmicusb-doctor project (MIT, (c) 2026 rumkit):
 https://github.com/rumkit/podmicusb-doctor  (research/protocol/podmic-usb-hid-spec.md)
@@ -19,6 +19,8 @@ import subprocess
 import time
 from dataclasses import dataclass
 from importlib import resources
+
+from . import runtime
 
 VID, PID = 0x19F7, 0x004A
 
@@ -253,7 +255,23 @@ def _hidraw_by_ioctl() -> str | None:
     return None
 
 
-def find_hidraw() -> str | None:
+def hid_candidates() -> list:
+    """Windows: the PodMic's HID interfaces, most likely control channel first. A USB device can expose several
+    (volume buttons, vendor controls); the vendor-defined one is tried first and PodMic.open() checks which answers."""
+    from . import hidapi
+    try:
+        found = hidapi.enumerate_devices(VID, PID)
+    except hidapi.HidError:
+        return []
+    found.sort(key=lambda d: (d.usage_page < 0xFF00, d.interface, d.usage_page, d.usage))
+    return [d.path for d in found]
+
+
+def find_hidraw():
+    """Where the PodMic's control channel is: a /dev/hidraw node on Linux, a HID path on Windows. None if absent."""
+    if runtime.IS_WINDOWS:
+        paths = hid_candidates()
+        return paths[0] if paths else None
     for node in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
         try:
             uevent = open(os.path.join(node, "device/uevent")).read()
@@ -283,6 +301,73 @@ def find_alsa_card() -> str | None:
     return None
 
 
+def find_gain_device() -> str | None:
+    """What the gain control is addressed by: an ALSA card index on Linux, the WASAPI endpoint id on Windows."""
+    if runtime.IS_WINDOWS:
+        from . import audio
+        return audio.find_podmic_source()
+    return find_alsa_card()
+
+
+class _Hidraw:
+    """Linux: the /dev/hidraw node, opened non-blocking."""
+
+    def __init__(self, path: str):
+        try:
+            self.fd: int | None = os.open(path, os.O_RDWR | os.O_NONBLOCK)
+        except PermissionError as e:
+            raise PodMicAccessDenied(path) from e
+        except OSError as e:
+            raise PodMicError(str(e)) from e
+
+    def drain(self):
+        while select.select([self.fd], [], [], 0)[0]:
+            try:
+                os.read(self.fd, 64)
+            except BlockingIOError:
+                break
+
+    def write(self, data: bytes):
+        os.write(self.fd, data)
+
+    def read(self, timeout: float) -> bytes | None:
+        if select.select([self.fd], [], [], timeout)[0]:
+            try:
+                return os.read(self.fd, 64)
+            except BlockingIOError:
+                return None
+        return None
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+
+class _Hidapi:
+    """Windows: a HID interface opened through hidapi."""
+
+    def __init__(self, path: bytes):
+        from . import hidapi
+        try:
+            self.dev = hidapi.Device(path)
+        except hidapi.HidError as e:
+            raise PodMicError(str(e)) from e
+
+    def drain(self):
+        while self.dev.read(0):
+            pass
+
+    def write(self, data: bytes):
+        self.dev.write(data)
+
+    def read(self, timeout: float) -> bytes | None:
+        return self.dev.read(int(timeout * 1000))
+
+    def close(self):
+        self.dev.close()
+
+
 @dataclass
 class Reply:
     status: str
@@ -290,9 +375,9 @@ class Reply:
 
 
 class PodMic:
-    def __init__(self, path: str | None = None):
+    def __init__(self, path=None):
         self.path = path or find_hidraw()
-        self.fd: int | None = None
+        self._io = None
 
     # -- connection
     @staticmethod
@@ -302,17 +387,30 @@ class PodMic:
     def open(self):
         if not self.path:
             raise PodMicError("PodMic USB not found")
-        try:
-            self.fd = os.open(self.path, os.O_RDWR | os.O_NONBLOCK)
-        except PermissionError as e:
-            raise PodMicAccessDenied(self.path) from e
-        except OSError as e:
-            raise PodMicError(str(e)) from e
+        if runtime.IS_WINDOWS:
+            self._open_windows()
+        else:
+            self._io = _Hidraw(self.path)
+
+    def _open_windows(self):
+        """Use the first HID interface that actually answers a PodMic request."""
+        rest = [p for p in hid_candidates() if p != self.path]
+        last: Exception = PodMicError("no PodMic HID interface answered")
+        for path in [self.path, *rest]:
+            try:
+                self._io = _Hidapi(path)
+                self.path = path
+                self._ok(self._xfer(param_report(P_HPF, P_GET)), "probe")
+                return
+            except PodMicError as e:
+                last = e
+                self.close()
+        raise PodMicError(str(last))
 
     def close(self):
-        if self.fd is not None:
-            os.close(self.fd)
-            self.fd = None
+        if self._io is not None:
+            self._io.close()
+            self._io = None
 
     def __enter__(self):
         self.open()
@@ -322,31 +420,26 @@ class PodMic:
         self.close()
 
     # -- transport
-    def _drain(self):
-        while select.select([self.fd], [], [], 0)[0]:
-            try:
-                os.read(self.fd, 64)
-            except BlockingIOError:
-                break
-
     def _xfer(self, report: bytes, timeout=1.0) -> Reply:
-        if self.fd is None:
+        if self._io is None:
             raise PodMicError("not open")
-        self._drain()
-        os.write(self.fd, report)
+        self._io.drain()
+        try:
+            self._io.write(report)
+        except OSError as e:
+            raise PodMicError(str(e)) from e
         want = REPLY[report[0]]
         deadline = time.monotonic() + timeout
         while True:
             left = deadline - time.monotonic()
             if left <= 0:
                 raise PodMicError("timeout waiting for reply")
-            if select.select([self.fd], [], [], left)[0]:
-                try:
-                    data = os.read(self.fd, 64)
-                except BlockingIOError:
-                    continue
-                if data and data[0] == want:
-                    return Reply(chr(data[2]) if len(data) > 2 else "?", bytes(data[3:]))
+            try:
+                data = self._io.read(left)
+            except OSError as e:
+                raise PodMicError(str(e)) from e
+            if data and data[0] == want:
+                return Reply(chr(data[2]) if len(data) > 2 else "?", bytes(data[3:]))
 
     def _ok(self, rep: Reply, what: str) -> Reply:
         if rep.status != "A":
@@ -439,10 +532,25 @@ class PodMic:
 # --------------------------------------------------------------------------- input gain (ALSA)
 
 
+def gain_supported() -> bool:
+    """Whether this machine can read and set the mic's input gain from here (always true on Linux)."""
+    if not runtime.IS_WINDOWS:
+        return True
+    try:
+        import comtypes  # noqa: F401
+        from pycaw.api.endpointvolume import IAudioEndpointVolume  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def get_gain_db(card: str | None = None) -> float | None:
-    card = card or find_alsa_card()
+    card = card or find_gain_device()
     if card is None:
         return None
+    if runtime.IS_WINDOWS:
+        from . import winaudio
+        return winaudio.get_capture_db(card)
     try:
         from . import alsa_gain
         db = alsa_gain.get_capture_db(int(card))
@@ -460,10 +568,13 @@ def get_gain_db(card: str | None = None) -> float | None:
 
 
 def set_gain_db(db: float, card: str | None = None) -> bool:
-    card = card or find_alsa_card()
+    card = card or find_gain_device()
     if card is None:
         return False
     db = _clamp(db, 22.0, 63.0)
+    if runtime.IS_WINDOWS:
+        from . import winaudio
+        return winaudio.set_capture_db(card, db)
     try:
         from . import alsa_gain
         if alsa_gain.set_capture_db(int(card), db):

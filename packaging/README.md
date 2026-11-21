@@ -1,14 +1,15 @@
 # Packaging
 
-PodStudio ships as a `.deb`, a Flatpak and an AppImage. This table is what was actually done to check each.
+PodStudio ships as a `.deb`, a Flatpak and an AppImage on Linux, and an installer `.exe` (plus a portable zip) on Windows. This table is what was actually done to check each.
 
 | Format | Build | How it was checked | Status |
 |---|---|---|---|
 | **.deb** | `./packaging/build-deb.sh` | Full test suite run against the extracted package under the library versions Ubuntu 24.04 supplies; installed and run on a real machine. | Verified |
 | **Flatpak** | `flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-build packaging/flatpak/io.github.thetylerwoodwardproject.PodStudio.yml` | Built from scratch and installed from the single-file bundle. `podstudio --self-test` passes inside the sandbox. **Tested with a real PodMic inside the sandbox**: it found the control channel, audio input and ALSA gain control, read and decoded the on-board settings over HID, wrote gain and monitoring back unchanged, recorded a clean 3 s take, and the Mic tab showed live values. The host udev rule is still needed. | Verified |
 | **AppImage** | `./packaging/build-appimage.sh` (102 MB output) | The finished file passes `--self-test`, also inside a bare Freedesktop runtime that has no GTK or libadwaita (it uses its own bundled libraries). With a real PodMic, through its own bundled Python, it found the control channel, ALSA gain and audio input, read and wrote settings back unchanged, and recorded a clean take. Built on Ubuntu 24.04, so it needs a distribution that new or newer. | Verified |
+| **Windows installer** | `packaging\windows\build-windows.ps1` (MSYS2 + Inno Setup), or the `windows` job in CI. See [windows/README.md](windows/README.md). | The platform-neutral logic is tested from Linux with fakes (`tests/test_windows.py`); the launcher compiles with mingw; GStreamer pipeline quoting was checked against real GStreamer. **Never built or run on Windows, never tried with a real PodMic there.** | **Unverified** |
 
-`packaging/ci/packages.yml` is a GitHub Actions workflow that builds all three on a release tag. It is **not active** and has never run: to enable it, move it to `.github/workflows/` (pushing a workflow file needs a token with the `workflow` scope).
+`packaging/ci/packages.yml` is a GitHub Actions workflow that builds all four on a release tag. It is **not active** and has never run: to enable it, move it to `.github/workflows/` (pushing a workflow file needs a token with the `workflow` scope).
 
 ## Checking any install
 
