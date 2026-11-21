@@ -44,7 +44,10 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 
 ## Install
 
-**Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb**
+PodStudio comes as a `.deb`, a Flatpak, an AppImage and a Snap. They are not equally proven, so see [packaging/README.md](packaging/README.md)
+for exactly what was tested. Whichever you use, run `podstudio --self-test` to check an install.
+
+**Debian / Ubuntu / Pop!_OS (24.04 or newer): the .deb** (the most tested)
 
 ```bash
 sudo apt install ./dist/podstudio_*_amd64.deb      # or ./podstudio_<version>_amd64.deb
@@ -52,6 +55,18 @@ sudo apt install ./dist/podstudio_*_amd64.deb      # or ./podstudio_<version>_am
 
 It pulls in its dependencies, bundles DeepFilterNet, and installs the udev rule so the mic controls work straight away.
 Build it yourself with `./packaging/build-deb.sh` (output in `dist/`).
+
+**Flatpak** (built and self-tested; the mic itself is untested in the sandbox)
+
+```bash
+flatpak run org.flatpak.Builder --user --install --force-clean build/flatpak-build packaging/flatpak/io.github.thetylerwoodwardproject.PodStudio.yml
+flatpak run io.github.thetylerwoodwardproject.PodStudio
+```
+
+**AppImage** (`./packaging/build-appimage.sh`) and **Snap** (`snapcraft`, recipe in `snap/`) are described in [packaging/README.md](packaging/README.md).
+
+For the Mic tab's on-board controls, the Flatpak, AppImage and Snap need the udev rule installed on the host (the app shows the
+command). Everything else works without it.
 
 **Per-user, no sudo**
 

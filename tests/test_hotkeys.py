@@ -241,3 +241,27 @@ def test_one_shots_are_journaled_without_an_end(rig):
     w, p, clock = rig("once")
     w.pad_press(0); w.pad_release(0)
     assert w._journal.lines == [("hit", 0, 0, False)]
+
+
+def test_launching_without_the_mic_says_so_and_disables_recording(monkeypatch):
+    """Regression: with no PodMic from the start, nothing 'changed', so the pill, state text and Record button were never set."""
+    from podstudio import audio, podmic
+    from podstudio.window import PodStudioWindow as W
+    monkeypatch.setattr(podmic.PodMic, "present", staticmethod(lambda: False))
+    monkeypatch.setattr(audio, "find_podmic_source", lambda: None)
+
+    class Label:
+        def __init__(self): self.text, self.classes = "", set()
+        def set_text(self, t): self.text = t
+        def add_css_class(self, c): self.classes.add(c)
+        def remove_css_class(self, c): self.classes.discard(c)
+    class Btn:
+        sensitive = True
+        def set_sensitive(self, v): self.sensitive = v
+    w = types.SimpleNamespace(source=None, engine=types.SimpleNamespace(recording=False, stop=lambda: None, start_meter=lambda s: None),
+                              source_label=Label(), mic_pill=Label(), state_label=Label(), rec_btn=Btn(),
+                              mic_strip=types.SimpleNamespace(set_level=lambda v: None), in_meter=types.SimpleNamespace(set_value=lambda v: None))
+    w._update_source_label = types.MethodType(W._update_source_label, w)
+    W._refresh_source(w)
+    assert w.mic_pill.text == "PodMic USB not connected" and "warn" in w.mic_pill.classes
+    assert w.state_label.text == "Plug in your PodMic USB" and w.rec_btn.sensitive is False

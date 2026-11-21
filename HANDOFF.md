@@ -1,12 +1,12 @@
 # PodStudio handoff
 
-State as of **v2026.11.20** (package revision 4). Read this first when picking the project back up.
+State as of **v2026.11.20** (package revision 5). Read this first when picking the project back up.
 
 ## Where things stand
 
 - Source is on GitHub: <https://github.com/thetylerwoodwardproject/podstudio> (`main`, tag `v2026.11.20`).
-- **No GitHub release has been published yet.** The built package is on this machine only:
-  `dist/podstudio_2026.11.20-4_amd64.deb` and `dist/podstudio_2026.11.20-4_amd64.deb.sha256`.
+- **No GitHub release has been published yet.** The built packages are on this machine only, in `dist/`:
+  `podstudio_2026.11.20-5_amd64.deb` (+ `.sha256`) and `PodStudio-2026.11.20.flatpak` (+ `.sha256`).
   Until a release exists, the in-app updater finds nothing, which is expected and silent.
 - The repo previously held a different project (a TypeScript web "Podstudio"). It was replaced on 2026-11-20.
   A full backup is in `~/Backups/` (`podstudio-previous-contents.git` mirror, the `.bundle`, and
@@ -57,6 +57,26 @@ the notes, download with progress, ask for your password, and offer **Restart no
    For a second build on the same date, keep the date and raise `packaging/revision` instead.
 2. `.venv/bin/python -m pytest` must pass, then `./packaging/build-deb.sh`, then commit, tag, push and `gh release create` as above.
 
+## Packaging: four formats, unequal proof (see `packaging/README.md`)
+
+- **.deb**: verified (full suite against the extracted package, installed and run on a real machine).
+- **Flatpak**: built and installed from the single-file bundle; `--self-test` passes inside the sandbox and the window
+  renders on GNOME 49. **Not tested with the PodMic plugged in**, so sandboxed USB/ALSA access is unproven.
+- **AppImage**: `packaging/build-appimage.sh` builds the app directory and runs its self-test, and the contents were verified
+  inside a bare Freedesktop runtime (no GTK/libadwaita) where they passed using the bundled libraries. **The final
+  `.AppImage` was not built here**: the last step downloads and runs `appimagetool`, which was blocked in the build session.
+  The script pins it to release 1.9.1 by checksum. Run `./packaging/build-appimage.sh` yourself, then
+  `./dist/PodStudio-*.AppImage --self-test`.
+- **Snap**: `snap/snapcraft.yaml` was written but never built (needs snapd plus LXD or Multipass and root). Expect to fix
+  the first build. Whether `raw-usb` reaches `/dev/hidraw` is a guess.
+- **CI** (`.github/workflows/packages.yml`) builds all four on a tag. It has never run, and pushing a workflow file needs a
+  token with the `workflow` scope.
+- To rebuild the Flatpak: `packaging/flatpak/gen-wheels.py --python 3.13 > packaging/flatpak/python-deps.json` re-pins its
+  Python wheels (whole tree, with checksums), then see the command in `packaging/README.md`.
+- The in-app updater is switched off for Flatpak and Snap (their stores update them) and only offers a link on AppImage.
+- Next time the PodMic is plugged in, run `--self-test` in each format and open the Mic tab in the Flatpak: that is the
+  one thing none of the sandboxed builds has been proven against.
+
 ## Known gaps (not bugs: things never exercised)
 
 - **Buzzsprout** has only run against a local mock server, never a live account. Do a first upload to a throwaway
@@ -81,8 +101,9 @@ the notes, download with progress, ask for your password, and offer **Restart no
 | `podstudio/denoise.py` | DeepFilterNet wrapper (uses the bundled `deep-filter` binary) |
 | `podstudio/buzzsprout.py`, `publish_ui.py` | Buzzsprout API client and the Publish tab |
 | `podstudio/recovery.py` | Crash recovery: hit journal, backup restore, rebuild |
+| `podstudio/runtime.py`, `alsa_gain.py`, `selftest.py` | Which package format is running; ALSA gain without `amixer`; `--self-test` |
 | `podstudio/updates.py`, `update_ui.py` | Update check, verified download, authorized install |
-| `packaging/` | `build-deb.sh`, `fetch-deepfilter.sh` (checksum-pinned), `revision` |
+| `packaging/` | `build-deb.sh`, `build-appimage.sh`, `flatpak/`, `appimage/`, `fetch-deepfilter.sh` (checksum-pinned), `revision`; `snap/` has the Snap recipe |
 | `tests/` | About 117 tests; GTK ones skip without a display |
 
 Run the app from source: `.venv/bin/python -m podstudio`. If a packaged copy is already open, add a second instance

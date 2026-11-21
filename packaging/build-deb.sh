@@ -120,8 +120,8 @@ Priority: optional
 Architecture: amd64
 Maintainer: $maint
 Installed-Size: $size_kb
-Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.5), gir1.2-gstreamer-1.0, gir1.2-secret-1, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, python3-numpy, python3-scipy, python3-soundfile, libsndfile1 (>= 1.1), alsa-utils, pulseaudio-utils
-Recommends: gnome-keyring | kwalletmanager
+Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.5), gir1.2-gstreamer-1.0, gir1.2-secret-1, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, python3-numpy, python3-scipy, python3-soundfile, libsndfile1 (>= 1.1), libasound2t64 | libasound2
+Recommends: pulseaudio-utils, alsa-utils, gnome-keyring | kwalletmanager
 Homepage: https://github.com/thetylerwoodwardproject/podstudio
 Description: Recording console for the RØDE PodMic USB
  Record the PodMic USB, fire hotkey sounds from pads onto their own track, and export a stereo

@@ -231,6 +231,28 @@ def decode_field(block: str, field: str, data: bytes) -> float | None:
 # --------------------------------------------------------------------------- device
 
 
+HIDIOCGRAWINFO = 0x80084803            # struct hidraw_devinfo { u32 bustype; s16 vendor; s16 product; }
+
+
+def _hidraw_by_ioctl() -> str | None:
+    """Ask each /dev/hidraw* node who it is. Needed in sandboxes where /sys/class/hidraw isn't visible."""
+    import fcntl
+    for node in sorted(glob.glob("/dev/hidraw*")):
+        try:
+            fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
+        except OSError:
+            continue
+        try:
+            _bus, vendor, product = struct.unpack("Ihh", fcntl.ioctl(fd, HIDIOCGRAWINFO, bytes(8)))
+            if (vendor & 0xFFFF, product & 0xFFFF) == (VID, PID):
+                return node
+        except OSError:
+            pass
+        finally:
+            os.close(fd)
+    return None
+
+
 def find_hidraw() -> str | None:
     for node in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
         try:
@@ -240,7 +262,7 @@ def find_hidraw() -> str | None:
         m = re.search(r"HID_ID=\w+:0*([0-9A-Fa-f]+):0*([0-9A-Fa-f]+)", uevent)
         if m and int(m.group(1), 16) == VID and int(m.group(2), 16) == PID:
             return "/dev/" + os.path.basename(node)
-    return None
+    return _hidraw_by_ioctl()
 
 
 def find_alsa_card() -> str | None:
@@ -422,6 +444,13 @@ def get_gain_db(card: str | None = None) -> float | None:
     if card is None:
         return None
     try:
+        from . import alsa_gain
+        db = alsa_gain.get_capture_db(int(card))
+        if db is not None:
+            return db
+    except (OSError, ValueError):
+        pass
+    try:                                                   # fall back to the amixer tool where it exists
         out = subprocess.run(["amixer", "-c", card, "sget", "Mic", "Capture"],
                              capture_output=True, text=True, timeout=3).stdout
     except (OSError, subprocess.SubprocessError):
@@ -435,6 +464,12 @@ def set_gain_db(db: float, card: str | None = None) -> bool:
     if card is None:
         return False
     db = _clamp(db, 22.0, 63.0)
+    try:
+        from . import alsa_gain
+        if alsa_gain.set_capture_db(int(card), db):
+            return True
+    except (OSError, ValueError):
+        pass
     try:
         r = subprocess.run(["amixer", "-c", card, "sset", "Mic", "Capture", f"{db:.1f}dB"],
                            capture_output=True, text=True, timeout=3)

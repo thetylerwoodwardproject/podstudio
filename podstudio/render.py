@@ -264,7 +264,7 @@ def export_mp3(project: Project, bitrate: int = 128) -> Mp3Result:
         part = project.mp3_path.with_name(project.mp3_path.name + ".part")
         audio.encode_mp3(work, part, title=project.name, bitrate=bitrate)
         os.replace(part, project.mp3_path)
-        decoded, sr = sf.read(str(project.mp3_path), dtype="float64", always_2d=True)
+        decoded, sr = audio.read_audio(project.mp3_path)
         tp = true_peak_db(decoded[:, :2])
         if tp <= TRUE_PEAK_LIMIT_DB + 0.05 or attempt == 1:
             break

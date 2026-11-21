@@ -12,7 +12,33 @@
   <releases>
     <release version="2026.11.20" date="2026-11-20"/>
   </releases>
+  <developer id="io.github.thetylerwoodwardproject">
+    <name>The Tyler Woodward Project</name>
+  </developer>
   <launchable type="desktop-id">io.github.thetylerwoodwardproject.PodStudio.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Faders, meters and hotkey pads</caption>
+      <image type="source">https://raw.githubusercontent.com/thetylerwoodwardproject/podstudio/main/docs/screenshots/session.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Waveform player with chapters</caption>
+      <image type="source">https://raw.githubusercontent.com/thetylerwoodwardproject/podstudio/main/docs/screenshots/recordings.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Master, noise reduction, ducking and the podcast standard</caption>
+      <image type="source">https://raw.githubusercontent.com/thetylerwoodwardproject/podstudio/main/docs/screenshots/mix.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Episode art and Buzzsprout upload</caption>
+      <image type="source">https://raw.githubusercontent.com/thetylerwoodwardproject/podstudio/main/docs/screenshots/publish.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>PodMic on-board processing</caption>
+      <image type="source">https://raw.githubusercontent.com/thetylerwoodwardproject/podstudio/main/docs/screenshots/mic.png</image>
+    </screenshot>
+  </screenshots>
   <url type="homepage">https://github.com/thetylerwoodwardproject/podstudio</url>
+  <url type="bugtracker">https://github.com/thetylerwoodwardproject/podstudio/issues</url>
   <content_rating type="oars-1.1"/>
 </component>

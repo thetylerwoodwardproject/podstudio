@@ -1,6 +1,7 @@
 """Application entry point."""
 from __future__ import annotations
 
+import os
 import sys
 from importlib import resources
 
@@ -18,7 +19,10 @@ APP_ID = "io.github.thetylerwoodwardproject.PodStudio"
 
 class PodStudioApp(Adw.Application):
     def __init__(self):
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+        flags = Gio.ApplicationFlags.DEFAULT_FLAGS
+        if os.environ.get("PODSTUDIO_NON_UNIQUE"):                  # run beside an already-open copy (testing)
+            flags |= Gio.ApplicationFlags.NON_UNIQUE
+        super().__init__(application_id=APP_ID, flags=flags)
         self.win = None
 
     def do_startup(self):

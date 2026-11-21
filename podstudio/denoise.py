@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from . import runtime
 from .project import SAMPLE_RATE, Project
 
 ATTEN_MIN, ATTEN_MAX, ATTEN_DEFAULT = 6.0, 40.0, 18.0     # dB of maximum noise attenuation
@@ -26,7 +27,8 @@ class DenoiseError(Exception):
 
 def find_binary() -> Path | None:
     """Bundled copy first (the .deb installs one), then a per-user copy, then $PATH."""
-    candidates = [os.environ.get("PODSTUDIO_DEEPFILTER", ""), "/usr/lib/podstudio/bin/deep-filter",
+    here = runtime.bundled("bin", "deep-filter")                # next to the app, in every packaged layout
+    candidates = [os.environ.get("PODSTUDIO_DEEPFILTER", ""), str(here or ""), "/usr/lib/podstudio/bin/deep-filter",
                   str(Path.home() / ".local/share/podstudio/bin/deep-filter"), shutil.which("deep-filter") or ""]
     for c in candidates:
         if c and os.access(c, os.X_OK) and Path(c).is_file():

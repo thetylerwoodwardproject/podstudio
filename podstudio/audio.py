@@ -18,6 +18,32 @@ Gst.init(None)
 PODMIC_VENDOR, PODMIC_PRODUCT = "0x19f7", "0x004a"
 
 
+def _gst_source_name(match) -> str | None:
+    """Find an input through GStreamer's own device list. Needs no host tools, so it also works in a sandbox.
+    `match(name, properties_text)` decides which device is wanted; returns the name pulsesrc should be given."""
+    mon = Gst.DeviceMonitor.new()
+    mon.add_filter("Audio/Source", None)
+    if not mon.start():
+        return None
+    try:
+        for dev in mon.get_devices():
+            props = dev.get_properties()
+            text = (props.to_string() if props is not None else "") + " " + (dev.get_display_name() or "")
+            if match(dev.get_display_name() or "", text.lower()):
+                el = dev.create_element(None)
+                if el is not None and el.find_property("device") is not None:
+                    name = el.get_property("device")
+                    if name and not str(name).endswith(".monitor"):
+                        return str(name)
+    finally:
+        mon.stop()
+    return None
+
+
+def _is_podmic(name: str, text: str) -> bool:
+    return "podmic" in text or ("0x19f7" in text and "0x004a" in text)
+
+
 def find_podmic_source() -> str | None:
     """PulseAudio/PipeWire source name of the RØDE PodMic USB, or None. PodStudio supports no other input."""
     import json
@@ -25,8 +51,8 @@ def find_podmic_source() -> str | None:
         out = subprocess.run(["pactl", "-f", "json", "list", "sources"],
                              capture_output=True, text=True, timeout=4).stdout
         items = json.loads(out)
-    except Exception:
-        return None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return _gst_source_name(_is_podmic)                    # no pactl here (Flatpak, Snap): ask GStreamer instead
     for s in items:
         name = s.get("name", "")
         if name.endswith(".monitor"):
@@ -409,11 +435,57 @@ class Player:
                 self.on_error(err.message)
 
 
+def read_audio(path: Path):
+    """Decode any audio file to (float64 array of shape (n, channels), sample rate).
+
+    libsndfile is tried first because it is quick for WAV. Some builds of it (the Flatpak runtime's) can't read MP3,
+    so anything it refuses is decoded with GStreamer instead."""
+    import tempfile
+    import numpy as np
+    import soundfile as sf
+    try:
+        data, sr = sf.read(str(path), dtype="float64", always_2d=True)
+        return data, sr
+    except Exception:
+        pass
+    with tempfile.TemporaryDirectory(prefix="podstudio-decode-") as td:
+        wav = Path(td) / "decoded.wav"
+        desc = (f'filesrc location="{path}" ! decodebin ! audioconvert ! audio/x-raw,format=F32LE,channels=2 ! '
+                f'wavenc ! filesink location="{wav}"')
+        pipe = Gst.parse_launch(desc)
+        pipe.set_state(Gst.State.PLAYING)
+        msg = pipe.get_bus().timed_pop_filtered(300 * Gst.SECOND, Gst.MessageType.EOS | Gst.MessageType.ERROR)
+        pipe.set_state(Gst.State.NULL)
+        if msg is None or msg.type == Gst.MessageType.ERROR:
+            raise RuntimeError(f"couldn't decode {Path(path).name}" + (f": {msg.parse_error()[0].message}" if msg else ""))
+        data, sr = sf.read(str(wav), dtype="float64", always_2d=True)
+    return np.asarray(data), sr
+
+
+def _peaks_from_array(data, bins: int):
+    import numpy as np
+    mono = data.mean(axis=1)
+    total = len(mono)
+    if total == 0:
+        return np.zeros((bins, 2))
+    hop = max(1, -(-total // bins))
+    n = -(-total // hop)
+    padded = np.pad(mono, (0, n * hop - total), mode="edge")
+    r = padded.reshape(n, hop)
+    peaks = np.stack([r.min(axis=1), r.max(axis=1)], axis=1)
+    if len(peaks) < bins:
+        peaks = np.concatenate([peaks, np.zeros((bins - len(peaks), 2))])
+    return peaks[:bins]
+
+
 def compute_peaks(path: Path, bins: int = 1600):
     """Waveform summary: (bins, 2) array of per-bin (min, max) in [-1, 1], mono-mixed. Constant memory."""
     import numpy as np
     import soundfile as sf
-    info = sf.info(str(path))
+    try:
+        info = sf.info(str(path))
+    except Exception:                                        # a format libsndfile here can't read (MP3 in a Flatpak)
+        return _peaks_from_array(read_audio(path)[0], bins)
     total = info.frames
     if total <= 0:
         return np.zeros((bins, 2))

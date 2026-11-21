@@ -16,7 +16,7 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
 from . import audio, denoise, podmic, render  # noqa: E402
-from . import recovery, updates  # noqa: E402
+from . import recovery, runtime, updates  # noqa: E402
 from .update_ui import UpdateDialog  # noqa: E402
 from .publish_ui import ArtCard, PublishPanel  # noqa: E402
 from .recordings_ui import RecordingsPage  # noqa: E402
@@ -547,10 +547,11 @@ class PodStudioWindow(Adw.ApplicationWindow):
         menu.append("New Session", "win.new")
         menu.append("Open Session…", "win.open")
         menu.append("Show Session Folder", "win.folder")
-        upd = Gio.Menu()
-        upd.append("Check for Updates…", "win.check-updates")
-        upd.append("Check automatically", "win.auto-updates")
-        menu.append_section(None, upd)
+        if runtime.updates_enabled():                       # Flatpak and Snap are updated by their own stores
+            upd = Gio.Menu()
+            upd.append("Check for Updates…", "win.check-updates")
+            upd.append("Check automatically", "win.auto-updates")
+            menu.append_section(None, upd)
         about = Gio.Menu()
         about.append("About PodStudio", "app.about")
         menu.append_section(None, about)
@@ -1210,12 +1211,14 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.save_cfg()
 
     def _auto_check_updates(self):
-        if self.cfg.get("auto_update_check", True) and updates.should_check(self.cfg.get("last_update_check", 0)):
+        if runtime.updates_enabled() and self.cfg.get("auto_update_check", True) and updates.should_check(self.cfg.get("last_update_check", 0)):
             self.check_updates(manual=False)
         return False
 
     def check_updates(self, manual: bool):
         """Look for a newer release off the UI thread. Automatic checks stay quiet unless there is something to say."""
+        if not runtime.updates_enabled():
+            return
         def work():
             try:
                 return updates.check(), None
@@ -1356,7 +1359,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
         """PodStudio only works with the RØDE PodMic USB: find it, follow it being plugged and unplugged."""
         present = podmic.PodMic.present()
         src = audio.find_podmic_source() if present else None
-        if src == self.source:
+        first = not getattr(self, "_source_checked", False)       # the very first look must always set the labels,
+        self._source_checked = True                               # even when "no mic" is also what we started with
+        if src == self.source and not first:
             return
         self.source = src
         self._update_source_label()

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Snap launcher: Python dependencies come from the staged apt packages inside the snap.
+export PYTHONPATH="$SNAP/usr/lib/podstudio:$SNAP/usr/lib/python3/dist-packages${PYTHONPATH:+:$PYTHONPATH}"
+export GI_TYPELIB_PATH="$SNAP/usr/lib/girepository-1.0:$SNAP/usr/lib/x86_64-linux-gnu/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$SNAP/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$SNAP/usr/lib/x86_64-linux-gnu/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner"
+exec python3 -m podstudio "$@"
