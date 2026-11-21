@@ -11,7 +11,7 @@ appdir="$here/build/AppDir"
 python3 "$here/packaging/appimage/bundle.py" "$appdir"
 
 echo "Checking the bundle before packing it..."
-PODSTUDIO_NON_UNIQUE=1 "$appdir/AppRun" --self-test
+( cd / && PODSTUDIO_NON_UNIQUE=1 "$appdir/AppRun" --self-test )       # not from the repo: python -m would import the source tree instead of the bundle
 
 # appimagetool, pinned to a release and its published checksum
 tool="$here/packaging/vendor/appimagetool-x86_64.AppImage"

@@ -12,4 +12,4 @@ The installer is unsigned, so Windows will warn: choose **More info**, then **Ru
 
 - It has **not been used with a real PodMic on Windows**.
 - Buzzsprout upload and the in-app updater have only run against test servers.
-- Linux: the `.deb`, Flatpak and AppImage are in this release too.
+- Linux: the `.deb` and AppImage are in this release too. The Flatpak isn't built yet.

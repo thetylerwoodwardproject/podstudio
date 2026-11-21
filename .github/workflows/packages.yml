@@ -25,6 +25,7 @@ jobs:
         with: {name: deb, path: "dist/podstudio_*"}
 
   flatpak:
+    continue-on-error: true      # the Flatpak build still fails to update its runtime in CI; it must not block the other packages
     if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-24.04
     container:
