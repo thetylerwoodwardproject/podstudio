@@ -195,3 +195,29 @@ button.flat { border-radius: 8px; }
 /* ---- update notice ---- */
 button.update-pill { background: alpha(@vd_ok, .10); color: @vd_ok; border: 1px solid alpha(@vd_ok, .4); border-radius: 99px; padding: 2px 12px; min-height: 0; font-size: 12px; font-weight: 600; box-shadow: none; }
 button.update-pill:hover { background: alpha(@vd_ok, .18); }
+
+/* ---- script tab ---- */
+.script-card { background: @vd_bg; border: 1px solid @vd_line; border-radius: 12px; }
+textview.script-view, textview.script-view text { background: transparent; color: @vd_text; }
+textview.script-view.scrolling { caret-color: transparent; }
+.script-hint { color: @vd_dim; font-size: 15px; line-height: 1.5; }
+.script-bar button.fmt-btn, .script-bar menubutton.fmt-menu > button {
+  background: transparent; color: @vd_text; border: 1px solid transparent; border-radius: 8px; box-shadow: none;
+  min-height: 0; min-width: 0; padding: 6px 9px; font-size: 13px; font-weight: 500;
+}
+.script-bar button.fmt-btn:hover, .script-bar menubutton.fmt-menu > button:hover { background: @vd_raised; }
+.script-bar button.fmt-btn:checked { background: @vd_muted; border-color: @vd_line; }
+.script-bar .linked > button.fmt-btn { border-radius: 0; border-color: @vd_line; }
+.script-bar .linked > button.fmt-btn:first-child { border-radius: 8px 0 0 8px; }
+.script-bar .linked > button.fmt-btn:last-child { border-radius: 0 8px 8px 0; }
+button.sw-btn { min-width: 26px; min-height: 26px; padding: 0; border-radius: 99px; border: 2px solid transparent; box-shadow: none; }
+button.sw-btn:hover { border-color: @vd_text; }
+.sw-hl-yellow { background: #fde047; } .sw-hl-green { background: #86efac; } .sw-hl-pink { background: #f9a8d4; }
+.sw-hl-blue { background: #93c5fd; }   .sw-hl-orange { background: #fdba74; }
+.sw-fg-red { background: #f87171; }    .sw-fg-amber { background: #fbbf24; } .sw-fg-green { background: #4ade80; }
+.sw-fg-blue { background: #60a5fa; }   .sw-fg-gray { background: #a1a1aa; }
+
+/* ---- shown over the Session page until the PodMic is connected ---- */
+.mic-gate { background: alpha(@vd_bg, .96); }
+.mic-gate-card { padding: 34px 44px; background: @vd_raised; border: 1px solid @vd_line; border-radius: 16px; min-width: 380px; }
+.mic-gate-icon { color: @vd_dim; margin-bottom: 4px; }

@@ -33,13 +33,14 @@ Record the mic, fire hotkey sounds from pads onto their own track, clean up the 
 | 🔖 **Chapters** | Press *Add chapter here* while you listen. Chapters are shown on the waveform and uploaded with the episode. |
 | 📂 **Separate stems** | Each session is a folder: `mic.wav`, `mic-clean.wav`, `hotkeys.wav` and `master.wav`. Hotkeys and mic are never baked together except in the master. |
 | 📏 **Podcast master** | Stereo, **−16 LUFS** integrated, **true peak ≤ −1 dBTP** (4× oversampled, so inter-sample overs are caught), with a pass/fail check on the Mix page. |
+| 📝 **Script tab** | A place for the script, notes or an outline, with formatting, auto-scroll like a teleprompter, copy and paste, and file import. Saved with the session. |
 | 💿 **MP3 export** | 128 kbps MP3 that decodes its own output to confirm it still meets the spec. |
 | 📡 **Buzzsprout** | Direct API upload as a **private draft**, with your own **episode art** and chapters. Publishing is a separate, confirmed step. |
 | 🔧 **Mic DSP** | Controls the PodMic's on-board processing (see below) without RØDE Central. |
 
 <div align="center">
 <img src="docs/screenshots/recordings.png" width="520" alt="Recordings tab: waveform player with hotkey markers and chapters"> <img src="docs/screenshots/mix.png" width="520" alt="Mix tab: master, noise reduction, ducking, podcast standard and export">
-<img src="docs/screenshots/publish.png" width="520" alt="Publish tab: episode art and the Buzzsprout form">
+<img src="docs/screenshots/publish.png" width="520" alt="Publish tab: episode art and the Buzzsprout form"> <img src="docs/screenshots/script.png" width="520" alt="Script tab: an outline with headings, bold, highlights and text colors, and the auto-scroll controls">
 </div>
 
 ## Install
@@ -88,6 +89,22 @@ Sessions are saved in `~/Music/PodStudio/`. Versions are dates: **v2026.11.20** 
 6. On the **Publish** tab, add cover art, then upload the draft to Buzzsprout.
 
 Keys work while PodStudio is focused. System-wide hotkeys aren't implemented yet (Wayland needs the GlobalShortcuts portal).
+
+## The Script tab
+
+A page for the script, notes or an outline. It saves with the session and the next take starts with a copy.
+
+- **Formatting:** bold, italic, underline, strike-through, five highlight colors, five text colors, and heading, subheading and small sizes. Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+Shift+X (strike-through) and Ctrl+Shift+H (highlight) work as you'd expect. Pick a format with nothing selected and it applies to what you type next. Typing at the end of bold text carries on in bold.
+- **Auto-scroll:** the Auto-scroll button (or **F8**) scrolls the script like a teleprompter. Speed runs from 1 to 10. While it runs, Space pauses, Up and Down change the speed, and Home goes back to the top. Tick **Start when I record** and it scrolls from the top when a take starts and stops when the take ends. The text size (A− and A+) and speed are remembered.
+- **Copy and paste:** the usual shortcuts, plus buttons. Copy takes the selection, or the whole script if nothing is selected. Pasted text comes in as plain text.
+- **Import and export:** import `.txt`, `.md` or Word `.docx` files, by the Import button or by dropping the file on the page. Markdown headings, bold, italic, underline, strike-through and `==highlight==` come across, and Word headings, runs and highlights too. If there's already text you're asked whether to replace it or add the new text to the end. Export writes Markdown (formatting kept, except colors, which Markdown has no form for) or plain text.
+- A script is stored as `script.json` in the session folder, with a `.bak` of the last good copy. Nothing is created until you actually type or import something.
+
+## Connecting the mic
+
+PodStudio only works with the RØDE PodMic USB. If it can't find the mic when it starts, the Session tab is covered by a "Connect your PodMic USB" screen and nothing on it can be used until the mic is plugged in. The screen clears by itself within a couple of seconds. It never covers a take that is already recording, and every other tab (Mic, Script, Mix, Recordings, Publish) works without the mic.
+
+<div align="center"><img src="docs/screenshots/connect-mic.png" width="520" alt="The Connect your PodMic USB screen over the Session tab"></div>
 
 ## Updates
 

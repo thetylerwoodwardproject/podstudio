@@ -98,11 +98,12 @@ the notes, download with progress, ask for your password, and offer **Restart no
 | `podstudio/podmic.py` | PodMic USB control over HID (protocol from rumkit/podmicusb-doctor) |
 | `podstudio/denoise.py` | DeepFilterNet wrapper (uses the bundled `deep-filter` binary) |
 | `podstudio/buzzsprout.py`, `publish_ui.py` | Buzzsprout API client and the Publish tab |
+| `podstudio/script_ui.py`, `scriptdoc.py` | The Script tab (formatting, auto-scroll, import and export) and its document format |
 | `podstudio/recovery.py` | Crash recovery: hit journal, backup restore, rebuild |
 | `podstudio/runtime.py`, `alsa_gain.py`, `selftest.py` | Which package format is running; ALSA gain without `amixer`; `--self-test` |
 | `podstudio/updates.py`, `update_ui.py` | Update check, verified download, authorized install |
 | `packaging/` | `build-deb.sh`, `build-appimage.sh`, `flatpak/`, `appimage/`, `fetch-deepfilter.sh` (checksum-pinned), `revision` |
-| `tests/` | About 117 tests; GTK ones skip without a display |
+| `tests/` | About 175 tests; GTK ones skip without a display |
 
 Run the app from source: `.venv/bin/python -m podstudio`. If a packaged copy is already open, add a second instance
 only via a script that sets `Gio.ApplicationFlags.NON_UNIQUE`, or it will hand off to the running one.

@@ -20,6 +20,7 @@ from . import recovery, runtime, updates  # noqa: E402
 from .update_ui import UpdateDialog  # noqa: E402
 from .publish_ui import ArtCard, PublishPanel  # noqa: E402
 from .recordings_ui import RecordingsPage  # noqa: E402
+from .script_ui import ScriptPage  # noqa: E402
 from .project import DEFAULT_ROOT, PAD_COLORS, Event, Project, list_sessions  # noqa: E402
 
 CONFIG = Path(GLib.get_user_config_dir()) / "podstudio" / "config.json"
@@ -513,6 +514,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
             if p.clip and (old.clips_dir / p.clip).exists():
                 shutil.copy2(old.clips_dir / p.clip, new.clips_dir / p.clip)
         new.save()
+        self.script.adopt(new.root)                   # the new take starts with the same script
         self.project = new
         self._remember()
 
@@ -576,6 +578,8 @@ class PodStudioWindow(Adw.ApplicationWindow):
 
         self.stack.add_titled_with_icon(self._session_page(), "session", "Session", "media-record-symbolic")
         self.stack.add_titled_with_icon(self._mic_page(), "mic", "Mic", "audio-input-microphone-symbolic")
+        self.script = ScriptPage(self)
+        self.stack.add_titled_with_icon(self.script, "script", "Script", "document-edit-symbolic")
         self.stack.add_titled_with_icon(self._mix_page(), "mix", "Mix", "multimedia-equalizer-symbolic")
         self.recordings = RecordingsPage(self)
         self.stack.add_titled_with_icon(self.recordings, "recordings", "Recordings", "folder-music-symbolic")
@@ -588,7 +592,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.set_content(self.toasts)
 
     TABS = (("session", "Session", "media-record-symbolic"), ("mic", "Mic", "audio-input-microphone-symbolic"),
-            ("mix", "Mix", "multimedia-equalizer-symbolic"), ("recordings", "Recordings", "folder-music-symbolic"),
+            ("script", "Script", "document-edit-symbolic"), ("mix", "Mix", "multimedia-equalizer-symbolic"), ("recordings", "Recordings", "folder-music-symbolic"),
             ("publish", "Publish", "mail-send-symbolic"))
 
     def _tab_bar(self):
@@ -682,7 +686,50 @@ class PodStudioWindow(Adw.ApplicationWindow):
                                "Hotkey hits are saved on their own track.", ["vd-sub"], xalign=0, wrap=True)
         right.append(self.hint)
         page.append(right)
-        return page
+        self._session_inner = page
+        self._gate = self._build_mic_gate()
+        shell = Gtk.Overlay()
+        shell.set_child(page)
+        shell.add_overlay(self._gate)
+        return shell
+
+    def _build_mic_gate(self) -> Gtk.Widget:
+        """Covers the Session page until the PodMic is connected. It swallows every click, and it goes away by itself."""
+        gate = Gtk.Box(hexpand=True, vexpand=True, halign=Gtk.Align.FILL, valign=Gtk.Align.FILL)
+        gate.add_css_class("mic-gate")
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, halign=Gtk.Align.CENTER,
+                       valign=Gtk.Align.CENTER, hexpand=True, vexpand=True)
+        card.add_css_class("mic-gate-card")
+        icon = Gtk.Image(icon_name="audio-input-microphone-symbolic", pixel_size=54, halign=Gtk.Align.CENTER)
+        icon.add_css_class("mic-gate-icon")
+        card.append(icon)
+        card.append(make_label("Connect your PodMic USB", ["vd-h1"]))
+        body = make_label("PodStudio works with the RØDE PodMic USB only. Plug it into a USB port and this "
+                          "screen clears by itself.", ["vd-sub"], wrap=True, max_width_chars=46)
+        body.set_justify(Gtk.Justification.CENTER)
+        card.append(body)
+        wait = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER, margin_top=6)
+        wait.append(Gtk.Spinner(spinning=True))
+        wait.append(make_label("Waiting for the PodMic…", ["vd-sub"]))
+        card.append(wait)
+        tip = make_label("Not showing up? Try another USB port or cable. The other tabs work without it.",
+                         ["vd-sub"], wrap=True, max_width_chars=50, margin_top=4)
+        tip.set_justify(Gtk.Justification.CENTER)
+        card.append(tip)
+        gate.append(card)
+        return gate
+
+    def _gated(self) -> bool:
+        gate = getattr(self, "_gate", None)
+        return gate is not None and gate.get_visible()
+
+    def _update_gate(self):
+        """Show the connect screen while there is no PodMic. A take that is already running is never covered."""
+        if not hasattr(self, "_gate"):
+            return
+        gated = not self.source and not self.engine.recording
+        self._gate.set_visible(gated)
+        self._session_inner.set_sensitive(not gated)
 
     def _fill_pads(self):
         while (c := self.grid.get_first_child()):
@@ -1398,6 +1445,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
                 self.mic_strip.set_level(-90.0)
                 self.in_meter.set_value(0)
         self.rec_btn.set_sensitive(bool(src) or self.engine.recording)
+        self._update_gate()
 
     def _update_source_label(self):
         ok = bool(self.source)
@@ -1493,6 +1541,9 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.state_label.set_text("Recording" if rec else "Ready")
         (self.state_label.add_css_class if rec else self.state_label.remove_css_class)("live")
         self.rec_btn.set_sensitive(bool(self.source) or rec)
+        self._update_gate()
+        if getattr(self, "script", None):
+            self.script.recording_changed(rec)
 
     def _after_stop(self):
         import soundfile as sf
@@ -1726,7 +1777,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         if self.stack.get_visible_child_name() == "recordings" and not isinstance(self.get_focus(), Gtk.Editable):
             if self.recordings.on_key(name):
                 return True
-        if isinstance(self.get_focus(), Gtk.Editable) or (self.stack.get_visible_child_name() != "session"):
+        if isinstance(self.get_focus(), Gtk.Editable) or (self.stack.get_visible_child_name() != "session") or self._gated():
             return False
         ch = chr(Gdk.keyval_to_unicode(keyval)).lower() if Gdk.keyval_to_unicode(keyval) else ""
         for i, p in enumerate(self.project.pads):
@@ -1849,6 +1900,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.publish._show_state()
         self._show_mix_stats()
         self.timecode.set_text(fmt_time(pr.mic_duration))
+        self.script.reload()
 
     def open_folder(self):
         if self.project.created:
@@ -1871,6 +1923,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.recordings.shutdown()
         if self.mic:
             self.mic.close()
+        self.script.flush()
         if self.project and self.project.created:
             self.project.save()
         return False

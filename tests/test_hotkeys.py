@@ -258,10 +258,82 @@ def test_launching_without_the_mic_says_so_and_disables_recording(monkeypatch):
     class Btn:
         sensitive = True
         def set_sensitive(self, v): self.sensitive = v
+    class Shown:
+        visible, sensitive = True, True
+        def set_visible(self, v): self.visible = v
+        def get_visible(self): return self.visible
+        def set_sensitive(self, v): self.sensitive = v
     w = types.SimpleNamespace(source=None, engine=types.SimpleNamespace(recording=False, stop=lambda: None, start_meter=lambda s: None),
                               source_label=Label(), mic_pill=Label(), state_label=Label(), rec_btn=Btn(),
-                              mic_strip=types.SimpleNamespace(set_level=lambda v: None), in_meter=types.SimpleNamespace(set_value=lambda v: None))
+                              mic_strip=types.SimpleNamespace(set_level=lambda v: None), in_meter=types.SimpleNamespace(set_value=lambda v: None),
+                              _gate=Shown(), _session_inner=Shown())
     w._update_source_label = types.MethodType(W._update_source_label, w)
+    w._update_gate = types.MethodType(W._update_gate, w)
     W._refresh_source(w)
     assert w.mic_pill.text == "PodMic USB not connected" and "warn" in w.mic_pill.classes
     assert w.state_label.text == "Plug in your PodMic USB" and w.rec_btn.sensitive is False
+    assert w._gate.visible is True and w._session_inner.sensitive is False        # the connect screen is up at launch
+
+
+def _gate_window(monkeypatch, mic_present):
+    from podstudio import audio, podmic
+    from podstudio.window import PodStudioWindow as W
+    monkeypatch.setattr(podmic.PodMic, "present", staticmethod(lambda: mic_present))
+    monkeypatch.setattr(audio, "find_podmic_source", lambda: "alsa_input.podmic" if mic_present else None)
+
+    class Label:
+        def set_text(self, t): pass
+        def add_css_class(self, c): pass
+        def remove_css_class(self, c): pass
+    class Shown:
+        visible, sensitive = True, True
+        def set_visible(self, v): self.visible = v
+        def get_visible(self): return self.visible
+        def set_sensitive(self, v): self.sensitive = v
+    w = types.SimpleNamespace(source=None, engine=types.SimpleNamespace(recording=False, stop=lambda: None, start_meter=lambda s: None),
+                              source_label=Label(), mic_pill=Label(), state_label=Label(), rec_btn=Shown(),
+                              mic_strip=types.SimpleNamespace(set_level=lambda v: None), in_meter=types.SimpleNamespace(set_value=lambda v: None),
+                              _gate=Shown(), _session_inner=Shown())
+    for name in ("_update_source_label", "_update_gate", "_refresh_source", "_gated"):
+        setattr(w, name, types.MethodType(getattr(W, name), w))
+    return W, w
+
+
+def test_the_connect_screen_clears_when_the_mic_is_plugged_in_and_returns_when_it_is_pulled(monkeypatch):
+    from podstudio import audio
+    W, w = _gate_window(monkeypatch, mic_present=False)
+    w._refresh_source()
+    assert w._gated()
+    monkeypatch.setattr(audio, "find_podmic_source", lambda: "alsa_input.podmic")
+    from podstudio import podmic
+    monkeypatch.setattr(podmic.PodMic, "present", staticmethod(lambda: True))
+    w._refresh_source()
+    assert not w._gated() and w._session_inner.sensitive is True
+    monkeypatch.setattr(audio, "find_podmic_source", lambda: None)
+    monkeypatch.setattr(podmic.PodMic, "present", staticmethod(lambda: False))
+    w._refresh_source()
+    assert w._gated()
+
+
+def test_the_connect_screen_never_covers_a_take_that_is_already_recording(monkeypatch):
+    W, w = _gate_window(monkeypatch, mic_present=False)
+    w.engine.recording = True                          # the mic dropped out mid-take: the take stays on screen
+    w._refresh_source()
+    assert not w._gated()
+    w.engine.recording = False
+    w._update_gate()
+    assert w._gated()
+
+
+def test_pad_keys_do_nothing_while_the_connect_screen_is_up(monkeypatch):
+    from gi.repository import Gdk
+    from podstudio.window import PodStudioWindow as W
+    pressed = []
+    gated = {"on": True}
+    w = types.SimpleNamespace(capture_for=None, stack=types.SimpleNamespace(get_visible_child_name=lambda: "session"),
+                              get_focus=lambda: None, recordings=types.SimpleNamespace(on_key=lambda n: False),
+                              project=types.SimpleNamespace(pads=[types.SimpleNamespace(key="a")]), _held=set(),
+                              pad_press=lambda i, from_key=False: pressed.append(i), _gated=lambda: gated["on"])
+    assert W._on_key(w, None, Gdk.KEY_a, 0, 0) is False and pressed == []
+    gated["on"] = False
+    assert W._on_key(w, None, Gdk.KEY_a, 0, 0) is True and pressed == [0]
