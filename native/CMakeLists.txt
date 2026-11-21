@@ -7,6 +7,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+if(MSVC)                                              # one static C runtime for everything: a single self-contained .exe
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 # Dependencies are pinned. Set FETCHCONTENT_SOURCE_DIR_<NAME> to use a local checkout instead of downloading.
@@ -47,7 +51,7 @@ if(PODSTUDIO_BUILD_APP)
       ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
     target_link_libraries(PodStudio PRIVATE d3d11 dxgi d3dcompiler dwmapi ole32 comdlg32 shell32 user32 gdi32 uuid mfplat mfreadwrite mfuuid setupapi hid)
     if(MSVC)
-      set_property(TARGET PodStudio PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")      # static CRT: one self-contained .exe
+      target_link_options(PodStudio PRIVATE /MANIFEST:NO)                              # the manifest is embedded by podstudio.rc
       target_compile_definitions(PodStudio PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX UNICODE _UNICODE)
       target_compile_options(PodStudio PRIVATE /utf-8 /W3)
     else()
