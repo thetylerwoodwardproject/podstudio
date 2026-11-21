@@ -260,6 +260,7 @@ window.podstudio headerbar { min-height: 64px; }
 .tab-bar .tab-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid transparent; color: @vd_dim; }
 .tab-bar .tab-btn:checked { background: #0f0f12; color: @vd_text; border-color: #3f3f46; box-shadow: none; }
 .pill { padding: 7px 14px; font-size: 12.5px; font-weight: 500; }
+.session-name { font-size: 13px; font-weight: 600; }
 .session-pill { background: #0f0f12; border: 1px solid @vd_line; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; }
 .session-pill:after { content: ""; }
 .vd-panel, .card-pad { background: #0c0c0f; border-radius: 12px; }
@@ -295,3 +296,10 @@ scale.fader slider, .ch-mic scale.fader slider, .ch-hk scale.fader slider, .ch-m
 .rec-btn { min-height: 38px; padding: 0 22px; }
 .tab-bar { min-height: 38px; padding: 0 3px; }
 .tab-bar .tab-btn { min-height: 30px; padding: 0 14px; }
+
+/* header: same sizes as the Windows app */
+.rec-btn { min-width: 124px; min-height: 38px; }
+.tab-bar .tab-btn { min-height: 32px; padding: 0 16px; font-size: 13px; }
+.tab-bar .tab-btn image { -gtk-icon-size: 22px; }
+.tab-bar .tab-btn:checked { color: #fafafa; }
+.pill, .session-pill { min-height: 38px; padding-top: 0; padding-bottom: 0; }

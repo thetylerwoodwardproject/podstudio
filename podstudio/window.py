@@ -452,7 +452,7 @@ def tab_icon(name: str) -> Gtk.Image:
     if path not in (theme.get_search_path() or []):
         theme.add_search_path(path)
     img = Gtk.Image.new_from_icon_name(f"ps-tab-{name}-symbolic")
-    img.set_pixel_size(18)
+    img.set_pixel_size(22)
     return img
 
 
@@ -592,8 +592,11 @@ class PodStudioWindow(Adw.ApplicationWindow):
         menu.append_section(None, about)
         mb = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
         header.pack_end(mb)
-        self.title_label = make_label(self.project.name or "New session", ["session-pill"], margin_end=8, ellipsize=Pango.EllipsizeMode.END, max_width_chars=22)
-        header.pack_end(self.title_label)
+        self.title_label = make_label(self.project.name or "New session", ["session-name"], ellipsize=Pango.EllipsizeMode.END, width_chars=16, max_width_chars=26)
+        session_box = Gtk.Box(spacing=10, margin_end=8, valign=Gtk.Align.CENTER, css_classes=["session-pill"])
+        session_box.append(self.title_label)
+        session_box.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
+        header.pack_end(session_box)
         header.pack_end(self.mic_pill)
         self.update_btn = Gtk.Button(label="Update available", visible=False, valign=Gtk.Align.CENTER,
                                      tooltip_text="A newer version of PodStudio is available")
