@@ -540,8 +540,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         header.pack_start(self.rec_btn)
 
         self.stack = Adw.ViewStack()
-        switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
-        header.set_title_widget(switcher)
+        header.set_title_widget(self._tab_bar())
 
         menu = Gio.Menu()
         menu.append("New Session", "win.new")
@@ -582,10 +581,36 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.stack.add_titled_with_icon(self.recordings, "recordings", "Recordings", "folder-music-symbolic")
         self.stack.add_titled_with_icon(self._publish_page(), "publish", "Publish", "mail-send-symbolic")
         self.stack.connect("notify::visible-child-name", self._on_tab)
+        self._sync_tab_bar()
         tv.add_top_bar(header)
         tv.set_content(self.stack)
         self.toasts.set_child(tv)
         self.set_content(self.toasts)
+
+    TABS = (("session", "Session", "media-record-symbolic"), ("mic", "Mic", "audio-input-microphone-symbolic"),
+            ("mix", "Mix", "multimedia-equalizer-symbolic"), ("recordings", "Recordings", "folder-music-symbolic"),
+            ("publish", "Publish", "mail-send-symbolic"))
+
+    def _tab_bar(self):
+        """Icon-only page switcher. The names live in tooltips and in the accessible labels."""
+        bar = Gtk.Box(css_classes=["tab-bar"], valign=Gtk.Align.CENTER)
+        self._tab_buttons, first = {}, None
+        for name, label, icon in self.TABS:
+            b = Gtk.ToggleButton(icon_name=icon, tooltip_text=label, css_classes=["tab-btn"])
+            b.update_property([Gtk.AccessibleProperty.LABEL], [label])
+            if first:
+                b.set_group(first)
+            first = first or b
+            b.connect("toggled", lambda btn, n=name: btn.get_active() and self.stack.set_visible_child_name(n))
+            self._tab_buttons[name] = b
+            bar.append(b)
+        self.stack.connect("notify::visible-child-name", self._sync_tab_bar)
+        return bar
+
+    def _sync_tab_bar(self, *_):
+        b = self._tab_buttons.get(self.stack.get_visible_child_name())
+        if b and not b.get_active():
+            b.set_active(True)
 
     # ---- Session page: fader bank on the left, display + pads on the right
     def _session_page(self) -> Gtk.Widget:
@@ -1778,7 +1803,7 @@ class PodStudioWindow(Adw.ApplicationWindow):
         self.pads[i].refresh()
 
     def _apply_pad_css(self):
-        css = "".join(f".pad-{i} {{ box-shadow: inset 0 3px 0 {p.color}; }}\n" for i, p in enumerate(self.project.pads))
+        css = "".join(f".pad-{i} .keycap {{ color: {p.color}; border-color: alpha({p.color}, .45); }}\n.pad-{i}.hit, .pad-{i}.playing {{ border-color: {p.color}; }}\n" for i, p in enumerate(self.project.pads))
         self._pad_css.load_from_string(css)
 
     # ------------------------------------------------------------------ sessions
