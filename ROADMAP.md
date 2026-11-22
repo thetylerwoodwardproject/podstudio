@@ -8,6 +8,14 @@ Rebuild the app for Macs with an M-series chip.
 - **New for Mac:** graphics (Metal), audio (CoreAudio), USB control of the mic (IOKit HID), token storage (Keychain), MP3 export, a signed and notarized `.dmg`.
 - **Testing:** on a real Mac with a PodMic USB.
 
+## Then: Linux (Debian and Ubuntu, `.deb` only)
+
+Bring the native app to Debian and Ubuntu, shipped as a `.deb` on Releases. No Flatpak or AppImage.
+
+- **Reuse:** `native/core/`, the interface and the audio engine (miniaudio runs on PipeWire, PulseAudio and ALSA).
+- **New for Linux:** an OpenGL window, USB control of the mic through hidraw (the `.deb` installs the udev rule so no `sudo` is needed), libcurl for web requests, libsecret for the Buzzsprout token, LAME for MP3 export.
+- **Updates:** the app tells you when a newer `.deb` is on Releases.
+
 ## Design
 
 - **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup ([design/mockup](design/mockup)). On hold until after the current work.
