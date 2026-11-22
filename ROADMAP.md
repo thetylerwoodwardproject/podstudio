@@ -8,14 +8,13 @@ Rebuild the app for Macs with an M-series chip.
 - **New for Mac:** graphics (Metal), audio (CoreAudio), USB control of the mic (IOKit HID), token storage (Keychain), MP3 export, a signed and notarized `.dmg`.
 - **Testing:** on a real Mac with a PodMic USB.
 
-## Then: Linux (Flatpak)
+## Then: Linux (Debian and Ubuntu, `.deb` only)
 
-Bring the native app to Linux as a Flatpak, so it runs on any distribution.
+Bring the native app to Debian and Ubuntu (and relatives such as Mint and Pop!_OS), shipped as a `.deb` on Releases. No Flatpak or AppImage.
 
 - **Reuse:** `native/core/`, the interface and the audio engine (miniaudio runs on PipeWire, PulseAudio and ALSA).
-- **New for Linux:** an OpenGL window, USB control of the mic through hidraw, libcurl for web requests, the Secret portal for the Buzzsprout token, LAME for MP3 export.
-- **Mic controls:** a Flatpak can't install the USB permission rule itself, so the app shows a one-time command to add it. Recording works without it; only the Mic tab's on-board controls need it.
-- **Distribution:** a `.flatpak` bundle on Releases first, then Flathub, which handles updates.
+- **New for Linux:** an OpenGL window, USB control of the mic through hidraw (the `.deb` installs the permission rule, so the Mic tab works with no extra step), libcurl for web requests, libsecret for the Buzzsprout token, LAME for MP3 export.
+- **Updates:** the app tells you when a newer `.deb` is on Releases.
 
 ## Design
 
