@@ -8,6 +8,10 @@ Rebuild the app for Macs with an M-series chip.
 - **New for Mac:** graphics (Metal), audio (CoreAudio), USB control of the mic (IOKit HID), token storage (Keychain), MP3 export, a signed and notarized `.dmg`.
 - **Testing:** on a real Mac with a PodMic USB.
 
+## Design
+
+- **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup. On hold until after the current work.
+
 ## Recording and publishing
 
 - **Old recordings:** open an earlier session, re-master it, and publish it to Buzzsprout.
