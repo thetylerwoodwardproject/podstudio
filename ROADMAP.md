@@ -10,7 +10,7 @@ Rebuild the app for Macs with an M-series chip.
 
 ## Design
 
-- **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup. On hold until after the current work.
+- **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup ([design/mockup](design/mockup)). On hold until after the current work.
 
 ## Recording and publishing
 
