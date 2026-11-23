@@ -1,10 +1,16 @@
 # Roadmap
 
-**Platforms:** Windows, macOS and Linux · **Language:** C++ · **Status:** Windows is released; macOS and Linux are next
+**Platforms:** Windows, macOS and Linux · **Language:** C++ · **Status:** Windows is released; the sidebar redesign is next, then macOS and Linux
 
 Screens for the redesign are in [mockup/](mockup/).
 
 ## Now
+
+### Sidebar redesign
+
+Move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup ([mockup](mockup/)). This comes first, so macOS and Linux are built on the new interface.
+
+## Next
 
 ### macOS (Apple silicon)
 
@@ -14,9 +20,7 @@ Rebuild the app for Macs with an M-series chip.
 - **New for Mac:** graphics (Metal), audio (CoreAudio), USB control of the mic (IOKit HID), token storage (Keychain), MP3 export, a signed and notarized `.dmg`.
 - **Testing:** on a real Mac with a PodMic USB.
 
-## Next
-
-### Linux (Debian and Ubuntu, `.deb` only)
+### Then Linux (Debian and Ubuntu, `.deb` only)
 
 Bring the native app to Debian and Ubuntu (and relatives such as Mint and Pop!_OS), shipped as a `.deb` on Releases. No Flatpak or AppImage.
 
@@ -28,7 +32,6 @@ Bring the native app to Debian and Ubuntu (and relatives such as Mint and Pop!_O
 
 ### Design
 
-- **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup ([mockup](mockup/)). On hold until after the current work.
 - **Advanced mic screen:** every setting the PodMic has, laid out as stages that switch on and off (high-pass, noise gate, compressor, Aural Exciter, Big Bottom). A tone curve drawn from the high-pass, Big Bottom and Exciter settings, and input/output curves for the compressor and gate. The mic doesn't report how much it is compressing or gating, so there are no reduction meters.
 
 ### Recording and publishing

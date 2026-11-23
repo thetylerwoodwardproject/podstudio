@@ -28,7 +28,7 @@ Record, add hotkey sounds, clean up the noise, export a podcast master, and send
 
 **[Get PodStudio from Releases](https://github.com/thetylerwoodwardproject/podstudio/releases)**
 
-Windows today: download the `setup.exe` and run it. If Windows warns that it's unsigned, choose *More info*, then *Run anyway*. macOS and Linux are next (see the roadmap).
+Windows today: download the `setup.exe` and run it. If Windows warns that it's unsigned, choose *More info*, then *Run anyway*. The sidebar redesign is next, then macOS and Linux (see the roadmap).
 
 <img src="docs/images/screenshot.png" width="640" alt="The current Windows app"><br><sub>The current Windows app, before the redesign.</sub>
 
@@ -59,9 +59,9 @@ Windows today: download the `setup.exe` and run it. If Windows warns that it's u
 
 | | |
 |---|---|
-| **Now** | **macOS** (Apple silicon): Metal, CoreAudio, IOKit, Keychain, a signed and notarized `.dmg`. |
-| **Next** | **Linux** as a `.deb` for Debian and Ubuntu (and Mint, Pop!_OS). |
-| **Later** | The sidebar redesign, an advanced mic screen, re-mastering old recordings, more podcast hosts (rss.com, transistor.fm), and a prompter that follows what you say. |
+| **Now** | The **sidebar redesign**: header tabs become a left sidebar (logo, Record button, sections, recent sessions, mic status), restyled to the shadcn/ui mockup. |
+| **Next** | **macOS** (Apple silicon): Metal, CoreAudio, IOKit, Keychain, a signed and notarized `.dmg`. Then **Linux** as a `.deb` for Debian and Ubuntu (and Mint, Pop!_OS). |
+| **Later** | An advanced mic screen, re-mastering old recordings, more podcast hosts (rss.com, transistor.fm), and a prompter that follows what you say. |
 
 Full roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
