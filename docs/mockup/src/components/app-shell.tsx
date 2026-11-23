@@ -22,6 +22,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { cn } from "@/lib/utils"
 
 export type NavItem = {
   id: string
@@ -33,7 +34,7 @@ export type NavGroup = { label: string; items: NavItem[] }
 
 export type AppShellProps = {
   /** Product name, a one-line context under it (host, project, session) and its icon. */
-  brand: { name: string; context: string; icon: LucideIcon }
+  brand: { name: string; context: string; icon: LucideIcon; /** Classes for the tile behind the icon, to give each app its own colour. */ tileClassName?: string }
   groups: NavGroup[]
   /** Current hash route, e.g. "stations" or "station/kut-hd". The first segment picks the active nav item. */
   route: string
@@ -71,7 +72,7 @@ export function AppShell(p: AppShellProps) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" tooltip={p.brand.name}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <div className={cn("flex aspect-square size-8 items-center justify-center rounded-lg", p.brand.tileClassName ?? "bg-sidebar-primary text-sidebar-primary-foreground")}>
                   <Brand className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">

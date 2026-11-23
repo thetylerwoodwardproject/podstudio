@@ -52,6 +52,7 @@ The project has the same shape in every repo, so a change to the frame can be co
 | `src/components/` | Shared pieces: `app-shell` (sidebar, header, breadcrumb), `page-header`, `stat-card`, `status-pill`, `level-meter`, `filter-chips`, `listen-bar`, `theme-toggle` |
 | `src/index.css` | shadcn zinc tokens (light and dark) plus `success` and `warning` |
 | `src/App.tsx` | Nav, sidebar status and routing for this product |
+| `src/brand.ts`, `public/icon.svg` | The app icon: the sidebar glyph and tile colour, and the full-colour favicon (also in `docs/images/`) |
 | `src/screens/` | One file per screen |
 | `src/data.ts` | Sample data (where the screens share any) |
 | `shots.json`, `scripts/screenshots.mjs` | Screenshot list and script |

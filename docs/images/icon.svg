@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="PodStudio">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2a2e"/><stop offset="1" stop-color="#0a0a0c"/></linearGradient></defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="253" height="253" rx="54.5" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="3"/>
+  <g transform="translate(44 44) scale(7)" fill="none" stroke="#fafafa" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="8.5" y="2" width="7" height="12" rx="3.5"/>
+    <path d="M5 11a7 7 0 0 0 14 0"/>
+    <path d="M12 18v3"/>
+    <path d="M8.5 21h7"/>
+    <path d="M10.6 9v2.2" stroke-width="1.2" stroke="#22c55e"/>
+    <path d="M12 6.2v5" stroke-width="1.2" stroke="#f59e0b"/>
+    <path d="M13.4 7.8v3.4" stroke-width="1.2" stroke="#3b82f6"/>
+    <circle cx="19.2" cy="4.2" r="1.7" stroke="#ef4444" fill="#ef4444"/>
+  </g>
+</svg>
