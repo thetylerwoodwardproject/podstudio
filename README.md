@@ -59,9 +59,9 @@ Windows today: download the `setup.exe` and run it. If Windows warns that it's u
 
 | | |
 |---|---|
-| **Now** | The **sidebar redesign**: header tabs become a left sidebar (logo, Record button, sections, recent sessions, mic status), restyled to the shadcn/ui mockup. |
+| **Now** | The **sidebar redesign**, restyled to the shadcn/ui mockup: a left sidebar (logo, Record button, sections, recent sessions, mic status), the **advanced mic screen**, and **re-mastering old recordings**. |
 | **Next** | **macOS** (Apple silicon): Metal, CoreAudio, IOKit, Keychain, a signed and notarized `.dmg`. Then **Linux** as a `.deb` for Debian and Ubuntu (and Mint, Pop!_OS). |
-| **Later** | An advanced mic screen, re-mastering old recordings, more podcast hosts (rss.com, transistor.fm), and a prompter that follows what you say. |
+| **Later** | A re-take tone marker, more podcast hosts (rss.com, transistor.fm), hotkeys beside the script, and a prompter that follows what you say. |
 
 Full roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
