@@ -4,6 +4,8 @@ A clickable mockup of the planned redesign: shadcn/ui components with a sidebar.
 
 ![Session](screenshots/session.png)
 
+![Mic, advanced](screenshots/mic.png)
+
 ![Mix](screenshots/mix.png)
 
 ## Run it
