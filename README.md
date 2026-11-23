@@ -2,10 +2,10 @@
 
 # PodStudio
 
-**A recording console for the RØDE PodMic USB, for Windows.**<br>
+**A recording console for the RØDE PodMic USB.** Windows today; macOS and Linux are next.<br>
 Record, add hotkey sounds, clean up the noise, export a podcast master, and send it to Buzzsprout.
 
-<img src="docs/screenshot.png" width="760" alt="PodStudio">
+<img src="docs/images/screenshot.png" width="760" alt="PodStudio">
 
 </div>
 
@@ -25,4 +25,4 @@ Download the `setup.exe` and run it. If Windows warns that it's unsigned, choose
 - Plays back with chapters, and uploads a private draft to Buzzsprout.
 - Controls the mic's on-board processing.
 
-See the [roadmap](ROADMAP.md). Building from source: [native/README.md](native/README.md). MIT licensed. Credits in [NOTICE](NOTICE).
+See the [roadmap](docs/ROADMAP.md) and the [design mockup](docs/mockup). Building from source: [native/README.md](native/README.md). MIT licensed. Credits in [NOTICE](NOTICE).
