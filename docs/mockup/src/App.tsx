@@ -1,7 +1,8 @@
 import * as React from "react"
-import { AudioLines, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 
 import { AppShell } from "@/components/app-shell"
+import { BrandIcon, brandTile } from "@/brand"
 import { Badge } from "@/components/ui/badge"
 import { SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { useHashRoute } from "@/lib/use-hash-route"
@@ -28,7 +29,7 @@ export default function App() {
   const page = route.split("/")[0] as Page
   return (
     <AppShell
-      brand={{ name: "PodStudio", context: "Episode 42: The Long Show", icon: AudioLines }}
+      brand={{ name: "PodStudio", context: "Episode 42: The Long Show", icon: BrandIcon, tileClassName: brandTile }}
       groups={[{ label: "Studio", items: NAV.map((n) => ({ ...n, badge: n.id === "recordings" ? 3 : undefined })) }]}
       route={route}
       onNavigate={navigate}

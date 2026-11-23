@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/icon.svg" width="96" height="96" alt="PodStudio icon">
+
 # PodStudio
 
 **A recording console for the RØDE PodMic USB.**<br>
