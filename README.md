@@ -44,16 +44,14 @@ Windows today: download the `setup.exe` and run it. If Windows warns that it's u
 
 <table>
   <tr>
-    <td width="30%"><img src="docs/mockup/screenshots/mic-dark.png" alt="Advanced mic screen with tone and dynamics curves"></td>
-    <td width="30%"><img src="docs/mockup/screenshots/mix-dark.png" alt="Mix screen"></td>
-    <td width="30%"><img src="docs/mockup/screenshots/session-light.png" alt="Session screen, light theme"></td>
-    <td width="10%"><img src="docs/mockup/screenshots/phone-session-dark.png" alt="Session on a phone"></td>
+    <td width="33%"><img src="docs/mockup/screenshots/mic-dark.png" alt="Advanced mic screen with tone and dynamics curves"></td>
+    <td width="33%"><img src="docs/mockup/screenshots/mix-dark.png" alt="Mix screen"></td>
+    <td width="33%"><img src="docs/mockup/screenshots/session-light.png" alt="Session screen, light theme"></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Mic</b></sub></td>
     <td align="center"><sub><b>Mix</b></sub></td>
     <td align="center"><sub><b>Session (light)</b></sub></td>
-    <td align="center"><sub><b>Phone</b></sub></td>
   </tr>
 </table>
 

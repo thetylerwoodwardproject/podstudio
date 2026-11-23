@@ -19,7 +19,7 @@ A clickable mockup built with [shadcn/ui](https://ui.shadcn.com) (zinc, Inter an
 | `#/script` | Script | Script and prompter |
 | `#/publish` | Publish | Episode details and Buzzsprout upload |
 
-Dark and light, with a System / Light / Dark switch. Below 768 px it switches to the phone layout, where the sidebar becomes a sheet; `phone-*.png` in `screenshots/` shows it.
+Dark and light, with a System / Light / Dark switch.
 
 ## Run it
 
