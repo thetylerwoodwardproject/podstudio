@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
+import { LevelMeter } from "@/components/level-meter"
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
@@ -161,10 +161,9 @@ export function MicPage() {
             ))}
             <span className="text-xs text-muted-foreground">Click a stage to turn it on or off.</span>
           </div>
-          <div className="grid items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+          <div className="grid items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
             <Label className="text-muted-foreground">Mic level</Label>
-            <Progress value={lv.mic * 100} />
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">{(-60 + lv.mic * 60).toFixed(1)} dBFS</span>
+            <LevelMeter db={lv.mic} peak={lv.peak.mic} />
           </div>
         </CardContent>
       </Card>

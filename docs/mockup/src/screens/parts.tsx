@@ -37,72 +37,32 @@ export const PADS = [
 ]
 
 /* ---------------------------------------------------------------- live demo levels */
-export function useLevels(active: boolean) {
-  const [t, setT] = React.useState(0)
+/** Live demo levels in dBFS, with a 2 s peak hold. Feed them to the shared `LevelMeter`. */
+export type Levels = { mic: number; hk: number; master: number; peak: { mic: number; hk: number; master: number } }
+
+export function useLevels(active: boolean): Levels {
+  const [lv, setLv] = React.useState<Levels>({ mic: -60, hk: -60, master: -60, peak: { mic: -60, hk: -60, master: -60 } })
+  const held = React.useRef<Record<"mic" | "hk" | "master", [number, number]>>({ mic: [-60, 0], hk: [-60, 0], master: [-60, 0] })
   React.useEffect(() => {
-    const id = setInterval(() => setT((v) => v + 1), 90)
+    let t = 0
+    const id = setInterval(() => {
+      t++
+      const voice = active ? 0.55 + 0.2 * Math.abs(Math.sin(t * 0.37)) * Math.abs(Math.sin(t * 0.11 + 1)) : 0.04
+      const hk = 0.25 + 0.15 * Math.abs(Math.sin(t * 0.21))
+      const next = { mic: voice, hk, master: Math.min(0.95, voice * 0.85 + hk * 0.25) }
+      const db = { mic: -60 + next.mic * 60, hk: -60 + next.hk * 60, master: -60 + next.master * 60 }
+      const peak = { mic: 0, hk: 0, master: 0 }
+      for (const k of ["mic", "hk", "master"] as const) {
+        const [v, at] = held.current[k]
+        held.current[k] = db[k] >= v || t - at > 22 ? [db[k], t] : [v, at]
+        peak[k] = held.current[k][0]
+      }
+      setLv({ ...db, peak })
+    }, 90)
     return () => clearInterval(id)
-  }, [])
-  const voice = active ? 0.55 + 0.2 * Math.abs(Math.sin(t * 0.37)) * Math.abs(Math.sin(t * 0.11 + 1)) : 0.04
-  const hk = 0.25 + 0.15 * Math.abs(Math.sin(t * 0.21))
-  return { mic: voice, hk, master: Math.min(0.95, voice * 0.85 + hk * 0.25) }
+  }, [active])
+  return lv
 }
-
-export function Meter({ value, target }: { value: number; target?: number }) {
-  const n = 30
-  return (
-    <div className="relative flex h-48 w-3 flex-col-reverse gap-[2px]">
-      {Array.from({ length: n }, (_, i) => {
-        const p = (i + 1) / n
-        const on = p <= value
-        return (
-          <div
-            key={i}
-            className={cn(
-              "flex-1 rounded-[1px] transition-colors duration-75",
-              !on && "bg-muted",
-              on && p <= 0.78 && "bg-emerald-500",
-              on && p > 0.78 && p <= 0.93 && "bg-amber-500",
-              on && p > 0.93 && "bg-red-500"
-            )}
-          />
-        )
-      })}
-      {target !== undefined && (
-        <div className="absolute -inset-x-1 h-0.5 bg-sky-400" style={{ bottom: `${target * 100}%` }} />
-      )}
-    </div>
-  )
-}
-
-export function Ruler() {
-  return (
-    <div className="flex h-48 flex-col justify-between text-right font-mono text-[10px] text-muted-foreground">
-      <span>0</span><span>-12</span><span>-24</span><span>-36</span><span>-48</span>
-    </div>
-  )
-}
-
-export function Strip({ name, dot, value, children, readout, caption }: {
-  name: string; dot: string; value: number; children?: React.ReactNode; readout: string; caption?: string
-}) {
-  return (
-    <div className="flex min-w-36 flex-col items-center gap-2">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <span className="size-2 rounded-full" style={{ background: dot }} />
-        {name}
-      </div>
-      <div className="font-mono text-xs text-muted-foreground">{readout}</div>
-      {caption && <div className="-mt-1 text-[11px] text-muted-foreground">{caption}</div>}
-      <div className="flex items-stretch gap-3 pt-1">
-        <Ruler />
-        <Meter value={value} target={name === "Master" ? 0.73 : undefined} />
-        {children}
-      </div>
-    </div>
-  )
-}
-
 
 export function RecordTimer({ recording }: { recording: boolean }) {
   const [ms, setMs] = React.useState(0)
