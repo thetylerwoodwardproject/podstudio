@@ -1,10 +1,20 @@
 # Roadmap
 
-**Platforms:** Windows, macOS and Linux · **Language:** C++ · **Status:** Windows is released; macOS and Linux are next
+**Platforms:** Windows, macOS and Linux · **Language:** C++ · **Status:** Windows is released; the sidebar redesign is next, then macOS and Linux
 
 Screens for the redesign are in [mockup/](mockup/).
 
 ## Now
+
+### Sidebar redesign
+
+Rebuild the interface to match the approved shadcn/ui mockup ([mockup](mockup/)). This comes first, so macOS and Linux are built on the new interface. It covers three things:
+
+- **Sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status).
+- **Advanced mic screen:** every setting the PodMic has, laid out as stages that switch on and off (high-pass, noise gate, compressor, Aural Exciter, Big Bottom). A tone curve drawn from the high-pass, Big Bottom and Exciter settings, and input/output curves for the compressor and gate. The mic doesn't report how much it is compressing or gating, so there are no reduction meters.
+- **Old recordings:** open an earlier session, re-master it, and publish it to Buzzsprout.
+
+## Next
 
 ### macOS (Apple silicon)
 
@@ -14,9 +24,7 @@ Rebuild the app for Macs with an M-series chip.
 - **New for Mac:** graphics (Metal), audio (CoreAudio), USB control of the mic (IOKit HID), token storage (Keychain), MP3 export, a signed and notarized `.dmg`.
 - **Testing:** on a real Mac with a PodMic USB.
 
-## Next
-
-### Linux (Debian and Ubuntu, `.deb` only)
+### Then Linux (Debian and Ubuntu, `.deb` only)
 
 Bring the native app to Debian and Ubuntu (and relatives such as Mint and Pop!_OS), shipped as a `.deb` on Releases. No Flatpak or AppImage.
 
@@ -26,14 +34,8 @@ Bring the native app to Debian and Ubuntu (and relatives such as Mint and Pop!_O
 
 ## Later
 
-### Design
-
-- **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup ([mockup](mockup/)). On hold until after the current work.
-- **Advanced mic screen:** every setting the PodMic has, laid out as stages that switch on and off (high-pass, noise gate, compressor, Aural Exciter, Big Bottom). A tone curve drawn from the high-pass, Big Bottom and Exciter settings, and input/output curves for the compressor and gate. The mic doesn't report how much it is compressing or gating, so there are no reduction meters.
-
 ### Recording and publishing
 
-- **Old recordings:** open an earlier session, re-master it, and publish it to Buzzsprout.
 - **Re-take tone:** add a 1 kHz tone to the recording as a marker for a re-take, so it's easy to find when editing.
 - **More podcast hosts:** publish to rss.com and transistor.fm as well as Buzzsprout.
 
