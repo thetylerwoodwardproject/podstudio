@@ -19,6 +19,7 @@ Bring the native app to Debian and Ubuntu (and relatives such as Mint and Pop!_O
 ## Design
 
 - **shadcn-style redesign with a sidebar:** move the header tabs into a left sidebar (logo, Record button, sections, recent sessions, mic status) and restyle the native app to match the approved shadcn/ui mockup ([design/mockup](design/mockup)). On hold until after the current work.
+- **Advanced mic screen:** every setting the PodMic has, laid out as stages that switch on and off (high-pass, noise gate, compressor, Aural Exciter, Big Bottom). A tone curve drawn from the high-pass, Big Bottom and Exciter settings, and input/output curves for the compressor and gate. The mic doesn't report how much it is compressing or gating, so there are no reduction meters.
 
 ## Recording and publishing
 
