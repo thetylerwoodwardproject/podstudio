@@ -9,7 +9,7 @@ DeepFilterNet (https://github.com/Rikorose/DeepFilterNet), MIT or Apache-2.0
 
 The Windows installer bundles the unmodified upstream `deep-filter` release binary for noise reduction.
 Licence texts: native/licenses/DeepFilterNet-LICENSE-MIT and DeepFilterNet-LICENSE-APACHE.
-Shadcn/ui (MIT) inspired the visual style; no code is used.
+shadcn/ui (MIT): the design mockup in docs/mockup uses its components. The native app uses none of that code; the mockup is the visual reference for it.
 
 ----------------------------------------------------------------------------
 podmicusb-doctor (https://github.com/rumkit/podmicusb-doctor)

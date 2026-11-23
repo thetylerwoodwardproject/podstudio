@@ -1,6 +1,42 @@
 [
-  { "file": "session-dark", "route": "session", "theme": "dark", "width": 1440, "height": 1000, "fullPage": false },
-  { "file": "session-light", "route": "session", "theme": "light", "width": 1440, "height": 1000, "fullPage": false },
-  { "file": "mic-dark", "route": "mic", "theme": "dark", "width": 1440, "height": 1800, "fullPage": false },
-  { "file": "mix-dark", "route": "mix", "theme": "dark", "width": 1440, "height": 1000, "fullPage": false }
+  {
+    "file": "session-dark",
+    "route": "session",
+    "theme": "dark",
+    "width": 1440,
+    "height": 1000,
+    "fullPage": false
+  },
+  {
+    "file": "session-light",
+    "route": "session",
+    "theme": "light",
+    "width": 1440,
+    "height": 1000,
+    "fullPage": false
+  },
+  {
+    "file": "mic-dark",
+    "route": "mic",
+    "theme": "dark",
+    "width": 1440,
+    "height": 1800,
+    "fullPage": false
+  },
+  {
+    "file": "mix-dark",
+    "route": "mix",
+    "theme": "dark",
+    "width": 1440,
+    "height": 1000,
+    "fullPage": false
+  },
+  {
+    "file": "phone-session-dark",
+    "route": "session",
+    "theme": "dark",
+    "width": 390,
+    "height": 844,
+    "fullPage": false
+  }
 ]

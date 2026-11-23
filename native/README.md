@@ -1,6 +1,6 @@
 # PodStudio (C++)
 
-A native C++17 app for Windows: one ~6 MB `PodStudio.exe` (15 MB installer).
+A native C++17 app. Windows is released (one ~6 MB `PodStudio.exe`, 15 MB installer); macOS and Linux are next, see the [roadmap](../docs/ROADMAP.md).
 
 | Folder | What |
 |---|---|
