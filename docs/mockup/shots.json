@@ -30,13 +30,5 @@
     "width": 1440,
     "height": 1000,
     "fullPage": false
-  },
-  {
-    "file": "phone-session-dark",
-    "route": "session",
-    "theme": "dark",
-    "width": 390,
-    "height": 844,
-    "fullPage": false
   }
 ]
